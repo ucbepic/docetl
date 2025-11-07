@@ -95,7 +95,8 @@ const DEFAULT_CONFIG: PipelineConfig = {
       operators: [
         {
           type: "llm-powerful",
-          label: "Extract 3 Factors",
+          label:
+            "Extract and summarize spans corresponding to each of 3 types of factors",
           width: 1.5,
           height: 1.0,
         },
@@ -509,32 +510,47 @@ export default function VisualizationBuilder(): JSX.Element {
         const isSmallBlock = heightPx < 40 || widthPx < 80;
 
         const fontSize = isTiny ? 7 : isSmallBlock ? 9 : 12;
-        const iconFontSize = isTiny ? 10 : isSmallBlock ? 14 : 18;
+        const iconSize = isTiny ? 8 : isSmallBlock ? 12 : 16;
 
-        // Use Unicode symbols for icons
-        const iconSymbol = isLLM ? "✨" : "⚙️";
         const centerX = x + widthPx / 2;
         const centerY = y + heightPx / 2;
 
         // Position icon and label
         const hasLabel = op.label && op.label.length > 0;
         const spacing = isTiny ? 2 : isSmallBlock ? 4 : 8;
-        const iconY = hasLabel && !isTiny ? centerY - spacing : centerY + 6;
+        const iconY =
+          hasLabel && !isTiny
+            ? centerY - spacing - iconSize / 2
+            : centerY - iconSize / 2;
         const labelY = hasLabel ? centerY + spacing + fontSize / 2 : centerY;
 
         let content = `\n    <rect x="${x}" y="${y}" width="${widthPx}" height="${heightPx}" fill="${color}" stroke="${borderColor}" stroke-width="2" rx="6"/>`;
 
+        // SVG icons as paths instead of Unicode
         if (!isTiny) {
-          content += `\n    <text x="${centerX}" y="${iconY}" text-anchor="middle" font-size="${iconFontSize}" fill="${textColor}" dominant-baseline="middle">${iconSymbol}</text>`;
+          const iconX = centerX - iconSize / 2;
+          const scale = iconSize / 24; // Lucide icons are 24x24 viewBox
+          if (isLLM) {
+            // Sparkles icon from Lucide
+            content += `\n    <g transform="translate(${iconX}, ${iconY}) scale(${scale})" fill="none" stroke="${textColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+            content += `\n      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>`;
+            content += `\n      <path d="M5 3v4"/>`;
+            content += `\n      <path d="M19 17v4"/>`;
+            content += `\n      <path d="M3 5h4"/>`;
+            content += `\n      <path d="M17 19h4"/>`;
+            content += `\n    </g>`;
+          } else {
+            // Settings icon from Lucide
+            content += `\n    <g transform="translate(${iconX}, ${iconY}) scale(${scale})" fill="none" stroke="${textColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+            content += `\n      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>`;
+            content += `\n      <circle cx="12" cy="12" r="3"/>`;
+            content += `\n    </g>`;
+          }
         }
 
         if (hasLabel && heightPx >= 12) {
-          const maxChars = Math.floor(widthPx / (fontSize * 0.5));
-          const label =
-            op.label.length > maxChars
-              ? op.label.substring(0, maxChars - 3) + "..."
-              : op.label;
-          content += `\n    <text x="${centerX}" y="${labelY}" text-anchor="middle" font-size="${fontSize}" fill="${textColor}" font-family="system-ui, -apple-system, sans-serif">${label}</text>`;
+          // Use full label text without truncation for SVG export
+          content += `\n    <text x="${centerX}" y="${labelY}" text-anchor="middle" font-size="${fontSize}" fill="${textColor}" font-family="system-ui, -apple-system, sans-serif">${op.label}</text>`;
         }
 
         return content;

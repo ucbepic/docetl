@@ -120,7 +120,7 @@ export const useRestorePipeline = ({
                     );
 
                   // If the operation type is 'reduce', ensure reduce_key is a list of strings
-                  if (type === "reduce" && op.reduce_key) {
+                  if ((type === "reduce" || type === "code_reduce") && op.reduce_key) {
                     stringifiedKwargs.reduce_key = Array.isArray(op.reduce_key)
                       ? op.reduce_key
                       : [op.reduce_key];
@@ -154,6 +154,22 @@ export const useRestorePipeline = ({
                         }
                       } catch (e) {
                         console.error("Error parsing stringified prompts:", e);
+                      }
+                    }
+                  }
+
+                  // If the operation type is 'split', preserve the method_kwargs object
+                  if (type === "split") {
+                    if (op.method_kwargs) {
+                      stringifiedKwargs.method_kwargs = op.method_kwargs;
+                    } else if (stringifiedKwargs.method_kwargs) {
+                      // Handle case where method_kwargs might have been stringified
+                      try {
+                        if (typeof stringifiedKwargs.method_kwargs === "string") {
+                          stringifiedKwargs.method_kwargs = JSON.parse(stringifiedKwargs.method_kwargs);
+                        }
+                      } catch (e) {
+                        console.error("Error parsing stringified method_kwargs:", e);
                       }
                     }
                   }

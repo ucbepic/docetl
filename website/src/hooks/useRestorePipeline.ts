@@ -158,6 +158,22 @@ export const useRestorePipeline = ({
                     }
                   }
 
+                  // If the operation type is 'split', preserve the method_kwargs object
+                  if (type === "split") {
+                    if (op.method_kwargs) {
+                      stringifiedKwargs.method_kwargs = op.method_kwargs;
+                    } else if (stringifiedKwargs.method_kwargs) {
+                      // Handle case where method_kwargs might have been stringified
+                      try {
+                        if (typeof stringifiedKwargs.method_kwargs === "string") {
+                          stringifiedKwargs.method_kwargs = JSON.parse(stringifiedKwargs.method_kwargs);
+                        }
+                      } catch (e) {
+                        console.error("Error parsing stringified method_kwargs:", e);
+                      }
+                    }
+                  }
+
                   return {
                     id: id || uuidv4(),
                     llmType:

@@ -1,6 +1,6 @@
 # Test Frontier Evaluation
 
-This script runs the Pareto frontier plans on test datasets to evaluate generalization performance.
+This script runs the Pareto frontier plans on test datasets to evaluate generalization performance and generates comparison matrices.
 
 ## How it works
 
@@ -10,7 +10,8 @@ This script runs the Pareto frontier plans on test datasets to evaluate generali
    - Use test data instead of train data (changes `/train/` to `/test/` in dataset path)
    - Save outputs to a `test_plans/` subdirectory
 4. Runs each pipeline and evaluates accuracy on test data
-5. Saves all results to `test_logs.json` in the `{dataset}_original` folder
+5. Saves all results to `test_frontier_summary.json` in the `{dataset}_original_final` folder
+6. Generates comparison matrices and plots
 
 ## Usage
 
@@ -34,6 +35,16 @@ modal run experiments/reasoning/run_test_frontier.py --dataset all
 modal run experiments/reasoning/run_test_frontier.py --dataset cuad --plot-only
 ```
 
+### Generate cost savings matrices only (without running evaluations)
+```bash
+modal run experiments/reasoning/run_test_frontier.py --dataset cuad --matrix-only
+```
+
+### Run top 2 accuracy tradeoff analysis for MCTS across all datasets
+```bash
+modal run experiments/reasoning/run_test_frontier.py --tradeoff
+```
+
 Note: Modal will automatically convert function parameters to command-line arguments.
 
 ## Available Options
@@ -50,20 +61,69 @@ Note: Modal will automatically convert function parameters to command-line argum
 
 **Methods:**
 - simple_baseline
-- baseline
 - mcts
 - all (runs all methods, default)
 
+**Flags:**
+- `--plot-only`: Only generate the test frontier plot without running evaluations
+- `--matrix-only`: Only generate cost savings matrices without running evaluations
+- `--tradeoff`: Run top 2 accuracy tradeoff analysis for MCTS across all datasets
+
 ## Output Structure
 
-Test results are integrated directly into the existing pareto frontier files:
-- `/mnt/docetl-ro-experiments/outputs/{dataset}_{method}/pareto_frontier_{dataset}.json` - Updated with test results
-- `/mnt/docetl-ro-experiments/outputs/{dataset}_{method}/test_plans/{method}/` - Directory containing test pipeline outputs for each method
-- `/mnt/docetl-ro-experiments/outputs/{dataset}_original/test_frontier_plot.png` - Scatter plot showing test cost vs accuracy for all methods
+Test results are saved in the following structure:
+
+### Test Results
+- `/mnt/docetl-ro-experiments/outputs/{dataset}_original_final/test_frontier_summary.json` - Summary of all test results
+- `/mnt/docetl-ro-experiments/outputs/{dataset}_{method}_final/pareto_frontier_{dataset}.json` - Updated with test results for each frontier point
+- `/mnt/docetl-ro-experiments/outputs/{dataset}_{method}_final/test_plans/{method}/` - Directory containing test pipeline outputs for each method
+
+### Plots
+- `/mnt/docetl-ro-experiments/outputs/{dataset}_original_final/test_frontier_plot.pdf` - Scatter plot showing test cost vs accuracy for all methods
+
+### Matrices
+- `/mnt/docetl-ro-experiments/outputs/{dataset}_original_final/best_cost_savings_matrix.json` - Best cost savings matrix (JSON format)
+- `/mnt/docetl-ro-experiments/outputs/{dataset}_original_final/avg_cost_savings_matrix.json` - Average cost savings matrix (JSON format)
 
 ## Results Format
 
+### Test Frontier Summary
+
+The `test_frontier_summary.json` file contains results for all methods:
+
+```json
+{
+  "dataset": "cuad",
+  "timestamp": "2024-01-20T10:30:00",
+  "methods_processed": ["original", "simple_baseline", "mcts"],
+  "successful_methods": ["original", "simple_baseline", "mcts"],
+  "failed_methods": [],
+  "results": {
+    "original": {
+      "success": true,
+      "cost": 0.25,
+      "accuracy": 0.85,
+      "accuracy_metric": "avg_f1"
+    },
+    "mcts": {
+      "success": true,
+      "results": [
+        {
+          "file": "cuad_modal_12",
+          "cost": 0.25,
+          "accuracy": 0.85,
+          "accuracy_metric": "avg_f1"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Pareto Frontier Files
+
 The pareto frontier JSON files are updated with test results for each frontier point:
+
 ```json
 {
   "frontier_points": [
@@ -76,16 +136,6 @@ The pareto frontier JSON files are updated with test results for each frontier p
       "test_cost": 0.25,
       "test_accuracy": 0.85,
       "test_accuracy_metric": "avg_f1"
-    },
-    {
-      "file": "cuad_modal_15.json",
-      "iteration": 15,
-      "cost": 0.30,
-      "accuracy": 0.91,
-      "accuracy_metric": "avg_f1",
-      "test_cost": 0.32,
-      "test_accuracy": 0.89,
-      "test_accuracy_metric": "avg_f1"
     }
   ],
   "test_evaluation": {
@@ -94,6 +144,24 @@ The pareto frontier JSON files are updated with test results for each frontier p
   }
 }
 ```
+
+## Cost Savings Matrices
+
+The script generates two types of cost savings matrices:
+
+### Best Cost Savings Matrix
+
+Shows how much cost method A (row header) saves for achieving or surpassing the highest accuracy of method B (column header). Each cell contains:
+- **absolute**: Absolute cost savings in dollars
+- **ratio**: Cost ratio (what fraction of method B's cost method A uses)
+
+### Average Cost Savings Matrix
+
+Shows the average cost savings when method A (row header) achieves the same or higher accuracy as each plan in method B (column header). Each cell contains:
+- **absolute**: Average absolute cost savings
+- **ratio**: Average cost ratio
+
+'n/a' indicates method A cannot achieve method B's accuracy; '-' indicates method B does not achieve the original accuracy. Both matrices are printed to console and saved as JSON files.
 
 ## Notes
 

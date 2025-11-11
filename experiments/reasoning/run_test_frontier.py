@@ -50,367 +50,13 @@ def accuracy_within_tolerance(acc1: float, acc2: float, tolerance_pct: float = 2
     return diff_pct < tolerance_pct
 
 
-def plot_matrix(matrix_data: Dict[str, Any], matrix_type: str, dataset: str, output_dir: Path):
-    """
-    Create a beautiful matrix visualization using the same styling as plot_matrix.py
-    
-    Args:
-        matrix_data: Dictionary containing matrix and method_info
-        matrix_type: Type of matrix ('best_cost_savings', 'avg_cost_savings', 'coverage')
-        dataset: Dataset name
-        output_dir: Output directory for saving the plot
-    """
-    matrix = matrix_data["matrix"]
-    methods = list(matrix.keys())
-    
-    if not methods:
-        print(f"No methods found for {matrix_type} matrix")
-        return
-    
-    # Create DataFrame
-    df = pd.DataFrame(matrix, index=methods, columns=methods)
-    
-    # Find ALL numeric values and calculate color intensity
-    numeric_positions = []
-    numeric_values = []
-    for i in range(len(methods)):
-        for j in range(len(methods)):
-            val = df.iloc[i, j]
-            if isinstance(val, dict) and 'absolute' in val:
-                # Use absolute value for color intensity
-                abs_val = val['absolute']
-                numeric_positions.append((i, j, abs_val))
-                numeric_values.append(abs(abs_val))
-            elif isinstance(val, (int, float)) and val != '--':
-                numeric_positions.append((i, j, val))
-                numeric_values.append(abs(val))
-    
-    # Calculate max absolute value for normalization
-    max_abs_value = max(numeric_values) if numeric_values else 1
-    
-    def get_color_intensity(value, max_val):
-        """Calculate color intensity with more vibrant gradient"""
-        intensity = abs(value) / max_val
-        # Use a moderate curve for balanced colors
-        intensity = intensity ** 0.6  # Moderate curve
-        # Allow more color intensity while keeping it elegant
-        return max(0.2, min(0.8, intensity))
-    
-    # Create visualization
-    fig, ax = plt.subplots(figsize=(12, 10))
-    
-    # More vibrant but still elegant color scheme
-    base_colors = {
-        'positive': np.array([74, 222, 128]) / 255,      # Fresh green
-        'negative': np.array([248, 113, 113]) / 255,    # Warm red
-        'diagonal': np.array([249, 250, 251]) / 255,    # Very light gray
-        'unable': np.array([243, 244, 246]) / 255,      # Light gray
-        'none': np.array([243, 244, 246]) / 255         # Light gray
-    }
-    
-    # Draw each cell individually
-    for i in range(len(methods)):
-        for j in range(len(methods)):
-            val = df.iloc[i, j]
-            
-            # Determine cell color and intensity
-            if isinstance(val, dict) and 'absolute' in val:
-                # Handle dictionary format with absolute, ratio, and savings percentage
-                abs_val = val['absolute']
-                ratio_val = val['ratio']
-                savings_pct_val = val['savings_pct']
-                intensity = get_color_intensity(abs_val, max_abs_value)
-                
-                if abs_val > 0:
-                    # Vibrant green gradient - we save money
-                    base_color = base_colors['positive']
-                    # Create more vibrant gradient
-                    color = base_color * (0.4 + 0.6 * intensity)
-                    # Add less white tint for more color
-                    color = color + (1 - color) * (1 - intensity) * 0.3
-                    text_color = 'black'  # Always black for better readability
-                elif abs_val < 0:
-                    # Vibrant red gradient - we cost more money
-                    base_color = base_colors['negative']
-                    # Create more vibrant gradient
-                    color = base_color * (0.4 + 0.6 * intensity)
-                    # Add less white tint for more color
-                    color = color + (1 - color) * (1 - intensity) * 0.3
-                    text_color = 'black'  # Always black for better readability
-                else:
-                    # Neutral color for zero savings
-                    color = base_colors['diagonal']
-                    text_color = 'gray'
-                text = f'{abs_val:.3f}\n({ratio_val:.3f}x, {savings_pct_val:.3f}%)'
-            elif isinstance(val, (int, float)):
-                intensity = get_color_intensity(val, max_abs_value)
-                
-                if val > 0:
-                    # Vibrant green gradient
-                    base_color = base_colors['positive']
-                    # Create more vibrant gradient
-                    color = base_color * (0.4 + 0.6 * intensity)
-                    # Add less white tint for more color
-                    color = color + (1 - color) * (1 - intensity) * 0.3
-                    text_color = 'black'  # Always black for better readability
-                else:
-                    # Vibrant red gradient
-                    base_color = base_colors['negative']
-                    # Create more vibrant gradient
-                    color = base_color * (0.4 + 0.6 * intensity)
-                    # Add less white tint for more color
-                    color = color + (1 - color) * (1 - intensity) * 0.3
-                    text_color = 'black'  # Always black for better readability
-                text = f'{val:.3f}'
-                
-            elif val == '--':
-                color = base_colors['diagonal']
-                text_color = 'gray'
-                text = '--'
-            elif val == 'n/a':
-                color = base_colors['unable']
-                text_color = 'gray'
-                text = 'n/a'
-            elif val == '—':
-                color = base_colors['none']
-                text_color = 'gray'
-                text = '—'
-            else:
-                color = 'white'
-                text_color = 'black'
-                text = str(val)
-            
-            # Draw rectangle with subtle border
-            rect = plt.Rectangle((j, i), 1, 1, facecolor=color, edgecolor='white', linewidth=1.5)
-            ax.add_patch(rect)
-            
-            # Add text with larger font
-            fontweight = 'bold' if isinstance(val, (int, float)) or (isinstance(val, dict) and 'absolute' in val) else 'normal'
-            fontsize = 18 if isinstance(val, (int, float)) or (isinstance(val, dict) and 'absolute' in val) else 16
-            ax.text(j + 0.5, i + 0.5, text, ha='center', va='center', 
-                    fontsize=fontsize, fontweight=fontweight, color=text_color)
-    
-    # Set up the plot
-    ax.set_xlim(0, len(methods))
-    ax.set_ylim(0, len(methods))
-    ax.set_aspect('equal')
-    
-    # Set ticks and labels with larger font
-    ax.set_xticks(np.arange(len(methods)) + 0.5)
-    ax.set_yticks(np.arange(len(methods)) + 0.5)
-    # Custom label mapping for methods
-    label_map = {
-        "original": "User-specified plan",
-        "PZ_direct": "PZ-d",
-        "PZ_retrieval": "PZ-r&r", 
-        "PZ": "PZ",
-        "lotus": "LOTUS",
-        "LOTUS_d": "LOTUS-d",
-        "LOTUS_r&r": "LOTUS-r&r",
-        "mcts": "MOAR",
-        "simple_baseline": "Simple agent"
-    }
-    
-    # Apply label mapping
-    x_labels = [label_map.get(method, method.replace("_", " ").title()) for method in methods]
-    y_labels = [label_map.get(method, method.replace("_", " ").title()) for method in methods]
-    
-    ax.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=28)
-    ax.set_yticklabels(y_labels, fontsize=28)
-    
-    # Invert y-axis to match matrix convention
-    ax.invert_yaxis()
-    
-    # Remove outer frame
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    
-    # Title with larger font
-    title_map = {
-        'best_cost_savings': 'Best Cost Savings Matrix',
-        'avg_cost_savings': 'Average Cost Savings Matrix', 
-        'coverage': 'Coverage Matrix'
-    }
-    # Map dataset names to proper titles
-    dataset_titles = {
-        'cuad': 'CUAD',
-        'game_reviews': 'Game Reviews', 
-        'blackvault': 'BlackVault',
-        'biodex': 'Biodex',
-        'medec': 'Medec',
-        'sustainability': 'Sustainability'
-    }
-    title = dataset_titles.get(dataset, dataset.upper())
-    
-    plt.title(title, 
-              fontsize=32, fontweight='bold', pad=30, color='#1f2937')
-    
-    plt.tight_layout()
-    
-    # Save the plot
-    plot_path = output_dir / f"{dataset}_{matrix_type}_matrix.pdf"
-    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    print(f"✅ Matrix plot saved: {plot_path}")
-    
-    # Summary statistics
-    if numeric_values:
-        numeric_vals = [val for i, j, val in numeric_positions]
-        print(f"   Max absolute value: {max(numeric_vals):.3f}")
-        print(f"   Min absolute value: {min(numeric_vals):.3f}")
-        print(f"   Mean absolute value: {np.mean(numeric_vals):.3f}")
-
 # Dataset configurations
 DATASETS = ["cuad", "blackvault", "game_reviews", "sustainability", "biodex", "medec", "facility"]
 METHODS = ["simple_baseline", "mcts"]
 
-def calculate_coverage_matrix(all_points: Dict[str, List[Dict[str, float]]]) -> Dict[str, Any]:
-    """
-    Calculate a matrix of coverage between all methods (excluding original).
-    Each cell (method A, method B) shows the fraction of plans in Method B that are 
-    completely dominated by plans in Method A (ignoring plans with acc <= original).
-    Complete domination means lower cost AND higher accuracy.
-    
-    Args:
-        all_points: Dictionary with method names as keys and lists of {cost, accuracy} dicts as values
-        
-    Returns:
-        Dictionary containing the coverage matrix
-    """
-
-    print("="*80)
-    print(f"Calculating coverage matrix for {all_points}")
-
-    # Get all methods excluding original and reorder them
-    available_methods = [m for m in all_points.keys() if m != "original" and all_points[m]]
-    
-    # Define the desired order: MCTS, simple_baseline, lotus, PZ variants (no original)
-    desired_order = ["mcts", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ"]
-    
-    # Reorder methods according to desired order
-    methods = []
-    for method in desired_order:
-        if method in available_methods:
-            methods.append(method)
-    
-    # Add any remaining methods that weren't in the desired order
-    for method in available_methods:
-        if method not in methods:
-            methods.append(method)
-    
-    if len(methods) < 2:
-        return {
-            "error": "Need at least 2 methods for matrix comparison"
-        }
-    
-    # Get original accuracy for reference
-    original_points = all_points.get("original", [])
-    original_best_accuracy = None
-    if original_points:
-        original_valid_points = [p for p in original_points if p["accuracy"] is not None]
-        if original_valid_points:
-            original_best_accuracy = max(point["accuracy"] for point in original_valid_points)
-    
-    # Initialize matrix
-    matrix = {}
-    method_info = {}
-    
-    # Calculate info for each method
-    for method in methods:
-        method_points = all_points[method]
-        valid_points = [p for p in method_points if p["accuracy"] is not None and p["cost"] is not None]
-        
-        if not valid_points:
-            method_info[method] = {
-                "valid_points": 0,
-                "points_above_original": 0
-            }
-            continue
-        
-        # Count points above original accuracy
-        points_above_original = 0
-        if original_best_accuracy is not None:
-            points_above_original = len([p for p in valid_points if p["accuracy"] > original_best_accuracy])
-        
-        method_info[method] = {
-            "valid_points": len(valid_points),
-            "points_above_original": points_above_original
-        }
-    
-    # Calculate matrix values
-    for method_a in methods:
-        matrix[method_a] = {}
-        
-        for method_b in methods:
-            if method_a == method_b:
-                matrix[method_a][method_b] = "--"  # Same method (diagonal)
-                continue
-            
-            # Get method B's points
-            method_b_points = all_points[method_b]
-            method_b_valid_points = [p for p in method_b_points if p["accuracy"] is not None and p["cost"] is not None]
-            
-            if not method_b_valid_points:
-                matrix[method_a][method_b] = "n/a"
-                continue
-            
-            # Filter method B points to only those above original accuracy
-            if original_best_accuracy is not None:
-                method_b_above_original = [p for p in method_b_valid_points if p["accuracy"] > original_best_accuracy]
-            else:
-                method_b_above_original = method_b_valid_points
-            
-            if not method_b_above_original:
-                matrix[method_a][method_b] = "—"  # No plans above original accuracy
-                continue
-            
-            # Get method A's points
-            method_a_points = all_points[method_a]
-            method_a_valid_points = [p for p in method_a_points if p["accuracy"] is not None and p["cost"] is not None]
-            
-            if not method_a_valid_points:
-                matrix[method_a][method_b] = "n/a"
-                continue
-            
-            # Calculate coverage: fraction of method B plans that are completely dominated by method A
-            dominated_count = 0
-            
-            for method_b_point in method_b_above_original:
-                method_b_cost = method_b_point["cost"]
-                method_b_accuracy = method_b_point["accuracy"]
-                
-                # Check if this method B point is completely dominated by any method A point
-                is_dominated = False
-                for method_a_point in method_a_valid_points:
-                    method_a_cost = method_a_point["cost"]
-                    method_a_accuracy = method_a_point["accuracy"]
-                    
-                    # Complete domination: lower cost AND (higher accuracy OR accuracy within 1% tolerance)
-                    if method_a_cost < method_b_cost and (method_a_accuracy > method_b_accuracy or accuracy_within_tolerance(method_a_accuracy, method_b_accuracy)):
-                        is_dominated = True
-                        break
-                
-                if is_dominated:
-                    dominated_count += 1
-            
-            # Calculate coverage fraction
-            coverage_fraction = dominated_count / len(method_b_above_original)
-            matrix[method_a][method_b] = round(coverage_fraction, 3)
-    
-    return {
-        "matrix": matrix,
-        "methods": methods,
-        "method_info": method_info,
-        "original_best_accuracy": original_best_accuracy
-    }
-
-
 def calculate_avg_cost_savings_matrix(all_points: Dict[str, List[Dict[str, float]]]) -> Dict[str, Any]:
     """
-    Calculate a matrix of average cost savings between all methods (excluding original).
+    Calculate a matrix of average cost savings between all methods (including original).
     Each cell (method A, method B) shows the average cost savings when method A achieves 
     the same or higher accuracy as each plan in method B (ignoring plans with acc <= original).
     
@@ -420,11 +66,11 @@ def calculate_avg_cost_savings_matrix(all_points: Dict[str, List[Dict[str, float
     Returns:
         Dictionary containing the average cost savings matrix
     """
-    # Get all methods excluding original and reorder them
-    available_methods = [m for m in all_points.keys() if m != "original" and all_points[m]]
+    # Get all methods including original and reorder them
+    available_methods = [m for m in all_points.keys() if all_points[m]]
     
-    # Define the desired order: MCTS, simple_baseline, lotus, PZ variants (no original)
-    desired_order = ["mcts", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ"]
+    # Define the desired order: MCTS, Original, simple_baseline, lotus, PZ variants
+    desired_order = ["mcts", "original", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ"]
     
     # Reorder methods according to desired order
     methods = []
@@ -494,7 +140,10 @@ def calculate_avg_cost_savings_matrix(all_points: Dict[str, List[Dict[str, float
                 continue
             
             # Filter method B points to only those above original accuracy
-            if original_best_accuracy is not None:
+            # Exception: if method_b is original itself, use all valid points
+            if method_b == "original":
+                method_b_above_original = method_b_valid_points
+            elif original_best_accuracy is not None:
                 method_b_above_original = [p for p in method_b_valid_points if p["accuracy"] > original_best_accuracy]
             else:
                 method_b_above_original = method_b_valid_points
@@ -570,8 +219,6 @@ def calculate_best_cost_savings_matrix(all_points: Dict[str, List[Dict[str, floa
         Dictionary containing the cost savings matrix
     """
     
-    print("="*80)
-    print(f"Calculating best cost savings matrix for {all_points}")
     # Get all methods including original and reorder them
     available_methods = [m for m in all_points.keys() if all_points[m]]
     
@@ -693,6 +340,54 @@ def calculate_best_cost_savings_matrix(all_points: Dict[str, List[Dict[str, floa
                 "ratio": round(cost_ratio, 3),
                 "savings_pct": round(savings_pct, 3)
             }
+    
+    # Print MCTS matching accuracy for each method
+    if "mcts" in methods:
+        print("\n" + "="*80)
+        print("MCTS MATCHING ACCURACY FOR EACH METHOD")
+        print("="*80)
+        
+        mcts_points = all_points["mcts"]
+        mcts_valid_points = [p for p in mcts_points if p.get("accuracy") is not None and p.get("cost") is not None]
+        
+        if mcts_valid_points:
+            for method_b in methods:
+                if method_b == "mcts":
+                    continue
+                
+                method_b_info = method_info.get(method_b, {})
+                method_b_best_accuracy = method_b_info.get("best_accuracy")
+                
+                if method_b_best_accuracy is None:
+                    print(f"{method_b:20} → MCTS: No valid accuracy data")
+                    continue
+                
+                # Check if method B's best accuracy is lower than original
+                if original_best_accuracy is not None and method_b_best_accuracy < original_best_accuracy:
+                    print(f"{method_b:20} → MCTS: Baseline accuracy ({method_b_best_accuracy:.4f}) below original ({original_best_accuracy:.4f})")
+                    continue
+                
+                # Find MCTS plans that can achieve or exceed this accuracy (within tolerance)
+                target_accuracy = method_b_best_accuracy
+                qualifying_mcts_plans = [
+                    p for p in mcts_valid_points 
+                    if (p["accuracy"] >= target_accuracy or accuracy_within_tolerance(p["accuracy"], target_accuracy))
+                ]
+                
+                if not qualifying_mcts_plans:
+                    print(f"{method_b:20} → MCTS: No plan found matching accuracy {target_accuracy:.4f}")
+                    continue
+                
+                # Find the cheapest MCTS plan that matches
+                mcts_matching_plan = min(qualifying_mcts_plans, key=lambda x: x["cost"])
+                mcts_matching_accuracy = mcts_matching_plan["accuracy"]
+                mcts_matching_cost = mcts_matching_plan["cost"]
+                
+                print(f"{method_b:20} → MCTS: accuracy={mcts_matching_accuracy:.4f} (target={target_accuracy:.4f}), cost=${mcts_matching_cost:.4f}")
+        else:
+            print("No valid MCTS points found")
+        
+        print("="*80)
     
     return {
         "matrix": matrix,
@@ -1366,14 +1061,32 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                 "error": f"No test data found for {dataset}"
             }
         
+        # For blackvault, normalize accuracy by dividing by MCTS max accuracy
+        normalize_factor = 1.0
+        if dataset == "blackvault":
+            mcts_points = all_points.get("mcts", [])
+            if mcts_points:
+                mcts_accuracies = [p.get("accuracy") for p in mcts_points if p.get("accuracy") is not None]
+                if mcts_accuracies:
+                    mcts_max_accuracy = max(mcts_accuracies)
+                    normalize_factor = mcts_max_accuracy
+                    print(f"📊 Normalizing accuracy for blackvault: dividing by MCTS max accuracy = {mcts_max_accuracy:.4f}")
+        
         # Create the plot
         fig, ax = plt.subplots(figsize=(10, 6))
         
         # Plot points for each method
         for method, points in all_points.items():
             if points:
-                costs = [p["cost"] for p in points]
-                accuracies = [p["accuracy"] for p in points]
+                # Filter out None values and normalize
+                valid_data = [(p["cost"], p["accuracy"] / normalize_factor) 
+                             for p in points if p.get("accuracy") is not None and p.get("cost") is not None]
+                
+                if not valid_data:
+                    continue
+                
+                costs = [d[0] for d in valid_data]
+                accuracies = [d[1] for d in valid_data]
                 
                 if method == "original":
                     # Plot original as yellow stars
@@ -1490,7 +1203,11 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         
         # Labels and title
         ax.set_xlabel('Cost ($) - Log Scale', fontsize=28)
-        ax.set_ylabel(f'{accuracy_metric.replace("_", " ").title()}', fontsize=28)
+        # For blackvault, show normalized accuracy in y-axis label
+        if dataset == "blackvault" and normalize_factor != 1.0:
+            ax.set_ylabel(f'{accuracy_metric.replace("_", " ").title()} (Normalized)', fontsize=28)
+        else:
+            ax.set_ylabel(f'{accuracy_metric.replace("_", " ").title()}', fontsize=28)
         # Map dataset names to proper titles
         dataset_titles = {
             'cuad': 'CUAD',
@@ -1650,42 +1367,7 @@ def run_original_baseline_test(dataset: str) -> Dict[str, Any]:
         test_output = str(base_output_dir / f"{dataset}_original_final" / "tests" / "original" / f"{dataset}_baseline_test.json")
         config['pipeline']['output']['path'] = test_output
         print(f"📤 Output path: {test_output}")
-        
-        # Check if output file already exists
-        # if Path(test_output).exists():
-        #     print(f"✅ Output file already exists: {test_output}")
-        #     print("⏭️  Skipping execution - loading existing results")
-            
-        #     # Load existing results and return them
-        #     try:
-        #         with open(test_output, 'r') as f:
-        #             existing_data = json.load(f)
-                
-        #         # Try to extract cost and accuracy from existing data
-        #         # This is a fallback - you might need to adjust based on your data structure
-        #         total_cost = 0.0
-        #         accuracy = None
-        #         accuracy_metric = None
-                
-        #         # If the existing file contains cost/accuracy info, use it
-        #         if isinstance(existing_data, dict):
-        #             total_cost = existing_data.get('cost', 0.0)
-        #             accuracy = existing_data.get('accuracy')
-        #             accuracy_metric = existing_data.get('accuracy_metric')
-                
-        #         return {
-        #             "success": True,
-        #             "dataset": dataset,
-        #             "cost": total_cost,
-        #             "accuracy": accuracy,
-        #             "accuracy_metric": accuracy_metric,
-        #             "output_path": test_output,
-        #             "skipped": True
-        #         }
-        #     except Exception as e:
-        #         print(f"⚠️  Could not load existing results: {e}")
-        #         print("🔄 Proceeding with execution...")
-        
+       
         # Create output directory
         Path(test_output).parent.mkdir(parents=True, exist_ok=True)
         
@@ -1924,8 +1606,6 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
                             "accuracy": accuracy_value
                         })
         
-
-    
     # Calculate metrics
     comparison_metrics = calculate_comparison_metrics(all_points)
     summary["comparison_metrics"] = comparison_metrics
@@ -1957,28 +1637,6 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
                 print(f"   Improvement: +{acc_imp['absolute']:.4f} ({acc_imp['percentage']:.1f}%)")
             else:
                 print("1. ACCURACY IMPROVEMENT: Could not calculate")
-            
-            # # 2. Cost savings within 10% accuracy
-            # if metrics["cost_savings_within_10pct"]:
-            #     cost_sav = metrics["cost_savings_within_10pct"]
-            #     print(f"\n2. COST SAVINGS (within 10% of {other_method}'s best):")
-            #     print(f"   MCTS cost: ${cost_sav['our_cost']:.6f} (accuracy: {cost_sav['our_accuracy']:.4f})")
-            #     print(f"   {other_method} cost: ${cost_sav['other_cost']:.6f} (accuracy: {cost_sav['other_accuracy']:.4f})")
-            #     print(f"   Savings: ${cost_sav['absolute']:.6f} ({cost_sav['percentage']:.1f}%)")
-            # else:
-            #     print(f"\n2. COST SAVINGS (within 10% of {other_method}'s best): Could not calculate")
-            
-            # # 3. Average cost savings
-            # if metrics["average_cost_savings"]:
-            #     avg_sav = metrics["average_cost_savings"]
-            #     print(f"\n3. AVERAGE COST SAVINGS:")
-            #     if avg_sav['percentage'] is not None:
-            #         print(f"   Average savings: ${avg_sav['absolute']:.6f} ({avg_sav['percentage']:.1f}%)")
-            #     else:
-            #         print(f"   Average savings: ${avg_sav['absolute']:.6f} (percentage not available due to zero-cost plans)")
-            #     print(f"   Based on {avg_sav['comparisons_count']} comparisons")
-            # else:
-            #     print("\n3. AVERAGE COST SAVINGS: Could not calculate")
     
     print("="*60)
     
@@ -2009,68 +1667,227 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
     return summary
 
 
-def generate_accuracy_gain_table(all_points: Dict[str, List[Dict[str, float]]], methods: List[str]) -> Dict[str, Any]:
+def analyze_top_two_accuracy_tradeoffs_mcts(all_points: Dict[str, List[Dict[str, float]]], dataset: str = "") -> Dict[str, Any]:
     """
-    Generate a table showing the best accuracy gain from MCTS to other methods.
+    Analyze cost and accuracy tradeoffs for MCTS plans.
+    For medec dataset: compares highest accuracy with 3rd highest accuracy.
+    For other datasets: compares highest accuracy with 2nd highest accuracy.
     
     Args:
         all_points: Dictionary with method names as keys and lists of {cost, accuracy} dicts as values
-        methods: List of method names (including original)
+        dataset: Dataset name to determine comparison logic
         
     Returns:
-        Dictionary containing accuracy gain data for each method
+        Dictionary containing tradeoff analysis for MCTS method only
     """
-    accuracy_gain_table = {}
-    
-    # Get MCTS best accuracy and file
+    # Focus only on MCTS method
     mcts_points = all_points.get("mcts", [])
+    
     if not mcts_points:
-        return None
+        return {"error": "No MCTS data available"}
     
-    mcts_valid_points = [p for p in mcts_points if p["accuracy"] is not None]
-    if not mcts_valid_points:
-        return None
+    # Filter valid points
+    valid_points = [p for p in mcts_points if p.get("accuracy") is not None and p.get("cost") is not None]
     
-    # Find MCTS best plan (highest accuracy)
-    mcts_best_plan = max(mcts_valid_points, key=lambda x: x["accuracy"])
-    mcts_best_accuracy = mcts_best_plan["accuracy"]
-    mcts_best_file = mcts_best_plan.get("file", "unknown")
+    # Determine comparison logic based on dataset
+    if dataset.lower() == "medec":
+        # For medec: compare highest with 3rd highest
+        if len(valid_points) < 3:
+            return {"error": "Need at least 3 MCTS points for medec comparison"}
+        sorted_points = sorted(valid_points, key=lambda x: x["accuracy"], reverse=True)
+        top_plan = sorted_points[0]
+        comparison_plan = sorted_points[2]  # 3rd highest
+        comparison_type = "3rd highest"
+    else:
+        # For other datasets: compare highest with 2nd highest
+        if len(valid_points) < 2:
+            return {"error": "Need at least 2 MCTS points for comparison"}
+        sorted_points = sorted(valid_points, key=lambda x: x["accuracy"], reverse=True)
+        top_plan = sorted_points[0]
+        comparison_plan = sorted_points[1]  # 2nd highest
+        comparison_type = "2nd highest"
     
-    # Calculate accuracy gain for each other method
-    for method in methods:
-        if method == "mcts":
-            continue
+    # Calculate tradeoffs
+    accuracy_diff = top_plan["accuracy"] - comparison_plan["accuracy"]
+    cost_diff = top_plan["cost"] - comparison_plan["cost"]
+    
+    # Calculate percentages - both should be relative to top plan
+    # Accuracy difference percentage: how much less accurate the comparison plan is relative to top plan
+    accuracy_diff_pct = (accuracy_diff / top_plan["accuracy"]) * 100 if top_plan["accuracy"] > 0 else 0
+    # Cost difference percentage: how much cheaper the comparison plan is relative to top plan
+    cost_diff_pct = (cost_diff / top_plan["cost"]) * 100 if top_plan["cost"] > 0 else 0
+    
+    # Calculate cost-effectiveness (cost per unit accuracy improvement)
+    cost_per_accuracy_unit = cost_diff / accuracy_diff if accuracy_diff > 0 else float('inf')
+    
+    return {
+        "method": "mcts",
+        "dataset": dataset,
+        "comparison_type": comparison_type,
+        "top_plan": {
+            "file": top_plan.get("file", "unknown"),
+            "accuracy": top_plan["accuracy"],
+            "cost": top_plan["cost"]
+        },
+        "comparison_plan": {
+            "file": comparison_plan.get("file", "unknown"),
+            "accuracy": comparison_plan["accuracy"],
+            "cost": comparison_plan["cost"]
+        },
+        "accuracy_difference": {
+            "absolute": accuracy_diff,
+            "percentage": accuracy_diff_pct
+        },
+        "cost_difference": {
+            "absolute": cost_diff,
+            "percentage": cost_diff_pct
+        },
+        "cost_per_accuracy_unit": cost_per_accuracy_unit,
+        "total_points": len(valid_points)
+    }
+
+
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_dotenv()],
+    volumes={VOLUME_MOUNT_PATH: volume},
+    timeout=60 * 30
+)
+def analyze_top_two_tradeoffs_all_datasets() -> Dict[str, Any]:
+    """
+    Analyze cost and accuracy tradeoffs between top 2 most accurate MCTS plans across all datasets.
+    
+    Returns:
+        Dictionary containing tradeoff analysis for MCTS method across all datasets
+    """
+    try:
+        print(f"\n📊 Analyzing top 2 accuracy tradeoffs across all datasets")
+        
+        base_output_dir = Path(VOLUME_MOUNT_PATH) / "outputs"
+        all_datasets_analysis = {}
+        
+        for dataset in DATASETS:
+            print(f"\n📊 Processing {dataset}...")
             
-        method_points = all_points.get(method, [])
-        if not method_points:
-            accuracy_gain_table[method] = {"error": "No data available"}
-            continue
+            # Get the accuracy metric name for the dataset
+            accuracy_metric = dataset_accuracy_metrics.get(dataset, "accuracy")
+            
+            # Collect MCTS test frontier points only
+            all_points = {
+                "mcts": []
+            }
+            
+            # Load test_frontier_summary.json from dataset_original folder
+            summary_file = base_output_dir / f"{dataset}_original_final" / "test_frontier_summary.json"
+            
+            if summary_file.exists():
+                with open(summary_file, 'r') as f:
+                    summary_data = json.load(f)
+                
+                # Extract MCTS results only
+                if "results" in summary_data:
+                    if "mcts" in summary_data["results"] and summary_data["results"]["mcts"].get("success"):
+                        method_results = summary_data["results"]["mcts"].get("results", [])
+                        for point in method_results:
+                            if "cost" in point and "accuracy" in point:
+                                point_data = {
+                                    "cost": point["cost"],
+                                    "accuracy": point["accuracy"]
+                                }
+                                if "file" in point:
+                                    point_data["file"] = point["file"]
+                                all_points["mcts"].append(point_data)
+            
+            # Analyze tradeoffs for this dataset (MCTS only)
+            dataset_analysis = analyze_top_two_accuracy_tradeoffs_mcts(all_points, dataset)
+            all_datasets_analysis[dataset] = {
+                "accuracy_metric": accuracy_metric,
+                "analysis": dataset_analysis
+            }
+            
+            if "error" not in dataset_analysis:
+                print(f"  ✅ Analyzed {dataset} MCTS with {dataset_analysis['total_points']} points")
+            else:
+                print(f"  ⚠️  {dataset} MCTS: {dataset_analysis['error']}")
         
-        method_valid_points = [p for p in method_points if p["accuracy"] is not None]
-        if not method_valid_points:
-            accuracy_gain_table[method] = {"error": "No valid accuracy data"}
-            continue
+        # Calculate cross-dataset averages
+        print(f"\n📊 Calculating cross-dataset averages...")
         
-        # Find method's best plan (highest accuracy)
-        method_best_plan = max(method_valid_points, key=lambda x: x["accuracy"])
-        method_best_accuracy = method_best_plan["accuracy"]
-        method_best_file = method_best_plan.get("file", "unknown")
+        # Collect accuracy and cost differences for averaging
+        accuracy_diffs = []
+        cost_diffs = []
         
-        # Calculate gain
-        gain = mcts_best_accuracy - method_best_accuracy
-        gain_pct = (gain / method_best_accuracy) * 100 if method_best_accuracy > 0 else 0
+        for dataset, data in all_datasets_analysis.items():
+            analysis = data["analysis"]
+            if "error" not in analysis:
+                accuracy_diffs.append(analysis["accuracy_difference"]["percentage"])
+                cost_diffs.append(analysis["cost_difference"]["percentage"])
         
-        accuracy_gain_table[method] = {
-            "mcts_best": mcts_best_accuracy,
-            "mcts_best_file": mcts_best_file,
-            "other_best": method_best_accuracy,
-            "other_best_file": method_best_file,
-            "gain": gain,
-            "gain_pct": gain_pct,
-            "error": None
+        # Calculate simple averages
+        avg_accuracy_diff = np.mean(accuracy_diffs) if accuracy_diffs else 0
+        avg_cost_diff = np.mean(cost_diffs) if cost_diffs else 0
+        
+        # Print simple analysis
+        print("\n" + "="*80)
+        print("TOP 2 ACCURACY TRADEOFF ANALYSIS - MCTS METHOD")
+        print("="*80)
+        
+        print(f"\n📊 AVERAGE ACROSS ALL DATASETS:")
+        print(f"   On average, the comparison plan is {avg_accuracy_diff:.2f}% less accurate than the top plan")
+        print(f"   On average, the comparison plan is {abs(avg_cost_diff):.2f}% cheaper than the top plan")
+        print(f"   Total datasets analyzed: {len(accuracy_diffs)}")
+        
+        print(f"\n📊 DATASET-SPECIFIC ANALYSIS:")
+        for dataset, data in all_datasets_analysis.items():
+            print(f"\n   {dataset.upper()} ({data['accuracy_metric']}):")
+            analysis = data["analysis"]
+            if "error" not in analysis:
+                comparison_type = analysis.get("comparison_type", "2nd highest")
+                print(f"     Top plan: {analysis['top_plan']['accuracy']:.4f} accuracy, ${analysis['top_plan']['cost']:.4f}")
+                print(f"     {comparison_type} plan: {analysis['comparison_plan']['accuracy']:.4f} accuracy, ${analysis['comparison_plan']['cost']:.4f}")
+                print(f"     → {comparison_type} plan is {analysis['accuracy_difference']['percentage']:.2f}% less accurate and {abs(analysis['cost_difference']['percentage']):.2f}% cheaper")
+            else:
+                print(f"     Error: {analysis['error']}")
+        
+        print("="*80)
+        
+        # Save simple analysis
+        timestamp = datetime.now().isoformat()
+        analysis_data = {
+            "timestamp": timestamp,
+            "method": "mcts",
+            "avg_accuracy_diff_pct": avg_accuracy_diff,
+            "avg_cost_diff_pct": avg_cost_diff,
+            "total_datasets": len(accuracy_diffs),
+            "dataset_analyses": all_datasets_analysis
         }
-    
-    return accuracy_gain_table
+        
+        analysis_path = base_output_dir / "top_two_accuracy_tradeoffs_analysis.json"
+        analysis_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(analysis_path, 'w') as f:
+            json.dump(analysis_data, f, indent=2)
+        
+        print(f"\n✅ Comprehensive analysis saved to: {analysis_path}")
+        
+        # Commit changes to Modal volume
+        volume.commit()
+        
+        return {
+            "success": True,
+            "analysis_path": str(analysis_path),
+            "avg_accuracy_diff_pct": avg_accuracy_diff,
+            "avg_cost_diff_pct": avg_cost_diff,
+            "total_datasets": len(accuracy_diffs)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error analyzing top two tradeoffs: {e}")
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 @app.function(
@@ -2263,26 +2080,14 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
         else:
             print(f"  ⚠️  No PZ evaluation found at {pz_file}")
         
-        # Calculate all three matrices
+        # Calculate matrices
         print("\n📊 Calculating all matrices...")
         
         # 1. Best Cost Savings Matrix
-        print("\n" + "="*80)
-        print("1. BEST COST SAVINGS MATRIX")
-        print("="*80)
         best_matrix_result = calculate_best_cost_savings_matrix(all_points)
         
         # 2. Average Cost Savings Matrix
-        print("\n" + "="*80)
-        print("2. AVERAGE COST SAVINGS MATRIX")
-        print("="*80)
         avg_matrix_result = calculate_avg_cost_savings_matrix(all_points)
-        
-        # 3. Coverage Matrix
-        print("\n" + "="*80)
-        print("3. COVERAGE MATRIX")
-        print("="*80)
-        coverage_matrix_result = calculate_coverage_matrix(all_points)
         
         # Check for errors
         if best_matrix_result.get("error"):
@@ -2297,11 +2102,6 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
                 "error": f"Average matrix error: {avg_matrix_result['error']}"
             }
         
-        if coverage_matrix_result.get("error"):
-            return {
-                "success": False,
-                "error": f"Coverage matrix error: {coverage_matrix_result['error']}"
-            }
         
         # Print all matrices
         methods = best_matrix_result["methods"]
@@ -2312,14 +2112,13 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
         print("METHOD INFORMATION")
         print("="*80)
         if original_best_accuracy is not None:
-            print(f"Original best accuracy: {original_best_accuracy:.3f}")
+            print(f"Original accuracy: {original_best_accuracy:.3f}")
         print()
         
         for method in methods:
             best_info = best_matrix_result["method_info"][method]
             # Only get avg_info and cov_info if the method exists in those matrices
             avg_info = avg_matrix_result["method_info"].get(method, {"valid_points": 0, "points_above_original": 0})
-            cov_info = coverage_matrix_result["method_info"].get(method, {"valid_points": 0, "points_above_original": 0})
             print(f"{method:15} | Total points: {best_info['valid_points']} | Points above original: {best_info['points_above_original']}")
         print()
         
@@ -2339,18 +2138,20 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
             for method_b in methods:
                 value = best_matrix_result["matrix"][method_a][method_b]
                 if value is None:
-                    row += f"{'None':>20}"
+                    cell_str = "None"
                 elif value == "--":
-                    row += f"{'--':>20}"
+                    cell_str = "--"
                 elif value == "n/a":
-                    row += f"{'n/a':>20}"
+                    cell_str = "n/a"
                 elif value == "—":
-                    row += f"{'—':>20}"
+                    cell_str = "—"
                 elif isinstance(value, dict):
-                    # Format as "absolute (ratio)x (savings_pct%)" - shows what fraction we use and what percentage we save
-                    row += f"{value['absolute']:>8.3f} ({value['ratio']:>4.3f}x, {value['savings_pct']:>4.3f}%)"
+                    # Format as "absolute (ratio)x" - shows what fraction we use
+                    cell_str = f"{value['absolute']:>7.3f} ({value['ratio']:>5.3f}x)"
                 else:
-                    row += f"{value:>20}"
+                    cell_str = str(value)
+                # Pad to fixed width of 25 characters
+                row += f"{cell_str:>25}"
             print(row)
         
         # Print Average Cost Savings Matrix
@@ -2369,76 +2170,21 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
             for method_b in avg_methods:
                 value = avg_matrix_result["matrix"][method_a][method_b]
                 if value is None:
-                    row += f"{'None':>20}"
+                    cell_str = "None"
                 elif value == "--":
-                    row += f"{'--':>20}"
+                    cell_str = "--"
                 elif value == "n/a":
-                    row += f"{'n/a':>20}"
+                    cell_str = "n/a"
                 elif value == "—":
-                    row += f"{'—':>20}"
+                    cell_str = "—"
                 elif isinstance(value, dict):
-                    # Format as "absolute (ratio)x (savings_pct%)" - shows what fraction we use and what percentage we save
-                    row += f"{value['absolute']:>8} ({value['ratio']:>4}x)"
+                    # Format as "absolute (ratio)x" - shows what fraction we use
+                    cell_str = f"{value['absolute']:>7.3f} ({value['ratio']:>5.3f}x)"
                 else:
-                    row += f"{value:>20}"
+                    cell_str = str(value)
+                # Pad to fixed width of 25 characters
+                row += f"{cell_str:>25}"
             print(row)
-        
-        # Print Coverage Matrix
-        print("\nCOVERAGE MATRIX:")
-        # Create header for coverage matrix (only methods that exist in coverage_matrix)
-        cov_methods = coverage_matrix_result["methods"]
-        cov_header = f"{'Method':>15}"
-        for method in cov_methods:
-            cov_header += f"{method:>12}"
-        print("-" * len(cov_header))
-        print(cov_header)
-        print("-" * len(cov_header))
-        
-        for method_a in cov_methods:
-            row = f"{method_a:>15}"
-            for method_b in cov_methods:
-                value = coverage_matrix_result["matrix"][method_a][method_b]
-                if value is None:
-                    row += f"{'None':>12}"
-                elif value == "--":
-                    row += f"{'--':>12}"
-                elif value == "n/a":
-                    row += f"{'n/a':>12}"
-                elif value == "—":
-                    row += f"{'—':>12}"
-                else:
-                    row += f"{value:>12.3f}"
-            print(row)
-        
-        print("="*80)
-        
-        # Generate and print accuracy gain table
-        print("\n" + "="*80)
-        print("BEST ACCURACY GAIN FROM MCTS TO OTHER METHODS")
-        print("="*80)
-        
-        # For accuracy gain table, we need to include original if it exists in all_points
-        methods_with_original = methods
-        if "original" in all_points and all_points["original"] and "original" not in methods:
-            methods_with_original = methods + ["original"]
-        accuracy_gain_table = generate_accuracy_gain_table(all_points, methods_with_original)
-        if accuracy_gain_table:
-            print("\nACCURACY GAIN TABLE:")
-            print("-" * 60)
-            print(f"{'Method':>15} {'MCTS Best':>12} {'Other Best':>12} {'Gain':>12} {'Gain %':>10}")
-            print("-" * 60)
-            
-            for method, data in accuracy_gain_table.items():
-                if data["error"]:
-                    print(f"{method:>15} {'ERROR':>12} {'ERROR':>12} {'ERROR':>12} {'ERROR':>10}")
-                else:
-                    print(f"{method:>15} {data['mcts_best']:>12.3f} {data['other_best']:>12.3f} {data['gain']:>+12.3f} {data['gain_pct']:>+9.3f}%")
-            
-            print("-" * 60)
-        else:
-            print("❌ Could not generate accuracy gain table")
-        
-        print("="*80)
         
         # Save all matrices to files
         timestamp = datetime.now().isoformat()
@@ -2458,9 +2204,7 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
         
         with open(best_matrix_path, 'w') as f:
             json.dump(best_matrix_data, f, indent=2)
-        
-        # Create visualization for Best Cost Savings Matrix
-        plot_matrix(best_matrix_result, 'best_cost_savings', dataset, base_output_dir / f"{dataset}_original_final")
+    
         
         # Save Average Cost Savings Matrix
         avg_matrix_path = base_output_dir / f"{dataset}_original_final" / "avg_cost_savings_matrix.json"
@@ -2476,54 +2220,7 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
         
         with open(avg_matrix_path, 'w') as f:
             json.dump(avg_matrix_data, f, indent=2)
-        
-        # Create visualization for Average Cost Savings Matrix
-        plot_matrix(avg_matrix_result, 'avg_cost_savings', dataset, base_output_dir / f"{dataset}_original_final")
-        
-        # Save Coverage Matrix
-        coverage_matrix_path = base_output_dir / f"{dataset}_original_final" / "coverage_matrix.json"
-        
-        coverage_matrix_data = {
-            "dataset": dataset,
-            "timestamp": timestamp,
-            "original_best_accuracy": original_best_accuracy,
-            "methods": methods,
-            "method_info": coverage_matrix_result["method_info"],
-            "matrix": coverage_matrix_result["matrix"]
-        }
-        
-        with open(coverage_matrix_path, 'w') as f:
-            json.dump(coverage_matrix_data, f, indent=2)
-        
-        # Create visualization for Coverage Matrix
-        plot_matrix(coverage_matrix_result, 'coverage', dataset, base_output_dir / f"{dataset}_original_final")
-        
-        # Save accuracy gain table
-        if accuracy_gain_table:
-            accuracy_gain_path = base_output_dir / f"{dataset}_original_final" / "accuracy_gain_table.json"
-            accuracy_gain_data = {
-                "dataset": dataset,
-                "timestamp": timestamp,
-                "mcts_best_accuracy": accuracy_gain_table[list(accuracy_gain_table.keys())[0]]["mcts_best"] if accuracy_gain_table else None,
-                "accuracy_gains": accuracy_gain_table
-            }
-            
-            with open(accuracy_gain_path, 'w') as f:
-                json.dump(accuracy_gain_data, f, indent=2)
-            
-            print(f"\n✅ All matrices and accuracy gain table saved and visualized:")
-            print(f"   Best cost savings matrix: {best_matrix_path}")
-            print(f"   Average cost savings matrix: {avg_matrix_path}")
-            print(f"   Coverage matrix: {coverage_matrix_path}")
-            print(f"   Accuracy gain table: {accuracy_gain_path}")
-            print(f"   Matrix plots saved in: {base_output_dir / f'{dataset}_original_final'}")
-        else:
-            print(f"\n✅ All matrices saved and visualized:")
-            print(f"   Best cost savings matrix: {best_matrix_path}")
-            print(f"   Average cost savings matrix: {avg_matrix_path}")
-            print(f"   Coverage matrix: {coverage_matrix_path}")
-            print(f"   Matrix plots saved in: {base_output_dir / f'{dataset}_original_final'}")
-        
+
         # Commit changes to Modal volume
         volume.commit()
         
@@ -2531,7 +2228,6 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
             "success": True,
             "best_matrix_path": str(best_matrix_path),
             "avg_matrix_path": str(avg_matrix_path),
-            "coverage_matrix_path": str(coverage_matrix_path),
             "methods": methods,
             "original_best_accuracy": original_best_accuracy
         }
@@ -2546,7 +2242,7 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
 
 
 @app.local_entrypoint()
-def main(dataset: str = "cuad", method: str = "all", plot_only: bool = False, matrix_only: bool = False):
+def main(dataset: str = "cuad", method: str = "all", plot_only: bool = False, matrix_only: bool = False, tradeoff: bool = False):
     """
     Main entrypoint for running test frontier evaluation.
     
@@ -2555,23 +2251,38 @@ def main(dataset: str = "cuad", method: str = "all", plot_only: bool = False, ma
         method: Method to run ('simple_baseline','mcts', or 'all' for all methods)
         plot_only: If True, only generate the plot without running evaluations
         matrix_only: If True, only generate all three matrices without running evaluations
+        tradeoff: If True, only run the top 2 accuracy tradeoff analysis for MCTS across all datasets
     """
     if dataset not in DATASETS + ["all"]:
         print(f"❌ Invalid dataset: {dataset}")
         print(f"   Valid options: {', '.join(DATASETS + ['all'])}")
         return
     
+    if tradeoff:
+        # Run the top 2 accuracy tradeoff analysis across all datasets
+        print(f"\n📊 Running top 2 accuracy tradeoff analysis across all datasets...")
+        result = analyze_top_two_tradeoffs_all_datasets.remote()
+        if result["success"]:
+            print(f"\n✅ Tradeoff analysis completed successfully!")
+            print(f"   Analysis saved to: {result['analysis_path']}")
+            print(f"   Summary:")
+            print(f"     - On average, comparison plan is {result['avg_accuracy_diff_pct']:.2f}% less accurate than top plan")
+            print(f"     - On average, comparison plan is {abs(result['avg_cost_diff_pct']):.2f}% cheaper than top plan")
+            print(f"     - Analyzed {result['total_datasets']} datasets")
+        else:
+            print(f"❌ Failed to run tradeoff analysis: {result.get('error', 'Unknown error')}")
+        return
+    
     if matrix_only:
-        # Just generate all three matrices for the dataset(s)
+        # Just generate the cost saving matrices for the dataset(s)
         datasets_to_matrix = DATASETS if dataset == "all" else [dataset]
         for dataset_name in datasets_to_matrix:
-            print(f"\n📊 Generating all matrices for {dataset_name}...")
+            print(f"\n📊 Generating matrices for {dataset_name}...")
             matrix_result = generate_all_matrices.remote(dataset_name)
             if matrix_result["success"]:
                 print(f"✅ All matrices saved:")
                 print(f"   Best cost savings matrix: {matrix_result['best_matrix_path']}")
                 print(f"   Average cost savings matrix: {matrix_result['avg_matrix_path']}")
-                print(f"   Coverage matrix: {matrix_result['coverage_matrix_path']}")
                 print(f"   Methods: {', '.join(matrix_result['methods'])}")
                 if matrix_result['original_best_accuracy'] is not None:
                     print(f"   Original best accuracy: {matrix_result['original_best_accuracy']:.3f}")
@@ -2599,6 +2310,7 @@ def main(dataset: str = "cuad", method: str = "all", plot_only: bool = False, ma
         print(f"❌ Invalid method: {method}")
         print(f"   Valid options: {', '.join(METHODS + ['all'])}")
         return
+        
     
     datasets_to_process = DATASETS if dataset == "all" else [dataset]
     

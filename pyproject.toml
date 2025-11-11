@@ -50,6 +50,10 @@ server = [
   "azure-ai-documentintelligence>=1.0.0b4",
   "httpx>=0.27.2",
 ]
+experiments = [
+    "nltk>=3.9.2",
+    "rouge-score>=0.1.2",
+]
 
 [project.scripts]
 docetl = "docetl.cli:app"

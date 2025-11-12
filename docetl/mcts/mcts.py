@@ -1,26 +1,18 @@
 import json
-import math
 import os
-import re
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
-
 import litellm
-from litellm import completion_cost
 import yaml
 import threading
 
 from docetl.reasoning_optimizer.directives import (
-    ALL_COST_DIRECTIVES,
-    ALL_DIRECTIVES,
     DIRECTIVE_GROUPS,
     MULTI_INSTANCE_DIRECTIVES,
     Directive,
-    get_all_cost_directive_strings,
-    get_all_directive_strings,
 )
 from docetl.reasoning_optimizer.directives.change_model_cost import (
     ChangeModelCostDirective,
@@ -30,10 +22,8 @@ from docetl.reasoning_optimizer.directives.change_model_cost import (
     first_layer_yaml_paths,
     FRONTIER_MODELS
 )
-from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
 from docetl.utils import extract_output_from_json
-
 from .acc_comparator import AccuracyComparator
 from .Node import Node
 from .ParetoFrontier import ParetoFrontier
@@ -52,7 +42,6 @@ except ImportError:
         os.path.join(os.path.dirname(__file__), "../../experiments/reasoning")
     )
     from evaluation.utils import get_evaluate_func
-
 
 
 class MCTS:

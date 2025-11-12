@@ -10,6 +10,9 @@ from jinja2 import Environment, meta
 from litellm import ModelResponse
 from litellm import completion_cost as lcc
 from lzstring import LZString
+from rich.prompt import Confirm
+
+from docetl.console import DOCETL_CONSOLE
 
 
 class Decryptor:
@@ -77,6 +80,66 @@ class CapturedOutput:
             self.optimizer_output[self.step] = {}
 
         self.optimizer_output[self.step][stage_type] = output
+
+
+def has_jinja_syntax(template_string: str) -> bool:
+    """
+    Check if a string contains Jinja2 template syntax.
+
+    Args:
+        template_string (str): The string to check.
+
+    Returns:
+        bool: True if the string contains Jinja2 syntax ({{ }} or {% %}), False otherwise.
+    """
+    # Check for Jinja2 expression syntax {{ }}
+    if re.search(r"\{\{.*?\}\}", template_string):
+        return True
+    # Check for Jinja2 statement syntax {% %}
+    if re.search(r"\{%.*?%\}", template_string):
+        return True
+    return False
+
+
+def prompt_user_for_non_jinja_confirmation(
+    prompt_text: str, operation_name: str, prompt_field: str = "prompt"
+) -> bool:
+    """
+    Prompt the user for confirmation when a prompt doesn't contain Jinja syntax.
+
+    Args:
+        prompt_text (str): The prompt text that doesn't contain Jinja syntax.
+        operation_name (str): The name of the operation.
+        prompt_field (str): The name of the prompt field (e.g., "prompt", "batch_prompt").
+
+    Returns:
+        bool: True if user confirms, False otherwise.
+    """
+    console = DOCETL_CONSOLE
+    console.print(
+        f"\n[bold yellow]⚠ Warning:[/bold yellow] The '{prompt_field}' in operation '{operation_name}' "
+        f"does not appear to be a Jinja2 template (no {{}} or {{% %}} syntax found)."
+    )
+    console.print(
+        f"[dim]Prompt:[/dim] {prompt_text[:100]}{'...' if len(prompt_text) > 100 else ''}"
+    )
+    console.print(
+        "\n[bold]We will automatically append the document(s) to your prompt during execution:[/bold]"
+    )
+    console.print("  • For single-document operations: 'Here is the document: {{ input }}'")
+    console.print("  • For reduce operations: 'Here are the documents: {{ inputs }}'")
+    console.print()
+
+    try:
+        return Confirm.ask(
+            "Do you want to proceed with inserting all documents as-is?",
+            default=True,
+            console=console,
+        )
+    except Exception:
+        # If Confirm fails (e.g., in non-interactive mode), default to True
+        console.print("[dim]Non-interactive mode: proceeding with document insertion[/dim]")
+        return True
 
 
 def extract_jinja_variables(template_string: str) -> list[str]:

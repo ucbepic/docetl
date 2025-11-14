@@ -6,7 +6,7 @@ Fallback models provide automatic failover to alternative models when API errors
 
 When configured, DocETL will automatically try fallback models in sequence if:
 
-- The primary model encounters an API error (rate limits, service unavailability, etc.)
+- The primary model encounters an API error (rate limits, service unavailability, content warning errors, etc.)
 - The primary model returns invalid content that cannot be parsed
 - The primary model fails to respond within expected timeframes
 

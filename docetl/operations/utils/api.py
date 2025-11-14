@@ -67,6 +67,57 @@ class APIWrapper(object):
         self.default_embedding_api_base = runner.config.get(
             "default_embedding_api_base", None
         )
+        # Use routers as instance variables (for fallback models)
+        self.router = getattr(runner, "router", None)
+        self.embedding_router = getattr(runner, "embedding_router", None)
+        # Store fallback configs and router cache from runner
+        self.fallback_models_config = getattr(runner, "fallback_models_config", [])
+        self.runner_router_cache = getattr(runner, "_router_cache", {})
+
+    def _get_router_with_operation_model(self, operation_model: str) -> Any:
+        """
+        Get Router completion function with operation's model first, then fallbacks.
+        Uses cached Router from runner if available.
+        """
+        # Return cached Router if available
+        if operation_model in self.runner_router_cache:
+            return self.runner_router_cache[operation_model].completion
+
+        from litellm import Router
+
+        # Build model list: operation model first, then fallbacks
+        model_list = [{
+            "model_name": operation_model,
+            "litellm_params": {
+                "model": operation_model,
+                **({"api_base": self.default_lm_api_base} if self.default_lm_api_base else {})
+            }
+        }]
+        model_names = [operation_model]
+
+        # Add fallback models, skipping duplicates
+        seen = {operation_model}
+        for cfg in self.fallback_models_config:
+            name = cfg.get("model_name") if isinstance(cfg, dict) else (cfg if isinstance(cfg, str) else None)
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            params = cfg.get("litellm_params", {}).copy() if isinstance(cfg, dict) else {}
+            params["model"] = name
+            if self.default_lm_api_base and "api_base" not in params:
+                params["api_base"] = self.default_lm_api_base
+            model_list.append({"model_name": name, "litellm_params": params})
+            model_names.append(name)
+
+        # Build fallbacks list: operation model falls back to all fallback models
+        router_kwargs = {"model_list": model_list}
+        if len(model_names) > 1:
+            # fallbacks should be a list of dicts: [{"model1": ["fallback1", "fallback2"]}]
+            router_kwargs["fallbacks"] = [{operation_model: model_names[1:]}]
+
+        router = Router(**router_kwargs)
+        self.runner_router_cache[operation_model] = router
+        return router.completion
 
     @freezeargs
     def gen_embedding(self, model: str, input: list[str]) -> list[float]:
@@ -119,7 +170,9 @@ class APIWrapper(object):
                 if self.default_embedding_api_base:
                     extra_kwargs["api_base"] = self.default_embedding_api_base
 
-                result = embedding(model=model, input=input, **extra_kwargs)
+                # Use embedding router if available (for fallback models)
+                embedding_fn = self.embedding_router.embedding if self.embedding_router else embedding
+                result = embedding_fn(model=model, input=input, **extra_kwargs)
                 # Cache the result
                 c.set(key, result)
 
@@ -305,7 +358,14 @@ class APIWrapper(object):
                                 "tool_choice",
                             ]
 
-                        validator_response = completion(
+                        # Use router if available (for fallback models), otherwise use direct completion
+                        # When using router, ensure gleaning model is tried first, then fallback models
+                        if self.router and self.fallback_models_config:
+                            completion_fn = self._get_router_with_operation_model(gleaning_model)
+                        else:
+                            completion_fn = completion
+
+                        validator_response = completion_fn(
                             model=gleaning_model,
                             messages=truncate_messages(
                                 validator_messages
@@ -780,9 +840,17 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         if self.default_lm_api_base:
             extra_litellm_kwargs["api_base"] = self.default_lm_api_base
 
+        # Use router if available (for fallback models), otherwise use direct completion
+        # When using router, ensure operation's model is tried first, then fallback models
+        if self.router and self.fallback_models_config:
+            # Build model list with operation's model first, then fallback models
+            completion_fn = self._get_router_with_operation_model(model)
+        else:
+            completion_fn = completion
+
         if use_structured_output:
             try:
-                response = completion(
+                response = completion_fn(
                     model=model,
                     messages=messages_with_system_prompt,
                     response_format=response_format,
@@ -798,7 +866,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 raise e
         elif tools is not None:
             try:
-                response = completion(
+                response = completion_fn(
                     model=model,
                     messages=messages_with_system_prompt,
                     tools=tools,
@@ -815,7 +883,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 raise e
         else:
             try:
-                response = completion(
+                response = completion_fn(
                     model=model,
                     messages=messages_with_system_prompt,
                     **extra_litellm_kwargs,

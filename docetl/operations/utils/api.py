@@ -67,21 +67,21 @@ class APIWrapper(object):
         self.default_embedding_api_base = runner.config.get(
             "default_embedding_api_base", None
         )
-        # Use router if available (for fallback models)
+        # Use routers as instance variables (for fallback models)
         self.router = getattr(runner, "router", None)
-        # Store fallback_models config for dynamic Router creation
+        self.embedding_router = getattr(runner, "embedding_router", None)
+        # Store fallback configs and router cache from runner
         self.fallback_models_config = getattr(runner, "fallback_models_config", [])
-        # Cache Routers per operation model to avoid recreating them
-        self._router_cache: dict[str, Any] = {}
+        self.runner_router_cache = getattr(runner, "_router_cache", {})
 
     def _get_router_with_operation_model(self, operation_model: str) -> Any:
         """
         Get Router completion function with operation's model first, then fallbacks.
-        Caches Router per operation model to avoid recreating them.
+        Uses cached Router from runner if available.
         """
         # Return cached Router if available
-        if operation_model in self._router_cache:
-            return self._router_cache[operation_model].completion
+        if operation_model in self.runner_router_cache:
+            return self.runner_router_cache[operation_model].completion
 
         from litellm import Router
 
@@ -108,7 +108,7 @@ class APIWrapper(object):
             model_list.append({"model_name": name, "litellm_params": params})
 
         router = Router(model_list=model_list)
-        self._router_cache[operation_model] = router
+        self.runner_router_cache[operation_model] = router
         return router.completion
 
     @freezeargs
@@ -162,7 +162,9 @@ class APIWrapper(object):
                 if self.default_embedding_api_base:
                     extra_kwargs["api_base"] = self.default_embedding_api_base
 
-                result = embedding(model=model, input=input, **extra_kwargs)
+                # Use embedding router if available (for fallback models)
+                embedding_fn = self.embedding_router.embedding if self.embedding_router else embedding
+                result = embedding_fn(model=model, input=input, **extra_kwargs)
                 # Cache the result
                 c.set(key, result)
 

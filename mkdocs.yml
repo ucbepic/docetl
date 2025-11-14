@@ -52,6 +52,7 @@ nav:
       - Performance:
           - Optimization Overview: optimization/overview.md
           - Configuration: optimization/configuration.md
+          - Fallback Models: optimization/fallback-models.md
           - Examples:
               - Basic Example: optimization/example.md
               - Python API Example: optimization/python-api.md

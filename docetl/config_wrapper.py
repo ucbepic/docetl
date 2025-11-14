@@ -144,16 +144,16 @@ class ConfigWrapper(object):
 
         try:
             # Create Router with model_list and fallbacks parameter
-            # The fallbacks parameter maps each model to the next models in the list as fallbacks
+            # fallbacks should be a list of dicts: [{"model1": ["fallback1", "fallback2"]}]
             router_kwargs = {"model_list": model_list}
             
-            # Build fallbacks dict: each model falls back to the remaining models in order
+            # Build fallbacks list: each model falls back to the remaining models in order
             if len(fallback_model_names) > 1:
-                fallbacks = {}
+                fallbacks = []
                 for i, model_name in enumerate(fallback_model_names):
                     # Each model falls back to the models after it in the list
                     if i < len(fallback_model_names) - 1:
-                        fallbacks[model_name] = fallback_model_names[i + 1:]
+                        fallbacks.append({model_name: fallback_model_names[i + 1:]})
                 router_kwargs["fallbacks"] = fallbacks
             
             router = Router(**router_kwargs)

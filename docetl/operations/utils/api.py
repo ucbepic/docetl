@@ -109,11 +109,11 @@ class APIWrapper(object):
             model_list.append({"model_name": name, "litellm_params": params})
             model_names.append(name)
 
-        # Build fallbacks dict: operation model falls back to all fallback models
+        # Build fallbacks list: operation model falls back to all fallback models
         router_kwargs = {"model_list": model_list}
         if len(model_names) > 1:
-            # Operation model falls back to all fallback models in order
-            router_kwargs["fallbacks"] = {operation_model: model_names[1:]}
+            # fallbacks should be a list of dicts: [{"model1": ["fallback1", "fallback2"]}]
+            router_kwargs["fallbacks"] = [{operation_model: model_names[1:]}]
 
         router = Router(**router_kwargs)
         self.runner_router_cache[operation_model] = router

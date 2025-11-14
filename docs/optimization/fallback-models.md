@@ -126,23 +126,3 @@ pipeline:
     type: file
     path: example_output.json
 ```
-
-## Best Practices
-
-### Model Selection
-
-- **Choose compatible models**: Select fallback models that produce similar output formats to your primary model
-- **Consider cost**: Fallback models are only used when the primary fails, but choose models that fit your budget
-- **Match capabilities**: Ensure fallback models can handle the same types of tasks as your primary model
-
-### Order Matters
-
-- **Place most reliable models first**: Order fallback models by reliability and compatibility with your primary model
-- **Consider latency**: Faster models should generally come before slower ones
-- **Test fallback behavior**: Verify that your fallback models produce acceptable results for your use case
-
-### Error Handling
-
-- **Monitor fallback usage**: Check logs to see how often fallbacks are triggered
-- **Investigate frequent fallbacks**: If fallbacks are used frequently, investigate why the primary model is failing
-- **Set appropriate timeouts**: Configure timeouts to avoid waiting too long on failing models

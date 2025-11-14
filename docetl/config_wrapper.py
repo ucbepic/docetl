@@ -104,8 +104,10 @@ class ConfigWrapper(object):
             )
             return None
 
-        # Build model list for Router
+        # Build model list and fallbacks for Router
         model_list = []
+        fallback_model_names = []
+        
         for fallback_config in fallback_models:
             if isinstance(fallback_config, dict):
                 model_name = fallback_config.get("model_name")
@@ -135,14 +137,28 @@ class ConfigWrapper(object):
                     "litellm_params": litellm_params_with_model,
                 }
             )
+            fallback_model_names.append(model_name)
 
         if not model_list:
             return None
 
         try:
-            router = Router(model_list=model_list)
+            # Create Router with model_list and fallbacks parameter
+            # The fallbacks parameter maps each model to the next models in the list as fallbacks
+            router_kwargs = {"model_list": model_list}
+            
+            # Build fallbacks dict: each model falls back to the remaining models in order
+            if len(fallback_model_names) > 1:
+                fallbacks = {}
+                for i, model_name in enumerate(fallback_model_names):
+                    # Each model falls back to the models after it in the list
+                    if i < len(fallback_model_names) - 1:
+                        fallbacks[model_name] = fallback_model_names[i + 1:]
+                router_kwargs["fallbacks"] = fallbacks
+            
+            router = Router(**router_kwargs)
             self.console.log(
-                f"[green]Created LiteLLM {router_type} Router with {len(model_list)} fallback model(s) in order: {', '.join([m['model_name'] for m in model_list])}[/green]"
+                f"[green]Created LiteLLM {router_type} Router with {len(model_list)} fallback model(s) in order: {', '.join(fallback_model_names)}[/green]"
             )
             return router
         except Exception as e:

@@ -93,6 +93,7 @@ class APIWrapper(object):
                 **({"api_base": self.default_lm_api_base} if self.default_lm_api_base else {})
             }
         }]
+        model_names = [operation_model]
 
         # Add fallback models, skipping duplicates
         seen = {operation_model}
@@ -106,8 +107,15 @@ class APIWrapper(object):
             if self.default_lm_api_base and "api_base" not in params:
                 params["api_base"] = self.default_lm_api_base
             model_list.append({"model_name": name, "litellm_params": params})
+            model_names.append(name)
 
-        router = Router(model_list=model_list)
+        # Build fallbacks dict: operation model falls back to all fallback models
+        router_kwargs = {"model_list": model_list}
+        if len(model_names) > 1:
+            # Operation model falls back to all fallback models in order
+            router_kwargs["fallbacks"] = {operation_model: model_names[1:]}
+
+        router = Router(**router_kwargs)
         self.runner_router_cache[operation_model] = router
         return router.completion
 

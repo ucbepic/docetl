@@ -71,6 +71,8 @@ class ConfigWrapper(object):
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=200)
         self.is_cancelled = False
 
+        # Store fallback_models config for dynamic Router usage
+        self.fallback_models_config = self.config.get("fallback_models", [])
         # Create LiteLLM Router if fallback_models are configured
         self.router = self._create_router()
 
@@ -81,7 +83,7 @@ class ConfigWrapper(object):
         Create a LiteLLM Router with fallback models if configured.
 
         The Router will automatically handle fallbacks when API errors or content errors occur.
-        Models are tried in the order specified in fallback_models.
+        Note: The operation's model will be prepended to this list at call time to ensure it's tried first.
 
         Returns:
             Router instance if fallback_models are configured, None otherwise.

@@ -69,6 +69,69 @@ class APIWrapper(object):
         )
         # Use router if available (for fallback models)
         self.router = getattr(runner, "router", None)
+        # Store fallback_models config for dynamic Router creation
+        self.fallback_models_config = getattr(runner, "fallback_models_config", [])
+
+    def _get_router_with_operation_model(self, operation_model: str) -> Any:
+        """
+        Create or get a Router with the operation's model as first priority, then fallback models.
+
+        Args:
+            operation_model: The model the operation wants to use (should be tried first)
+
+        Returns:
+            A completion function that uses a Router with the operation's model first, then fallbacks.
+        """
+        from litellm import Router
+
+        # Build model list: operation's model first, then fallback models
+        model_list = []
+
+        # Add operation's model first (always, to ensure it's tried first)
+        operation_litellm_params = {}
+        if self.default_lm_api_base:
+            operation_litellm_params["api_base"] = self.default_lm_api_base
+        model_list.append(
+            {
+                "model_name": operation_model,
+                "litellm_params": {"model": operation_model, **operation_litellm_params},
+            }
+        )
+
+        # Add fallback models (skip the operation model if it's already in fallbacks to avoid duplicates)
+        for fallback_config in self.fallback_models_config:
+            if isinstance(fallback_config, dict):
+                model_name = fallback_config.get("model_name")
+                litellm_params = fallback_config.get("litellm_params", {})
+            elif isinstance(fallback_config, str):
+                model_name = fallback_config
+                litellm_params = {}
+            else:
+                continue
+
+            if not model_name:
+                continue
+
+            # Skip if this is the operation model (we already added it first)
+            if model_name == operation_model:
+                continue
+
+            # Ensure model is included in litellm_params
+            litellm_params_with_model = litellm_params.copy()
+            litellm_params_with_model["model"] = model_name
+            if self.default_lm_api_base and "api_base" not in litellm_params_with_model:
+                litellm_params_with_model["api_base"] = self.default_lm_api_base
+
+            model_list.append(
+                {
+                    "model_name": model_name,
+                    "litellm_params": litellm_params_with_model,
+                }
+            )
+
+        # Create Router with operation model first, then fallbacks
+        router = Router(model_list=model_list)
+        return router.completion
 
     @freezeargs
     def gen_embedding(self, model: str, input: list[str]) -> list[float]:
@@ -308,7 +371,11 @@ class APIWrapper(object):
                             ]
 
                         # Use router if available (for fallback models), otherwise use direct completion
-                        completion_fn = self.router.completion if self.router else completion
+                        # When using router, ensure gleaning model is tried first, then fallback models
+                        if self.router and self.fallback_models_config:
+                            completion_fn = self._get_router_with_operation_model(gleaning_model)
+                        else:
+                            completion_fn = completion
 
                         validator_response = completion_fn(
                             model=gleaning_model,
@@ -786,9 +853,12 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             extra_litellm_kwargs["api_base"] = self.default_lm_api_base
 
         # Use router if available (for fallback models), otherwise use direct completion
-        # When using router, use the model parameter - router will try that model first if it's in the list,
-        # then fallback to other models in the router's model_list
-        completion_fn = self.router.completion if self.router else completion
+        # When using router, ensure operation's model is tried first, then fallback models
+        if self.router and self.fallback_models_config:
+            # Build model list with operation's model first, then fallback models
+            completion_fn = self._get_router_with_operation_model(model)
+        else:
+            completion_fn = completion
 
         if use_structured_output:
             try:

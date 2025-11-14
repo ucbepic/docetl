@@ -1,0 +1,51 @@
+# Example configuration showing fallback_models usage
+# This demonstrates how to configure LiteLLM fallback models for reliability
+
+datasets:
+  example_dataset:
+    type: file
+    path: example_data/example.json
+
+# Default language model for all operations unless overridden
+default_model: gpt-4o-mini
+
+# Fallback models configuration
+# Models will be tried in order when API errors or content errors occur
+fallback_models:
+  # First model (primary) - will be tried first
+  - model_name: gpt-4o-mini
+    litellm_params:
+      temperature: 0.0
+  # Second model (fallback) - will be tried if first fails
+  - model_name: gpt-3.5-turbo
+    litellm_params:
+      temperature: 0.0
+  # Third model (fallback) - will be tried if second fails
+  - model_name: claude-3-haiku-20240307
+    litellm_params:
+      temperature: 0.0
+
+# Alternative simple format (just model names):
+# fallback_models:
+#   - gpt-4o-mini
+#   - gpt-3.5-turbo
+#   - claude-3-haiku-20240307
+
+operations:
+  - name: example_map
+    type: map
+    prompt: "Extract key information from: {{ input.contents }}"
+    output:
+      schema:
+        extracted_info: "str"
+
+pipeline:
+  steps:
+    - name: process_data
+      input: example_dataset
+      operations:
+        - example_map
+
+  output:
+    type: file
+    path: example_output.json

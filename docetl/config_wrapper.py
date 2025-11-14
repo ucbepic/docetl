@@ -1,6 +1,7 @@
 import datetime
 import os
 import time
+from typing import Any
 
 import pyrate_limiter
 from pyrate_limiter import BucketFullException, LimiterDelayException
@@ -70,7 +71,78 @@ class ConfigWrapper(object):
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=200)
         self.is_cancelled = False
 
+        # Create LiteLLM Router if fallback_models are configured
+        self.router = self._create_router()
+
         self.api = APIWrapper(self)
+
+    def _create_router(self) -> Any | None:
+        """
+        Create a LiteLLM Router with fallback models if configured.
+
+        The Router will automatically handle fallbacks when API errors or content errors occur.
+        Models are tried in the order specified in fallback_models.
+
+        Returns:
+            Router instance if fallback_models are configured, None otherwise.
+        """
+        fallback_models = self.config.get("fallback_models", [])
+        if not fallback_models:
+            return None
+
+        try:
+            from litellm import Router
+        except ImportError:
+            self.console.log(
+                "[yellow]Warning: LiteLLM Router not available. Fallback models will be ignored.[/yellow]"
+            )
+            return None
+
+        # Build model list for Router
+        model_list = []
+        for fallback_config in fallback_models:
+            if isinstance(fallback_config, dict):
+                model_name = fallback_config.get("model_name")
+                litellm_params = fallback_config.get("litellm_params", {})
+            elif isinstance(fallback_config, str):
+                # Simple string format: just model name
+                model_name = fallback_config
+                litellm_params = {}
+            else:
+                self.console.log(
+                    f"[yellow]Warning: Invalid fallback_models entry: {fallback_config}. Skipping.[/yellow]"
+                )
+                continue
+
+            if not model_name:
+                self.console.log(
+                    f"[yellow]Warning: fallback_models entry missing model_name: {fallback_config}. Skipping.[/yellow]"
+                )
+                continue
+
+            model_list.append(
+                {
+                    "model_name": model_name,
+                    "litellm_params": litellm_params,
+                }
+            )
+
+        if not model_list:
+            return None
+
+        try:
+            # Create Router with fallback models
+            # The Router will automatically try models in order when errors occur
+            router = Router(model_list=model_list)
+            self.console.log(
+                f"[green]Created LiteLLM Router with {len(model_list)} fallback model(s) in order: {', '.join([m['model_name'] for m in model_list])}[/green]"
+            )
+            return router
+        except Exception as e:
+            self.console.log(
+                f"[yellow]Warning: Failed to create LiteLLM Router: {e}. Fallback models will be ignored.[/yellow]"
+            )
+            return None
 
     def reset_env(self):
         os.environ = self._original_env

@@ -67,6 +67,8 @@ class APIWrapper(object):
         self.default_embedding_api_base = runner.config.get(
             "default_embedding_api_base", None
         )
+        # Use router if available (for fallback models)
+        self.router = getattr(runner, "router", None)
 
     @freezeargs
     def gen_embedding(self, model: str, input: list[str]) -> list[float]:
@@ -305,7 +307,10 @@ class APIWrapper(object):
                                 "tool_choice",
                             ]
 
-                        validator_response = completion(
+                        # Use router if available (for fallback models), otherwise use direct completion
+                        completion_fn = self.router.completion if self.router else completion
+
+                        validator_response = completion_fn(
                             model=gleaning_model,
                             messages=truncate_messages(
                                 validator_messages
@@ -780,9 +785,14 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         if self.default_lm_api_base:
             extra_litellm_kwargs["api_base"] = self.default_lm_api_base
 
+        # Use router if available (for fallback models), otherwise use direct completion
+        # When using router, use the model parameter - router will try that model first if it's in the list,
+        # then fallback to other models in the router's model_list
+        completion_fn = self.router.completion if self.router else completion
+
         if use_structured_output:
             try:
-                response = completion(
+                response = completion_fn(
                     model=model,
                     messages=messages_with_system_prompt,
                     response_format=response_format,
@@ -798,7 +808,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 raise e
         elif tools is not None:
             try:
-                response = completion(
+                response = completion_fn(
                     model=model,
                     messages=messages_with_system_prompt,
                     tools=tools,
@@ -815,7 +825,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 raise e
         else:
             try:
-                response = completion(
+                response = completion_fn(
                     model=model,
                     messages=messages_with_system_prompt,
                     **extra_litellm_kwargs,

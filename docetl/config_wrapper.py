@@ -120,10 +120,14 @@ class ConfigWrapper(object):
                 )
                 continue
 
+            # Ensure model is included in litellm_params (required by LiteLLM Router)
+            litellm_params_with_model = litellm_params.copy()
+            litellm_params_with_model["model"] = model_name
+
             model_list.append(
                 {
                     "model_name": model_name,
-                    "litellm_params": litellm_params,
+                    "litellm_params": litellm_params_with_model,
                 }
             )
 

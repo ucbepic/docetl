@@ -71,9 +71,10 @@ class ConfigWrapper(object):
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=200)
         self.is_cancelled = False
 
-        # Store fallback_models config for dynamic Router usage
+        # Store fallback_models config for Router usage
         self.fallback_models_config = self.config.get("fallback_models", [])
         # Create LiteLLM Router if fallback_models are configured
+        # Note: Router will be used with operation's model prepended at call time
         self.router = self._create_router()
 
         self.api = APIWrapper(self)

@@ -71,66 +71,44 @@ class APIWrapper(object):
         self.router = getattr(runner, "router", None)
         # Store fallback_models config for dynamic Router creation
         self.fallback_models_config = getattr(runner, "fallback_models_config", [])
+        # Cache Routers per operation model to avoid recreating them
+        self._router_cache: dict[str, Any] = {}
 
     def _get_router_with_operation_model(self, operation_model: str) -> Any:
         """
-        Create or get a Router with the operation's model as first priority, then fallback models.
-
-        Args:
-            operation_model: The model the operation wants to use (should be tried first)
-
-        Returns:
-            A completion function that uses a Router with the operation's model first, then fallbacks.
+        Get Router completion function with operation's model first, then fallbacks.
+        Caches Router per operation model to avoid recreating them.
         """
+        # Return cached Router if available
+        if operation_model in self._router_cache:
+            return self._router_cache[operation_model].completion
+
         from litellm import Router
 
-        # Build model list: operation's model first, then fallback models
-        model_list = []
-
-        # Add operation's model first (always, to ensure it's tried first)
-        operation_litellm_params = {}
-        if self.default_lm_api_base:
-            operation_litellm_params["api_base"] = self.default_lm_api_base
-        model_list.append(
-            {
-                "model_name": operation_model,
-                "litellm_params": {"model": operation_model, **operation_litellm_params},
+        # Build model list: operation model first, then fallbacks
+        model_list = [{
+            "model_name": operation_model,
+            "litellm_params": {
+                "model": operation_model,
+                **({"api_base": self.default_lm_api_base} if self.default_lm_api_base else {})
             }
-        )
+        }]
 
-        # Add fallback models (skip the operation model if it's already in fallbacks to avoid duplicates)
-        for fallback_config in self.fallback_models_config:
-            if isinstance(fallback_config, dict):
-                model_name = fallback_config.get("model_name")
-                litellm_params = fallback_config.get("litellm_params", {})
-            elif isinstance(fallback_config, str):
-                model_name = fallback_config
-                litellm_params = {}
-            else:
+        # Add fallback models, skipping duplicates
+        seen = {operation_model}
+        for cfg in self.fallback_models_config:
+            name = cfg.get("model_name") if isinstance(cfg, dict) else (cfg if isinstance(cfg, str) else None)
+            if not name or name in seen:
                 continue
+            seen.add(name)
+            params = cfg.get("litellm_params", {}).copy() if isinstance(cfg, dict) else {}
+            params["model"] = name
+            if self.default_lm_api_base and "api_base" not in params:
+                params["api_base"] = self.default_lm_api_base
+            model_list.append({"model_name": name, "litellm_params": params})
 
-            if not model_name:
-                continue
-
-            # Skip if this is the operation model (we already added it first)
-            if model_name == operation_model:
-                continue
-
-            # Ensure model is included in litellm_params
-            litellm_params_with_model = litellm_params.copy()
-            litellm_params_with_model["model"] = model_name
-            if self.default_lm_api_base and "api_base" not in litellm_params_with_model:
-                litellm_params_with_model["api_base"] = self.default_lm_api_base
-
-            model_list.append(
-                {
-                    "model_name": model_name,
-                    "litellm_params": litellm_params_with_model,
-                }
-            )
-
-        # Create Router with operation model first, then fallbacks
         router = Router(model_list=model_list)
+        self._router_cache[operation_model] = router
         return router.completion
 
     @freezeargs

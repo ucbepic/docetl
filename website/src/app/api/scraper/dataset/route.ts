@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { ModalClient } from "modal";
 
 let modalClient: ModalClient | null = null;

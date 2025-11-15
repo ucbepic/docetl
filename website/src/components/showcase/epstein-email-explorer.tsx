@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, Users, Calendar as CalendarIcon, Search, X, Filter, ChevronDown, ChevronUp, Plus, Mail, UserCircle, Download, Check } from "lucide-react";
+import { Loader2, AlertTriangle, Users, Calendar as CalendarIcon, Search, X, Filter, ChevronDown, ChevronUp, Plus, Mail, UserCircle, Download, Check, FileJson } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -90,7 +90,7 @@ interface PersonDetailModalProps {
   emails: Email[];
   open: boolean;
   onClose: () => void;
-  onFilterByPerson: (person: string) => void;
+  onFilterByPerson: (person: string, attribute: string) => void;
 }
 
 function PersonDetailModal({ person, emails, open, onClose, onFilterByPerson }: PersonDetailModalProps) {
@@ -102,8 +102,13 @@ function PersonDetailModal({ person, emails, open, onClose, onFilterByPerson }: 
     e.notable_figures.some((p) => p.toLowerCase().includes(person.toLowerCase()))
   );
 
-  const handleFilterClick = () => {
-    onFilterByPerson(person);
+  const handleFilterAsParticipant = () => {
+    onFilterByPerson(person, "participant");
+    onClose();
+  };
+
+  const handleFilterAsMentioned = () => {
+    onFilterByPerson(person, "people_mentioned");
     onClose();
   };
 
@@ -116,11 +121,19 @@ function PersonDetailModal({ person, emails, open, onClose, onFilterByPerson }: 
             Found in {participatedIn.length} email(s) as participant, {mentionedIn.length} email(s) as mentioned
           </DialogDescription>
         </DialogHeader>
-        <div className="mb-4">
-          <Button onClick={handleFilterClick} size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filter all emails by this person
-          </Button>
+        <div className="mb-4 flex gap-2">
+          {participatedIn.length > 0 && (
+            <Button onClick={handleFilterAsParticipant} variant="outline" size="sm">
+              <Filter className="h-4 w-4 mr-2" />
+              Filter as Participant
+            </Button>
+          )}
+          {mentionedIn.length > 0 && (
+            <Button onClick={handleFilterAsMentioned} variant="outline" size="sm">
+              <Filter className="h-4 w-4 mr-2" />
+              Filter as Mentioned
+            </Button>
+          )}
         </div>
         <ScrollArea className="h-[60vh]">
           <div className="space-y-4">
@@ -740,16 +753,17 @@ export default function EpsteinEmailExplorer() {
     setAttributeFilters(attributeFilters.filter(f => f.id !== id));
   };
 
-  const handleFilterByPerson = (person: string) => {
-    // Add a filter for this person (check in participants, people_mentioned, and notable_figures)
+  const handleFilterByPerson = (person: string, attribute: string) => {
+    // Add a filter for this person with the specified attribute
     setAttributeFilters([
       ...attributeFilters,
       {
         id: Math.random().toString(),
-        attribute: "participant",
+        attribute: attribute,
         value: person,
       },
     ]);
+    setActiveTab("emails"); // Switch to emails tab to show filtered results
   };
 
   const filteredEmails = useMemo(() => {
@@ -940,8 +954,6 @@ export default function EpsteinEmailExplorer() {
           </div>
         </div>
       )}
-      <StatsDashboard emails={filteredEmails} />
-
       {/* Download Insights Button */}
       <div className="flex justify-end mb-4">
         <Button
@@ -964,6 +976,8 @@ export default function EpsteinEmailExplorer() {
           )}
         </Button>
       </div>
+
+      <StatsDashboard emails={filteredEmails} />
 
       {/* Filters */}
       <Card>
@@ -1320,17 +1334,34 @@ export default function EpsteinEmailExplorer() {
                           >
                             View Details
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              handleFilterByPerson(person.name);
-                              setActiveTab("emails");
-                            }}
-                          >
-                            <Filter className="h-3 w-3 mr-1" />
-                            Filter
-                          </Button>
+                          {person.asParticipant > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                handleFilterByPerson(person.name, "participant");
+                                setActiveTab("emails");
+                              }}
+                              title="Filter emails where this person is a participant"
+                            >
+                              <Filter className="h-3 w-3 mr-1" />
+                              As Participant
+                            </Button>
+                          )}
+                          {person.asMentioned > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                handleFilterByPerson(person.name, "people_mentioned");
+                                setActiveTab("emails");
+                              }}
+                              title="Filter emails where this person is mentioned"
+                            >
+                              <Filter className="h-3 w-3 mr-1" />
+                              As Mentioned
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1341,6 +1372,42 @@ export default function EpsteinEmailExplorer() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Pipeline Artifacts */}
+      <div className="mt-8 pt-6 border-t border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Pipeline Artifacts</h3>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="https://docetlcloudbank.blob.core.windows.net/demos/emails_dataset.json"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm" className="bg-white">
+              <Download className="h-4 w-4 mr-2" />
+              Download Pipeline Input
+            </Button>
+          </a>
+          <a
+            href="https://docetlcloudbank.blob.core.windows.net/demos/emails_with_metadata.json"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm" className="bg-white">
+              <FileJson className="h-4 w-4 mr-2" />
+              Download Pipeline Output
+            </Button>
+          </a>
+          <a
+            href="/demos/epstein_email_pipeline.yaml"
+            download
+          >
+            <Button variant="outline" size="sm" className="bg-white">
+              <FileJson className="h-4 w-4 mr-2" />
+              Download Pipeline YAML
+            </Button>
+          </a>
+        </div>
+      </div>
 
       {/* Person Detail Modal */}
       <PersonDetailModal

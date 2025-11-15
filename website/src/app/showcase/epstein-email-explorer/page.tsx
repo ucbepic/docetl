@@ -1,7 +1,7 @@
 import React, { Suspense } from "react";
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
-import { Info, Download, FileJson, Loader2, ArrowLeft, Scroll, ExternalLink } from "lucide-react";
+import { Info, Loader2, ArrowLeft, Scroll, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -144,35 +144,6 @@ export default function EpsteinEmailExplorerPage() {
                 <Button variant="outline" size="sm" className="bg-white">
                   <ExternalLink className="h-4 w-4 mr-2" />
                   View Original Release
-                </Button>
-              </a>
-              <a
-                href="https://docetlcloudbank.blob.core.windows.net/demos/emails_dataset.json"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button variant="outline" size="sm" className="bg-white">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Pipeline Input
-                </Button>
-              </a>
-              <a
-                href="https://docetlcloudbank.blob.core.windows.net/demos/emails_with_metadata.json"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button variant="outline" size="sm" className="bg-white">
-                  <FileJson className="h-4 w-4 mr-2" />
-                  Download Pipeline Output
-                </Button>
-              </a>
-              <a
-                href="/demos/epstein_email_pipeline.yaml"
-                download
-              >
-                <Button variant="outline" size="sm" className="bg-white">
-                  <FileJson className="h-4 w-4 mr-2" />
-                  Download Pipeline YAML
                 </Button>
               </a>
             </div>

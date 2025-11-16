@@ -1246,16 +1246,16 @@ export default function EpsteinEmailExplorer() {
 
               <div className="flex items-center space-x-2">
                 <Label htmlFor="chronological" className="whitespace-nowrap">
-                  Order chronologically:
+                  Sort by:
                 </Label>
                 <Select value={chronologicalOrder} onValueChange={(v) => setChronologicalOrder(v as "none" | "asc" | "desc")}>
                   <SelectTrigger id="chronological" className="w-[180px]">
                     <SelectValue placeholder="Select order..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Default (flagged first)</SelectItem>
-                    <SelectItem value="asc">Ascending (oldest first)</SelectItem>
-                    <SelectItem value="desc">Descending (newest first)</SelectItem>
+                    <SelectItem value="none">Flagged first</SelectItem>
+                    <SelectItem value="asc">Oldest first</SelectItem>
+                    <SelectItem value="desc">Newest first</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

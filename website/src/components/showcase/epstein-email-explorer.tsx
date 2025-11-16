@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, Users, Calendar as CalendarIcon, Search, X, Filter, ChevronDown, ChevronUp, Plus, Mail, UserCircle, Download, Check, FileJson } from "lucide-react";
+import { Loader2, AlertTriangle, Users, Calendar as CalendarIcon, Search, X, Filter, ChevronDown, ChevronUp, Plus, Mail, UserCircle, Download, FileJson, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -611,8 +611,9 @@ export default function EpsteinEmailExplorer() {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"emails" | "people">("emails");
   const [showMobileWarning, setShowMobileWarning] = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [includeSourceText, setIncludeSourceText] = useState(false);
+  const [showExportInfo, setShowExportInfo] = useState(false);
 
   // Debounced input handler
   const handleFilterInputChange = useCallback((value: string) => {
@@ -661,24 +662,37 @@ export default function EpsteinEmailExplorer() {
       const emailsToDownload = downloadAll ? emails : filteredEmails;
       const sortedEmails = [...emailsToDownload].sort((a, b) => a.date.localeCompare(b.date));
 
-      const compactEmails = sortedEmails.map((email) => ({
-        subject: email.subject || '',
-        date: email.date || '',
-        participants: email.participants?.map((p) => p.name).filter(Boolean) || [],
-        people_mentioned: email.people_mentioned || [],
-        notable_figures: email.notable_figures || [],
-        organizations: email.organizations || [],
-        locations: email.locations || [],
-        summary: email.summary || '',
-        primary_topic: email.primary_topic || '',
-        topics: email.topics || [],
-        tone: email.tone || '',
-        potential_crimes: email.potential_crimes || '',
-        crime_types: email.crime_types || [],
-        mentions_victims: email.mentions_victims || false,
-        victim_names: email.victim_names || [],
-        cover_up: email.cover_up || '',
-      }));
+      const compactEmails = sortedEmails.map((email) => {
+        const baseData = {
+          source_file: email.source_file || '',
+          subject: email.subject || '',
+          date: email.date || '',
+          participants: email.participants?.map((p) => p.name).filter(Boolean) || [],
+          people_mentioned: email.people_mentioned || [],
+          notable_figures: email.notable_figures || [],
+          organizations: email.organizations || [],
+          locations: email.locations || [],
+          summary: email.summary || '',
+          primary_topic: email.primary_topic || '',
+          topics: email.topics || [],
+          tone: email.tone || '',
+          potential_crimes: email.potential_crimes || '',
+          crime_types: email.crime_types || [],
+          mentions_victims: email.mentions_victims || false,
+          victim_names: email.victim_names || [],
+          cover_up: email.cover_up || '',
+        };
+
+        // Conditionally include email text
+        if (includeSourceText) {
+          return {
+            ...baseData,
+            email_text: email.email_text || '',
+          };
+        }
+
+        return baseData;
+      });
 
       const jsonContent = JSON.stringify(compactEmails, null, 2);
 
@@ -697,7 +711,6 @@ export default function EpsteinEmailExplorer() {
       URL.revokeObjectURL(url);
 
       setIsDownloading(false);
-      setShowDownloadModal(true);
     } catch (err) {
       console.error('Failed to download insights:', err);
       setIsDownloading(false);
@@ -977,7 +990,15 @@ export default function EpsteinEmailExplorer() {
         </div>
       )}
       {/* Download Insights Button */}
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4 items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowExportInfo(true)}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <Info className="h-4 w-4" />
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -994,13 +1015,28 @@ export default function EpsteinEmailExplorer() {
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-2" />
-                  Download Insights for AI Chat
+                  Export Metadata
                   <ChevronDown className="h-4 w-4 ml-2" />
                 </>
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-64">
+            <div
+              className="px-2 py-2 border-b"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="includeSourceText"
+                  checked={includeSourceText}
+                  onCheckedChange={(checked) => setIncludeSourceText(checked as boolean)}
+                />
+                <Label htmlFor="includeSourceText" className="cursor-pointer text-sm font-normal">
+                  Include full email text
+                </Label>
+              </div>
+            </div>
             <DropdownMenuItem onClick={() => handleDownloadInsights(true)}>
               <Download className="h-4 w-4 mr-2" />
               Complete Dataset ({emails.length} emails)
@@ -1504,56 +1540,56 @@ export default function EpsteinEmailExplorer() {
         </DialogContent>
       </Dialog>
 
-      {/* Download for AI Chat Modal */}
-      <Dialog open={showDownloadModal} onOpenChange={setShowDownloadModal}>
+      {/* Export Info Modal */}
+      <Dialog open={showExportInfo} onOpenChange={setShowExportInfo}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Check className="h-5 w-5 text-green-600" />
-              File Downloaded!
+              <Info className="h-5 w-5 text-blue-600" />
+              How to Use Exported Data
             </DialogTitle>
             <DialogDescription className="space-y-4 pt-3">
-              <p className="text-base">
-                <strong>epstein_emails_insights.txt</strong> has been downloaded to your computer.
-              </p>
               <p className="text-sm text-gray-600">
-                This file contains DocETL-generated metadata for 2,322 emails (subjects, participants, summaries, topics, flagged concerns, etc.)
+                Export metadata to analyze this dataset with AI chatbots like ChatGPT, Claude, or Gemini.
               </p>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="font-semibold text-blue-900 mb-2">How to chat with AI about this data:</p>
+                <p className="font-semibold text-blue-900 mb-2">Steps:</p>
                 <ol className="list-decimal list-inside space-y-3 text-sm text-blue-800">
                   <li>
-                    <strong>Open ChatGPT, Claude, or Gemini</strong>
+                    <strong>Export the metadata</strong> using the dropdown menu
+                  </li>
+                  <li>
+                    <strong>Upload to your AI chat</strong>
                     <ul className="list-disc list-inside ml-4 mt-1 text-xs space-y-1">
-                      <li>ChatGPT: Click the <strong>📎 attach file</strong> icon</li>
-                      <li>Claude: Click <strong>Add content</strong> or drag and drop</li>
-                      <li>Gemini: Click the <strong>Add file</strong> button</li>
+                      <li>ChatGPT: Click the 📎 attach file icon</li>
+                      <li>Claude: Click Add content or drag and drop</li>
+                      <li>Gemini: Click the Add file button</li>
                     </ul>
                   </li>
-                  <li><strong>Upload</strong> the downloaded <code className="bg-white px-1 rounded">epstein_emails_insights.txt</code> file</li>
                   <li>
                     <strong>Ask questions</strong> like:
                     <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                      <li>&quot;Which emails mention [person/organization]?&quot;</li>
-                      <li>&quot;What are the most common topics?&quot;</li>
-                      <li>&quot;Summarize emails flagged with concerns&quot;</li>
-                      <li>&quot;Find patterns in communication over time&quot;</li>
+                      <li>&quot;Given these emails from Jeffrey Epstein&apos;s network, find unexpected or surprising people mentioned&quot;</li>
+                      <li>&quot;Based on this email metadata, what connections seem out of place or unusual?&quot;</li>
+                      <li>&quot;In these Epstein emails, identify any contradictions between tone and content&quot;</li>
+                      <li>&quot;Looking at this dataset, which emails appear to use coded or euphemistic language?&quot;</li>
                     </ul>
                   </li>
                 </ol>
               </div>
-              <p className="text-sm text-gray-600">
-                The AI can analyze the structured metadata to find patterns, answer questions, and help with investigative research.
+              <p className="text-xs text-gray-500">
+                The exported file contains structured metadata (summaries, topics, people, etc.) that AI can easily analyze.
               </p>
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
-            <Button onClick={() => setShowDownloadModal(false)}>
-              Got it!
+            <Button onClick={() => setShowExportInfo(false)}>
+              Close
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

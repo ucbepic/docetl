@@ -36,6 +36,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Participant {
   name: string;
@@ -595,6 +601,7 @@ export default function EpsteinEmailExplorer() {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [showCrimesOnly, setShowCrimesOnly] = useState(false);
   const [showVictimsOnly, setShowVictimsOnly] = useState(false);
+  const [chronologicalOrder, setChronologicalOrder] = useState<"none" | "asc" | "desc">("none");
   const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [emails, setEmails] = useState<Email[]>([]);
   const [totalEmails, setTotalEmails] = useState(0);
@@ -646,12 +653,15 @@ export default function EpsteinEmailExplorer() {
     setShowMobileWarning(false);
   };
 
-  const handleDownloadInsights = () => {
+  const handleDownloadInsights = (downloadAll: boolean) => {
     try {
       setIsDownloading(true);
 
-      // Use the already-loaded emails data
-      const compactEmails = emails.map((email) => ({
+      // Choose which emails to download and sort chronologically (oldest first)
+      const emailsToDownload = downloadAll ? emails : filteredEmails;
+      const sortedEmails = [...emailsToDownload].sort((a, b) => a.date.localeCompare(b.date));
+
+      const compactEmails = sortedEmails.map((email) => ({
         subject: email.subject || '',
         date: email.date || '',
         participants: email.participants?.map((p) => p.name).filter(Boolean) || [],
@@ -677,7 +687,10 @@ export default function EpsteinEmailExplorer() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'epstein_emails_insights.txt';
+      const filename = downloadAll
+        ? 'epstein_emails_insights_all.txt'
+        : 'epstein_emails_insights_filtered.txt';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -821,16 +834,25 @@ export default function EpsteinEmailExplorer() {
       result = result.filter(e => e.mentions_victims);
     }
 
-    // Sort: emails with potential crimes first
-    return result.sort((a, b) => {
-      const aHasCrimes = a.potential_crimes && a.potential_crimes.trim() ? 1 : 0;
-      const bHasCrimes = b.potential_crimes && b.potential_crimes.trim() ? 1 : 0;
-      if (bHasCrimes !== aHasCrimes) return bHasCrimes - aHasCrimes;
+    // Sort based on chronological order preference
+    if (chronologicalOrder === "asc") {
+      // Oldest first
+      return result.sort((a, b) => a.date.localeCompare(b.date));
+    } else if (chronologicalOrder === "desc") {
+      // Newest first
+      return result.sort((a, b) => b.date.localeCompare(a.date));
+    } else {
+      // Default: emails with potential crimes first, then by date (newest first)
+      return result.sort((a, b) => {
+        const aHasCrimes = a.potential_crimes && a.potential_crimes.trim() ? 1 : 0;
+        const bHasCrimes = b.potential_crimes && b.potential_crimes.trim() ? 1 : 0;
+        if (bHasCrimes !== aHasCrimes) return bHasCrimes - aHasCrimes;
 
-      // Then by date (newest first)
-      return b.date.localeCompare(a.date);
-    });
-  }, [emails, attributeFilters, showCrimesOnly, showVictimsOnly, dateFrom, dateTo]);
+        // Then by date (newest first)
+        return b.date.localeCompare(a.date);
+      });
+    }
+  }, [emails, attributeFilters, showCrimesOnly, showVictimsOnly, dateFrom, dateTo, chronologicalOrder]);
 
   // Lightweight count of unique people (always computed for tab label)
   const peopleCount = useMemo(() => {
@@ -956,25 +978,42 @@ export default function EpsteinEmailExplorer() {
       )}
       {/* Download Insights Button */}
       <div className="flex justify-end mb-4">
-        <Button
-          onClick={handleDownloadInsights}
-          disabled={isLoadingInitial || emails.length === 0 || isDownloading}
-          variant="outline"
-          size="sm"
-          className="bg-white"
-        >
-          {isDownloading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Preparing download...
-            </>
-          ) : (
-            <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={isLoadingInitial || emails.length === 0 || isDownloading}
+              variant="outline"
+              size="sm"
+              className="bg-white"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Preparing download...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Insights for AI Chat
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleDownloadInsights(true)}>
               <Download className="h-4 w-4 mr-2" />
-              Download Insights for AI Chat
-            </>
-          )}
-        </Button>
+              Complete Dataset ({emails.length} emails)
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handleDownloadInsights(false)}
+              disabled={filteredEmails.length === emails.length}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Current View ({filteredEmails.length} emails)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <StatsDashboard emails={filteredEmails} />
@@ -1182,7 +1221,7 @@ export default function EpsteinEmailExplorer() {
             </div>
 
             {/* Quick filters */}
-            <div className="flex gap-4 pt-2 border-t">
+            <div className="flex flex-wrap gap-4 pt-2 border-t">
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="crimes"
@@ -1203,6 +1242,22 @@ export default function EpsteinEmailExplorer() {
                 <Label htmlFor="victims" className="cursor-pointer">
                   Show only emails mentioning victims
                 </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="chronological" className="whitespace-nowrap">
+                  Sort by:
+                </Label>
+                <Select value={chronologicalOrder} onValueChange={(v) => setChronologicalOrder(v as "none" | "asc" | "desc")}>
+                  <SelectTrigger id="chronological" className="w-[180px]">
+                    <SelectValue placeholder="Select order..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Flagged first</SelectItem>
+                    <SelectItem value="asc">Oldest first</SelectItem>
+                    <SelectItem value="desc">Newest first</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

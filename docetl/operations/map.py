@@ -17,12 +17,16 @@ from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types
 from docetl.operations.utils.api import OutputMode
+from docetl.operations.utils.validation import (
+    convert_schema_to_dict_format,
+    is_pydantic_model,
+)
 
 
 class MapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "map"
-        output: dict[str, Any] | None = None
+        output: dict[str, Any] | Any | None = None
         prompt: str | None = None
         model: str | None = None
         optimize: bool | None = None
@@ -610,7 +614,15 @@ class ParallelMapOperation(BaseOperation):
         """
         results = {}
         total_cost = 0
-        output_schema = self.config.get("output", {}).get("schema", {})
+        # Handle both dict and Pydantic schemas
+        output_config = self.config.get("output", {})
+        raw_schema = output_config.get("schema", {})
+
+        # Convert Pydantic schema to dict format if needed
+        if is_pydantic_model(raw_schema):
+            output_schema = convert_schema_to_dict_format(raw_schema)
+        else:
+            output_schema = raw_schema
 
         # Check if there's no prompt and only drop_keys
         if "prompts" not in self.config and "drop_keys" in self.config:

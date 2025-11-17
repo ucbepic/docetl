@@ -14,6 +14,10 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
+from docetl.operations.utils.validation import (
+    convert_schema_to_dict_format,
+    is_pydantic_model,
+)
 from docetl.utils import completion_cost, extract_jinja_variables
 
 
@@ -29,7 +33,7 @@ class ResolveOperation(BaseOperation):
         type: str = "resolve"
         comparison_prompt: str
         resolution_prompt: str | None = None
-        output: dict[str, Any] | None = None
+        output: dict[str, Any] | Any | None = None
         embedding_model: str | None = None
         resolution_model: str | None = None
         comparison_model: str | None = None
@@ -113,12 +117,15 @@ class ResolveOperation(BaseOperation):
             if "schema" not in self.output:
                 raise ValueError("Missing 'schema' in 'output' configuration")
 
-            if not isinstance(self.output["schema"], dict):
+            # Accept both dict schemas and Pydantic models
+            schema = self.output["schema"]
+            if not isinstance(schema, dict) and not is_pydantic_model(schema):
                 raise TypeError(
-                    "'schema' in 'output' configuration must be a dictionary"
+                    "'schema' in 'output' configuration must be a dictionary or Pydantic BaseModel"
                 )
 
-            if not self.output["schema"]:
+            # Check if schema is empty (only applies to dict schemas)
+            if isinstance(schema, dict) and not schema:
                 raise ValueError("'schema' in 'output' configuration cannot be empty")
 
             return self
@@ -207,6 +214,15 @@ class ResolveOperation(BaseOperation):
         """
         if len(input_data) == 0:
             return [], 0
+
+        # Handle both dict and Pydantic schemas
+        if self.config.get("output") and "schema" in self.config["output"]:
+            raw_schema = self.config["output"]["schema"]
+            if is_pydantic_model(raw_schema):
+                # Convert Pydantic schema to dict format for internal processing
+                self.config["output"]["schema"] = convert_schema_to_dict_format(
+                    raw_schema
+                )
 
         # Initialize observability data for all items at the start
         if self.config.get("enable_observability", False):

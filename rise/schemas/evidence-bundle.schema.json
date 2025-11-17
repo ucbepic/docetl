@@ -1,0 +1,422 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://rise-forensics.org/schemas/evidence-bundle.schema.json",
+  "title": "RISE Evidence Bundle",
+  "description": "Forensic evidence bundle containing original source material, normalized content, metadata, and provenance from RISE ingestion phase",
+  "type": "object",
+  "required": [
+    "evidence_id",
+    "bundle_version",
+    "ingestion_timestamp",
+    "ingestion_tool",
+    "original",
+    "source_metadata",
+    "normalized_content",
+    "quality_assessment",
+    "downstream_ready"
+  ],
+  "properties": {
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^evd_[0-9]{8}_[0-9]{6}_[0-9]{3}$",
+      "description": "Unique evidence identifier (format: evd_YYYYMMDD_HHMMSS_###)",
+      "examples": ["evd_20240110_142300_001"]
+    },
+    "bundle_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Evidence bundle schema version",
+      "examples": ["1.0"]
+    },
+    "ingestion_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of ingestion"
+    },
+    "ingestion_tool": {
+      "type": "string",
+      "pattern": "^rise-ingest v\\d+\\.\\d+\\.\\d+$",
+      "description": "Tool and version that created this bundle",
+      "examples": ["rise-ingest v1.2.0"]
+    },
+
+    "original": {
+      "type": "object",
+      "required": ["filename", "path", "format", "size_bytes", "hash_sha256"],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "description": "Original filename"
+        },
+        "path": {
+          "type": "string",
+          "description": "Original file path relative to ingestion source"
+        },
+        "format": {
+          "type": "string",
+          "description": "File format (JPEG, PDF, MP3, etc.)"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "File size in bytes"
+        },
+        "hash_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of original file (lowercase hex)"
+        },
+        "created_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "File creation timestamp (from filesystem metadata)"
+        },
+        "modified_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "File modification timestamp"
+        }
+      }
+    },
+
+    "source_metadata": {
+      "type": "object",
+      "required": ["chain_of_custody"],
+      "properties": {
+        "collector": {
+          "type": "string",
+          "description": "Person/organization who collected this evidence"
+        },
+        "collection_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date evidence was collected"
+        },
+        "collection_method": {
+          "type": "string",
+          "enum": ["secure_transfer", "encrypted_usb", "field_collection", "remote_upload", "other"],
+          "description": "Method used to collect/transfer evidence"
+        },
+        "source_location": {
+          "type": "string",
+          "description": "Geographic location of source (Township, Region)"
+        },
+        "source_description": {
+          "type": "string",
+          "description": "Description of evidence source"
+        },
+        "chain_of_custody": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["timestamp", "action", "actor"],
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["created", "collected", "transferred", "ingested", "processed"],
+                "description": "Action taken in custody chain"
+              },
+              "actor": {
+                "type": "string",
+                "description": "Person/system performing action"
+              },
+              "location": {
+                "type": "string",
+                "description": "Location where action occurred"
+              },
+              "method": {
+                "type": "string",
+                "description": "Method used for this custody step"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "encoding_analysis": {
+      "type": "object",
+      "description": "Text encoding detection and analysis (primarily for Myanmar Zawgyi/Unicode)",
+      "properties": {
+        "text_detected": {
+          "type": "boolean",
+          "description": "Whether text content was detected in the evidence"
+        },
+        "primary_language": {
+          "type": "string",
+          "description": "Primary language code (ISO 639-1)",
+          "examples": ["my", "en"]
+        },
+        "encoding_original": {
+          "type": "string",
+          "enum": ["unicode", "zawgyi", "mixed", "ascii", "unknown"],
+          "description": "Detected original encoding"
+        },
+        "encoding_confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Confidence score for encoding detection"
+        },
+        "encoding_method": {
+          "type": "string",
+          "description": "Method used for encoding detection",
+          "examples": ["ml_classifier_myanmar_v2.1", "rule_based_validator", "manual_annotation"]
+        },
+        "zawgyi_indicators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Specific indicators that suggest Zawgyi encoding"
+        },
+        "ambiguous_segments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text_snippet": {
+                "type": "string",
+                "description": "Ambiguous text segment"
+              },
+              "offset": {
+                "type": "integer",
+                "description": "Character offset in text"
+              },
+              "zawgyi_confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
+              },
+              "unicode_confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
+              },
+              "flagged_for_review": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "normalized_content": {
+      "type": "object",
+      "description": "Normalized text content (Unicode, OCR-extracted, etc.)",
+      "properties": {
+        "text_original_bytes": {
+          "type": "string",
+          "description": "Base64-encoded original bytes (preserves exact encoding)"
+        },
+        "text_normalized_unicode": {
+          "type": "string",
+          "description": "Text normalized to Unicode (Zawgyi converted if applicable)"
+        },
+        "ocr_applied": {
+          "type": "boolean",
+          "description": "Whether OCR was used to extract text"
+        },
+        "ocr_engine": {
+          "type": "string",
+          "description": "OCR engine used",
+          "examples": ["tesseract_5.3_burmese", "google_cloud_vision"]
+        },
+        "ocr_confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Overall OCR confidence score"
+        },
+        "text_extraction_issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "issue": {
+                "type": "string",
+                "enum": ["low_contrast", "blur", "partial_occlusion", "rotation", "noise", "other"]
+              },
+              "location": {
+                "type": "string",
+                "description": "Location of issue (e.g., 'bottom_right', 'entire_image')"
+              },
+              "confidence_impact": {
+                "type": "number",
+                "description": "Impact on confidence (negative number)"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "security_metadata": {
+      "type": "object",
+      "description": "Security and protection metadata",
+      "properties": {
+        "embargo_until": {
+          "type": "string",
+          "format": "date",
+          "description": "Date until which evidence is embargoed (ISO 8601 date)"
+        },
+        "anonymization_applied": {
+          "type": "boolean",
+          "description": "Whether anonymization was applied"
+        },
+        "anonymized_elements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "method"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["face", "phone_number", "location", "name", "custom"],
+                "description": "Type of element anonymized"
+              },
+              "location": {
+                "type": "string",
+                "description": "Location of anonymized element (e.g., 'bbox[120,45,200,135]' for face)"
+              },
+              "pattern": {
+                "type": "string",
+                "description": "Pattern matched (for phone numbers, etc.)"
+              },
+              "method": {
+                "type": "string",
+                "enum": ["gaussian_blur", "redaction", "pseudonymization", "fuzzing"],
+                "description": "Anonymization method used"
+              },
+              "parameters": {
+                "type": "object",
+                "description": "Method-specific parameters (e.g., blur radius)"
+              }
+            }
+          }
+        },
+        "access_restrictions": {
+          "type": "string",
+          "enum": ["public", "researchers_only", "verified_researchers_only", "legal_team_only", "admin_only"],
+          "description": "Access control level"
+        },
+        "encryption_status": {
+          "type": "string",
+          "enum": ["none", "encrypted_aes256", "encrypted_other"],
+          "description": "Encryption status"
+        },
+        "encryption_key_id": {
+          "type": "string",
+          "description": "Key ID for decryption (not the key itself)"
+        }
+      }
+    },
+
+    "format_conversions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from_format": {
+            "type": "string"
+          },
+          "to_format": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for conversion"
+          },
+          "conversion_tool": {
+            "type": "string",
+            "description": "Tool used for conversion"
+          },
+          "output_path": {
+            "type": "string",
+            "description": "Path to converted file"
+          }
+        }
+      }
+    },
+
+    "quality_assessment": {
+      "type": "object",
+      "required": ["overall_quality"],
+      "properties": {
+        "overall_quality": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Overall quality score (0.0-1.0)"
+        },
+        "encoding_quality": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Encoding detection/conversion quality"
+        },
+        "ocr_quality": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "OCR extraction quality"
+        },
+        "format_quality": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Format conversion quality"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["compression_artifacts", "corruption", "incomplete_text", "mixed_encoding", "low_resolution", "other"]
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["critical", "high", "medium", "low"]
+              },
+              "impact": {
+                "type": "string",
+                "description": "Description of impact on usability"
+              }
+            }
+          }
+        },
+        "human_review_recommended": {
+          "type": "boolean",
+          "description": "Whether human review is recommended"
+        },
+        "review_reason": {
+          "type": "string",
+          "description": "Reason human review is recommended (if applicable)"
+        }
+      }
+    },
+
+    "downstream_ready": {
+      "type": "boolean",
+      "description": "Whether bundle is ready for downstream processing (extraction)"
+    },
+    "next_phase": {
+      "type": "string",
+      "enum": ["extraction", "human_review", "discard"],
+      "description": "Recommended next phase"
+    },
+
+    "custom_metadata": {
+      "type": "object",
+      "description": "Custom metadata fields (context-specific)"
+    }
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "database_id": "myanmar_calendar_2024",
+  "version": "1.0",
+  "description": "Myanmar (Burmese) calendar to Gregorian conversion data",
+
+  "calendar_system": {
+    "type": "lunisolar",
+    "epoch": "Myanmar Era (ME)",
+    "me_to_gregorian_offset": 638,
+    "note": "Myanmar year = Gregorian year - 638",
+    "new_year": "Mid-April (Thingyan Water Festival)"
+  },
+
+  "months": [
+    {
+      "month_number": 1,
+      "name_burmese": "တန်ခူး",
+      "name_romanized": "Tagu",
+      "gregorian_approximate": "March-April"
+    },
+    {
+      "month_number": 2,
+      "name_burmese": "ကဆုန်",
+      "name_romanized": "Kason",
+      "gregorian_approximate": "April-May"
+    },
+    {
+      "month_number": 3,
+      "name_burmese": "နယုန်",
+      "name_romanized": "Nayon",
+      "gregorian_approximate": "May-June"
+    },
+    {
+      "month_number": 4,
+      "name_burmese": "ဝါဆို",
+      "name_romanized": "Waso",
+      "gregorian_approximate": "June-July"
+    },
+    {
+      "month_number": 5,
+      "name_burmese": "ဝါခေါင်",
+      "name_romanized": "Wagaung",
+      "gregorian_approximate": "July-August"
+    },
+    {
+      "month_number": 6,
+      "name_burmese": "တော်သလင်း",
+      "name_romanized": "Tawthalin",
+      "gregorian_approximate": "August-September"
+    },
+    {
+      "month_number": 7,
+      "name_burmese": "သီတင်းကျွတ်",
+      "name_romanized": "Thadingyut",
+      "gregorian_approximate": "September-October"
+    },
+    {
+      "month_number": 8,
+      "name_burmese": "တန်ဆောင်မုန်း",
+      "name_romanized": "Tazaungmon",
+      "gregorian_approximate": "October-November"
+    },
+    {
+      "month_number": 9,
+      "name_burmese": "နတ်တော်",
+      "name_romanized": "Nadaw",
+      "gregorian_approximate": "November-December"
+    },
+    {
+      "month_number": 10,
+      "name_burmese": "ပြာသို",
+      "name_romanized": "Pyatho",
+      "gregorian_approximate": "December-January"
+    },
+    {
+      "month_number": 11,
+      "name_burmese": "တပို့တွဲ",
+      "name_romanized": "Tabodwe",
+      "gregorian_approximate": "January-February"
+    },
+    {
+      "month_number": 12,
+      "name_burmese": "တပေါင်း",
+      "name_romanized": "Tabaung",
+      "gregorian_approximate": "February-March"
+    }
+  ],
+
+  "conversion_examples": [
+    {
+      "myanmar_date": "1382 ကဆုန် 15",
+      "myanmar_year": 1382,
+      "myanmar_month": "Kason",
+      "myanmar_day": 15,
+      "gregorian_date": "2021-04-15",
+      "confidence": 1.0
+    },
+    {
+      "myanmar_date": "1383 တန်ခူး 1",
+      "myanmar_year": 1383,
+      "myanmar_month": "Tagu",
+      "myanmar_day": 1,
+      "gregorian_date": "2021-04-14",
+      "note": "Myanmar New Year (1383) corresponds to Thingyan 2021"
+    },
+    {
+      "myanmar_date": "1382 ပြာသို 17",
+      "myanmar_year": 1382,
+      "myanmar_month": "Pyatho",
+      "myanmar_day": 17,
+      "gregorian_date": "2021-02-01",
+      "note": "Date of 2021 military coup"
+    }
+  ],
+
+  "conversion_notes": {
+    "library_recommendation": "Use 'myanmar-calendar' Python library for accurate conversions",
+    "warning": "Lunar calendar requires calculation - do not hardcode mappings",
+    "intercalary_months": "Myanmar calendar occasionally has 13th month (Waso II) - library handles this",
+    "precision": "Myanmar calendar dates without explicit Gregorian conversion should be treated as approximate (±2 days)"
+  },
+
+  "year_conversion_formula": {
+    "me_to_gregorian": "Gregorian Year = Myanmar Era + 638 (approximate, varies by month)",
+    "example": "ME 1382 = Gregorian 2020/2021 (spanning both years)"
+  }
+}

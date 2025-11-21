@@ -1,0 +1,265 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://rise-forensics.org/schemas/timeline.schema.json",
+  "title": "RISE Timeline Output",
+  "description": "Chronological master timeline with temporal gap analysis and event sequencing",
+  "type": "object",
+  "required": [
+    "timeline_id",
+    "timeline_version",
+    "creation_timestamp",
+    "creation_tool",
+    "metadata",
+    "events"
+  ],
+  "properties": {
+    "timeline_id": {
+      "type": "string",
+      "description": "Unique timeline identifier",
+      "examples": ["myanmar_sagaing_2021_2024"]
+    },
+    "timeline_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "creation_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "creation_tool": {
+      "type": "string",
+      "pattern": "^rise-timeline v\\d+\\.\\d+\\.\\d+$"
+    },
+
+    "metadata": {
+      "type": "object",
+      "required": ["geographic_scope", "temporal_scope", "event_statistics"],
+      "properties": {
+        "geographic_scope": {"type": "string"},
+        "temporal_scope": {
+          "type": "object",
+          "required": ["start_date", "end_date", "total_days"],
+          "properties": {
+            "start_date": {"type": "string", "format": "date"},
+            "end_date": {"type": "string", "format": "date"},
+            "total_days": {"type": "integer"}
+          }
+        },
+        "event_statistics": {
+          "type": "object",
+          "properties": {
+            "total_events": {"type": "integer"},
+            "by_type": {
+              "type": "object",
+              "additionalProperties": {"type": "integer"}
+            },
+            "by_confidence": {
+              "type": "object",
+              "properties": {
+                "high": {"type": "integer"},
+                "medium": {"type": "integer"},
+                "low": {"type": "integer"}
+              }
+            }
+          }
+        },
+        "coverage_analysis": {
+          "type": "object",
+          "properties": {
+            "days_with_events": {"type": "integer"},
+            "days_without_events": {"type": "integer"},
+            "coverage_percentage": {"type": "number"},
+            "longest_gap_days": {"type": "integer"}
+          }
+        }
+      }
+    },
+
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timeline_entry_id", "event_id", "sequence_number", "temporal", "event_summary", "confidence"],
+        "properties": {
+          "timeline_entry_id": {
+            "type": "string",
+            "pattern": "^tml_[0-9]{3,}$"
+          },
+          "event_id": {"type": "string"},
+          "sequence_number": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Chronological sequence position"
+          },
+
+          "temporal": {
+            "type": "object",
+            "required": ["date", "date_precision"],
+            "properties": {
+              "date": {"type": "string", "format": "date"},
+              "time": {"type": "string"},
+              "timezone": {"type": "string"},
+              "date_precision": {
+                "type": "string",
+                "enum": ["exact", "approximate", "range"]
+              },
+              "time_precision": {
+                "type": "string",
+                "enum": ["exact", "approximate_hour", "unknown"]
+              },
+              "myanmar_calendar": {
+                "type": "string",
+                "description": "Myanmar calendar date (YYYY_MonthName_DD)"
+              },
+              "fuzzy_description": {"type": "string"},
+              "original_text": {"type": "string"}
+            }
+          },
+
+          "event_summary": {
+            "type": "object",
+            "required": ["type", "description"],
+            "properties": {
+              "type": {"type": "string"},
+              "description": {"type": "string"},
+              "significance": {"type": "string"},
+              "entities_involved": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {"type": "string"},
+                    "name": {"type": "string"},
+                    "role": {"type": "string"}
+                  }
+                }
+              },
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "type": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+
+          "confidence": {
+            "type": "object",
+            "required": ["overall"],
+            "properties": {
+              "overall": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+              "date_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+              "event_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+              "sources_count": {"type": "integer"}
+            }
+          },
+
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "evidence_id": {"type": "string"},
+                "type": {"type": "string"}
+              }
+            }
+          },
+
+          "related_events": {
+            "type": "object",
+            "properties": {
+              "previous": {"type": ["string", "null"]},
+              "next": {"type": ["string", "null"]},
+              "part_of_operation": {"type": "string"},
+              "triggered_by": {"type": "string"},
+              "led_to": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          },
+
+          "tags": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+
+    "temporal_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gap_id", "gap_type", "start_date", "end_date", "duration_days"],
+        "properties": {
+          "gap_id": {"type": "string"},
+          "gap_type": {
+            "type": "string",
+            "enum": ["missing_documentation", "quiet_period", "different_area"]
+          },
+          "start_date": {"type": "string", "format": "date"},
+          "end_date": {"type": "string", "format": "date"},
+          "duration_days": {"type": "integer"},
+          "location": {"type": "string"},
+          "context": {"type": "string"},
+          "events_before": {"type": "string"},
+          "events_after": {"type": "string"},
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "collection_recommendations": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+
+    "temporal_inconsistencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "inconsistency_id": {"type": "string"},
+          "type": {
+            "type": "string",
+            "enum": ["impossible_travel_time", "simultaneous_incompatible_events", "chronological_impossibility"]
+          },
+          "description": {"type": "string"},
+          "event_a": {"type": "object"},
+          "event_b": {"type": "object"},
+          "analysis": {"type": "object"},
+          "resolution_status": {
+            "type": "string",
+            "enum": ["auto_resolved", "requires_human_review", "unresolvable"]
+          }
+        }
+      }
+    },
+
+    "narrative_summary": {
+      "type": "object",
+      "properties": {
+        "period": {"type": "string"},
+        "key_phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "phase_name": {"type": "string"},
+              "date_range": {"type": "string"},
+              "events_count": {"type": "integer"},
+              "description": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

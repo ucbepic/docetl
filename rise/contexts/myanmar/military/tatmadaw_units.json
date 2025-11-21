@@ -1,0 +1,189 @@
+{
+  "database_id": "myanmar_tatmadaw_units_2024",
+  "version": "2.1",
+  "last_updated": "2024-01-01",
+  "description": "Myanmar military (Tatmadaw) organizational units database",
+  "sources": [
+    "Myanmar Peace Monitor",
+    "Open-source intelligence compilation",
+    "Network of Myanmar researchers and activists"
+  ],
+
+  "units": [
+    {
+      "unit_id": "tatmadaw_lid_99",
+      "unit_type": "light_infantry_division",
+      "official_name_english": "Light Infantry Division 99",
+      "official_name_burmese": "ပေါ့ပါးခြေလျင်တပ်မတော် ၉၉",
+      "common_names": [
+        "LID 99",
+        "99th Division",
+        "Division 99",
+        "လိုင်း ၉၉",
+        "၉၉ တပ်မ",
+        "Light Infantry Division No. 99"
+      ],
+
+      "organizational_hierarchy": {
+        "parent_command": "Northern Command",
+        "parent_command_id": "tatmadaw_northern_command",
+        "subordinate_units": [
+          {
+            "unit_id": "tatmadaw_lid99_ib1",
+            "name": "Infantry Battalion 1",
+            "name_burmese": "ခြေလျင်တပ်ရင်း ၁",
+            "type": "infantry_battalion"
+          },
+          {
+            "unit_id": "tatmadaw_lid99_ib2",
+            "name": "Infantry Battalion 2",
+            "name_burmese": "ခြေလျင်တပ်ရင်း ၂",
+            "type": "infantry_battalion"
+          },
+          {
+            "unit_id": "tatmadaw_lid99_arty",
+            "name": "Artillery Unit",
+            "name_burmese": "အမြောက်တပ်",
+            "type": "artillery_unit"
+          }
+        ]
+      },
+
+      "known_commanders": [
+        {
+          "name": "Unknown",
+          "period": "2021-2022",
+          "confidence": "unknown",
+          "notes": "Commander name not publicly confirmed for this period"
+        }
+      ],
+
+      "operational_areas": [
+        "Sagaing_Region_Kale_Township",
+        "Sagaing_Region_Tamu_Township",
+        "Sagaing_Region_Yinmabin_Township",
+        "Sagaing_Region_Kalay_Township"
+      ],
+
+      "active_period": {
+        "established": "1990s",
+        "active_status": "active",
+        "last_confirmed_activity": "2024-01-01"
+      },
+
+      "notes": "LID 99 has been heavily deployed in Sagaing Region following the February 2021 coup. Documented involvement in numerous attacks on civilian villages, particularly in Kale Township. Frequently operates in coordination with LID 88 and LID 77.",
+
+      "verification_level": "confirmed",
+      "last_verified": "2024-01-01"
+    },
+
+    {
+      "unit_id": "tatmadaw_lid_88",
+      "unit_type": "light_infantry_division",
+      "official_name_english": "Light Infantry Division 88",
+      "official_name_burmese": "ပေါ့ပါးခြေလျင်တပ်မတော် ၈၈",
+      "common_names": [
+        "LID 88",
+        "88th Division",
+        "လိုင်း ၈၈",
+        "၈၈ တပ်မ"
+      ],
+
+      "organizational_hierarchy": {
+        "parent_command": "Northern Command",
+        "parent_command_id": "tatmadaw_northern_command",
+        "subordinate_units": [
+          {
+            "unit_id": "tatmadaw_lid88_ib1",
+            "name": "Infantry Battalion 1",
+            "type": "infantry_battalion"
+          },
+          {
+            "unit_id": "tatmadaw_lid88_ib2",
+            "name": "Infantry Battalion 2",
+            "type": "infantry_battalion"
+          }
+        ]
+      },
+
+      "operational_areas": [
+        "Sagaing_Region_Kale_Township",
+        "Sagaing_Region_Kalay_Township",
+        "Sagaing_Region_Tamu_Township"
+      ],
+
+      "active_period": {
+        "established": "1980s",
+        "active_status": "active",
+        "last_confirmed_activity": "2024-01-01"
+      },
+
+      "notes": "LID 88 operates extensively in Sagaing Region. Documented attacks on villages and civilian infrastructure. Often conducts joint operations with LID 99.",
+
+      "verification_level": "confirmed",
+      "last_verified": "2024-01-01"
+    },
+
+    {
+      "unit_id": "tatmadaw_lid_77",
+      "unit_type": "light_infantry_division",
+      "official_name_english": "Light Infantry Division 77",
+      "official_name_burmese": "ပေါ့ပါးခြေလျင်တပ်မတော် ၇၇",
+      "common_names": [
+        "LID 77",
+        "77th Division",
+        "လိုင်း ၇၇",
+        "၇၇ တပ်မ"
+      ],
+
+      "organizational_hierarchy": {
+        "parent_command": "Northern Command",
+        "parent_command_id": "tatmadaw_northern_command"
+      },
+
+      "operational_areas": [
+        "Sagaing_Region_Shwebo_District",
+        "Sagaing_Region_Kale_Township",
+        "Sagaing_Region_Monywa_Township"
+      ],
+
+      "active_period": {
+        "established": "1980s",
+        "active_status": "active"
+      },
+
+      "notes": "Active in Sagaing Region, documented involvement in operations against resistance forces and civilian populations.",
+
+      "verification_level": "confirmed",
+      "last_verified": "2024-01-01"
+    }
+  ],
+
+  "unit_types": [
+    {
+      "type_id": "light_infantry_division",
+      "name_english": "Light Infantry Division",
+      "name_burmese": "ပေါ့ပါးခြေလျင်တပ်မတော်",
+      "abbreviation": "LID",
+      "typical_size": "3000-5000 personnel",
+      "typical_structure": ["Infantry Battalions", "Artillery Unit", "Support Units"],
+      "notes": "Primary combat formation of Tatmadaw ground forces"
+    },
+    {
+      "type_id": "infantry_battalion",
+      "name_english": "Infantry Battalion",
+      "name_burmese": "ခြေလျင်တပ်ရင်း",
+      "abbreviation": "IB",
+      "typical_size": "500-800 personnel",
+      "notes": "Battalion-level infantry formation"
+    },
+    {
+      "type_id": "artillery_unit",
+      "name_english": "Artillery Unit",
+      "name_burmese": "အမြောက်တပ်",
+      "typical_size": "100-300 personnel",
+      "equipment": ["Artillery pieces", "Mortars"],
+      "notes": "Fire support unit"
+    }
+  ]
+}

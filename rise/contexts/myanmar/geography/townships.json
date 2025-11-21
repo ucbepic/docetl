@@ -1,0 +1,135 @@
+{
+  "database_id": "myanmar_townships_2024",
+  "version": "1.5",
+  "last_updated": "2024-01-01",
+  "description": "Myanmar administrative geography - Regions, Townships, and Villages",
+  "sources": [
+    "Myanmar government administrative data (pre-coup)",
+    "OpenStreetMap",
+    "Conflict documentation networks"
+  ],
+
+  "regions": [
+    {
+      "region_id": "sagaing",
+      "name_english": "Sagaing Region",
+      "name_burmese": "စစ်ကိုင်းတိုင်းဒေသကြီး",
+      "iso_code": "MMR-01",
+      "capital": "Sagaing",
+
+      "townships": [
+        {
+          "township_id": "sagaing_kale",
+          "name_english": "Kale Township",
+          "name_burmese": "ကလေးမြို့နယ်",
+          "alternative_spellings": ["Kalay", "Kale", "Kalemyo"],
+
+          "coordinates": {
+            "lat": 23.183,
+            "lon": 94.083,
+            "precision": "township_center",
+            "source": "OpenStreetMap"
+          },
+
+          "area_km2": 1821,
+          "population_2014": 143500,
+
+          "adjacent_townships": [
+            "sagaing_tamu",
+            "sagaing_yinmabin",
+            "chin_tonzang",
+            "sagaing_mawlaik"
+          ],
+
+          "conflict_status": {
+            "intensity": "high",
+            "last_updated": "2024-01-01",
+            "notes": "Heavy military operations post-coup, significant PDF presence, extensive village burnings documented"
+          },
+
+          "villages_count": 156,
+          "village_tracts_count": 45
+        },
+
+        {
+          "township_id": "sagaing_yinmabin",
+          "name_english": "Yinmabin Township",
+          "name_burmese": "အင်းမစိန်မြို့နယ်",
+          "alternative_spellings": ["Yinmarbin", "Yinmabin"],
+
+          "coordinates": {
+            "lat": 22.25,
+            "lon": 94.75,
+            "precision": "township_center"
+          },
+
+          "area_km2": 1456,
+          "population_2014": 98700,
+
+          "adjacent_townships": [
+            "sagaing_kale",
+            "sagaing_salingyi",
+            "sagaing_pale"
+          ],
+
+          "conflict_status": {
+            "intensity": "high",
+            "last_updated": "2024-01-01",
+            "notes": "Active conflict zone, military operations targeting villages"
+          },
+
+          "villages_count": 134
+        },
+
+        {
+          "township_id": "sagaing_tamu",
+          "name_english": "Tamu Township",
+          "name_burmese": "တမူးမြို့နယ်",
+          "alternative_spellings": ["Tamu", "Tamoo"],
+
+          "coordinates": {
+            "lat": 24.217,
+            "lon": 94.317,
+            "precision": "township_center"
+          },
+
+          "area_km2": 2620,
+          "population_2014": 87500,
+
+          "adjacent_townships": [
+            "sagaing_kale",
+            "india_manipur_border"
+          ],
+
+          "conflict_status": {
+            "intensity": "medium",
+            "last_updated": "2024-01-01",
+            "notes": "Border township, intermittent conflict, some displacement"
+          },
+
+          "villages_count": 98
+        },
+
+        {
+          "township_id": "sagaing_kalay",
+          "name_english": "Kalay Township",
+          "name_burmese": "ကလေးမြို့နယ်",
+          "alternative_spellings": ["Kale", "Kalay", "Kalaywa"],
+
+          "coordinates": {
+            "lat": 23.942,
+            "lon": 94.033,
+            "precision": "township_center"
+          },
+
+          "conflict_status": {
+            "intensity": "medium-high",
+            "last_updated": "2024-01-01"
+          },
+
+          "villages_count": 112
+        }
+      ]
+    }
+  ]
+}

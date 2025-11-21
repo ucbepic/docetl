@@ -1,0 +1,105 @@
+{
+  "database_id": "myanmar_villages_sagaing_2024",
+  "version": "1.0",
+  "last_updated": "2024-01-01",
+  "description": "Village-level geographic data for Sagaing Region (sample - not exhaustive)",
+  "coverage": "Partial coverage focused on high-conflict townships",
+
+  "villages": [
+    {
+      "village_id": "sagaing_kale_thayetchaung",
+      "township_id": "sagaing_kale",
+      "name_english": "Thayetchaung Village",
+      "name_burmese": "သရက်ချောင်းရွာ",
+      "alternative_spellings": ["Tayetchaung", "Thayetchaung", "Thayet Chaung"],
+
+      "coordinates": {
+        "lat": 23.2,
+        "lon": 94.1,
+        "precision": "village",
+        "source": "OpenStreetMap"
+      },
+
+      "village_tract": "Thayetchaung Village Tract",
+
+      "population_estimate": {
+        "count": 450,
+        "year": 2020,
+        "source": "estimated_from_households"
+      },
+
+      "conflict_events": {
+        "documented_events": 12,
+        "first_event_date": "2021-04-15",
+        "last_event_date": "2023-11-20",
+        "event_types": ["artillery_attack", "raid", "displacement"]
+      },
+
+      "status": {
+        "displacement": "partial",
+        "destruction_level": "significant_damage",
+        "current_population_estimate": 120,
+        "last_updated": "2024-01-01",
+        "notes": "Multiple attacks documented, significant displacement, some families returned"
+      }
+    },
+
+    {
+      "village_id": "sagaing_kale_kawlin",
+      "township_id": "sagaing_kale",
+      "name_english": "Kawlin Village",
+      "name_burmese": "ကော့လင်ရွာ",
+
+      "coordinates": {
+        "lat": 23.15,
+        "lon": 94.05,
+        "precision": "village"
+      },
+
+      "population_estimate": {
+        "count": 680,
+        "year": 2020
+      },
+
+      "conflict_events": {
+        "documented_events": 8,
+        "first_event_date": "2021-05-10",
+        "last_event_date": "2023-08-15"
+      },
+
+      "status": {
+        "displacement": "major",
+        "destruction_level": "moderate_damage",
+        "last_updated": "2024-01-01"
+      }
+    },
+
+    {
+      "village_id": "sagaing_yinmabin_example1",
+      "township_id": "sagaing_yinmabin",
+      "name_english": "Example Village 1",
+      "name_burmese": "နမူနာရွာ ၁",
+
+      "coordinates": {
+        "lat": 22.28,
+        "lon": 94.73,
+        "precision": "approximate"
+      },
+
+      "population_estimate": {
+        "count": 320,
+        "year": 2020
+      },
+
+      "conflict_events": {
+        "documented_events": 3,
+        "first_event_date": "2022-02-01"
+      },
+
+      "status": {
+        "displacement": "minor",
+        "last_updated": "2024-01-01"
+      }
+    }
+  ]
+}

@@ -1,0 +1,277 @@
+{
+  "database_id": "myanmar_military_terminology_2024",
+  "version": "1.0",
+  "description": "Myanmar military and conflict-related terminology (Burmese-English)",
+
+  "military_organizations": [
+    {
+      "term_burmese": "တပ်မတော်",
+      "romanization": "tatmadaw",
+      "english": "Military / Armed Forces",
+      "context": "General term for Myanmar armed forces (army, navy, air force)"
+    },
+    {
+      "term_burmese": "ပေါ့ပါးခြေလျင်တပ်မ",
+      "romanization": "po pa chay lin tat ma",
+      "english": "Light Infantry Division",
+      "abbreviation": "LID",
+      "context": "Major combat unit type"
+    },
+    {
+      "term_burmese": "ခြေလျင်တပ်ရင်း",
+      "romanization": "chay lin tat yin",
+      "english": "Infantry Battalion",
+      "abbreviation": "IB"
+    },
+    {
+      "term_burmese": "အမြောက်တပ်",
+      "romanization": "amyout tat",
+      "english": "Artillery Unit"
+    },
+    {
+      "term_burmese": "လေတပ်",
+      "romanization": "lay tat",
+      "english": "Air Force"
+    },
+    {
+      "term_burmese": "ရဲတပ်ဖွဲ့",
+      "romanization": "yay tat phway",
+      "english": "Police Force"
+    }
+  ],
+
+  "military_ranks": [
+    {
+      "term_burmese": "ဗိုလ်ချုပ်ကြီး",
+      "romanization": "bo gyoke gyi",
+      "english": "Senior General"
+    },
+    {
+      "term_burmese": "ဗိုလ်ချုပ်",
+      "romanization": "bo gyoke",
+      "english": "General"
+    },
+    {
+      "term_burmese": "ဗိုလ်မှူးကြီး",
+      "romanization": "bo hmu gyi",
+      "english": "Major General"
+    },
+    {
+      "term_burmese": "ဗိုလ်မှူး",
+      "romanization": "bo hmu",
+      "english": "Brigadier General"
+    },
+    {
+      "term_burmese": "ဗိုလ်ကြီး",
+      "romanization": "bo gyi",
+      "english": "Colonel"
+    },
+    {
+      "term_burmese": "ဗိုလ်",
+      "romanization": "bo",
+      "english": "Captain"
+    }
+  ],
+
+  "unit_descriptors": [
+    {
+      "term_burmese": "အမှတ်",
+      "romanization": "amhto",
+      "english": "Number",
+      "context": "Used in unit designations, e.g., 'LID အမှတ် ၉၉' = LID Number 99"
+    },
+    {
+      "term_burmese": "တပ်မ",
+      "romanization": "tat ma",
+      "english": "Division"
+    },
+    {
+      "term_burmese": "တပ်ရင်း",
+      "romanization": "tat yin",
+      "english": "Battalion"
+    },
+    {
+      "term_burmese": "တပ်စု",
+      "romanization": "tat su",
+      "english": "Company / Unit"
+    }
+  ],
+
+  "action_verbs": [
+    {
+      "term_burmese": "ပစ်ခတ်",
+      "romanization": "pyit khat",
+      "english": "Shoot / Fire / Shell",
+      "context": "Generic term for firing weapons, includes artillery"
+    },
+    {
+      "term_burmese": "တိုက်ခိုက်",
+      "romanization": "taik hite",
+      "english": "Attack / Strike"
+    },
+    {
+      "term_burmese": "ဝင်ရောက်တိုက်ခိုက်",
+      "romanization": "win yout taik hite",
+      "english": "Enter and attack (raid)"
+    },
+    {
+      "term_burmese": "ဖမ်းဆီး",
+      "romanization": "fan zi",
+      "english": "Arrest / Detain / Capture"
+    },
+    {
+      "term_burmese": "သတ်ဖြတ်",
+      "romanization": "that phyat",
+      "english": "Kill / Execute"
+    },
+    {
+      "term_burmese": "မီးရှို့",
+      "romanization": "mi hsho",
+      "english": "Burn (with fire)"
+    },
+    {
+      "term_burmese": "မီးလောင်",
+      "romanization": "mi lawn",
+      "english": "Burn / Catch fire"
+    },
+    {
+      "term_burmese": "ဖျက်ဆီး",
+      "romanization": "phyet si",
+      "english": "Destroy / Demolish"
+    },
+    {
+      "term_burmese": "ထိခိုက်ဒဏ်ရာရ",
+      "romanization": "hti hike dan ya ya",
+      "english": "Be wounded / injured"
+    },
+    {
+      "term_burmese": "ထွက်ပြေး",
+      "romanization": "htwet pyay",
+      "english": "Flee / Escape"
+    }
+  ],
+
+  "weapons_equipment": [
+    {
+      "term_burmese": "အမြောက်",
+      "romanization": "amyout",
+      "english": "Artillery / Cannon"
+    },
+    {
+      "term_burmese": "လက်နက်",
+      "romanization": "let net",
+      "english": "Weapon / Arms"
+    },
+    {
+      "term_burmese": "သေနတ်",
+      "romanization": "thay nat",
+      "english": "Gun / Rifle"
+    },
+    {
+      "term_burmese": "လေယာဉ်",
+      "romanization": "lay yin",
+      "english": "Aircraft / Airplane"
+    },
+    {
+      "term_burmese": "ဗုံး",
+      "romanization": "bone",
+      "english": "Bomb"
+    }
+  ],
+
+  "locations": [
+    {
+      "term_burmese": "ရွာ",
+      "romanization": "ywa",
+      "english": "Village"
+    },
+    {
+      "term_burmese": "မြို့နယ်",
+      "romanization": "myo nai",
+      "english": "Township"
+    },
+    {
+      "term_burmese": "တိုင်းဒေသကြီး",
+      "romanization": "taing datha gyi",
+      "english": "Region"
+    },
+    {
+      "term_burmese": "ကျောင်း",
+      "romanization": "kyaung",
+      "english": "Monastery / School"
+    },
+    {
+      "term_burmese": "အိမ်",
+      "romanization": "ain",
+      "english": "House / Home"
+    }
+  ],
+
+  "casualties_damage": [
+    {
+      "term_burmese": "သေဆုံး",
+      "romanization": "thay zone",
+      "english": "Dead / Killed / Died"
+    },
+    {
+      "term_burmese": "ဒဏ်ရာရ",
+      "romanization": "dan ya ya",
+      "english": "Wounded / Injured"
+    },
+    {
+      "term_burmese": "ပျက်စီး",
+      "romanization": "pyet si",
+      "english": "Destroyed / Damaged"
+    },
+    {
+      "term_burmese": "မျက်နှာစုံ",
+      "romanization": "myet hna zoun",
+      "english": "Missing / Disappeared"
+    }
+  ],
+
+  "temporal_markers": [
+    {
+      "term_burmese": "နာရီ",
+      "romanization": "na yi",
+      "english": "Hour / O'clock"
+    },
+    {
+      "term_burmese": "မနက်",
+      "romanization": "manet",
+      "english": "Morning"
+    },
+    {
+      "term_burmese": "နေ့လည်",
+      "romanization": "nay li",
+      "english": "Noon / Midday"
+    },
+    {
+      "term_burmese": "ညနေ",
+      "romanization": "nya nay",
+      "english": "Evening"
+    },
+    {
+      "term_burmese": "ည",
+      "romanization": "nya",
+      "english": "Night"
+    }
+  ],
+
+  "numerals_burmese": {
+    "description": "Myanmar numerals (used in dates, times, unit numbers)",
+    "numerals": {
+      "၀": 0,
+      "၁": 1,
+      "၂": 2,
+      "၃": 3,
+      "၄": 4,
+      "၅": 5,
+      "၆": 6,
+      "၇": 7,
+      "၈": 8,
+      "၉": 9
+    },
+    "note": "Myanmar numerals may appear in Zawgyi-encoded text with different byte sequences"
+  }
+}

@@ -87,6 +87,7 @@ class FilterOperation(MapOperation):
             )
         )
 
+        # Inject retrieval into inner map execution (super)
         results, total_cost = super().execute(input_data)
 
         # Drop records with filter_key values that are False

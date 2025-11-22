@@ -24,6 +24,8 @@ nav:
           - Output Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
           - Optimization: concepts/optimization.md
+      - Retrieval:
+          - Retrievers: retrievers.md
       - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md

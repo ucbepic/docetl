@@ -132,9 +132,17 @@ class ExtractOperation(BaseOperation):
         formatted_text = self._reformat_text_with_line_numbers(text_content)
 
         # Render the prompt
-        extraction_instructions = strict_render(self.config["prompt"], {"input": item})
+        # Retrieval context
+        retrieval_context = self._maybe_build_retrieval_context({"input": item})
+        extraction_instructions = strict_render(
+            self.config["prompt"],
+            {"input": item, "retrieval_context": retrieval_context},
+        )
         augmented_prompt_template = """
 You are extracting specific content from text documents. Extract information according to these instructions: {{ extraction_instructions }}
+
+Extra context (may be helpful):
+{{ retrieval_context }}
 
 The text is formatted with line numbers as follows:
 {{ formatted_text }}
@@ -162,6 +170,7 @@ Do not include explanatory text in your response, only the JSON object.
             {
                 "extraction_instructions": extraction_instructions,
                 "formatted_text": formatted_text,
+                "retrieval_context": retrieval_context,
             },
         )
 
@@ -271,12 +280,20 @@ Do not include explanatory text in your response, only the JSON object.
         text_content = item[doc_key]
 
         # Prepare the context for prompt rendering
-        context = {"input": item, "text_content": text_content}
+        retrieval_context = self._maybe_build_retrieval_context({"input": item})
+        context = {
+            "input": item,
+            "text_content": text_content,
+            "retrieval_context": retrieval_context,
+        }
 
         # Render the prompt
         extraction_instructions = strict_render(self.config["prompt"], context)
         augmented_prompt_template = """
 You are creating regex patterns to extract specific content from text. Extract information according to these instructions: {{ extraction_instructions }}
+
+Extra context (may be helpful):
+{{ retrieval_context }}
 
 The text to analyze is:
 {{ text_content }}

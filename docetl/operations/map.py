@@ -276,7 +276,17 @@ Reference anchors:"""
             item: dict, initial_result: dict | None = None
         ) -> tuple[dict | None, float]:
 
-            prompt = strict_render(self.config["prompt"], {"input": item})
+            # Build retrieval context (if configured)
+            retrieval_context = self._maybe_build_retrieval_context({"input": item})
+            ctx = {"input": item, "retrieval_context": retrieval_context}
+            rendered = strict_render(self.config["prompt"], ctx)
+            # If template didn't use retrieval_context, prepend a standard header
+            prompt = (
+                f"Here is some extra context:\n{retrieval_context}\n\n{rendered}"
+                if retrieval_context
+                and "retrieval_context" not in self.config["prompt"]
+                else rendered
+            )
             messages = [{"role": "user", "content": prompt}]
             if self.config.get("pdf_url_key", None):
                 # Append the pdf to the prompt

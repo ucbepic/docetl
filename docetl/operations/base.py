@@ -2,6 +2,7 @@
 The BaseOperation class is an abstract base class for all operations in the docetl framework. It provides a common structure and interface for various data processing operations.
 """
 
+import traceback
 from abc import ABC, ABCMeta, abstractmethod
 from typing import Any
 
@@ -87,6 +88,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         type: str
         skip_on_error: bool = False
         gleaning: GleaningConfig | None = None
+        retriever: str | None = None
 
     @abstractmethod
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
@@ -109,3 +111,26 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         """Perform syntax checks on the operation configuration."""
         # Validate the configuration using Pydantic
         self.schema.model_validate(self.config, context=context)
+
+    def _maybe_build_retrieval_context(self, context: dict[str, Any]) -> str:
+        """Build retrieval context string if a retriever is configured."""
+        retriever_name = self.config.get("retriever")
+        if not retriever_name:
+            return ""
+        retrievers = getattr(self.runner, "retrievers", {})
+        if retriever_name not in retrievers:
+            raise ValueError(
+                f"Retriever '{retriever_name}' not found in configuration."
+            )
+        retriever = retrievers[retriever_name]
+        try:
+            result = retriever.retrieve(context)
+            return result.rendered_context or ""
+        except Exception as e:
+            # Soft-fail to avoid blocking the op
+            self.console.log(
+                f"[yellow]Warning: retrieval failed for '{retriever_name}': {e}[/yellow]"
+            )
+            # Print traceback to help debug
+            self.console.log(traceback.format_exc())
+            return "No extra context available."

@@ -12,8 +12,6 @@ from litellm import completion_cost as lcc
 from lzstring import LZString
 from rich.prompt import Confirm
 
-from docetl.console import DOCETL_CONSOLE
-
 
 class Decryptor:
     def __init__(self, secret_key: str):
@@ -115,6 +113,8 @@ def prompt_user_for_non_jinja_confirmation(
     Returns:
         bool: True if user confirms, False otherwise.
     """
+    from docetl.console import DOCETL_CONSOLE
+    
     console = DOCETL_CONSOLE
     console.print(
         f"\n[bold yellow]⚠ Warning:[/bold yellow] The '{prompt_field}' in operation '{operation_name}' "

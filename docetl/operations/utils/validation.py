@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 from asteval import Interpreter
@@ -6,6 +7,8 @@ from jinja2 import Environment, StrictUndefined, Template
 from jinja2.exceptions import UndefinedError
 from rich import print as rprint
 from rich.prompt import Prompt
+
+from docetl.utils import has_jinja_syntax
 
 aeval = Interpreter()
 
@@ -28,17 +31,44 @@ def strict_render(template: Template | str, context: dict[str, Any]) -> str:
     # Create strict environment
     env = Environment(undefined=StrictUndefined)
 
-    # Convert string to Template if needed
+    # Only process string templates for non-Jinja syntax check
     if isinstance(template, str):
-
-        # # If "inputs" in the context, make sure they are not accessing some attribute of inputs
-        # if "inputs" in context and "{{ inputs." in template:
-        #     raise UndefinedError("The inputs variable is a list, so you cannot access attributes of inputs. Use inputs[index].key instead.")
-
+        template_string = template
+        
+        # Check if template doesn't have Jinja syntax and append document statement
+        if not has_jinja_syntax(template_string):
+            # Determine the operation type based on context variables
+            if "left" in context and "right" in context:
+                # Equijoin operation - append both documents
+                template_string = (
+                    f"{template_string}\n\nHere are the documents:\n"
+                    f"Left document: {{{{ left }}}}\n"
+                    f"Right document: {{{{ right }}}}"
+                )
+            elif "input1" in context and "input2" in context:
+                # Comparison operation (resolve) - append both documents
+                template_string = (
+                    f"{template_string}\n\nHere are the documents:\n"
+                    f"Document 1: {{{{ input1 }}}}\n"
+                    f"Document 2: {{{{ input2 }}}}"
+                )
+            elif "inputs" in context:
+                # Reduce operation - append "Here are the documents: {{ inputs }}"
+                template_string = (
+                    f"{template_string}\n\nHere are the documents: {{{{ inputs }}}}"
+                )
+            elif "input" in context:
+                # Regular operation - append "Here is the document: {{ input }}"
+                template_string = (
+                    f"{template_string}\n\nHere is the document: {{{{ input }}}}"
+                )
+        
+        # Convert string template to Template object
         try:
-            template = env.from_string(template)
+            template = env.from_string(template_string)
         except Exception as e:
             raise ValueError(f"Invalid template: {str(e)}")
+    # If template is already a Template object, use it as-is
 
     try:
         return template.render(context)

@@ -18,7 +18,11 @@ from rich.prompt import Confirm
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.progress import RichLoopBar
-from docetl.utils import completion_cost
+from docetl.utils import (
+    completion_cost,
+    has_jinja_syntax,
+    prompt_user_for_non_jinja_confirmation,
+)
 
 # Global variables to store shared data
 _right_data = None
@@ -88,6 +92,41 @@ class EquijoinOperation(BaseOperation):
                         "Both 'left' and 'right' must be specified in 'limits'"
                     )
             return v
+
+        @field_validator("comparison_prompt")
+        def validate_comparison_prompt(cls, v):
+            # Check if it has Jinja syntax
+            if not has_jinja_syntax(v):
+                # This will be handled during initialization with user confirmation
+                return v
+            # If it has Jinja syntax, validate it's a valid template
+            from jinja2 import Template
+
+            try:
+                Template(v)
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid Jinja2 template in 'comparison_prompt': {str(e)}"
+                )
+            return v
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "comparison_prompt" in self.config and not has_jinja_syntax(
+            self.config["comparison_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["comparison_prompt"],
+                self.config["name"],
+                "comparison_prompt",
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your comparison_prompt."
+                )
+            # Mark that we need to append document statement
+            # Note: equijoin uses left and right, so we'll handle it in strict_render
+            self.config["_append_document_to_comparison_prompt"] = True
 
     def compare_pair(
         self,

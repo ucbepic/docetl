@@ -7,6 +7,7 @@ from jinja2 import Template
 from .base import BaseOperation
 from .clustering_utils import get_embeddings_for_clustering
 from .utils import RichLoopBar, strict_render
+from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 
 class ClusterOperation(BaseOperation):
@@ -19,6 +20,19 @@ class ClusterOperation(BaseOperation):
         self.max_batch_size: int = self.config.get(
             "max_batch_size", kwargs.get("max_batch_size", float("inf"))
         )
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "summary_prompt" in self.config and not has_jinja_syntax(
+            self.config["summary_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["summary_prompt"], self.config["name"], "summary_prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your summary_prompt."
+                )
+            # Mark that we need to append document statement (cluster uses inputs)
+            self.config["_append_document_to_prompt"] = True
+            self.config["_is_reduce_operation"] = True
 
     def syntax_check(self) -> None:
         """
@@ -48,11 +62,16 @@ class ClusterOperation(BaseOperation):
         if not isinstance(self.config["summary_prompt"], str):
             raise TypeError("'prompt' must be a string")
 
-        # Check if the prompt is a valid Jinja2 template
-        try:
-            Template(self.config["summary_prompt"])
-        except Exception as e:
-            raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
+        # Check if the prompt has Jinja syntax
+        if not has_jinja_syntax(self.config["summary_prompt"]):
+            # This will be handled during initialization with user confirmation
+            pass
+        else:
+            # Check if the prompt is a valid Jinja2 template
+            try:
+                Template(self.config["summary_prompt"])
+            except Exception as e:
+                raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
 
         # Check optional parameters
         if "max_batch_size" in self.config:

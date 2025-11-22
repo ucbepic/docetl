@@ -8,26 +8,9 @@ from jinja2.exceptions import UndefinedError
 from rich import print as rprint
 from rich.prompt import Prompt
 
+from docetl.utils import has_jinja_syntax
+
 aeval = Interpreter()
-
-
-def has_jinja_syntax(template_string: str) -> bool:
-    """
-    Check if a string contains Jinja2 template syntax.
-
-    Args:
-        template_string (str): The string to check.
-
-    Returns:
-        bool: True if the string contains Jinja2 syntax ({{ }} or {% %}), False otherwise.
-    """
-    # Check for Jinja2 expression syntax {{ }}
-    if re.search(r"\{\{.*?\}\}", template_string):
-        return True
-    # Check for Jinja2 statement syntax {% %}
-    if re.search(r"\{%.*?%\}", template_string):
-        return True
-    return False
 
 
 def strict_render(template: Template | str, context: dict[str, Any]) -> str:
@@ -48,53 +31,44 @@ def strict_render(template: Template | str, context: dict[str, Any]) -> str:
     # Create strict environment
     env = Environment(undefined=StrictUndefined)
 
-    # Convert Template object to string if needed
-    template_string = None
-    if isinstance(template, Template):
-        # Get the source from the Template object
-        template_string = template.source
-    elif isinstance(template, str):
+    # Only process string templates for non-Jinja syntax check
+    if isinstance(template, str):
         template_string = template
-
-    # Check if template doesn't have Jinja syntax and append document statement
-    if template_string is not None and not has_jinja_syntax(template_string):
-        # Determine the operation type based on context variables
-        if "left" in context and "right" in context:
-            # Equijoin operation - append both documents
-            template_string = (
-                f"{template_string}\n\nHere are the documents:\n"
-                f"Left document: {{{{ left }}}}\n"
-                f"Right document: {{{{ right }}}}"
-            )
-        elif "input1" in context and "input2" in context:
-            # Comparison operation (resolve) - append both documents
-            template_string = (
-                f"{template_string}\n\nHere are the documents:\n"
-                f"Document 1: {{{{ input1 }}}}\n"
-                f"Document 2: {{{{ input2 }}}}"
-            )
-        elif "inputs" in context:
-            # Reduce operation - append "Here are the documents: {{ inputs }}"
-            template_string = (
-                f"{template_string}\n\nHere are the documents: {{{{ inputs }}}}"
-            )
-        elif "input" in context:
-            # Regular operation - append "Here is the document: {{ input }}"
-            template_string = (
-                f"{template_string}\n\nHere is the document: {{{{ input }}}}"
-            )
-        # Convert to Template with modified string
+        
+        # Check if template doesn't have Jinja syntax and append document statement
+        if not has_jinja_syntax(template_string):
+            # Determine the operation type based on context variables
+            if "left" in context and "right" in context:
+                # Equijoin operation - append both documents
+                template_string = (
+                    f"{template_string}\n\nHere are the documents:\n"
+                    f"Left document: {{{{ left }}}}\n"
+                    f"Right document: {{{{ right }}}}"
+                )
+            elif "input1" in context and "input2" in context:
+                # Comparison operation (resolve) - append both documents
+                template_string = (
+                    f"{template_string}\n\nHere are the documents:\n"
+                    f"Document 1: {{{{ input1 }}}}\n"
+                    f"Document 2: {{{{ input2 }}}}"
+                )
+            elif "inputs" in context:
+                # Reduce operation - append "Here are the documents: {{ inputs }}"
+                template_string = (
+                    f"{template_string}\n\nHere are the documents: {{{{ inputs }}}}"
+                )
+            elif "input" in context:
+                # Regular operation - append "Here is the document: {{ input }}"
+                template_string = (
+                    f"{template_string}\n\nHere is the document: {{{{ input }}}}"
+                )
+        
+        # Convert string template to Template object
         try:
             template = env.from_string(template_string)
         except Exception as e:
             raise ValueError(f"Invalid template: {str(e)}")
-    elif isinstance(template, str):
-        # Original string template - convert to Template
-        try:
-            template = env.from_string(template_string)
-        except Exception as e:
-            raise ValueError(f"Invalid template: {str(e)}")
-    # If template is already a Template object and has Jinja syntax, use it as-is
+    # If template is already a Template object, use it as-is
 
     try:
         return template.render(context)

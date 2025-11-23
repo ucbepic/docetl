@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Simple Baseline Agent for Reasoning Experiments
 
@@ -26,8 +25,8 @@ from experiments.reasoning.evaluation.utils import dataset_accuracy_metrics
 
 
 
-DEFAULT_MODEL = "o3"
-DEFAULT_OUTPUT_DIR = "outputs/simple_baseline"
+DEFAULT_MODEL = "gpt-5"
+DEFAULT_OUTPUT_DIR = "outputs/simple_agent"
 
 class AgentAction(BaseModel):
     """Schema for agent action decisions."""
@@ -78,7 +77,6 @@ class PipelineExecutor:
         self.experiment_dir = experiment_dir
     
     def create_yaml(self, operators: List[Dict], dataset: str, prefix: str = "pipeline") -> str:
-        """Create a pipeline YAML configuration."""
         dataset_file = f"experiments/reasoning/data/train/{dataset.lower()}.json"
         output_json = self.experiment_dir / f"{prefix}_output.json"
         
@@ -275,7 +273,6 @@ class AgentCommunicator:
                 response_format={"type": "json_object"}
             )
             
-            # Track LLM call cost
             if self.agent and hasattr(response, '_hidden_params') and 'response_cost' in response._hidden_params:
                 call_cost = response._hidden_params["response_cost"]
                 print(f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.agent.total_search_cost:.4f})")
@@ -299,7 +296,6 @@ class AgentCommunicator:
                 response_format={"type": "json_object"}
             )
             
-            # Track LLM call cost
             if self.agent and hasattr(response, '_hidden_params') and 'response_cost' in response._hidden_params:
                 call_cost = response._hidden_params["response_cost"]
                 print(f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.agent.total_search_cost:.4f})")
@@ -313,14 +309,32 @@ class AgentCommunicator:
 class SimpleBaselineAgent:
     """Simplified baseline agent that uses tool calling to generate pipelines."""
     
-    def __init__(self, model: str = DEFAULT_MODEL):
+    def __init__(self, model: str = DEFAULT_MODEL, available_models: List[str] = None):
         self.model = model
         self.communicator = AgentCommunicator(model, self)
         self.documentation = None
         self.original_config = None
-        self.total_search_cost = 0.0  # Track total LLM call costs
-        self.start_time = None  # Track experiment start time
-        self.end_time = None    # Track experiment end time
+        self.total_search_cost = 0.0  
+        self.start_time = None  
+        self.end_time = None
+        
+        # Set available models with default if not provided
+        if available_models is None:
+            self.available_models = [
+                "gpt-5",
+                "gpt-5-mini",
+                "gpt-5-nano",
+                "gpt-4.1",
+                "gpt-4.1-mini",
+                "gpt-4.1-nano",
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gemini-2.5-pro",
+                "gemini-2.5-flash",
+                "gemini-2.5-flash-lite"
+            ]
+        else:
+            self.available_models = available_models   
         
     def load_resources(self, dataset: str, yaml_path: str = None):
         """Load documentation and original pipeline."""
@@ -355,7 +369,7 @@ class SimpleBaselineAgent:
                     resolved_output_path = str(potential_path)
             
             # Call the evaluation function with proper parameters
-            eval_metrics = evaluate_func(f"simple_baseline_iter_{iteration_id}", resolved_output_path)
+            eval_metrics = evaluate_func(f"simple_agent_iter_{iteration_id}", resolved_output_path)
             
             metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
             accuracy_val = eval_metrics.get(metric_key, 0.0)
@@ -440,10 +454,8 @@ class SimpleBaselineAgent:
         3. **Operator Addition**: Add preprocessing, filtering, or post-processing operators
         4. **Jinja Templating**: Use flexible templating to read more/less context from documents
 
-        AVAILABLE MODELS (use with 'azure/' prefix):
-        - azure/gpt-4o-mini
-        - azure/gpt-5-nano
-        - azure/gpt-5
+        AVAILABLE MODELS (use with 'azure/' or 'gemini/' prefix as appropriate):
+        {chr(10).join(f"        - azure/{model}" if model.startswith("gpt") else f"        - gemini/{model}" if model.startswith("gemini") else f"        - {model}" for model in self.available_models)}
 
         Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_accuracy is not None else 'N/A'}."""
 
@@ -615,26 +627,25 @@ class SimpleBaselineAgent:
                         message_parts.append(f"- {key}: {value:.4f}")
                     else:
                         message_parts.append(f"- {key}: {value}")
-                elif isinstance(value, list) and len(value) <= 5:  # Show short lists
+                elif isinstance(value, list) and len(value) <= 5: 
                     message_parts.append(f"- {key}: {value}")
-                elif not isinstance(value, (list, dict)):  # Show simple values
+                elif not isinstance(value, (list, dict)):  
                     message_parts.append(f"- {key}: {value}")
         
         message_parts.append("\nBased on these results, you can either try another pipeline configuration or return the best one you've found.")
         
         return "\n".join(message_parts)
 
-def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
+def run_simple_agent_experiment(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                                  experiment_name: str = None, ground_truth_path: str = None,
                                  original_query_result: Dict[str, Any] | None = None, 
-                                 yaml_path: str = None) -> Dict[str, Any]:
-    """Run the simple baseline experiment for a dataset."""
+                                 yaml_path: str = None, available_models: List[str] | None = None) -> Dict[str, Any]:
+    """Run the simple agent experiment for a dataset."""
     
-    # Setup
     if output_dir is None:
         output_dir = os.environ.get('EXPERIMENT_OUTPUT_DIR', DEFAULT_OUTPUT_DIR)
     if experiment_name is None:
-        experiment_name = f"simple_baseline_{dataset}"
+        experiment_name = f"simple_agent_{dataset}"
     
     exp_dir = Path(output_dir) / experiment_name
     exp_dir.mkdir(parents=True, exist_ok=True)
@@ -643,7 +654,7 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
     print(f"Dataset: {dataset}, Model: {model}, Output: {exp_dir}")
     
     # Initialize agent and executor
-    agent = SimpleBaselineAgent(model=model)
+    agent = SimpleBaselineAgent(model=model, available_models=available_models)
     agent.start_time = time.time()  # Track experiment start time
     agent.load_resources(dataset, yaml_path)
     executor = PipelineExecutor(exp_dir)
@@ -792,7 +803,7 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
             nodes_or_files=all_iteration_results,
             output_path=exp_dir,
             ground_truth_path=ground_truth_path,
-            method_name="simple_baseline"
+            method_name="simple_agent"
         )
         results.update({"evaluation": eval_results, "pareto_auc": pareto_auc})
     
@@ -811,11 +822,7 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
         "start_time": agent.start_time,
         "end_time": agent.end_time
     })
-    
-    print(f"\n✅ Experiment complete! Results saved to: {exp_dir}")
-    print(f"💰 Total LLM call cost: ${agent.total_search_cost:.4f}")
-    print(f"💰 Total experiment cost: ${results.get('total_cost', 0.0):.4f}")
-    print(f"⏱️  Total latency: {total_latency:.2f} seconds ({total_latency/60:.2f} minutes)")
+
     return results
 
 # Modal functions
@@ -825,63 +832,69 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
     volumes={VOLUME_MOUNT_PATH: volume},
     timeout=60 * 60 * 2
 )
-def run_simple_baseline_remote(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
+def run_simple_agent_remote(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                               experiment_name: str = None, ground_truth_path: str = None,
                               original_query_result: Dict[str, Any] | None = None,
-                              yaml_path: str = None):
-    """Modal remote function for running simple baseline."""
+                              yaml_path: str = None, available_models: List[str] | None = None):
+    """Modal remote function for running simple agent."""
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     
     resolved_output_dir = PathResolver.resolve_in_volume(output_dir) if output_dir else None
     if resolved_output_dir is None:
         resolved_output_dir = os.environ["EXPERIMENT_OUTPUT_DIR"]
     
-    results = run_simple_baseline_experiment(
+    results = run_simple_agent_experiment(
         dataset=dataset,
         output_dir=resolved_output_dir,
         model=model,
         experiment_name=experiment_name,
         ground_truth_path=ground_truth_path,
         original_query_result=original_query_result,
-        yaml_path=yaml_path
+        yaml_path=yaml_path,
+        available_models=available_models
     )
     
     volume.commit()
     return results
 
 @app.local_entrypoint()
-def modal_main_simple_baseline(dataset: str, experiment_name: str | None = None,
+def modal_main_simple_agent(dataset: str, experiment_name: str | None = None,
                               output_dir: str | None = None, model: str = DEFAULT_MODEL,
                               ground_truth: str | None = None,
-                              original_query_result: Dict[str, Any] | None = None):
-    """Modal entrypoint for simple baseline."""
-    run_simple_baseline_remote.remote(
+                              original_query_result: Dict[str, Any] | None = None,
+                              available_models: List[str] | None = None):
+    """Modal entrypoint for simple agent."""
+    run_simple_agent_remote.remote(
         dataset=dataset,
         output_dir=output_dir,
         model=model,
         experiment_name=experiment_name,
         ground_truth_path=ground_truth,
-        original_query_result=original_query_result
+        original_query_result=original_query_result,
+        available_models=available_models
     )
 
 def main():
     """Local main function."""
-    parser = argparse.ArgumentParser(description="Run simple baseline agent")
+    parser = argparse.ArgumentParser(description="Run simple agent agent")
     parser.add_argument("--dataset", type=str, required=True,
                        choices=["cuad", "game_reviews", "blackvault", "sustainability", "biodex", "medec", "facility"])
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
     parser.add_argument("--output_dir", type=str)
     parser.add_argument("--experiment_name", type=str)
     parser.add_argument("--ground_truth", type=str, help="Path to ground truth file")
+    parser.add_argument("--available_models", type=str, nargs="+", 
+                       help="List of available models (default: all models). Example: --available_models gpt-5 gpt-5-mini gpt-4o")
     
     args = parser.parse_args()
     
-    results = run_simple_baseline_experiment(
+    results = run_simple_agent_experiment(
         dataset=args.dataset,
         output_dir=args.output_dir,
         model=args.model,
         experiment_name=args.experiment_name,
-        ground_truth_path=args.ground_truth
+        ground_truth_path=args.ground_truth,
+        available_models=args.available_models
     )
     
     if results["success"]:

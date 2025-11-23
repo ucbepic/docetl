@@ -4,7 +4,7 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 import litellm
 import yaml
 import threading
@@ -58,9 +58,11 @@ class MOARSearch:
         model="gpt-5",
         output_dir: Optional[str] = None,
         build_first_layer: Optional[bool] = True,
+        custom_evaluate_func: Optional[Callable] = None,
+        custom_metric_key: Optional[str] = None,
     ):
         """
-        Initialize the MOARSearch algorithm with Pareto frontier integration.
+        Initialize the MOARSearch algorithm.
 
         Args:
             root_yaml_path: Path to the initial YAML configuration file
@@ -70,11 +72,13 @@ class MOARSearch:
             max_iterations: Maximum number of MOARSearch iterations
             sample_input: sample input data
             output_dir: Directory to save new pipeline files (None means same dir as original)
+            custom_evaluate_func: Custom evaluation function (method_name, results_file_path) -> dict
+            custom_metric_key: Key to extract from evaluation results dict for accuracy metric
         """
 
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.tree_lock = threading.RLock()
-        self.max_concurrent_agents = 1
+        self.max_concurrent_agents = 3
         
         # Start with base available actions
         self.available_actions = set(available_actions)
@@ -96,15 +100,23 @@ class MOARSearch:
         self.available_models = available_models
         
         # Set up evaluation function and dataset metrics
-        self.evaluate_func = get_evaluate_func(dataset_name, mode="train")
-        self.dataset_metrics = {
-            "cuad": "avg_f1",
-            "blackvault": "avg_distinct_locations",
-            "game_reviews": "weighted_score",
-            "medec": "combined_score", 
-            "sustainability": "economic_activity_accuracy",
-            "biodex": "avg_rp_at_5",
-        }
+        if custom_evaluate_func is not None:
+            self.evaluate_func = custom_evaluate_func
+            if custom_metric_key is None:
+                raise ValueError("custom_metric_key must be provided when using custom_evaluate_func")
+            self.primary_metric_key = custom_metric_key
+        else:
+            self.evaluate_func = get_evaluate_func(dataset_name, mode="train")
+            # Use predefined metric key for known datasets
+            self.dataset_metrics = {
+                "cuad": "avg_f1",
+                "blackvault": "avg_distinct_locations",
+                "game_reviews": "weighted_score",
+                "medec": "combined_score", 
+                "sustainability": "economic_activity_accuracy",
+                "biodex": "avg_rp_at_5",
+            }
+            self.primary_metric_key = self.dataset_metrics.get(dataset_name)
         # Set up log file path
         if self.output_dir:
             self.log_path = os.path.join(self.output_dir, "moar_tree_log.txt")
@@ -134,13 +146,6 @@ class MOARSearch:
         
         # Track total cost for all completion calls during search
         self.total_search_cost = 0.0
-
-        # # Execute root node
-        # cost, accuracy = self.simulate(self.root)
-        # affected_nodes, is_frontier_updated = self.add_to_frontier(self.root, accuracy)
-        # with self.tree_lock:
-        #     self.backpropagate(affected_nodes, self.root)
-        # self.root.visits = 1
 
         self.model_stats = {}
         self.frontier_models = []
@@ -246,10 +251,16 @@ class MOARSearch:
         try:
             results = self.evaluate_func("docetl_preprint", result_file_path)
 
-            # Extract the appropriate metric based on dataset
-            primary_metric = self.dataset_metrics.get(self.dataset_name)
-            if primary_metric and primary_metric in results:
-                true_accuracy = results[primary_metric]
+            # Extract the appropriate metric based on dataset or custom metric key
+            if hasattr(self, 'primary_metric_key') and self.primary_metric_key:
+                # Use custom metric key or predefined metric key
+                if self.primary_metric_key in results:
+                    true_accuracy = results[self.primary_metric_key]
+                else:
+                    # Fallback to first numerical value found if metric missing
+                    true_accuracy = next(
+                        (v for v in results.values() if isinstance(v, (int, float))), 0.5
+                    )
             else:
                 # Fallback to first numerical value found if dataset unknown or metric missing
                 true_accuracy = next(
@@ -344,23 +355,20 @@ class MOARSearch:
             acc_children = []
             cost_children = []
             if dual_expand:
-                print(f"[Thread {thread_id}] node {leaf.get_id()} is a FIRST LAYER NODE")
+                print(f"[Thread {thread_id}] DUAL EXPANDING node {leaf.get_id()}")
                 try:
                     acc_children =self.expand(leaf,"acc")
                     has_leaf_acc = 1
-                    print("HAS LEAF ACC")
                 except RuntimeError as e:
                     print(e)
                     has_leaf_acc= 0
                 try:
                     cost_children =self.expand(leaf,"cost")
                     has_leaf_cost = 1
-                    print("HAS LEAF COST")
                 except RuntimeError as e:
                     print(e)
                     has_leaf_cost= 0
             else: 
-                print(f"[Thread {thread_id}] node {leaf.get_id()} is NOT a FIRST LAYER NODE")
                 optimize_goal = self.get_optimize_goal(leaf)
                 if optimize_goal == "acc":
                     acc_children = self.expand(leaf, optimize_goal="acc")

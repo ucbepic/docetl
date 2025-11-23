@@ -18,7 +18,7 @@ from typing import Dict, List, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from litellm import completion
 from docetl.runner import DSLRunner
-from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics, load_custom_evaluate_func
 import modal
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 from experiments.reasoning.evaluation.utils import dataset_accuracy_metrics
@@ -309,7 +309,8 @@ class AgentCommunicator:
 class SimpleBaselineAgent:
     """Simplified baseline agent that uses tool calling to generate pipelines."""
     
-    def __init__(self, model: str = DEFAULT_MODEL, available_models: List[str] = None):
+    def __init__(self, model: str = DEFAULT_MODEL, available_models: List[str] = None, 
+                 custom_evaluate_func=None, custom_metric_key: str = None):
         self.model = model
         self.communicator = AgentCommunicator(model, self)
         self.documentation = None
@@ -317,6 +318,8 @@ class SimpleBaselineAgent:
         self.total_search_cost = 0.0  
         self.start_time = None  
         self.end_time = None
+        self.custom_evaluate_func = custom_evaluate_func
+        self.custom_metric_key = custom_metric_key
         
         # Set available models with default if not provided
         if available_models is None:
@@ -356,7 +359,14 @@ class SimpleBaselineAgent:
     def _run_individual_evaluation(self, dataset: str, output_path: str, iteration_id: int) -> Dict[str, Any]:
         """Run evaluation for a single pipeline output and return formatted metrics."""
         try:
-            evaluate_func = get_evaluate_func(dataset)
+            # Use custom evaluation function if provided, otherwise use default
+            if self.custom_evaluate_func is not None:
+                evaluate_func = self.custom_evaluate_func
+                metric_key = self.custom_metric_key
+            else:
+                evaluate_func = get_evaluate_func(dataset)
+                metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
+            
             if not evaluate_func:
                 return {"accuracy_msg": "No evaluation function available", "accuracy_val": None, "eval_metrics": {}}
             
@@ -371,8 +381,7 @@ class SimpleBaselineAgent:
             # Call the evaluation function with proper parameters
             eval_metrics = evaluate_func(f"simple_agent_iter_{iteration_id}", resolved_output_path)
             
-            metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
-            accuracy_val = eval_metrics.get(metric_key, 0.0)
+            accuracy_val = eval_metrics.get(metric_key, 0.0) if metric_key else next((v for v in eval_metrics.values() if isinstance(v, (int, float))), 0.0)
             
             # Format accuracy message based on dataset
             if dataset.lower() == "cuad":
@@ -639,7 +648,8 @@ class SimpleBaselineAgent:
 def run_simple_agent_experiment(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                                  experiment_name: str = None, ground_truth_path: str = None,
                                  original_query_result: Dict[str, Any] | None = None, 
-                                 yaml_path: str = None, available_models: List[str] | None = None) -> Dict[str, Any]:
+                                 yaml_path: str = None, available_models: List[str] | None = None,
+                                 accuracy_function: str | None = None, accuracy_metric_key: str | None = None) -> Dict[str, Any]:
     """Run the simple agent experiment for a dataset."""
     
     if output_dir is None:
@@ -653,8 +663,18 @@ def run_simple_agent_experiment(dataset: str, output_dir: str = None, model: str
     print(f"🚀 Running Simple Baseline Experiment")
     print(f"Dataset: {dataset}, Model: {model}, Output: {exp_dir}")
     
+    # Load custom accuracy function if provided
+    custom_evaluate_func = None
+    if accuracy_function:
+        if not accuracy_metric_key:
+            raise ValueError("--accuracy_metric_key must be provided when using --accuracy_function")
+        print(f"📊 Loading custom accuracy function from: {accuracy_function}")
+        custom_evaluate_func = load_custom_evaluate_func(accuracy_function)
+        print(f"✅ Custom accuracy function loaded. Metric key: {accuracy_metric_key}")
+    
     # Initialize agent and executor
-    agent = SimpleBaselineAgent(model=model, available_models=available_models)
+    agent = SimpleBaselineAgent(model=model, available_models=available_models,
+                                custom_evaluate_func=custom_evaluate_func, custom_metric_key=accuracy_metric_key)
     agent.start_time = time.time()  # Track experiment start time
     agent.load_resources(dataset, yaml_path)
     executor = PipelineExecutor(exp_dir)
@@ -803,7 +823,9 @@ def run_simple_agent_experiment(dataset: str, output_dir: str = None, model: str
             nodes_or_files=all_iteration_results,
             output_path=exp_dir,
             ground_truth_path=ground_truth_path,
-            method_name="simple_agent"
+            method_name="simple_agent",
+            custom_evaluate_func=custom_evaluate_func,
+            custom_metric_key=accuracy_metric_key,
         )
         results.update({"evaluation": eval_results, "pareto_auc": pareto_auc})
     
@@ -835,7 +857,8 @@ def run_simple_agent_experiment(dataset: str, output_dir: str = None, model: str
 def run_simple_agent_remote(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                               experiment_name: str = None, ground_truth_path: str = None,
                               original_query_result: Dict[str, Any] | None = None,
-                              yaml_path: str = None, available_models: List[str] | None = None):
+                              yaml_path: str = None, available_models: List[str] | None = None,
+                              accuracy_function: str | None = None, accuracy_metric_key: str | None = None):
     """Modal remote function for running simple agent."""
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     
@@ -851,7 +874,9 @@ def run_simple_agent_remote(dataset: str, output_dir: str = None, model: str = D
         ground_truth_path=ground_truth_path,
         original_query_result=original_query_result,
         yaml_path=yaml_path,
-        available_models=available_models
+        available_models=available_models,
+        accuracy_function=accuracy_function,
+        accuracy_metric_key=accuracy_metric_key
     )
     
     volume.commit()
@@ -862,7 +887,8 @@ def modal_main_simple_agent(dataset: str, experiment_name: str | None = None,
                               output_dir: str | None = None, model: str = DEFAULT_MODEL,
                               ground_truth: str | None = None,
                               original_query_result: Dict[str, Any] | None = None,
-                              available_models: List[str] | None = None):
+                              available_models: List[str] | None = None,
+                              accuracy_function: str | None = None, accuracy_metric_key: str | None = None):
     """Modal entrypoint for simple agent."""
     run_simple_agent_remote.remote(
         dataset=dataset,
@@ -871,22 +897,34 @@ def modal_main_simple_agent(dataset: str, experiment_name: str | None = None,
         experiment_name=experiment_name,
         ground_truth_path=ground_truth,
         original_query_result=original_query_result,
-        available_models=available_models
+        available_models=available_models,
+        accuracy_function=accuracy_function,
+        accuracy_metric_key=accuracy_metric_key
     )
 
 def main():
     """Local main function."""
     parser = argparse.ArgumentParser(description="Run simple agent agent")
     parser.add_argument("--dataset", type=str, required=True,
-                       choices=["cuad", "game_reviews", "blackvault", "sustainability", "biodex", "medec", "facility"])
+                       help="Dataset name. Must be one of: cuad, game_reviews, blackvault, sustainability, biodex, medec, facility. Or any string if using --accuracy_function.")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
     parser.add_argument("--output_dir", type=str)
     parser.add_argument("--experiment_name", type=str)
     parser.add_argument("--ground_truth", type=str, help="Path to ground truth file")
     parser.add_argument("--available_models", type=str, nargs="+", 
                        help="List of available models (default: all models). Example: --available_models gpt-5 gpt-5-mini gpt-4o")
+    parser.add_argument("--accuracy_function", type=str,
+                       help="Path to Python file containing custom evaluate_results function for user datasets")
+    parser.add_argument("--accuracy_metric_key", type=str,
+                       help="Key to extract from evaluation results dict for accuracy metric (required with --accuracy_function)")
     
     args = parser.parse_args()
+    
+    # Validate: if no custom accuracy function, dataset must be a supported one
+    if not args.accuracy_function:
+        supported_datasets = {"cuad", "game_reviews", "blackvault", "sustainability", "biodex", "medec", "facility"}
+        if args.dataset.lower() not in supported_datasets:
+            parser.error(f"Dataset '{args.dataset}' is not supported. Use --accuracy_function for custom datasets, or choose from: {', '.join(sorted(supported_datasets))}")
     
     results = run_simple_agent_experiment(
         dataset=args.dataset,
@@ -894,7 +932,9 @@ def main():
         model=args.model,
         experiment_name=args.experiment_name,
         ground_truth_path=args.ground_truth,
-        available_models=args.available_models
+        available_models=args.available_models,
+        accuracy_function=args.accuracy_function,
+        accuracy_metric_key=args.accuracy_metric_key
     )
     
     if results["success"]:

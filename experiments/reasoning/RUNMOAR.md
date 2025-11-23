@@ -8,6 +8,7 @@ This guide explains how to run the MOAR optimizer `run_moar.py` and the simple a
 - [MOAR (`run_moar.py`)](#moarsearch-run_moarpy)
 - [Simple Agent (`run_simple_agent.py`)](#simple-agent-run_simple_agentpy)
 - [Supported Datasets](#supported-datasets)
+  - [Custom Datasets with User-Authored Accuracy Functions](#custom-datasets-with-user-authored-accuracy-functions)
 - [Available Models](#available-models)
 - [Output Files](#output-files)
 
@@ -78,10 +79,10 @@ Outputs are written to `/mnt/docetl-ro-experiments/outputs/{experiment_name}` in
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| `--yaml_path` | ✅ Yes | - | Path to the input YAML pipeline file |
+| `--yaml_path` | ✅ Yes | - | Path to the user-authored input YAML pipeline file |
 | `--dataset_path` | ✅ Yes | - | Path to the dataset file for sample input data |
 | `--experiment_name` | ✅ Yes | - | Unique experiment identifier |
-| `--dataset` | No | `cuad` | Dataset name for evaluation (cuad, blackvault, medec, etc.) |
+| `--dataset` | Conditional | `cuad` | Dataset name for evaluation. **Required** if `--accuracy_function` is not provided. Must be one of: cuad, blackvault, medec, biodex, sustainability, game_reviews. If using `--accuracy_function`, can be any string (used for naming). |
 | `--max_iterations` | No | `100` | Maximum MOARSearch iterations |
 | `--exploration_weight` | No | `1.414` | UCB exploration parameter c (controls exploration vs exploitation) |
 | `--model` | No | `gpt-5` | LLM model to use for directive instantiation |
@@ -89,6 +90,8 @@ Outputs are written to `/mnt/docetl-ro-experiments/outputs/{experiment_name}` in
 | `--data_dir` | No | - | Directory containing input data files |
 | `--output_dir` | No | `EXPERIMENT_OUTPUT_DIR` env var | Directory to save experiment outputs |
 | `--ground_truth` | No | - | Path to ground-truth file (if not default) |
+| `--accuracy_function` | No | - | Path to Python file containing custom `evaluate_results` function (for user datasets) |
+| `--accuracy_metric_key` | No | - | Key to extract from evaluation results dict for accuracy metric (required with `--accuracy_function`) |
 
 ## Simple Agent (`run_simple_agent.py`)
 
@@ -117,12 +120,14 @@ modal run experiments/reasoning/run_simple_agent.py \
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| `--dataset` | ✅ Yes | - | Dataset name (cuad, blackvault, medec, biodex, sustainability, game_reviews, facility) |
+| `--dataset` | Conditional | - | Dataset name. **Required** if `--accuracy_function` is not provided. Must be one of: cuad, blackvault, medec, biodex, sustainability, game_reviews, facility. If using `--accuracy_function`, can be any string (used for naming). |
 | `--model` | No | `gpt-5` | LLM model to use for optimization |
 | `--experiment_name` | No | `simple_agent_{dataset}` | Unique experiment identifier |
 | `--output_dir` | No | `outputs/simple_agent` | Output directory |
 | `--ground_truth` | No | - | Path to ground truth file for evaluation |
 | `--available_models` | No | All models | Space-separated list of available models. Example: `gpt-5 gpt-5-mini gpt-4o` |
+| `--accuracy_function` | No | - | Path to Python file containing custom `evaluate_results` function (for user datasets) |
+| `--accuracy_metric_key` | No | - | Key to extract from evaluation results dict for accuracy metric (required with `--accuracy_function`) |
 
 ## Supported Datasets
 
@@ -135,6 +140,68 @@ Both `run_moar.py` and `run_simple_agent.py` support the following datasets:
 - `sustainability` - Sustainability analysis
 - `game_reviews` - Game review sentiment analysis
 - `facility` - Facility support message classification (Simple Agent only)
+
+### Custom Datasets with User-Authored Accuracy Functions
+
+For datasets not listed above, you can provide your own accuracy evaluation function using the `--accuracy_function` and `--accuracy_metric_key` parameters.
+
+#### Creating a Custom Accuracy Function
+
+Create a Python file (e.g., `my_evaluate.py`) with an `evaluate_results` function:
+
+```python
+# my_evaluate.py
+import json
+
+def evaluate_results(method_name, results_file_path):
+    """
+    Evaluate pipeline results and return metrics.
+    
+    Args:
+        method_name: Name of the method being evaluated
+        results_file_path: Path to the JSON file containing pipeline results
+        
+    Returns:
+        dict: Dictionary containing evaluation metrics. Must include the metric
+              specified by --accuracy_metric_key.
+    """
+    # Load results
+    with open(results_file_path, 'r') as f:
+        results = json.load(f)
+    
+    # Your evaluation logic here
+    # Calculate metrics based on your dataset's requirements
+    
+    metrics = {
+        "my_accuracy_metric": 0.95,  # Primary accuracy metric (specify key with --accuracy_metric_key)
+        # Add any other metrics you want to track
+    }
+    
+    return metrics
+```
+
+#### Using Custom Accuracy Functions
+
+**MOARSearch:**
+```bash
+python experiments/reasoning/run_moar.py \
+  --yaml_path my_pipeline.yaml \
+  --dataset_path my_data.json \
+  --experiment_name my_custom_experiment \
+  --dataset my_custom_dataset \
+  --accuracy_function my_evaluate.py \
+  --accuracy_metric_key my_accuracy_metric
+```
+
+**Simple Agent:**
+```bash
+python experiments/reasoning/run_simple_agent.py \
+  --dataset my_custom_dataset \
+  --accuracy_function my_evaluate.py \
+  --accuracy_metric_key my_accuracy_metric
+```
+
+**Note:** When using custom accuracy functions, the `--dataset` parameter can be any string (it's used for naming/organization). The actual evaluation logic comes from your custom function.
 
 ## Available Models
 

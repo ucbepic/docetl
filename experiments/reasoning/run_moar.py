@@ -16,7 +16,7 @@ from docetl.moar import MOARSearch, Node, ParetoFrontier
 from docetl.reasoning_optimizer.directives import (
     DEFAULT_MODEL, DEFAULT_OUTPUT_DIR, ALL_DIRECTIVES
 )
-from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_dataset_stats
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_dataset_stats, load_custom_evaluate_func
 import modal
 import yaml
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
@@ -82,6 +82,8 @@ def run_moar_remote(
     original_query_result: Dict[str, Any] | None = None,
     build_first_layer: Optional[bool] = False,
     available_models: List[str] | None = None,
+    accuracy_function: str | None = None,
+    accuracy_metric_key: str | None = None,
 ):
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     resolved_output_dir = _resolve_in_volume(output_dir) if output_dir else None
@@ -103,6 +105,8 @@ def run_moar_remote(
         original_query_result=original_query_result,
         build_first_layer=build_first_layer,
         available_models=available_models,
+        accuracy_function=accuracy_function,
+        accuracy_metric_key=accuracy_metric_key,
     )
     volume.commit()
     return results
@@ -122,6 +126,8 @@ def modal_main_moar(
     ground_truth: str | None = None,
     original_query_result: Dict[str, Any] | None = None,
     available_models: List[str] | None = None,
+    accuracy_function: str | None = None,
+    accuracy_metric_key: str | None = None,
 ):
     run_moar_remote.remote(
         yaml_path=yaml_path,
@@ -136,6 +142,8 @@ def modal_main_moar(
         ground_truth_path=ground_truth,
         original_query_result=original_query_result,
         available_models=available_models,
+        accuracy_function=accuracy_function,
+        accuracy_metric_key=accuracy_metric_key,
     )
 
 
@@ -153,6 +161,8 @@ def run_moar_experiment(
     original_query_result: Dict[str, Any] | None = None,
     build_first_layer: Optional[bool] = False,
     available_models: List[str] | None = None,
+    accuracy_function: str | None = None,
+    accuracy_metric_key: str | None = None,
 ):
     """
     Run MOARSearch-based optimization experiment with specified parameters.
@@ -171,6 +181,8 @@ def run_moar_experiment(
         original_query_result: Original query result (if not default)
         build_first_layer: Whether to build the first layer of the tree 
         available_models: List of available models for operators
+        accuracy_function: Path to Python file containing custom evaluate_results function
+        accuracy_metric_key: Key to extract from evaluation results dict for accuracy metric
     """
     # Set up environment
     if data_dir:
@@ -227,6 +239,15 @@ def run_moar_experiment(
             "gemini-2.5-flash",
             "gemini-2.5-flash-lite"]
     
+    # Load custom accuracy function if provided
+    custom_evaluate_func = None
+    if accuracy_function:
+        if not accuracy_metric_key:
+            raise ValueError("--accuracy_metric_key must be provided when using --accuracy_function")
+        print(f"📊 Loading custom accuracy function from: {accuracy_function}")
+        custom_evaluate_func = load_custom_evaluate_func(accuracy_function)
+        print(f"✅ Custom accuracy function loaded. Metric key: {accuracy_metric_key}")
+    
     # Initialize MOARSearch
     moar = MOARSearch(
         root_yaml_path=yaml_path,
@@ -240,6 +261,8 @@ def run_moar_experiment(
         model=model,
         output_dir=str(output_path),
         build_first_layer=build_first_layer,
+        custom_evaluate_func=custom_evaluate_func,
+        custom_metric_key=accuracy_metric_key,
     )
     print(f"✅ MOARSearch initialized with root node: {yaml_path}")
     # Run MOARSearch optimization
@@ -268,7 +291,9 @@ def run_moar_experiment(
         output_path=output_path,
         ground_truth_path=ground_truth_path,
         method_name="docetl_moar",
-        root_cost=root_cost
+        root_cost=root_cost,
+        custom_evaluate_func=custom_evaluate_func,
+        custom_metric_key=accuracy_metric_key,
     )
     # Save results
     results = {
@@ -361,8 +386,18 @@ Examples:
     parser.add_argument("--ground_truth", type=str, help="Path to ground-truth file (if not default)")
     parser.add_argument("--available_models", type=str, nargs="+", 
                        help="List of available models for first layer (default: all models). Example: --available_models gpt-5 gpt-5-mini gpt-4o")
+    parser.add_argument("--accuracy_function", type=str,
+                       help="Path to Python file containing custom evaluate_results function for user datasets")
+    parser.add_argument("--accuracy_metric_key", type=str,
+                       help="Key to extract from evaluation results dict for accuracy metric (required with --accuracy_function)")
     
     args = parser.parse_args()
+    
+    # Validate: if no custom accuracy function, dataset must be a supported one
+    if not args.accuracy_function:
+        supported_datasets = {"cuad", "blackvault", "medec", "biodex", "sustainability", "game_reviews", "facility"}
+        if args.dataset.lower() not in supported_datasets:
+            parser.error(f"Dataset '{args.dataset}' is not supported. Use --accuracy_function for custom datasets, or choose from: {', '.join(sorted(supported_datasets))}")
     
     result = run_moar_experiment(
         yaml_path=args.yaml_path,
@@ -376,6 +411,8 @@ Examples:
         dataset=args.dataset,
         ground_truth_path=args.ground_truth,
         available_models=args.available_models,
+        accuracy_function=args.accuracy_function,
+        accuracy_metric_key=args.accuracy_metric_key,
     )
     
     print("\n🎉 MOARSearch experiment completed successfully!")

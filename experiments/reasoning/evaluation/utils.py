@@ -8,6 +8,8 @@ from .medec import evaluate_results as medec_evaluate
 from .sustainability import evaluate_results as sustainability_evaluate
 from .biodex import evaluate_results as biodex_evaluate
 from .facility import evaluate_results as facility_evaluate
+import importlib.util
+from pathlib import Path
 
 dataset_accuracy_metrics = {
     "cuad": "avg_f1",
@@ -200,16 +202,62 @@ def save_pareto_frontier_results(eval_results, dataset, output_path):
     
     print(f"💾 Pareto frontier results saved to: {frontier_file}")
 
-def get_evaluate_func(dataset, mode="train"):
+def load_custom_evaluate_func(accuracy_function_path: str):
+    """
+    Load a custom evaluation function from a Python file.
+    
+    Args:
+        accuracy_function_path (str): Path to a Python file containing an `evaluate_results` function
+        
+    Returns:
+        callable: Evaluation function that takes (method_name, results_file_path, ground_truth_path=None, original_json_file=None)
+        
+    Raises:
+        ValueError: If the file doesn't exist or doesn't contain `evaluate_results` function
+    """
+    
+    
+    func_path = Path(accuracy_function_path)
+    if not func_path.exists():
+        raise ValueError(f"Accuracy function file not found: {accuracy_function_path}")
+    
+    spec = importlib.util.spec_from_file_location("custom_evaluate", func_path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not load module from: {accuracy_function_path}")
+    
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    
+    if not hasattr(module, 'evaluate_results'):
+        raise ValueError(f"Module {accuracy_function_path} does not contain 'evaluate_results' function")
+    
+    evaluate_func = getattr(module, 'evaluate_results')
+    
+    def wrapped_eval_func(method_name, results_file_path):
+        """
+        Wrapper that calls the custom evaluate_results function.
+        The custom function should have signature:
+        evaluate_results(method_name, results_file, ground_truth_file=None, original_json_file=None)
+        """
+        return evaluate_func(method_name, results_file_path)
+    
+    return wrapped_eval_func
+
+def get_evaluate_func(dataset, mode="train", custom_evaluate_func=None):
     """
     Get the appropriate evaluation function for a dataset.
     
     Args:
         dataset (str): Dataset name ('cuad' or 'blackvault')
+        mode (str): 'train' or 'test' mode
+        custom_evaluate_func (callable, optional): Custom evaluation function to use instead of predefined ones
         
     Returns:
         callable: Evaluation function that takes (method_name, results_file_path)
     """
+    # If custom function provided, use it
+    if custom_evaluate_func is not None:
+        return custom_evaluate_func
     if dataset.lower() == "cuad":
         def cuad_eval_func(method_name, results_file_path):
             ground_truth_path = "experiments/reasoning/data/CUAD-master_clauses.csv"
@@ -378,7 +426,7 @@ def get_dataset_stats(dataset, yaml_path):
     except Exception as e:
         return f"Dataset: {dataset_name}\nType: file\nRecords loaded: 0\nError loading data: {e}"
 
-def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_path=None, method_name="docetl", root_cost=None):
+def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_path=None, method_name="docetl", root_cost=None, custom_evaluate_func=None, custom_metric_key=None):
     """
     Run evaluation for a specific dataset on a set of nodes or files.
     
@@ -388,12 +436,87 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
         output_path (Path): Path to save evaluation results
         ground_truth_path (str, optional): Path to ground truth file
         method_name (str): Method name for evaluation
+        root_cost (float, optional): Root cost for AUC calculation
+        custom_evaluate_func (callable, optional): Custom evaluation function (method_name, results_file_path) -> dict
+        custom_metric_key (str, optional): Key to extract from evaluation results for accuracy metric
         
     Returns:
         tuple: (eval_results, pareto_auc) where eval_results is list of evaluation metrics
     """
     eval_results = []
     pareto_auc = None
+    
+    if custom_evaluate_func is not None:
+        if custom_metric_key is None:
+            raise ValueError("custom_metric_key must be provided when using custom_evaluate_func")
+        
+        for item in nodes_or_files:
+            if hasattr(item, 'result_path'):
+                jf = item.result_path
+                node_data = {
+                    "node_id": item.get_id(),
+                    "cost": item.cost,
+                    "visits": getattr(item, 'visits', 0),
+                    "value": getattr(item, 'value', 0),
+                }
+            else:
+                jf = item.get("file_path") if isinstance(item, dict) else item
+                node_data = {
+                    "node_id": item.get("node_id", "unknown") if isinstance(item, dict) else "unknown",
+                    "cost": item.get("cost", 0.0) if isinstance(item, dict) else 0.0,
+                    "visits": item.get("visits", 0) if isinstance(item, dict) else 0,
+                    "value": item.get("value", 0) if isinstance(item, dict) else 0,
+                }
+            
+            if jf is None or not Path(jf).exists():
+                continue
+            
+            try:
+                metrics = custom_evaluate_func(method_name, jf)
+                jp = Path(jf).resolve()
+                op_root = output_path.resolve()
+                if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
+                    display_path = str(jp.relative_to(op_root))
+                else:
+                    display_path = jp.name
+                
+                # Extract the custom metric
+                accuracy_value = metrics.get(custom_metric_key)
+                if accuracy_value is None:
+                    print(f"⚠️  Warning: Custom metric key '{custom_metric_key}' not found in evaluation results for {jf}")
+                    accuracy_value = next((v for v in metrics.values() if isinstance(v, (int, float))), 0.0)
+                
+                result = {
+                    "file": display_path,
+                    custom_metric_key: accuracy_value,
+                    **metrics,  # Include all metrics from custom function
+                    **node_data
+                }
+                
+                # Add frontier information if available
+                if hasattr(item, 'result_path'):
+                    result.update({
+                        "moar_accuracy": getattr(item, 'moar_accuracy', None),
+                        "on_frontier": getattr(item, 'on_frontier', False),
+                    })
+                
+                eval_results.append(result)
+            except Exception as e:
+                print(f"   ⚠️  Evaluation failed for {jf}: {e}")
+        
+        # Create plots and compute AUC if we have results
+        if eval_results:
+            # Use generic plotting for custom functions
+            pareto_auc = _create_generic_plots_and_auc(eval_results, output_path, root_cost, custom_metric_key)
+        
+        # Save evaluation results
+        if eval_results:
+            eval_out_file = output_path / "evaluation_metrics.json"
+            with open(eval_out_file, "w") as f:
+                json.dump(eval_results, f, indent=2)
+            print(f"📊 Evaluation results written to {eval_out_file}")
+        
+        return eval_results, pareto_auc
     
     if dataset.lower() == "cuad":
         if ground_truth_path is None:
@@ -1363,3 +1486,88 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
     
     return pareto_auc
 
+def _create_generic_plots_and_auc(eval_results, output_path, root_cost=None, metric_key="accuracy"):
+    """Create plots and compute AUC for custom evaluation functions"""
+    pareto_auc = None
+    
+    # Plot metric vs Cost scatter
+    try:
+        costs = [row["cost"] for row in eval_results]
+        accuracies = [row.get(metric_key, 0.0) for row in eval_results]
+        colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
+
+        plt.figure(figsize=(8,6))
+        plt.scatter(costs, accuracies, c=colors)
+        for row in eval_results:
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row.get('node_id', row.get('file', ''))} ({moar_accuracy:.2f})"
+            else:
+                label = row.get("node_id", row.get("file", ""))
+            plt.annotate(label, (row["cost"], row.get(metric_key, 0.0)), textcoords="offset points", xytext=(4,4), fontsize=8)
+
+        plt.xlabel("Cost ($)")
+        plt.ylabel(metric_key.replace("_", " ").title())
+        plt.title(f"Cost vs {metric_key.replace('_', ' ').title()} for all plans")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plot_path = output_path / f"cost_vs_{metric_key}.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"📈 Scatter plot saved to: {plot_path}")
+    except Exception as e:
+        print(f"⚠️  Failed to create scatter plot: {e}")
+    
+    # Compute Hypervolume with reference point (accuracy=0, cost=max_cost)
+    try:
+        frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
+        if frontier_points:
+            # Use highest cost across all points as reference
+            ref_cost = max(row["cost"] for row in eval_results)
+            print(f"Using highest cost across all points as reference: {ref_cost:.2f}")
+            ref_accuracy = 0.0
+            
+            # Sort frontier points by cost (ascending)
+            frontier_points.sort(key=lambda r: r["cost"])
+            
+            hypervolume = 0.0
+            
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                curr_acc = curr_point.get(metric_key, 0.0)
+                next_acc = next_point.get(metric_key, 0.0)
+                
+                if (curr_point["cost"] < ref_cost and curr_acc > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_acc > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_acc - ref_accuracy
+                    height2 = next_acc - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                last_acc = last_point.get(metric_key, 0.0)
+                if last_point["cost"] < ref_cost and last_acc > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_acc - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
+            
+            pareto_auc = hypervolume
+            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
+        else:
+            pareto_auc = 0.0
+    except Exception as e:
+        print(f"⚠️  Failed to compute Hypervolume: {e}")
+        pareto_auc = None
+    
+    return pareto_auc

@@ -8,290 +8,37 @@ from pydantic import BaseModel, Field
 
 from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiateSchema
 
-MODEL_STATS = {
-    "cuad": {
-        "gpt-5": {"acc": 0.7200038754634324, "cost": 2.282243},
-        "gpt-5-mini": {"acc": 0.6835748934962984, "cost": 0.605154},
-        "gpt-5-nano": {"acc": 0.6463552293414165, "cost": 0.231796},
-        "gpt-4.1": {"acc": 0.7366652765882619, "cost": 2.026396},
-        "gpt-4.1-mini": {"acc": 0.6914865483894942, "cost": 0.380290},
-        "gpt-4.1-nano": {"acc": 0.36382364868308986, "cost": 0.080214},
-        "gpt-4o": {"acc": 0.6214280458632053, "cost": 2.210165},
-        "gpt-4o-mini": {"acc": 0.4311917773936343, "cost": 0.137882},
-        "gemini-2.5-pro": {"acc": 0.7174635945681389, "cost": 2.820552},
-        "gemini-2.5-flash": {"acc": 0.7170929338182611, "cost": 1.032156},
-        "gemini-2.5-flash-lite": {"acc": 0.6087973440184378, "cost": 0.097669},
-    },
-    "medec": {
-        "gpt-5": {"acc": 0.7724715715510082, "cost": 1.008255},
-        "gpt-5-mini": {"acc": 0.6665255825243509, "cost": 0.120811},
-        "gpt-5-nano": {"acc": 0.6419064045434841, "cost": 0.062694},
-        "gpt-4.1": {"acc": 0.6582786810593204, "cost": 0.099804},
-        "gpt-4.1-mini": {"acc": 0.5130606013669332, "cost": 0.019399},
-        "gpt-4.1-nano": {"acc": 0.5011682624970316, "cost": 0.004886},
-        "gpt-4o": {"acc": 0.6638914672336493, "cost": 0.135778},
-        "gpt-4o-mini": {"acc": 0.6038406827744512, "cost": 0.008168},
-        "gemini-2.5-pro": {"acc": 0.7482653668131851, "cost": 0.689124},
-        "gemini-2.5-flash-lite": {"acc": 0.3601489578058821, "cost": 0.005106},
-    },
-    "biodex": {
-        "gpt-5": {"acc": 0.35962962962962963, "cost": 10.06},
-        "gpt-5-mini": {"acc": 0.3256666666666666, "cost": 2.24},
-        "gpt-5-nano": {"acc": 0.2913333333333333, "cost": 0.45},
-        "gpt-4.1": {"acc": 0.273, "cost": 15.41},
-        "gpt-4.1-mini": {"acc": 0.24600000000000002, "cost": 3.08},
-        "gpt-4.1-nano": {"acc": 0.15433333333333335, "cost": 0.77},
-        "gpt-4o": {"acc": 0.206, "cost": 17.57},
-        "gpt-4o-mini": {"acc": 0.27033333333333326, "cost": 1.05},
-        "gemini-2.5-flash-lite": {"acc": 0.19866666666666666, "cost": 0.71},
-    },
-    "sustainability": {
-        "gpt-5": {"acc": 0.52, "cost": 8.100397},
-        "gpt-5-mini": {"acc": 0.5517241379310345, "cost": 1.608668},
-        "gpt-5-nano": {"acc": 0.48148148148148145, "cost": 0.36},
-        "gpt-4.1": {"acc": 0.5454545454545454, "cost": 14.88},
-        "gpt-4.1-mini": {"acc": 0.6521739130434783, "cost": 2.849562},
-        "gpt-4.1-nano": {"acc": 0.4666666666666667, "cost": 0.74},
-        "gpt-4o": {"acc": 0.7142857142857143, "cost": 13.23},
-        "gpt-4o-mini": {"acc": 0.5, "cost": 0.82},
-        "gemini-2.5-pro": {"acc": 0.5869565217391305, "cost": 16.68},
-        "gemini-2.5-flash": {"acc": 0.5714285714285714, "cost": 2.852281},
-        "gemini-2.5-flash-lite": {"acc": 0.7692307692307693, "cost": 0.795008},
-    },
-    "blackvault": {
-        "gpt-5": {"acc": 2.58974358974359, "cost": 2.607966},
-        "gpt-5-mini": {"acc": 7.682926829268292, "cost": 0.412403},
-        "gpt-5-nano": {"acc": 4.703703703703703, "cost": 0.111214},
-        "gpt-4.1": {"acc": 8.764705882352942, "cost": 2.449074},
-        "gpt-4.1-nano": {"acc": 0.967741935483871, "cost": 0.125311},
-        "gpt-4o": {"acc": 9.875, "cost": 2.934132},
-        "gpt-4o-mini": {"acc": 6.5625, "cost": 0.174887},
-        "gemini-2.5-pro": {"acc": 16.863636363636363, "cost": 3.129470},
-    },
-    "game_reviews": {
-        "gpt-5": {"acc": 0.7240131578947369, "cost": 6.560770},
-        "gpt-5-mini": {"acc": 0.7276842105263159, "cost": 1.370671},
-        "gpt-5-nano": {"acc": 0.7291378138974889, "cost": 0.464833},
-        "gpt-4.1": {"acc": 0.7164704162366701, "cost": 8.729372},
-        "gpt-4.1-mini": {"acc": 0.5850613521325596, "cost": 1.735382},
-        "gpt-4.1-nano": {"acc": 0.5001233000745384, "cost": 0.445612},
-        "gpt-4o": {"acc": 0.6224749823619792, "cost": 10.044458},
-        "gpt-4o-mini": {"acc": 0.4558171816143953, "cost": 0.602058},
-        "gemini-2.5-pro": {"acc": 0.72196783625731, "cost": 10.528458},
-        "gemini-2.5-flash-lite": {"acc": 0.6054982297865206, "cost": 0.497641},
-    },
+
+def get_cheaper_models(current_model: str, model_stats: Dict = None) -> List[str]:
+    """
+    Get list of models that are cheaper than the current model.
     
-}
+    Args:
+        current_model: The current model name (may include "azure/" or "gemini/" prefix)
+        model_stats: Dictionary of model statistics from MOARSearch
+    
+    Returns:
+        List of model names that are cheaper than current_model, sorted by cost (cheapest first)
+    """
+    if model_stats is None or not model_stats:
+        return []
 
-FRONTIER_MODELS = {
-    "cuad": {
-        "gemini-2.5-flash-lite",
-        "gpt-5-nano",
-        "gpt-4.1-mini",
-        "gemini-2.5-flash",
-        "gpt-4.1",
-    },
-    "medec": {
-        "gpt-4.1-nano",
-        "gpt-4o-mini",
-        "gpt-5-nano",
-        "gpt-4.1",
-        "gpt-5-mini",
-        "gemini-2.5-pro",
-        "gpt-5",
-    },
-    "biodex": {
-        "gpt-5-nano",
-        "gpt-5",
-        "gpt-5-mini",
-    },
-    "sustainability": {
-        "gpt-5-nano",
-        "gemini-2.5-flash-lite",
-    },
-    "blackvault": {
-        "gpt-5-nano",
-        "gpt-4o-mini",
-        "gpt-5-mini",
-        "gpt-4.1",
-        "gpt-4o",
-        "gemini-2.5-pro",
-    },
-    "game_reviews": {
-        "gpt-4.1-nano",
-        "gpt-5-nano"
-    }
-}
-
-
-MODEL_COSTS = {
-    "cuad": {
-        "gpt-5": 2.282243,
-        "gpt-5-mini": 0.605154,
-        "gpt-5-nano": 0.231796,
-        "gpt-4.1": 2.026396,
-        "gpt-4.1-mini": 0.380290,
-        "gpt-4.1-nano": 0.080214,
-        "gpt-4o": 2.210165,
-        "gpt-4o-mini": 0.137882,
-        "gemini-2.5-pro": 2.820552,
-        "gemini-2.5-flash": 1.032156,
-        "gemini-2.5-flash-lite": 0.097669,
-    },
-    "medec": {
-        "gpt-5": 1.008255,
-        "gpt-5-mini": 0.120811,
-        "gpt-5-nano": 0.062694,
-        "gpt-4.1": 0.099804,
-        "gpt-4.1-mini": 0.019399,
-        "gpt-4.1-nano": 0.004886,
-        "gpt-4o": 0.135778,
-        "gpt-4o-mini": 0.008168,
-        "gemini-2.5-pro": 0.689124,
-        "gemini-2.5-flash-lite": 0.005106,
-    },
-    "biodex": {
-        "gpt-5": 10.06,
-        "gpt-5-mini": 2.24,
-        "gpt-5-nano": 0.45,
-        "gpt-4.1": 15.41,
-        "gpt-4.1-mini": 3.08,
-        "gpt-4.1-nano": 0.77,
-        "gpt-4o": 17.57,
-        "gpt-4o-mini": 1.05,
-        "gemini-2.5-flash-lite": 0.71,
-    },
-    "sustainability": {
-        "gpt-5": 8.100397,
-        "gpt-5-mini": 1.608668,
-        "gpt-5-nano": 0.36,
-        "gpt-4.1": 14.88,
-        "gpt-4.1-mini": 2.849562,
-        "gpt-4.1-nano": 0.74,
-        "gpt-4o": 13.23,
-        "gpt-4o-mini": 0.82,
-        "gemini-2.5-pro": 16.68,
-        "gemini-2.5-flash": 2.852281,
-        "gemini-2.5-flash-lite": 0.795008,
-    },
-    "blackvault": {
-        "gpt-5": 2.607966,
-        "gpt-5-mini": 0.412403,
-        "gpt-5-nano": 0.111214,
-        "gpt-4.1": 2.449074,
-        "gpt-4.1-nano": 0.125311,
-        "gpt-4o": 2.934132,
-        "gpt-4o-mini": 0.174887,
-        "gemini-2.5-pro": 3.129470,
-    },
-    "game_reviews": {
-        "gpt-5": 6.560770,
-        "gpt-5-mini": 1.370671,
-        "gpt-5-nano": 0.464833,
-        "gpt-4.1": 8.729372,
-        "gpt-4.1-mini": 1.735382,
-        "gpt-4.1-nano": 0.445612,
-        "gpt-4o": 10.044458,
-        "gpt-4o-mini": 0.602058,
-        "gemini-2.5-pro": 10.528458,
-        "gemini-2.5-flash-lite": 0.497641,
-    }
-}
-
-first_layer_yaml_paths = {
-    "cuad": [
-        "gemini_2.5_flash_lite_config.yaml",
-        "gpt_5_nano_config.yaml",
-        "gpt_4.1_mini_config.yaml",
-        "gemini_2.5_flash_config.yaml",
-        "gpt_4.1_config.yaml",
-    ],
-    "medec": [
-        "gpt_4.1_nano_config.yaml",
-        "gpt_4o_mini_config.yaml",
-        "gpt_5_nano_config.yaml",
-        "gpt_4.1_config.yaml",
-        "gpt_5_mini_config.yaml",
-        "gemini_2.5_pro_config.yaml",
-        "gpt_5_config.yaml",
-    ],
-    "biodex": [
-        "gpt_5_nano_config.yaml",
-        "gpt_5_config.yaml",
-        "gpt_5_mini_config.yaml",
-    ],
-    "sustainability": [
-        "gpt_5_nano_config.yaml",
-        "gemini_2.5_flash_lite_config.yaml",
-    ],
-    "blackvault": [
-        "gpt_5_nano_config.yaml",
-        "gpt_4o_mini_config.yaml",
-        "gpt_5_mini_config.yaml",
-        "gpt_4.1_config.yaml",
-        "gpt_4o_config.yaml",
-        "gemini_2.5_pro_config.yaml",
-    ],
-    "game_reviews": [
-        "gpt_4.1_nano_config.yaml",
-        "gpt_5_nano_config.yaml",
-    ]
-}
-
-first_layer_yaml_paths_pruned = {
-    "cuad": [
-        "gemini_2.5_flash_lite_config.yaml",
-        "gpt_5_nano_config.yaml",
-        "gpt_4.1_mini_config.yaml",
-        "gemini_2.5_flash_config.yaml",
-        "gpt_4.1_config.yaml",
-    ],
-    "medec": [
-        "gpt_4o_mini_config.yaml",
-        "gpt_5_nano_config.yaml",
-        "gpt_4.1_config.yaml",
-        "gpt_5_mini_config.yaml",
-        "gemini_2.5_pro_config.yaml",
-        "gpt_5_config.yaml",
-    ],
-    "biodex": [
-        "gpt_5_nano_config.yaml",
-        "gpt_5_mini_config.yaml",
-        "gpt_5_config.yaml",
-    ],
-    "sustainability": [
-        "gemini_2.5_flash_lite_config.yaml",
-    ],
-    "blackvault": [
-        "gpt_4o_mini_config.yaml",
-        "gpt_5_mini_config.yaml",
-        "gpt_4.1_config.yaml",
-        "gpt_4o_config.yaml",
-        "gemini_2.5_pro_config.yaml",
-    ],
-    "game_reviews": [
-        "gpt_4.1_nano_config.yaml",
-        "gpt_5_nano_config.yaml",
-    ]
-}
-
-
-def get_cheaper_models(current_model: str, dataset: str) -> List[str]:
-    """Get list of models that are cheaper than the current model for a given dataset."""
-    if dataset not in MODEL_COSTS:
+    current_model_stats = model_stats.get(current_model)
+    if current_model_stats is None:
         return []
     
-    current_cost = MODEL_COSTS[dataset].get(current_model)
+    current_cost = current_model_stats.get("cost")
     if current_cost is None:
         return []
     
     cheaper_models = []
-    for model, cost in MODEL_COSTS[dataset].items():
-        if cost < current_cost:
+    for model, stats in model_stats.items():
+        if not isinstance(stats, dict):
+            continue
+        model_cost = stats.get("cost")
+        if model_cost is not None and model_cost < current_cost:
             cheaper_models.append(model)
-    
-    # Sort by cost (cheapest first)
-    cheaper_models.sort(key=lambda x: MODEL_COSTS[dataset][x])
+
     return cheaper_models
 
 from .base import (
@@ -440,16 +187,22 @@ class ChangeModelCostDirective(Directive):
     def __hash__(self):
         return hash(f"ChangeModelCostDirective_{self.target_model}")
 
-    def to_string_for_instantiate(self, original_op: Dict, dataset: str) -> str:
+    def to_string_for_instantiate(self, original_op: Dict, dataset: str, model_stats: Dict = None) -> str:
         """
         Generate a prompt for an agent to instantiate this directive for cost optimization.
 
         Args:
             original_op (str): The YAML or string representation of the original operation.
+            dataset: The dataset name
+            model_stats: Dictionary of model statistics from MOARSearch (optional)
 
         Returns:
             str: The agent prompt for instantiating the directive.
         """
+        model_stats_str = ""
+        if model_stats:
+            model_stats_str = f"You have a list of model statistics on the task with the original query pipeline: \n {str(model_stats)}\n"
+        
         return (
             f"You are an expert at choosing the most cost-effective model for a given task while maintaining adequate performance.\n\n"
             f"Original Operation:\n"
@@ -466,7 +219,7 @@ class ChangeModelCostDirective(Directive):
             f"• Consider document length and context requirements when selecting models\n\n"
             f"You have a list of allowed models to choose from: {str(self.allowed_model_list)}.\n\n"
             f"Consider the information about the allowed models: \n {self.model_info}\n"
-            f"You have a list of model statistics on the task with the original query pipeline: \n {str(MODEL_STATS.get(dataset, {}))}\n"
+            f"{model_stats_str}"
             f"Your response should include the cheapest model choice that meets the operation requirements."
             f"Ensure that your chosen model is in the list of allowed models."
             f"Example:\n"
@@ -481,6 +234,7 @@ class ChangeModelCostDirective(Directive):
         agent_llm: str,
         dataset: str,
         message_history: list = [],
+        model_stats: Dict = None,
     ):
         """
         Use LLM to instantiate this directive for cost optimization.
@@ -488,7 +242,9 @@ class ChangeModelCostDirective(Directive):
         Args:
             original_op (Dict): The original operation.
             agent_llm (str): The LLM model to use.
+            dataset: The dataset name
             message_history (List, optional): Conversation history for context.
+            model_stats: Dictionary of model statistics from MOARSearch (optional)
 
         Returns:
             ChangeModelInstantiateSchema: The structured output from the LLM.
@@ -508,7 +264,7 @@ class ChangeModelCostDirective(Directive):
                 },
                 {
                     "role": "user",
-                    "content": self.to_string_for_instantiate(original_op, dataset),
+                    "content": self.to_string_for_instantiate(original_op, dataset, model_stats),
                 },
             ]
         )
@@ -579,10 +335,21 @@ class ChangeModelCostDirective(Directive):
         message_history: list = [],
         global_default_model: str = None,
         dataset: str = None,
+        model_stats: Dict = None,
         **kwargs,
     ):
         """
         Instantiate the directive for a list of operators.
+        
+        Args:
+            operators: List of operator configurations
+            target_ops: List of target operation names
+            agent_llm: LLM model to use for instantiation
+            message_history: Conversation history
+            global_default_model: Default model for the pipeline
+            dataset: Dataset name
+            model_stats: Dictionary of model statistics from MOARSearch (optional)
+            **kwargs: Additional keyword arguments
         """
         new_ops_list = deepcopy(operators)
         inst_error = 0
@@ -596,6 +363,7 @@ class ChangeModelCostDirective(Directive):
                     agent_llm,
                     dataset,
                     message_history,
+                    model_stats,
                 )
                 print(rewrite)
             except Exception:

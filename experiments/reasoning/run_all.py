@@ -61,7 +61,7 @@ from experiments.reasoning.plot_result import (
     find_pareto_frontier, calculate_hypervolume_comparison, 
     plot_pareto_frontier_comparison, dataset_metrics
 )
-from docetl.mcts.mcts_utils import fix_models
+from docetl.moar.search_utils import fix_models
 
 # Known defaults for dataset YAMLs and sample dataset inputs
 DEFAULT_YAML_PATHS: Dict[str, str] = {

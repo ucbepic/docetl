@@ -7,8 +7,6 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import threading
-
-from .acc_comparator import AccuracyComparator
 from .Node import Node
 
 sys.path.append("../../experiments/reasoning")
@@ -35,7 +33,6 @@ class ParetoFrontier:
 
     def __init__(
         self,
-        accuracy_comparator: AccuracyComparator,
         action_rewards: Dict[str, float],
         action_cost_changes: Dict[str, float],
         action_accuracy_changes: Dict[str, float],
@@ -45,13 +42,11 @@ class ParetoFrontier:
         Initialize the Pareto Frontier.
 
         Args:
-            accuracy_comparator: Comparator for evaluating plan accuracy
             action_rewards: Reference to MCTS action_rewards dictionary
             action_cost_changes: Reference to MCTS action_cost_changes dictionary
             action_accuracy_changes: Reference to MCTS action_accuracy_changes dictionary
             dataset_name: Name of the dataset being optimized (for evaluation and metric selection)
         """
-        self.accuracy_comparator = accuracy_comparator
         self.dataset_name = dataset_name
 
         # Get evaluation function for this dataset
@@ -175,13 +170,10 @@ class ParetoFrontier:
         to the step function (accuracy distance only).
         """
         if not frontier_data:
-            print(f"[STEP_FUNCTION] Empty frontier_data, returning node_acc: {node_acc}")
-            return node_acc  # Return just accuracy distance
+            return node_acc  
 
         # Sort frontier by cost (ascending)
         frontier_sorted = sorted(frontier_data, key=lambda x: x[1])  # Sort by cost
-        print(f"[STEP_FUNCTION] Node: acc={node_acc:.4f}, cost={node_cost:.4f}")
-        print(f"[STEP_FUNCTION] Frontier sorted by cost: {[(acc, cost) for acc, cost in frontier_sorted]}")
         
         # Find the step function accuracy for this cost
         step_function_accuracy = 0.0  # Default if cost is lower than all frontier points
@@ -190,16 +182,12 @@ class ParetoFrontier:
             if node_cost >= fp_cost:
                 # Cost is >= this frontier point's cost, so step function is at this accuracy
                 step_function_accuracy = fp_acc
-                print(f"[STEP_FUNCTION] Node cost >= frontier cost {fp_cost:.4f}, step accuracy = {fp_acc:.4f}")
             else:
                 # Cost is < this frontier point's cost, so we use the previous step
-                print(f"[STEP_FUNCTION] Node cost < frontier cost {fp_cost:.4f}, stopping here")
                 break
         
         # Return the vertical (accuracy) distance to the step function
         vertical_distance = abs(node_acc - step_function_accuracy)
-        print(f"[STEP_FUNCTION] Final step function accuracy: {step_function_accuracy:.4f}")
-        print(f"[STEP_FUNCTION] Vertical distance: |{node_acc:.4f} - {step_function_accuracy:.4f}| = {vertical_distance:.4f}")
         return vertical_distance
 
     def _update_action_rewards(self, node: Node, reward: float) -> None:
@@ -233,8 +221,6 @@ class ParetoFrontier:
         Update the Pareto frontier based on current plans and calculate hyper-volume indicator.
         """
 
-        print("UPDATING Pareto Frontier")
-
         valid_nodes = [node for node in self.plans if node.cost != -1]
         affected_nodes = {}
 
@@ -251,13 +237,11 @@ class ParetoFrontier:
 
         # Reconstruct old frontier data using real costs
         archive_frontier_data = []
-        print(f"[FRONTIER] Reconstructing OLD frontier data from {len(old_frontier_nodes)} nodes")
         for node in old_frontier_nodes:
             if node in valid_nodes:  # Only include valid nodes
                 acc = self.plans_accuracy.get(node, float("-inf"))
                 real_cost = self.plans_cost[node]
                 archive_frontier_data.append([acc, real_cost])
-                print(f"[FRONTIER] Old frontier node {node.get_id()}: acc={acc:.4f}, real_cost=${real_cost:.2f}")
             else:
                 print(
                     f"INVALID NODE: {node.id}, cost: {node.cost}, in_valid_nodes: {node in valid_nodes}"
@@ -293,7 +277,6 @@ class ParetoFrontier:
             if node in new_frontier_set and node not in old_frontier_set:
                 # Newly on frontier - reward based on vertical distance to OLD frontier step function
                 node.on_frontier = True
-                print(f"[REWARD] Node {node.get_id()} NEWLY ON FRONTIER")
                 vertical_distance_to_old = self.project_to_frontier(
                     node_acc, node_real_cost, archive_frontier_data
                 )
@@ -302,15 +285,12 @@ class ParetoFrontier:
                 self.node_distances[node] = vertical_distance_to_old
                 # Update action rewards
                 self._update_action_rewards(node, vertical_distance_to_old)
-                print(f"[REWARD] Node {node.get_id()} reward: +{vertical_distance_to_old:.4f} (on frontier)")
-                if hasattr(node, 'latest_action') and node.latest_action:
-                    print(f"[REWARD] Action '{node.latest_action.name}' gets reward: +{vertical_distance_to_old:.4f}")
+                
             elif (node not in new_frontier_set and node in old_frontier_set) or (
                 node.id == new_node.id
             ):
                 # Newly off frontier - give negative reward based on vertical distance to NEW frontier step function
                 node.on_frontier = False
-                print(f"[REWARD] Node {node.get_id()} OFF FRONTIER (was on or is new node)")
                 vertical_distance = self.project_to_frontier(
                     node_acc, node_real_cost, new_frontier_data
                 )
@@ -320,13 +300,9 @@ class ParetoFrontier:
                 # Update action rewards
                 if node.id == new_node.id:
                     self._update_action_rewards(node, -vertical_distance)
-                    print(f"[REWARD] Node {node.get_id()} reward: -{vertical_distance:.4f} (off frontier)")
-                    if hasattr(node, 'latest_action') and node.latest_action:
-                        print(f"[REWARD] Action '{node.latest_action.name}' gets reward: -{vertical_distance:.4f}")
             elif node not in new_frontier_set:
                 # stay off frontier nodes - update the reward to be negative vertical distance to the NEW frontier step function
                 node.on_frontier = False
-                print(f"[REWARD] Node {node.get_id()} STAYS OFF FRONTIER")
                 vertical_distance = self.project_to_frontier(
                     node_acc, node_real_cost, new_frontier_data
                 )
@@ -334,8 +310,7 @@ class ParetoFrontier:
                 distance_diff = -vertical_distance - old_distance
                 affected_nodes[node] = distance_diff
                 # Update node distances - negative for off frontier
-                self.node_distances[node] = -vertical_distance
-                print(f"[REWARD] Node {node.get_id()} distance update: {old_distance:.4f} -> -{vertical_distance:.4f} (diff: {distance_diff:.4f})")
+                self.node_distances[node] = -vertical_distance      
 
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
@@ -425,3 +400,23 @@ class ParetoFrontier:
     def __contains__(self, node: Node) -> bool:
         """Check if plan is managed by this frontier."""
         return node in self.plans
+    
+    def delete_plan(self, node: Node) -> None:
+        """
+        Completely delete a node from all ParetoFrontier data structures.
+        """
+        if node in self.plans:
+            self.plans.remove(node)
+        
+        accuracy = self.plans_accuracy.pop(node, None)
+        cost = self.plans_cost.pop(node, None)
+        
+        if node in self.frontier_plans:
+            self.frontier_plans.remove(node)
+            if accuracy is not None and cost is not None:
+                try:
+                    self.frontier_data.remove([accuracy, cost])
+                except ValueError:
+                    pass
+        
+        self.node_distances.pop(node, None)

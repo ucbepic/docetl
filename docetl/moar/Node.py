@@ -48,7 +48,7 @@ class Node:
         cls._id_counter += 1
         return new_id
 
-    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414, message_history = [], id: Optional[int] = None):
+    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414, message_history = [], id: Optional[int] = None, is_multi_instance: bool = False):
         """
         Initialize a Node with YAML file information.
         
@@ -56,6 +56,7 @@ class Node:
             yaml_file_path: Path to the YAML configuration file
             parent: Parent node in the search tree
             c: Exploration constant for UCB calculation (default: sqrt(2))
+            is_multi_instance: Whether this node is a multi-instance candidate (default: False)
         """
         self.yaml_file_path = yaml_file_path
         self.parsed_yaml = self._load_yaml()
@@ -92,6 +93,9 @@ class Node:
         
         # Memo list to track (directive, target_operator) pairs from root to this node
         self.memo = []
+        
+        # Flag to indicate if this is a multi-instance candidate
+        self.is_multi_instance = is_multi_instance
         
         # Assign a unique ID to this node
         if id: self.id = id
@@ -173,6 +177,7 @@ class Node:
         Returns:
             Parsed YAML content as a dictionary
         """
+
         try:
             with open(self.yaml_file_path, 'r', encoding='utf-8') as file:
                 return yaml.safe_load(file)
@@ -380,7 +385,6 @@ class Node:
                 new_yaml_path = old_yaml_path.replace(f"_{old_id}.yaml", f"_{new_id}.yaml")
                 os.rename(old_yaml_path, new_yaml_path)
                 self.yaml_file_path = new_yaml_path
-                print(f"Renamed YAML file: {old_yaml_path} → {new_yaml_path}")
         except Exception as e:
             print(f"Warning: Could not rename YAML file from {old_id} to {new_id}: {e}")
         
@@ -391,7 +395,6 @@ class Node:
                 new_result_path = old_result_path.replace(f"_{old_id}.json", f"_{new_id}.json")
                 os.rename(old_result_path, new_result_path)
                 self.result_path = new_result_path
-                print(f"Renamed result file: {old_result_path} → {new_result_path}")
                 
                 # Also update the YAML to point to the new output file
                 if hasattr(self, 'parsed_yaml') and self.parsed_yaml:
@@ -549,17 +552,15 @@ class Node:
         2. Moves multi-instance files to backup or deletes regular files
         3. Clears references to prevent memory leaks
         
-        Note: The global node ID counter is maintained (not decremented) to ensure
+        The global node ID counter is maintained (not decremented) to ensure
         unique IDs across the lifetime of the program.
         """
         # Remove from parent's children list
         if self.parent and self in self.parent.children:
             self.parent.children.remove(self)
         
-        # Check if this is a multi-instance candidate (has parent_id-num format)
-        is_multi_instance_candidate = isinstance(self.id, str) and "-" in str(self.id)
-        
-        if is_multi_instance_candidate and selected_node_final_id is not None:
+        # Check if this is a multi-instance candidate using the explicit flag
+        if self.is_multi_instance and selected_node_final_id is not None:
             # Move files to backup_plans folder with renamed IDs
             self._backup_multi_instance_files(selected_node_final_id)
         else:
@@ -573,8 +574,7 @@ class Node:
         self.message_history = []
         self.memo = []
         self.sample_result = []
-        
-        print(f"Node {self.id} deleted and cleaned up")
+       
     
     def _backup_multi_instance_files(self, selected_node_final_id):
         """

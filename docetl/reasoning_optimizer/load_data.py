@@ -156,8 +156,6 @@ def load_input_doc(yaml_path):
         print("[ERROR] No datasets found in config.")
         return doc_info
 
-    print(f"Found {len(datasets_config)} datasets in config.\n\n")
-
     for name, dataset_config in datasets_config.items():
         doc_info += f"Dataset: {name}\n"
         try:

@@ -1,7 +1,7 @@
 # DocETL Reasoning Optimizer - Agent Guide
 
 ## Overview
-The reasoning optimizer uses MCTS (Monte Carlo Tree Search) with LLM-based directives to rewrite and optimize DocETL pipelines. This directory contains the directive system for pipeline transformations.
+The reasoning optimizer uses a graph-search algorithm with LLM-based directives to rewrite and optimize DocETL pipelines. This directory contains the directive system for pipeline transformations.
 
 ## Creating New Directives - Interactive Process
 

@@ -3,7 +3,7 @@
 Run Pareto frontier plans on test datasets.
 
 This script:
-1. Pulls pareto frontier JSON files from Modal volume for each method (simple, mcts)
+1. Pulls pareto frontier JSON files from Modal volume for each method (simple, moar)
 2. For each frontier point, gets the corresponding YAML pipeline file
 3. Modifies the YAML to use test data instead of train data
 4. Runs the pipeline and calculates cost/accuracy
@@ -52,7 +52,17 @@ def accuracy_within_tolerance(acc1: float, acc2: float, tolerance_pct: float = 2
 
 # Dataset configurations
 DATASETS = ["cuad", "blackvault", "game_reviews", "sustainability", "biodex", "medec", "facility"]
-METHODS = ["simple_baseline", "mcts"]
+METHODS = ["simple_baseline", "moar"]
+
+# DocETL baseline data
+DOCETL_DATA = {
+    "cuad": {"accuracy": 0.471, "cost": 2.85},
+    "game_reviews": {"accuracy": 0.504, "cost": 1.28},
+    "blackvault": {"accuracy": 5.3386, "cost": 0.24},
+    "biodex": {"accuracy": 0.247, "cost": 5.88},
+    "medec": {"accuracy": 0.534, "cost": 0.02},
+    "sustainability": {"accuracy": 0.632, "cost": 5.64}
+}
 
 def calculate_avg_cost_savings_matrix(all_points: Dict[str, List[Dict[str, float]]]) -> Dict[str, Any]:
     """
@@ -69,8 +79,8 @@ def calculate_avg_cost_savings_matrix(all_points: Dict[str, List[Dict[str, float
     # Get all methods including original and reorder them
     available_methods = [m for m in all_points.keys() if all_points[m]]
     
-    # Define the desired order: MCTS, Original, simple_baseline, lotus, PZ variants
-    desired_order = ["mcts", "original", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ"]
+    # Define the desired order: MOAR, Original, simple_baseline, lotus, PZ variants, docetl
+    desired_order = ["moar", "original", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ", "docetl"]
     
     # Reorder methods according to desired order
     methods = []
@@ -222,8 +232,8 @@ def calculate_best_cost_savings_matrix(all_points: Dict[str, List[Dict[str, floa
     # Get all methods including original and reorder them
     available_methods = [m for m in all_points.keys() if all_points[m]]
     
-    # Define the desired order: MCTS, Original, simple_baseline, lotus, PZ variants
-    desired_order = ["mcts", "original", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ"]
+    # Define the desired order: MOAR, Original, simple_baseline, lotus, PZ variants, docetl
+    desired_order = ["moar", "original", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ", "docetl"]
     
     # Reorder methods according to desired order
     methods = []
@@ -341,51 +351,51 @@ def calculate_best_cost_savings_matrix(all_points: Dict[str, List[Dict[str, floa
                 "savings_pct": round(savings_pct, 3)
             }
     
-    # Print MCTS matching accuracy for each method
-    if "mcts" in methods:
+    # Print MOAR matching accuracy for each method
+    if "moar" in methods:
         print("\n" + "="*80)
-        print("MCTS MATCHING ACCURACY FOR EACH METHOD")
+        print("MOAR MATCHING ACCURACY FOR EACH METHOD")
         print("="*80)
         
-        mcts_points = all_points["mcts"]
-        mcts_valid_points = [p for p in mcts_points if p.get("accuracy") is not None and p.get("cost") is not None]
+        moar_points = all_points["moar"]
+        moar_valid_points = [p for p in moar_points if p.get("accuracy") is not None and p.get("cost") is not None]
         
-        if mcts_valid_points:
+        if moar_valid_points:
             for method_b in methods:
-                if method_b == "mcts":
+                if method_b == "moar":
                     continue
                 
                 method_b_info = method_info.get(method_b, {})
                 method_b_best_accuracy = method_b_info.get("best_accuracy")
                 
                 if method_b_best_accuracy is None:
-                    print(f"{method_b:20} → MCTS: No valid accuracy data")
+                    print(f"{method_b:20} → MOAR: No valid accuracy data")
                     continue
                 
                 # Check if method B's best accuracy is lower than original
                 if original_best_accuracy is not None and method_b_best_accuracy < original_best_accuracy:
-                    print(f"{method_b:20} → MCTS: Baseline accuracy ({method_b_best_accuracy:.4f}) below original ({original_best_accuracy:.4f})")
+                    print(f"{method_b:20} → MOAR: Baseline accuracy ({method_b_best_accuracy:.4f}) below original ({original_best_accuracy:.4f})")
                     continue
                 
-                # Find MCTS plans that can achieve or exceed this accuracy (within tolerance)
+                # Find MOAR plans that can achieve or exceed this accuracy (within tolerance)
                 target_accuracy = method_b_best_accuracy
-                qualifying_mcts_plans = [
-                    p for p in mcts_valid_points 
+                qualifying_moar_plans = [
+                    p for p in moar_valid_points 
                     if (p["accuracy"] >= target_accuracy or accuracy_within_tolerance(p["accuracy"], target_accuracy))
                 ]
                 
-                if not qualifying_mcts_plans:
-                    print(f"{method_b:20} → MCTS: No plan found matching accuracy {target_accuracy:.4f}")
+                if not qualifying_moar_plans:
+                    print(f"{method_b:20} → MOAR: No plan found matching accuracy {target_accuracy:.4f}")
                     continue
                 
-                # Find the cheapest MCTS plan that matches
-                mcts_matching_plan = min(qualifying_mcts_plans, key=lambda x: x["cost"])
-                mcts_matching_accuracy = mcts_matching_plan["accuracy"]
-                mcts_matching_cost = mcts_matching_plan["cost"]
+                # Find the cheapest MOAR plan that matches
+                moar_matching_plan = min(qualifying_moar_plans, key=lambda x: x["cost"])
+                moar_matching_accuracy = moar_matching_plan["accuracy"]
+                moar_matching_cost = moar_matching_plan["cost"]
                 
-                print(f"{method_b:20} → MCTS: accuracy={mcts_matching_accuracy:.4f} (target={target_accuracy:.4f}), cost=${mcts_matching_cost:.4f}")
+                print(f"{method_b:20} → MOAR: accuracy={moar_matching_accuracy:.4f} (target={target_accuracy:.4f}), cost=${moar_matching_cost:.4f}")
         else:
-            print("No valid MCTS points found")
+            print("No valid MOAR points found")
         
         print("="*80)
     
@@ -399,24 +409,24 @@ def calculate_best_cost_savings_matrix(all_points: Dict[str, List[Dict[str, floa
 
 def calculate_comparison_metrics(all_points: Dict[str, List[Dict[str, float]]]) -> Dict[str, Any]:
     """
-    Calculate three key comparison metrics between MCTS and each other method individually.
+    Calculate three key comparison metrics between MOAR and each other method individually.
     
     Args:
         all_points: Dictionary with method names as keys and lists of {cost, accuracy} dicts as values
         
     Returns:
-        Dictionary containing pairwise comparison metrics for each method vs MCTS
+        Dictionary containing pairwise comparison metrics for each method vs MOAR
     """
     metrics = {}
     
     # Define our method vs other systems
-    our_method = "mcts"  # Only MCTS is our method
-    other_systems = ["original", "simple_baseline", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ"]
+    our_method = "moar"  # Only MOAR is our method
+    other_systems = ["original", "simple_baseline", "docetl", "lotus", "LOTUS_d", "LOTUS_r&r", "PZ_direct", "PZ_retrieval", "PZ"]
     
     # Filter out methods with no data
     if our_method not in all_points or not all_points[our_method]:
         return {
-            "error": "No MCTS data available for comparison"
+            "error": "No MOAR data available for comparison"
         }
     
     other_systems = [m for m in other_systems if m in all_points and all_points[m]]
@@ -432,7 +442,7 @@ def calculate_comparison_metrics(all_points: Dict[str, List[Dict[str, float]]]) 
     
     if not our_valid_points:
         return {
-            "error": "No valid MCTS accuracy data found"
+            "error": "No valid MOAR accuracy data found"
         }
     
     # Find our best plan (highest accuracy)
@@ -563,7 +573,7 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
     
     Args:
         dataset: Dataset name (e.g., 'cuad')
-        method: Method name ('simple_baseline' or 'mcts')
+        method: Method name ('simple_baseline' or 'moar')
     
     Returns:
         Dictionary with test results for all frontier points
@@ -575,7 +585,7 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
         
         # Set up paths
         base_output_dir = Path(VOLUME_MOUNT_PATH) / "outputs"
-        if method == "mcts": experiment_dir = base_output_dir / f"{dataset}_{method}_final"
+        if method == "moar": experiment_dir = base_output_dir / f"{dataset}_{method}_final"
         else: experiment_dir = base_output_dir / f"{dataset}_{method}_final"
         pareto_file = experiment_dir / f"pareto_frontier_{dataset}.json"
         
@@ -613,7 +623,7 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
             point_file = point.get("file")
             print(point_file)
             # if point_file == "gpt_config_4.json": continue
-            if method != "mcts" and "test_cost" in point and "test_error" not in point: 
+            if method != "moar" and "test_cost" in point and "test_error" not in point: 
                 test_results.append({
                     "file": point.get("file"),
                     "cost": point.get("test_cost"),
@@ -831,7 +841,8 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         all_points = {
             "original": [],
             "simple_baseline": [],
-            "mcts": [],
+            "moar": [],
+            "docetl": [],
             "lotus": [],
             "PZ_direct": [],
             "PZ_retrieval": [],
@@ -844,7 +855,8 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         method_colors = {
             "original": "#ffd700",           # Gold/Yellow
             "simple_baseline": "#2ecc71",    # Green
-            "mcts": "#0f1b3c",               # Very dark navy blue
+            "moar": "#0f1b3c",               # Very dark navy blue
+            "docetl": "#ff8c00",             # Dark orange
             "lotus": "#c27cf3",              # Light purple
             "PZ_direct": "#ff0b50",          # Pink/magenta
             "PZ_retrieval": "#ff0b50",       # Pink/magenta (same as PZ_direct)
@@ -888,7 +900,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                                     "cost": point["cost"],
                                     "accuracy": point["accuracy"]
                                 }
-                                # Include file field if available (especially for MCTS)
+                                # Include file field if available (especially for MOAR)
                                 if "file" in point:
                                     point_data["file"] = point["file"]
                                 all_points[method].append(point_data)
@@ -1045,6 +1057,15 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         else:
             print(f"  ⚠️  No PZ evaluation found at {pz_file}")
         
+        # Load DocETL baseline data
+        if dataset in DOCETL_DATA:
+            docetl_data = DOCETL_DATA[dataset]
+            all_points["docetl"].append({
+                "cost": docetl_data["cost"],
+                "accuracy": docetl_data["accuracy"]
+            })
+            print(f"  ✅ Loaded DocETL baseline: accuracy={docetl_data['accuracy']:.3f}, cost=${docetl_data['cost']:.2f}")
+        
         # Print summary of loaded data
         print(f"\n📊 Data loading summary:")
         for method, points in all_points.items():
@@ -1061,16 +1082,16 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                 "error": f"No test data found for {dataset}"
             }
         
-        # For blackvault, normalize accuracy by dividing by MCTS max accuracy
+        # For blackvault, normalize accuracy by dividing by MOAR max accuracy
         normalize_factor = 1.0
         if dataset == "blackvault":
-            mcts_points = all_points.get("mcts", [])
-            if mcts_points:
-                mcts_accuracies = [p.get("accuracy") for p in mcts_points if p.get("accuracy") is not None]
-                if mcts_accuracies:
-                    mcts_max_accuracy = max(mcts_accuracies)
-                    normalize_factor = mcts_max_accuracy
-                    print(f"📊 Normalizing accuracy for blackvault: dividing by MCTS max accuracy = {mcts_max_accuracy:.4f}")
+            moar_points = all_points.get("moar", [])
+            if moar_points:
+                moar_accuracies = [p.get("accuracy") for p in moar_points if p.get("accuracy") is not None]
+                if moar_accuracies:
+                    moar_max_accuracy = max(moar_accuracies)
+                    normalize_factor = moar_max_accuracy
+                    print(f"📊 Normalizing accuracy for blackvault: dividing by MOAR max accuracy = {moar_max_accuracy:.4f}")
         
         # Create the plot
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -1094,7 +1115,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                               color=method_colors[method],
                               label="User-specified plan",
                               s=300, marker='*', alpha=0.4, edgecolors='black', linewidth=1)
-                elif method == "mcts":
+                elif method == "moar":
                     ax.scatter(costs, accuracies, 
                               color=method_colors[method],
                               label="MOAR",
@@ -1103,6 +1124,11 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                     ax.scatter(costs, accuracies, 
                               color=method_colors[method],
                               label="Simple agent",
+                              s=200, alpha=0.4, edgecolors='black', linewidth=1)
+                elif method == "docetl":
+                    ax.scatter(costs, accuracies, 
+                              color=method_colors[method],
+                              label="DocETL",
                               s=200, alpha=0.4, edgecolors='black', linewidth=1)
                 else:
                     # Custom label mapping for methods
@@ -1125,7 +1151,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                               s=200, alpha=0.4, edgecolors='black', linewidth=1,
                               marker=marker)
                 
-                # MCTS points are plotted as dots only (no filename labels)
+                # MOAR points are plotted as dots only (no filename labels)
         
         # Set log scale for x-axis (cost)
         ax.set_xscale('log')
@@ -1203,11 +1229,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         
         # Labels and title
         ax.set_xlabel('Cost ($) - Log Scale', fontsize=28)
-        # For blackvault, show normalized accuracy in y-axis label
-        if dataset == "blackvault" and normalize_factor != 1.0:
-            ax.set_ylabel(f'{accuracy_metric.replace("_", " ").title()} (Normalized)', fontsize=28)
-        else:
-            ax.set_ylabel(f'{accuracy_metric.replace("_", " ").title()}', fontsize=28)
+        ax.set_ylabel(f'{accuracy_metric.replace("_", " ").title()}', fontsize=28)
         # Map dataset names to proper titles
         dataset_titles = {
             'cuad': 'CUAD',
@@ -1250,7 +1272,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         
         # Print metrics
         print("\n" + "="*60)
-        print("PAIRWISE COMPARISON METRICS (MCTS vs Each Method)")
+        print("PAIRWISE COMPARISON METRICS (MOAR vs Each Method)")
         print("="*60)
         
         if comparison_metrics.get("error"):
@@ -1259,7 +1281,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             pairwise_comparisons = comparison_metrics.get("pairwise_comparisons", {})
             
             for other_method, metrics in pairwise_comparisons.items():
-                print(f"\n📊 MCTS vs {other_method.upper()}:")
+                print(f"\n📊 MOAR vs {other_method.upper()}:")
                 print("-" * 40)
                 
                 if metrics.get("error"):
@@ -1270,7 +1292,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                 if metrics["accuracy_improvement"]:
                     acc_imp = metrics["accuracy_improvement"]
                     print(f"1. ACCURACY IMPROVEMENT:")
-                    print(f"   MCTS best accuracy: {acc_imp['our_best']:.3f} (file: {acc_imp['our_best_file']})")
+                    print(f"   MOAR best accuracy: {acc_imp['our_best']:.3f} (file: {acc_imp['our_best_file']})")
                     print(f"   {other_method} best accuracy: {acc_imp['other_best']:.3f} (file: {acc_imp['other_best_file']})")
                     print(f"   Improvement: +{acc_imp['absolute']:.3f} ({acc_imp['percentage']:.3f}%)")
                 else:
@@ -1280,7 +1302,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                 if metrics["cost_savings_within_10pct"]:
                     cost_sav = metrics["cost_savings_within_10pct"]
                     print(f"\n2. COST SAVINGS (within 10% of {other_method}'s best):")
-                    print(f"   MCTS cost: ${cost_sav['our_cost']:.3f} (accuracy: {cost_sav['our_accuracy']:.3f})")
+                    print(f"   MOAR cost: ${cost_sav['our_cost']:.3f} (accuracy: {cost_sav['our_accuracy']:.3f})")
                     print(f"   {other_method} cost: ${cost_sav['other_cost']:.3f} (accuracy: {cost_sav['other_accuracy']:.3f})")
                     print(f"   Savings: ${cost_sav['absolute']:.3f} ({cost_sav['percentage']:.3f}%)")
                 else:
@@ -1437,7 +1459,7 @@ def run_original_baseline_test(dataset: str) -> Dict[str, Any]:
 )
 def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
     """
-    Run test frontier evaluation for all methods (original_baseline, simple_baseline, baseline, mcts) for a dataset.
+    Run test frontier evaluation for all methods (original_baseline, simple_baseline, baseline, moar) for a dataset.
     
     Args:
         dataset: Dataset name
@@ -1489,7 +1511,7 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
     all_points = {
         "original": [],
         "simple_baseline": [],
-        "mcts": [],
+        "moar": [],
         "lotus": [],
         "PZ": [],
         "PZ_retrieval": [],
@@ -1498,12 +1520,12 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
         "LOTUS_r&r": []
     }
     
-    # Extract points from our method (MCTS)
-    if "mcts" in all_results and all_results["mcts"]["success"]:
-        method_results = all_results["mcts"].get("results", [])
+    # Extract points from our method (MOAR)
+    if "moar" in all_results and all_results["moar"]["success"]:
+        method_results = all_results["moar"].get("results", [])
         for point in method_results:
             if "cost" in point and "accuracy" in point and point["cost"] is not None and point["accuracy"] is not None:
-                all_points["mcts"].append({
+                all_points["moar"].append({
                     "cost": point["cost"],
                     "accuracy": point["accuracy"]
                 })
@@ -1605,14 +1627,22 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
                             "cost": config_data["plan_execution_cost"],
                             "accuracy": accuracy_value
                         })
-        
+    
+    # Load DocETL baseline data
+    if dataset in DOCETL_DATA:
+        docetl_data = DOCETL_DATA[dataset]
+        all_points["docetl"].append({
+            "cost": docetl_data["cost"],
+            "accuracy": docetl_data["accuracy"]
+        })
+    
     # Calculate metrics
     comparison_metrics = calculate_comparison_metrics(all_points)
     summary["comparison_metrics"] = comparison_metrics
     
     # Print metrics
     print("\n" + "="*60)
-    print("PAIRWISE COMPARISON METRICS (MCTS vs Each Method)")
+    print("PAIRWISE COMPARISON METRICS (MOAR vs Each Method)")
     print("="*60)
     
     if comparison_metrics.get("error"):
@@ -1621,7 +1651,7 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
         pairwise_comparisons = comparison_metrics.get("pairwise_comparisons", {})
         
         for other_method, metrics in pairwise_comparisons.items():
-            print(f"\n📊 MCTS vs {other_method.upper()}:")
+            print(f"\n📊 MOAR vs {other_method.upper()}:")
             print("-" * 40)
             
             if metrics.get("error"):
@@ -1632,7 +1662,7 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
             if metrics["accuracy_improvement"]:
                 acc_imp = metrics["accuracy_improvement"]
                 print(f"1. ACCURACY IMPROVEMENT:")
-                print(f"   MCTS best accuracy: {acc_imp['our_best']:.4f} (file: {acc_imp['our_best_file']})")
+                print(f"   MOAR best accuracy: {acc_imp['our_best']:.4f} (file: {acc_imp['our_best_file']})")
                 print(f"   {other_method} best accuracy: {acc_imp['other_best']:.4f} (file: {acc_imp['other_best_file']})")
                 print(f"   Improvement: +{acc_imp['absolute']:.4f} ({acc_imp['percentage']:.1f}%)")
             else:
@@ -1667,9 +1697,9 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
     return summary
 
 
-def analyze_top_two_accuracy_tradeoffs_mcts(all_points: Dict[str, List[Dict[str, float]]], dataset: str = "") -> Dict[str, Any]:
+def analyze_top_two_accuracy_tradeoffs_moar(all_points: Dict[str, List[Dict[str, float]]], dataset: str = "") -> Dict[str, Any]:
     """
-    Analyze cost and accuracy tradeoffs for MCTS plans.
+    Analyze cost and accuracy tradeoffs for MOAR plans.
     For medec dataset: compares highest accuracy with 3rd highest accuracy.
     For other datasets: compares highest accuracy with 2nd highest accuracy.
     
@@ -1678,22 +1708,22 @@ def analyze_top_two_accuracy_tradeoffs_mcts(all_points: Dict[str, List[Dict[str,
         dataset: Dataset name to determine comparison logic
         
     Returns:
-        Dictionary containing tradeoff analysis for MCTS method only
+        Dictionary containing tradeoff analysis for MOAR method only
     """
-    # Focus only on MCTS method
-    mcts_points = all_points.get("mcts", [])
+    # Focus only on MOAR method
+    moar_points = all_points.get("moar", [])
     
-    if not mcts_points:
-        return {"error": "No MCTS data available"}
+    if not moar_points:
+            return {"error": "No MOAR data available"}
     
     # Filter valid points
-    valid_points = [p for p in mcts_points if p.get("accuracy") is not None and p.get("cost") is not None]
+    valid_points = [p for p in moar_points if p.get("accuracy") is not None and p.get("cost") is not None]
     
     # Determine comparison logic based on dataset
     if dataset.lower() == "medec":
         # For medec: compare highest with 3rd highest
         if len(valid_points) < 3:
-            return {"error": "Need at least 3 MCTS points for medec comparison"}
+            return {"error": "Need at least 3 MOAR points for medec comparison"}
         sorted_points = sorted(valid_points, key=lambda x: x["accuracy"], reverse=True)
         top_plan = sorted_points[0]
         comparison_plan = sorted_points[2]  # 3rd highest
@@ -1701,7 +1731,7 @@ def analyze_top_two_accuracy_tradeoffs_mcts(all_points: Dict[str, List[Dict[str,
     else:
         # For other datasets: compare highest with 2nd highest
         if len(valid_points) < 2:
-            return {"error": "Need at least 2 MCTS points for comparison"}
+            return {"error": "Need at least 2 MOAR points for comparison"}
         sorted_points = sorted(valid_points, key=lambda x: x["accuracy"], reverse=True)
         top_plan = sorted_points[0]
         comparison_plan = sorted_points[1]  # 2nd highest
@@ -1721,7 +1751,7 @@ def analyze_top_two_accuracy_tradeoffs_mcts(all_points: Dict[str, List[Dict[str,
     cost_per_accuracy_unit = cost_diff / accuracy_diff if accuracy_diff > 0 else float('inf')
     
     return {
-        "method": "mcts",
+        "method": "moar",
         "dataset": dataset,
         "comparison_type": comparison_type,
         "top_plan": {
@@ -1755,10 +1785,10 @@ def analyze_top_two_accuracy_tradeoffs_mcts(all_points: Dict[str, List[Dict[str,
 )
 def analyze_top_two_tradeoffs_all_datasets() -> Dict[str, Any]:
     """
-    Analyze cost and accuracy tradeoffs between top 2 most accurate MCTS plans across all datasets.
+    Analyze cost and accuracy tradeoffs between top 2 most accurate MOAR plans across all datasets.
     
     Returns:
-        Dictionary containing tradeoff analysis for MCTS method across all datasets
+        Dictionary containing tradeoff analysis for MOAR method across all datasets
     """
     try:
         print(f"\n📊 Analyzing top 2 accuracy tradeoffs across all datasets")
@@ -1772,9 +1802,9 @@ def analyze_top_two_tradeoffs_all_datasets() -> Dict[str, Any]:
             # Get the accuracy metric name for the dataset
             accuracy_metric = dataset_accuracy_metrics.get(dataset, "accuracy")
             
-            # Collect MCTS test frontier points only
+            # Collect MOAR test frontier points only
             all_points = {
-                "mcts": []
+                "moar": []
             }
             
             # Load test_frontier_summary.json from dataset_original folder
@@ -1784,10 +1814,10 @@ def analyze_top_two_tradeoffs_all_datasets() -> Dict[str, Any]:
                 with open(summary_file, 'r') as f:
                     summary_data = json.load(f)
                 
-                # Extract MCTS results only
+                # Extract MOAR results only
                 if "results" in summary_data:
-                    if "mcts" in summary_data["results"] and summary_data["results"]["mcts"].get("success"):
-                        method_results = summary_data["results"]["mcts"].get("results", [])
+                    if "moar" in summary_data["results"] and summary_data["results"]["moar"].get("success"):
+                        method_results = summary_data["results"]["moar"].get("results", [])
                         for point in method_results:
                             if "cost" in point and "accuracy" in point:
                                 point_data = {
@@ -1796,19 +1826,19 @@ def analyze_top_two_tradeoffs_all_datasets() -> Dict[str, Any]:
                                 }
                                 if "file" in point:
                                     point_data["file"] = point["file"]
-                                all_points["mcts"].append(point_data)
+                                all_points["moar"].append(point_data)
             
-            # Analyze tradeoffs for this dataset (MCTS only)
-            dataset_analysis = analyze_top_two_accuracy_tradeoffs_mcts(all_points, dataset)
+            # Analyze tradeoffs for this dataset (MOAR only)
+            dataset_analysis = analyze_top_two_accuracy_tradeoffs_moar(all_points, dataset)
             all_datasets_analysis[dataset] = {
                 "accuracy_metric": accuracy_metric,
                 "analysis": dataset_analysis
             }
             
             if "error" not in dataset_analysis:
-                print(f"  ✅ Analyzed {dataset} MCTS with {dataset_analysis['total_points']} points")
+                print(f"  ✅ Analyzed {dataset} MOAR with {dataset_analysis['total_points']} points")
             else:
-                print(f"  ⚠️  {dataset} MCTS: {dataset_analysis['error']}")
+                print(f"  ⚠️  {dataset} MOAR: {dataset_analysis['error']}")
         
         # Calculate cross-dataset averages
         print(f"\n📊 Calculating cross-dataset averages...")
@@ -1829,7 +1859,7 @@ def analyze_top_two_tradeoffs_all_datasets() -> Dict[str, Any]:
         
         # Print simple analysis
         print("\n" + "="*80)
-        print("TOP 2 ACCURACY TRADEOFF ANALYSIS - MCTS METHOD")
+        print("TOP 2 ACCURACY TRADEOFF ANALYSIS - MOAR METHOD")
         print("="*80)
         
         print(f"\n📊 AVERAGE ACROSS ALL DATASETS:")
@@ -1855,7 +1885,7 @@ def analyze_top_two_tradeoffs_all_datasets() -> Dict[str, Any]:
         timestamp = datetime.now().isoformat()
         analysis_data = {
             "timestamp": timestamp,
-            "method": "mcts",
+            "method": "moar",
             "avg_accuracy_diff_pct": avg_accuracy_diff,
             "avg_cost_diff_pct": avg_cost_diff,
             "total_datasets": len(accuracy_diffs),
@@ -1919,7 +1949,8 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
         all_points = {
             "original": [],
             "simple_baseline": [],
-            "mcts": [],
+            "moar": [],
+            "docetl": [],
             "lotus": [],
             "PZ_direct": [],
             "PZ_retrieval": [],
@@ -1963,7 +1994,7 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
                                     "cost": point["cost"],
                                     "accuracy": point["accuracy"]
                                 }
-                                # Include file field if available (especially for MCTS)
+                                # Include file field if available (especially for MOAR)
                                 if "file" in point:
                                     point_data["file"] = point["file"]
                                 all_points[method].append(point_data)
@@ -2079,6 +2110,15 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
                 print(f"  ✅ Loaded {len(all_points['PZ'])} test points from PZ")
         else:
             print(f"  ⚠️  No PZ evaluation found at {pz_file}")
+        
+        # Load DocETL baseline data
+        if dataset in DOCETL_DATA:
+            docetl_data = DOCETL_DATA[dataset]
+            all_points["docetl"].append({
+                "cost": docetl_data["cost"],
+                "accuracy": docetl_data["accuracy"]
+            })
+            print(f"  ✅ Loaded DocETL baseline: accuracy={docetl_data['accuracy']:.3f}, cost=${docetl_data['cost']:.2f}")
         
         # Calculate matrices
         print("\n📊 Calculating all matrices...")
@@ -2248,10 +2288,10 @@ def main(dataset: str = "cuad", method: str = "all", plot_only: bool = False, ma
     
     Args:
         dataset: Dataset to process ('cuad', 'blackvault', etc., or 'all' for all datasets)
-        method: Method to run ('simple_baseline','mcts', or 'all' for all methods)
+        method: Method to run ('simple_baseline','moar', or 'all' for all methods)
         plot_only: If True, only generate the plot without running evaluations
         matrix_only: If True, only generate all three matrices without running evaluations
-        tradeoff: If True, only run the top 2 accuracy tradeoff analysis for MCTS across all datasets
+        tradeoff: If True, only run the top 2 accuracy tradeoff analysis for MOAR across all datasets
     """
     if dataset not in DATASETS + ["all"]:
         print(f"❌ Invalid dataset: {dataset}")

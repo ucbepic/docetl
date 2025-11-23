@@ -5,14 +5,12 @@ This module provides Monte Carlo Tree Search optimization for DocETL pipelines
 using Pareto frontier analysis and multi-objective optimization.
 """
 
-from .mcts import MCTS
+from .MOARSearch import MOARSearch
 from .Node import Node  
 from .ParetoFrontier import ParetoFrontier
-from .acc_comparator import AccuracyComparator
 
 __all__ = [
-    "MCTS",
+    "MOARSearch",
     "Node", 
-    "ParetoFrontier",
-    "AccuracyComparator"
+    "ParetoFrontier"
 ]

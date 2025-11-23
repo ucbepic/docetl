@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
 """
-MCTS Experiment Runner
+MOARSearch Experiment Runner
 
-This script runs the MCTS-based optimization for DocETL pipelines.
-It's extracted from the MCTS folder to provide a clean experiment interface.
+This script runs the MOARSearch-based optimization for DocETL pipelines.
 """
 
 import os
@@ -12,14 +10,13 @@ import argparse
 import glob
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
-from docetl.mcts import MCTS, Node, ParetoFrontier, AccuracyComparator
+from docetl.moar import MOARSearch, Node, ParetoFrontier
 from docetl.reasoning_optimizer.directives import (
     DEFAULT_MODEL, DEFAULT_OUTPUT_DIR, ALL_DIRECTIVES
 )
-from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, get_dataset_stats
-# Modal integration
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_dataset_stats
 import modal
 import yaml
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
@@ -71,12 +68,12 @@ def _rewrite_pipeline_yaml_for_modal(orig_yaml_path: str, experiment_name: str) 
 
 
 @app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 60 * 12)
-def run_mcts_remote(
+def run_moar_remote(
     yaml_path: str,
     dataset_path: str,
     data_dir: str | None = None,
     output_dir: str | None = None,
-    experiment_name: str = "mcts_experiment",
+    experiment_name: str = "moar_experiment",
     max_iterations: int = 100,
     exploration_weight: float = 1.414,
     model: str = DEFAULT_MODEL,
@@ -84,6 +81,7 @@ def run_mcts_remote(
     ground_truth_path: str | None = None,
     original_query_result: Dict[str, Any] | None = None,
     build_first_layer: Optional[bool] = False,
+    available_models: List[str] | None = None,
 ):
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     resolved_output_dir = _resolve_in_volume(output_dir) if output_dir else None
@@ -91,7 +89,7 @@ def run_mcts_remote(
     # Write a temporary YAML with dataset/output paths rewritten into the mounted volume
     modal_yaml_path = _rewrite_pipeline_yaml_for_modal(yaml_path, experiment_name)
 
-    results = run_mcts_experiment(
+    results = run_moar_experiment(
         yaml_path=modal_yaml_path,
         dataset_path=dataset_path,
         data_dir=data_dir,
@@ -104,13 +102,14 @@ def run_mcts_remote(
         ground_truth_path=ground_truth_path,
         original_query_result=original_query_result,
         build_first_layer=build_first_layer,
+        available_models=available_models,
     )
     volume.commit()
     return results
 
 
 @app.local_entrypoint()
-def modal_main_mcts(
+def modal_main_moar(
     yaml_path: str,
     dataset_path: str,
     experiment_name: str,
@@ -122,8 +121,9 @@ def modal_main_mcts(
     dataset: str = "cuad",
     ground_truth: str | None = None,
     original_query_result: Dict[str, Any] | None = None,
+    available_models: List[str] | None = None,
 ):
-    run_mcts_remote.remote(
+    run_moar_remote.remote(
         yaml_path=yaml_path,
         dataset_path=dataset_path,
         data_dir=data_dir,
@@ -135,15 +135,16 @@ def modal_main_mcts(
         dataset=dataset,
         ground_truth_path=ground_truth,
         original_query_result=original_query_result,
+        available_models=available_models,
     )
 
 
-def run_mcts_experiment(
+def run_moar_experiment(
     yaml_path: str,
     dataset_path: str,
     data_dir: str = None,
     output_dir: str = None, 
-    experiment_name: str = "mcts_experiment",
+    experiment_name: str = "moar_experiment",
     max_iterations: int = 100,
     exploration_weight: float = 1.414,
     model: str = DEFAULT_MODEL,
@@ -151,9 +152,10 @@ def run_mcts_experiment(
     ground_truth_path: str | None = None,
     original_query_result: Dict[str, Any] | None = None,
     build_first_layer: Optional[bool] = False,
+    available_models: List[str] | None = None,
 ):
     """
-    Run MCTS optimization experiment with specified parameters.
+    Run MOARSearch-based optimization experiment with specified parameters.
     
     Args:
         yaml_path: Path to the input YAML pipeline file
@@ -161,9 +163,14 @@ def run_mcts_experiment(
         data_dir: Directory containing input data files
         output_dir: Directory to save experiment outputs
         experiment_name: Name for this experiment run
-        max_iterations: Maximum MCTS iterations
+        max_iterations: Maximum optimization search iterations
         exploration_weight: UCB exploration parameter (c)
         model: LLM model to use for directive instantiation
+        dataset: Dataset name for evaluation
+        ground_truth_path: Path to ground-truth file (if not default)
+        original_query_result: Original query result (if not default)
+        build_first_layer: Whether to build the first layer of the tree 
+        available_models: List of available models for operators
     """
     # Set up environment
     if data_dir:
@@ -174,7 +181,7 @@ def run_mcts_experiment(
     # Create output directory
     output_path = Path(output_dir) / experiment_name
     output_path.mkdir(parents=True, exist_ok=True)
-    print(f"🌳 Running MCTS Optimization Experiment")
+    print(f"🌳 Running MOARSearch Optimization")
     print(f"=" * 50)
     print(f"Input Pipeline: {yaml_path}")
     print(f"Data Directory: {data_dir or 'default'}")
@@ -185,8 +192,8 @@ def run_mcts_experiment(
     print(f"Experiment: {experiment_name}")
     print(f"Dataset for evaluation: {dataset}")
     print()
-    # Initialize MCTS
-    print("🚀 Initializing MCTS...")
+    # Initialize MOARSearch
+    print("🚀 Initializing MOARSearch...")
     
     # Load sample input data for accuracy comparator from dataset_path
     with open(dataset_path, 'r') as f:
@@ -198,57 +205,69 @@ def run_mcts_experiment(
     else:
         sample_input_data = dataset_data
     
-    # Initialize accuracy comparator
-    accuracy_comparator = AccuracyComparator(input_data=sample_input_data, model=model)
     
     # Use all registered rewrite directives from the central registry
     available_actions = set(ALL_DIRECTIVES)
     
     # Get dataset statistics
     dataset_stats = get_dataset_stats(dataset, yaml_path)
+
+    # Use provided available_models or default list
+    if available_models is None:
+        available_models = [
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite"]
     
-    # Initialize MCTS
-    mcts = MCTS(
+    # Initialize MOARSearch
+    moar = MOARSearch(
         root_yaml_path=yaml_path,
-        accuracy_comparator=accuracy_comparator,
         available_actions=available_actions,
         sample_input=sample_input_data,
         dataset_stats=dataset_stats,
         dataset_name=dataset,
+        available_models=available_models,
         exploration_constant=exploration_weight,
         max_iterations=max_iterations,
         model=model,
         output_dir=str(output_path),
-        original_query_result=original_query_result,
         build_first_layer=build_first_layer,
     )
-    print(f"✅ MCTS initialized with root node: {yaml_path}")
-    # Run MCTS optimization
-    print(f"\n🔍 Running MCTS optimization for {max_iterations} iterations...")
+    print(f"✅ MOARSearch initialized with root node: {yaml_path}")
+    # Run MOARSearch optimization
+    print(f"\n🔍 Running MOARSearch optimization for {max_iterations} iterations...")
     start_time = datetime.now()
-    best_nodes = mcts.search()
+    best_nodes = moar.search()
     end_time = datetime.now()
     duration = (end_time - start_time).total_seconds()
-    print(f"✅ MCTS optimization completed in {duration:.2f} seconds")
+    print(f"✅ MOARSearch optimization completed in {duration:.2f} seconds")
     # ------------------------------------------------------------------
     # Evaluation
     # ------------------------------------------------------------------
-    # Prepare nodes with MCTS-specific attributes for evaluation
+    # Prepare nodes with MOARSearch-specific attributes for evaluation
     nodes_for_evaluation = []
-    for n in mcts.pareto_frontier.plans:
-        # Add MCTS-specific attributes to the node
-        n.mcts_accuracy = mcts.pareto_frontier.plans_accuracy.get(n)
-        n.on_frontier = n in mcts.pareto_frontier.frontier_plans
+    for n in moar.pareto_frontier.plans:
+        # Add MOARSearch-specific attributes to the node
+        n.moar_accuracy = moar.pareto_frontier.plans_accuracy.get(n)
+        n.on_frontier = n in moar.pareto_frontier.frontier_plans
         nodes_for_evaluation.append(n)
-    # Use original query result cost if available, otherwise use MCTS root cost
-    root_cost = original_query_result["cost"] if original_query_result and original_query_result["success"] else mcts.root.cost
+    # Use original query result cost if available, otherwise use MOARSearch root cost
+    root_cost = original_query_result["cost"] if original_query_result and original_query_result["success"] else moar.root.cost
     
     eval_results, pareto_auc = run_dataset_evaluation(
         dataset=dataset,
         nodes_or_files=nodes_for_evaluation,
         output_path=output_path,
         ground_truth_path=ground_truth_path,
-        method_name="docetl_mcts",
+        method_name="docetl_moar",
         root_cost=root_cost
     )
     # Save results
@@ -266,7 +285,7 @@ def run_mcts_experiment(
         "end_time": end_time.isoformat(),
         "duration_seconds": duration,
         "num_best_nodes": len(best_nodes) if best_nodes else 0,
-        "total_nodes_explored": len(mcts.all_nodes) if hasattr(mcts, 'all_nodes') else 0,
+        "total_nodes_explored": len(moar.all_nodes) if hasattr(moar, 'all_nodes') else 0,
         "original_query_cost": original_query_result["cost"] if original_query_result and original_query_result["success"] else None,
         "original_query_success": original_query_result["success"] if original_query_result else None,
     }
@@ -276,13 +295,13 @@ def run_mcts_experiment(
     if eval_results:
         results["evaluation_file"] = str(output_path / "evaluation_metrics.json")
     # Save Pareto frontier if available
-    if hasattr(mcts, 'pareto_frontier') and mcts.pareto_frontier.frontier_plans:
+    if hasattr(moar, 'pareto_frontier') and moar.pareto_frontier.frontier_plans:
         pareto_file = output_path / "pareto_frontier.json"
         pareto_data = []
         
-        for solution in mcts.pareto_frontier.frontier_plans:
+        for solution in moar.pareto_frontier.frontier_plans:
             pareto_data.append({
-                "accuracy": mcts.pareto_frontier.plans_accuracy.get(solution, None),
+                "accuracy": moar.pareto_frontier.plans_accuracy.get(solution, None),
                 "cost": getattr(solution, 'cost', None),
                 "value": getattr(solution, 'value', 0),
                 "config_path": str(getattr(solution, 'yaml_file_path', None)) if getattr(solution, 'yaml_file_path', None) is not None else None
@@ -306,19 +325,19 @@ def run_mcts_experiment(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run MCTS reasoning optimization experiment", 
+    parser = argparse.ArgumentParser(   
+        description="Run MOARSearch reasoning optimization experiment", 
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic MCTS run
-  python run_mcts.py --yaml_path ./pipeline.yaml --experiment_name mcts_test
+  # Basic MOARSearch run
+  python run_moar.py --yaml_path ./pipeline.yaml --experiment_name moar_test
   
   # With custom parameters
-  python run_mcts.py --yaml_path ./pipeline.yaml --data_dir ./data --output_dir ./results --max_iterations 200 --experiment_name mcts_deep
+  python run_moar.py --yaml_path ./pipeline.yaml --data_dir ./data --output_dir ./results --max_iterations 200 --experiment_name moar_deep
   
   # High exploration
-  python run_mcts.py --yaml_path ./pipeline.yaml --exploration_weight 2.0 --experiment_name mcts_explore
+  python run_moar.py --yaml_path ./pipeline.yaml --exploration_weight 2.0 --experiment_name moar_explore
         """
     )
     
@@ -333,17 +352,19 @@ Examples:
     parser.add_argument("--experiment_name", type=str, required=True,
                        help="Name for this experiment run")
     parser.add_argument("--max_iterations", type=int, default=100,
-                       help="Maximum MCTS iterations (default: 100)")
+                       help="Maximum MOARSearch iterations (default: 100)")
     parser.add_argument("--exploration_weight", type=float, default=1.414,
                        help="UCB exploration parameter c (default: 1.414)")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL, 
                        help=f"LLM model to use (default: {DEFAULT_MODEL})")
     parser.add_argument("--dataset", type=str, default="cuad", help="Dataset name for evaluation (default: cuad)")
     parser.add_argument("--ground_truth", type=str, help="Path to ground-truth file (if not default)")
+    parser.add_argument("--available_models", type=str, nargs="+", 
+                       help="List of available models for first layer (default: all models). Example: --available_models gpt-5 gpt-5-mini gpt-4o")
     
     args = parser.parse_args()
     
-    result = run_mcts_experiment(
+    result = run_moar_experiment(
         yaml_path=args.yaml_path,
         dataset_path=args.dataset_path,
         data_dir=args.data_dir,
@@ -354,9 +375,10 @@ Examples:
         model=args.model,
         dataset=args.dataset,
         ground_truth_path=args.ground_truth,
+        available_models=args.available_models,
     )
     
-    print("\n🎉 MCTS experiment completed successfully!")
+    print("\n🎉 MOARSearch experiment completed successfully!")
 
 
 if __name__ == "__main__":

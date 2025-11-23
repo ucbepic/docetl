@@ -17,18 +17,14 @@ import yaml
 from pydantic import BaseModel
 
 from docetl.reasoning_optimizer.directives import (
-    ALL_DIRECTIVES,
-    ALL_COST_DIRECTIVES,
     DIRECTIVE_GROUPS,
-    MULTI_INSTANCE_DIRECTIVES,
     Directive,
     get_all_directive_strings,
     get_all_cost_directive_strings,
 )
-from docetl.reasoning_optimizer.directives.base import AVAILABLE_MODELS
-from docetl.reasoning_optimizer.directives.change_model_cost import MODEL_STATS
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
+from .Node import Node
 
 # Maximum number of tokens we will allow in the prompt we send to the model.
 # The Azure GPT-5 family allows 272,000 tokens.
@@ -172,14 +168,28 @@ def fix_models(parsed_yaml):
                 traverse(item)
 
     traverse(parsed_yaml)
-
+        
 
 def is_fully_explored(node, max_children_multiplier: float = 1.0) -> bool:
     """Check if a node has been fully explored based on visit count."""
     if node.parent is None:
         return True
     allowed_children = max(2, 1 + math.floor(math.sqrt(float(node.visits)) * max_children_multiplier))
-    return len(node.children) >= allowed_children
+    
+    # Not only check the number of children, but also ensure all children have been simulated
+    # A child is considered simulated if it has been visited at least once (visits > 0)
+    # This ensures that children created but not yet simulated won't cause the parent to be considered fully explored
+    if len(node.children) < allowed_children:
+        return False
+    
+    # Check if all children have been simulated (visited at least once)
+    # This prevents selecting children that were just created but not yet simulated
+    for child in node.children:
+        if child.visits == 0:
+            # This child hasn't been selected/simulated yet, so parent is not fully explored
+            return False
+    
+    return True
 
 
 def should_continue_search(iteration: int, max_iterations: int, start_time: float, 
@@ -225,30 +235,31 @@ def print_tree_visits_and_values(node=None, depth=0, file_handle=None):
 
 def log_tree_to_file(root_node, iteration_num, output_dir="./outputs"):
     """Log the tree structure to a file."""
-    log_file_path = os.path.join(output_dir, f"mcts_tree_iteration_{iteration_num}.txt")
+    log_file_path = os.path.join(output_dir, f"moar_tree_iteration_{iteration_num}.txt")
     
     with open(log_file_path, "w") as f:
-        f.write(f"MCTS Tree Structure - Iteration {iteration_num}\n")
+        f.write(f"MOAR Tree Structure - Iteration {iteration_num}\n")
         f.write("=" * 50 + "\n")
         print_tree_visits_and_values(root_node, file_handle=f)
 
 
-def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
+def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None, model_stats=None, available_models=None) -> tuple[str, str]:
     """Create expansion prompt for accuracy optimization."""
     
-    ### DEBUG 
-    print("memo: ")
-    print(node.get_memo_for_llm(root_node, node_accuracies))
-
+    # Use provided available_models list, or extract from model_stats as fallback
+    if available_models:
+        available_models_list = available_models
+    elif model_stats:
+        available_models_list = list(model_stats.keys())
+    else:
+        available_models_list = []
+    
     availabel_actions_str = ""
     for item in action_options:
         op_name = item[0]
         action_name = item[1]
         action_str = f"Operator: {op_name}, Rewrite directive: {action_name}\n"
         availabel_actions_str += action_str
-
-    print("availabel_actions_str: ")
-    print(availabel_actions_str)
 
     action_stats = []
     for action in available_actions:
@@ -269,9 +280,6 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
 
     action_stats_str = "\n".join(action_stats)
 
-    print("action_stats_str: ")
-    print(action_stats_str)
-
     input_schema = load_input_doc(yaml_file_path)
 
     user_message = f"""
@@ -281,7 +289,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
 
     Pipeline:
     Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-    - Default Model: The language model to use for the pipeline. Limit your choice of model to {AVAILABLE_MODELS} \n
+    - Default Model: The language model to use for the pipeline. Limit your choice of model to {available_models_list} \n
     - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
     - Datasets: The input data sources for your pipeline. \n
     - Operators: The processing steps that transform your data. \n
@@ -313,7 +321,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
 
     Model Performance Reference:
-    If you are considering a model change directive, here are model statistics on this specific dataset: \n {str(MODEL_STATS.get(dataset, {}))}
+    If you are considering a model change directive, here are model statistics on this specific dataset: \n {str(model_stats if model_stats else {})}
     These show the accuracy (acc) and cost for each model. Only reference this when evaluating model change options.
 
     Selection Strategy:
@@ -350,13 +358,16 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     return user_message, condensed_user_message
 
 
-def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
+def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None, model_stats=None, available_models=None) -> tuple[str, str]:
     """Create expansion prompt for cost optimization."""
 
-    ### DEBUG 
-    print("memo: ")
-    print(node.get_memo_for_llm(root_node, node_accuracies))
-    print("***"*50)
+    # Use provided available_models list, or extract from model_stats as fallback
+    if available_models:
+        available_models_list = available_models
+    elif model_stats:
+        available_models_list = list(model_stats.keys())
+    else:
+        available_models_list = []
 
     availabel_actions_str = ""
     for item in action_options:
@@ -365,8 +376,6 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
         action_str = f"Operator: {op_name}, Rewrite directive: {action_name}\n"
         availabel_actions_str += action_str
 
-    print("availabel_actions_str: ")
-    print(availabel_actions_str)
     action_stats = []
     for action in available_actions:
         cost_change = action_cost_changes.get(action, 0)
@@ -386,8 +395,6 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
 
     action_stats_str = "\n".join(action_stats)
 
-    print("action_stats_str: ")
-    print(action_stats_str)
 
     input_schema = load_input_doc(yaml_file_path)
 
@@ -398,7 +405,7 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
 
     Pipeline:
     Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-    - Default Model: The language model to use for the pipeline. Limit your choice of model to {AVAILABLE_MODELS} \n
+    - Default Model: The language model to use for the pipeline. Limit your choice of model to {available_models_list} \n
     - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
     - Datasets: The input data sources for your pipeline. \n
     - Operators: The processing steps that transform your data. \n
@@ -430,7 +437,7 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
 
     Model Performance Reference:
-    If you are considering a model change directive, here are model statistics on this specific dataset: \n {str(MODEL_STATS.get(dataset, {}))}
+    If you are considering a model change directive, here are model statistics on this specific dataset: \n {str(model_stats if model_stats else {})}
     These show the accuracy (acc) and cost for each model. Only reference this when evaluating model change options.
 
     Selection Strategy:
@@ -450,7 +457,6 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
     """
     
-    # Create a condensed version for message history (without full operator/directive descriptions)
     condensed_user_message = f"""
     Recommend one specific rewrite directive for cost optimization.
     

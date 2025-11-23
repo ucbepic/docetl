@@ -129,19 +129,6 @@ def print_pareto_frontier_summary(eval_results, dataset):
     print(f"{'='*60}")
     print(f"Total frontier points: {len(frontier_points)}")
     
-    # Calculate cost-effectiveness ratios
-    if len(frontier_points) > 1:
-        print(f"\n💰 Cost-Effectiveness Analysis:")
-        for i in range(len(frontier_points) - 1):
-            curr = frontier_points[i]
-            next_point = frontier_points[i + 1]
-            
-            cost_diff = next_point["cost"] - curr["cost"]
-            accuracy_diff = next_point[accuracy_metric] - curr[accuracy_metric]
-            
-            if cost_diff > 0 and accuracy_diff > 0:
-                cost_effectiveness = cost_diff / accuracy_diff
-                print(f"   {curr['file']} → {next_point['file']}: +${cost_diff:.4f} for +{accuracy_diff:.4f} {accuracy_metric} (${cost_effectiveness:.4f} per unit improvement)")
 
 def save_pareto_frontier_results(eval_results, dataset, output_path):
     """
@@ -413,8 +400,6 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             default_gt = Path("experiments/reasoning/data/CUAD-master_clauses.csv")
             ground_truth_path = str(default_gt)
 
-        print(f"\n🧪 Evaluating extraction JSONs against CUAD ground truth ...")
-
         for item in nodes_or_files:
             # Handle both node objects and file paths
             if hasattr(item, 'result_path'):
@@ -460,7 +445,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 # Add frontier information if available
                 if hasattr(item, 'result_path'):
                     result.update({
-                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "moar_accuracy": getattr(item, 'moar_accuracy', None),
                         "on_frontier": getattr(item, 'on_frontier', False),
                     })
                 
@@ -473,7 +458,6 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             pareto_auc = _create_cuad_plots_and_auc(eval_results, output_path, root_cost)
             
     elif dataset.lower() == "blackvault":
-        print(f"\n🧪 Evaluating extraction JSONs for BlackVault dataset ...")
 
         for item in nodes_or_files:
             # Handle both node objects and file paths
@@ -520,7 +504,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 # Add frontier information if available
                 if hasattr(item, 'result_path'):
                     result.update({
-                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "moar_accuracy": getattr(item, 'moar_accuracy', None),
                         "on_frontier": getattr(item, 'on_frontier', False),
                     })
                 
@@ -533,7 +517,6 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             pareto_auc = _create_blackvault_plots_and_auc(eval_results, output_path, root_cost)
     
     elif dataset.lower() == "game_reviews":
-        print(f"\n🧪 Evaluating game reviews analysis results ...")
 
         for item in nodes_or_files:
             # Handle both node objects and file paths
@@ -581,7 +564,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 # Add frontier information if available
                 if hasattr(item, 'result_path'):
                     result.update({
-                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "moar_accuracy": getattr(item, 'moar_accuracy', None),
                         "on_frontier": getattr(item, 'on_frontier', False),
                     })
                 
@@ -594,7 +577,6 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             pareto_auc = _create_game_reviews_plots_and_auc(eval_results, output_path, root_cost)
     
     elif dataset.lower() == "medec":
-        print(f"\n🧪 Evaluating medical error detection results ...")
 
         for item in nodes_or_files:
             # Handle both node objects and file paths
@@ -645,7 +627,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 # Add frontier information if available
                 if hasattr(item, 'result_path'):
                     result.update({
-                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "moar_accuracy": getattr(item, 'moar_accuracy', None),
                         "on_frontier": getattr(item, 'on_frontier', False),
                     })
                 
@@ -662,7 +644,6 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             default_gt = Path("experiments/reasoning/data/company_reports_gt.json")
             ground_truth_path = str(default_gt)
 
-        print(f"\n🧪 Evaluating sustainability analysis results ...")
 
         for item in nodes_or_files:
             # Handle both node objects and file paths
@@ -711,7 +692,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 # Add frontier information if available
                 if hasattr(item, 'result_path'):
                     result.update({
-                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "moar_accuracy": getattr(item, 'moar_accuracy', None),
                         "on_frontier": getattr(item, 'on_frontier', False),
                     })
                 
@@ -724,8 +705,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             pareto_auc = _create_sustainability_plots_and_auc(eval_results, output_path, root_cost)
     
     elif dataset.lower() == "biodex":
-        print(f"\n🧪 Evaluating BioDEX reaction extraction results ...")
-
+  
         for item in nodes_or_files:
             # Handle both node objects and file paths
             if hasattr(item, 'result_path'):
@@ -772,7 +752,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 # Add frontier information if available
                 if hasattr(item, 'result_path'):
                     result.update({
-                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "moar_accuracy": getattr(item, 'moar_accuracy', None),
                         "on_frontier": getattr(item, 'on_frontier', False),
                     })
                 
@@ -817,9 +797,9 @@ def _create_cuad_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, f1s, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy")
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row['node_id']} ({moar_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["f1"]), textcoords="offset points", xytext=(4,4), fontsize=8)
@@ -899,9 +879,9 @@ def _create_game_reviews_plots_and_auc(eval_results, output_path, root_cost=None
         plt.figure(figsize=(8,6))
         plt.scatter(costs, combined_scores, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy")
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row['node_id']} ({moar_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["combined_accuracy_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
@@ -959,7 +939,6 @@ def _create_game_reviews_plots_and_auc(eval_results, output_path, root_cost=None
                         hypervolume += final_rectangle
             
             pareto_auc = hypervolume
-            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
         else:
             pareto_auc = 0.0
     except Exception as e:
@@ -983,9 +962,9 @@ def _create_blackvault_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, avg_locations, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy")
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row['node_id']} ({moar_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["avg_distinct_locations"]), textcoords="offset points", xytext=(4,4), fontsize=8)
@@ -1043,7 +1022,6 @@ def _create_blackvault_plots_and_auc(eval_results, output_path, root_cost=None):
                         hypervolume += final_rectangle
             
             pareto_auc = hypervolume
-            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
         else:
             pareto_auc = 0.0
     except Exception as e:
@@ -1067,9 +1045,9 @@ def _create_medec_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, scores, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy")
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row['node_id']} ({moar_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["combined_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
@@ -1128,7 +1106,6 @@ def _create_medec_plots_and_auc(eval_results, output_path, root_cost=None):
                         
             
             pareto_auc = hypervolume
-            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
         else:
             pareto_auc = 0.0
     except Exception as e:
@@ -1151,9 +1128,9 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
         plt.figure(figsize=(8,6))
         plt.scatter(costs, accuracies, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy")
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row['node_id']} ({moar_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["combined_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
@@ -1211,7 +1188,6 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
                         hypervolume += final_rectangle
             
             pareto_auc = hypervolume
-            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
         else:
             pareto_auc = 0.0
     except Exception as e:
@@ -1233,9 +1209,9 @@ def _create_facility_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, scores, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy")
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row['node_id']} ({moar_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["combined_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
@@ -1298,7 +1274,6 @@ def _create_facility_plots_and_auc(eval_results, output_path, root_cost=None):
                         hypervolume += final_rectangle
             
             pareto_auc = hypervolume
-            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
         else:
             pareto_auc = 0.0
     except Exception as e:
@@ -1320,9 +1295,9 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, rp_at_5_scores, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy")
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            moar_accuracy = row.get("moar_accuracy")
+            if moar_accuracy is not None:
+                label = f"{row['node_id']} ({moar_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["avg_rp_at_5"]), textcoords="offset points", xytext=(4,4), fontsize=8)
@@ -1380,7 +1355,6 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
                         hypervolume += final_rectangle
             
             pareto_auc = hypervolume
-            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
         else:
             pareto_auc = 0.0
     except Exception as e:

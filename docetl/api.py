@@ -59,8 +59,12 @@ from rich import print
 from docetl.runner import DSLRunner
 from docetl.schemas import (
     ClusterOp,
+    CodeFilterOp,
+    CodeMapOp,
+    CodeReduceOp,
     Dataset,
     EquijoinOp,
+    ExtractOp,
     FilterOp,
     GatherOp,
     MapOp,
@@ -340,6 +344,14 @@ class Pipeline:
                 self.operations.append(ClusterOp(**op, type=op_type))
             elif op_type == "sample":
                 self.operations.append(SampleOp(**op, type=op_type))
+            elif op_type == "code_map":
+                self.operations.append(CodeMapOp(**op, type=op_type))
+            elif op_type == "code_reduce":
+                self.operations.append(CodeReduceOp(**op, type=op_type))
+            elif op_type == "code_filter":
+                self.operations.append(CodeFilterOp(**op, type=op_type))
+            elif op_type == "extract":
+                self.operations.append(ExtractOp(**op, type=op_type))
         self.steps = [PipelineStep(**step) for step in config["pipeline"]["steps"]]
         self.output = PipelineOutput(**config["pipeline"]["output"])
         self.default_model = config.get("default_model")
@@ -363,6 +375,10 @@ __all__ = [
     "SplitOp",
     "GatherOp",
     "UnnestOp",
+    "CodeMapOp",
+    "CodeReduceOp",
+    "CodeFilterOp",
+    "ExtractOp",
     "PipelineStep",
     "PipelineOutput",
     "ParsingTool",

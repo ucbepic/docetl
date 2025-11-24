@@ -1,5 +1,9 @@
+import inspect
 import os
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+from pydantic import field_validator
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar
@@ -8,9 +12,24 @@ from docetl.operations.utils import RichLoopBar
 class CodeMapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_map"
-        code: str
+        code: Any
         concurrent_thread_count: int = os.cpu_count()
         drop_keys: list[str] | None = None
+
+        @field_validator("code")
+        @classmethod
+        def validate_code(cls, v: Any) -> str:
+            if isinstance(v, str):
+                return v
+            if callable(v):
+                try:
+                    src = inspect.getsource(v)
+                except OSError as e:
+                    raise ValueError(
+                        "Unable to retrieve source for provided function. Please pass a normal def function."
+                    ) from e
+                return f"{src}\ntransform = {v.__name__}"
+            raise TypeError("code must be a string or a callable")
 
     def syntax_check(self) -> None:
         config = self.schema(**self.config)
@@ -57,8 +76,23 @@ class CodeMapOperation(BaseOperation):
 class CodeReduceOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_reduce"
-        code: str
+        code: Any
         concurrent_thread_count: int = os.cpu_count()
+
+        @field_validator("code")
+        @classmethod
+        def validate_code(cls, v: Any) -> str:
+            if isinstance(v, str):
+                return v
+            if callable(v):
+                try:
+                    src = inspect.getsource(v)
+                except OSError as e:
+                    raise ValueError(
+                        "Unable to retrieve source for provided function. Please pass a normal def function."
+                    ) from e
+                return f"{src}\ntransform = {v.__name__}"
+            raise TypeError("code must be a string or a callable")
 
     def syntax_check(self) -> None:
         config = self.schema(**self.config)
@@ -132,8 +166,23 @@ class CodeReduceOperation(BaseOperation):
 class CodeFilterOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_filter"
-        code: str
+        code: Any
         concurrent_thread_count: int = os.cpu_count()
+
+        @field_validator("code")
+        @classmethod
+        def validate_code(cls, v: Any) -> str:
+            if isinstance(v, str):
+                return v
+            if callable(v):
+                try:
+                    src = inspect.getsource(v)
+                except OSError as e:
+                    raise ValueError(
+                        "Unable to retrieve source for provided function. Please pass a normal def function."
+                    ) from e
+                return f"{src}\ntransform = {v.__name__}"
+            raise TypeError("code must be a string or a callable")
 
     def syntax_check(self) -> None:
         config = self.schema(**self.config)

@@ -78,7 +78,7 @@ class ParetoFrontier:
         # Distance to current Pareto frontier: positive for on-frontier, negative for off-frontier
         self.node_distances: Dict[Node, float] = {}
 
-        # Root plan reference point for hypervolume calculation
+        # Root plan reference point
         self.root_accuracy: Optional[float] = None
         self.root_cost: Optional[float] = None
 

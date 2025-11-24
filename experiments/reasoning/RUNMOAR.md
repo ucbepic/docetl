@@ -124,7 +124,7 @@ modal run experiments/reasoning/run_simple_agent.py \
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| `--dataset` | Conditional | - | Dataset name. **Required** if `--accuracy_function` is not provided. Must be one of: cuad, blackvault, medec, biodex, sustainability, game_reviews, facility. If using `--accuracy_function`, can be any string (used for naming). |
+| `--dataset` | Conditional | - | Dataset name. **Required** if `--accuracy_function` is not provided. Must be one of: cuad, blackvault, medec, biodex, sustainability, game_reviews. If using `--accuracy_function`, can be any string (used for naming). |
 | `--model` | No | `gpt-5` | LLM model to use for optimization |
 | `--experiment_name` | No | `simple_agent_{dataset}` | Unique experiment identifier |
 | `--output_dir` | No | `outputs/simple_agent` | Output directory |
@@ -143,7 +143,6 @@ Both `run_moar.py` and `run_simple_agent.py` support the following datasets:
 - `biodex` - Biochemical reaction prediction
 - `sustainability` - Sustainability analysis
 - `game_reviews` - Game review sentiment analysis
-- `facility` - Facility support message classification (Simple Agent only)
 
 ### Custom Datasets with User-Authored Accuracy Functions
 

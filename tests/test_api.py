@@ -6,6 +6,10 @@ import pandas as pd
 from docetl.api import (
     Pipeline,
     Dataset,
+    CodeMapOp,
+    CodeReduceOp,
+    CodeFilterOp,
+    ExtractOp,
     MapOp,
     ReduceOp,
     ParallelMapOp,
@@ -277,6 +281,176 @@ def test_pipeline_execution(
 
     assert isinstance(cost, float)
 
+
+# -----------------------------
+# Code operations (SDK) tests
+# -----------------------------
+
+def _code_map_transform(doc: dict) -> dict:
+    x = doc.get("x", 0)
+    return {"double": x * 2}
+
+
+def _code_filter_transform(doc: dict) -> bool:
+    return bool(doc.get("keep", False))
+
+
+def _code_reduce_transform(group: list[dict]) -> dict:
+    total = sum(item.get("value", 0) for item in group)
+    return {"group_total": total}
+
+
+@pytest.fixture
+def code_input_file():
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
+        json.dump(
+            [
+                {"x": 1},
+                {"x": 2},
+                {"x": 3},
+            ],
+            tmp,
+        )
+    yield tmp.name
+    os.unlink(tmp.name)
+
+
+@pytest.fixture
+def code_filter_input_file():
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
+        json.dump(
+            [
+                {"id": 1, "keep": True},
+                {"id": 2, "keep": False},
+                {"id": 3, "keep": True},
+            ],
+            tmp,
+        )
+    yield tmp.name
+    os.unlink(tmp.name)
+
+
+@pytest.fixture
+def code_reduce_input_file():
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
+        json.dump(
+            [
+                {"group": "A", "value": 10},
+                {"group": "A", "value": 5},
+                {"group": "B", "value": 7},
+            ],
+            tmp,
+        )
+    yield tmp.name
+    os.unlink(tmp.name)
+
+
+def test_code_map_pipeline_callable(code_input_file, temp_output_file, temp_intermediate_dir):
+    pipeline = Pipeline(
+        name="test_code_map",
+        datasets={"input": Dataset(type="file", path=code_input_file)},
+        operations=[
+            CodeMapOp(
+                name="double_x",
+                type="code_map",
+                code=_code_map_transform,
+            )
+        ],
+        steps=[
+            PipelineStep(name="s1", input="input", operations=["double_x"]),
+        ],
+        output=PipelineOutput(
+            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
+        ),
+        default_model="gpt-4o-mini",
+    )
+
+    cost = pipeline.run(max_threads=4)
+    assert isinstance(cost, float)
+
+    with open(temp_output_file, "r") as f:
+        data = json.load(f)
+    assert len(data) == 3
+    assert data[0]["double"] == 2
+    assert data[1]["double"] == 4
+    assert data[2]["double"] == 6
+
+
+def test_code_filter_pipeline_callable(code_filter_input_file, temp_output_file, temp_intermediate_dir):
+    pipeline = Pipeline(
+        name="test_code_filter",
+        datasets={"input": Dataset(type="file", path=code_filter_input_file)},
+        operations=[
+            CodeFilterOp(
+                name="keep_true",
+                type="code_filter",
+                code=_code_filter_transform,
+            )
+        ],
+        steps=[
+            PipelineStep(name="s1", input="input", operations=["keep_true"]),
+        ],
+        output=PipelineOutput(
+            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
+        ),
+        default_model="gpt-4o-mini",
+    )
+
+    cost = pipeline.run(max_threads=4)
+    assert isinstance(cost, float)
+
+    with open(temp_output_file, "r") as f:
+        data = json.load(f)
+    # Only ids 1 and 3 should be kept
+    kept_ids = sorted([d["id"] for d in data])
+    assert kept_ids == [1, 3]
+
+
+def test_code_reduce_pipeline_callable(code_reduce_input_file, temp_output_file, temp_intermediate_dir):
+    pipeline = Pipeline(
+        name="test_code_reduce",
+        datasets={"input": Dataset(type="file", path=code_reduce_input_file)},
+        operations=[
+            CodeReduceOp(
+                name="sum_by_group",
+                type="code_reduce",
+                code=_code_reduce_transform,
+                reduce_key="group",
+                pass_through=True,
+            )
+        ],
+        steps=[
+            PipelineStep(name="s1", input="input", operations=["sum_by_group"]),
+        ],
+        output=PipelineOutput(
+            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
+        ),
+        default_model="gpt-4o-mini",
+    )
+
+    cost = pipeline.run(max_threads=4)
+    assert isinstance(cost, float)
+
+    with open(temp_output_file, "r") as f:
+        data = json.load(f)
+    # Expect one row per group
+    assert len(data) == 2
+    # Create a map from group -> total
+    totals = {d["group"]: d["group_total"] for d in data}
+    assert totals["A"] == 15
+    assert totals["B"] == 7
+
+
+def test_extractop_is_exported():
+    # Ensure ExtractOp is importable and constructible from API schemas
+    op = ExtractOp(
+        name="extract_sections",
+        type="extract",
+        document_keys=["content"],
+        prompt="Extract important parts from {{ input.content }}",
+        extraction_method="line_number",
+    )
+    assert op.type == "extract"
 
 def test_parallel_map_pipeline(
     parallel_map_config, temp_input_file, temp_output_file, temp_intermediate_dir

@@ -90,10 +90,10 @@ Outputs are written to `/mnt/docetl-ro-experiments/outputs/{experiment_name}` in
 | `--max_iterations` | No | `100` | Maximum MOARSearch iterations |
 | `--exploration_weight` | No | `1.414` | UCB exploration parameter c (controls exploration vs exploitation) |
 | `--model` | No | `gpt-5` | LLM model to use for directive instantiation |
-| `--available_models` | No | All models | Space-separated list of models for first layer testing. Example: `gpt-5 gpt-5-mini gpt-4o` |
-| `--data_dir` | No | - | Directory containing input data files |
-| `--output_dir` | No | `EXPERIMENT_OUTPUT_DIR` env var | Directory to save experiment outputs |
-| `--ground_truth` | No | - | Path to ground-truth file (if not default) |
+| `--available_models` | No | All 11 default models (gpt-5, gpt-5-mini, gpt-5-nano, gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite) | Space-separated list of models for first layer testing. Example: `gpt-5 gpt-5-mini gpt-4o` |
+| `--data_dir` | No | `EXPERIMENT_DATA_DIR` env var or `./data/` | Directory containing input data files |
+| `--output_dir` | No | `EXPERIMENT_OUTPUT_DIR` env var or `./outputs` | Directory to save experiment outputs |
+| `--ground_truth` | No | - | Path to ground-truth file |
 | `--accuracy_function` | No | - | Path to Python file containing custom `evaluate_results` function (for user datasets) |
 | `--accuracy_metric_key` | No | - | Key to extract from evaluation results dict for accuracy metric (required with `--accuracy_function`) |
 
@@ -129,7 +129,7 @@ modal run experiments/reasoning/run_simple_agent.py \
 | `--experiment_name` | No | `simple_agent_{dataset}` | Unique experiment identifier |
 | `--output_dir` | No | `outputs/simple_agent` | Output directory |
 | `--ground_truth` | No | - | Path to ground truth file for evaluation |
-| `--available_models` | No | All models | Space-separated list of available models. Example: `gpt-5 gpt-5-mini gpt-4o` |
+| `--available_models` | No | All 11 default models (gpt-5, gpt-5-mini, gpt-5-nano, gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite) | Space-separated list of available models. Example: `gpt-5 gpt-5-mini gpt-4o` |
 | `--accuracy_function` | No | - | Path to Python file containing custom `evaluate_results` function (for user datasets) |
 | `--accuracy_metric_key` | No | - | Key to extract from evaluation results dict for accuracy metric (required with `--accuracy_function`) |
 

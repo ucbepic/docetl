@@ -14,6 +14,10 @@ This guide explains how to run the MOAR optimizer `run_moar.py` and the simple a
 
 ## Prerequisites
 
+### Dataset and Pipeline Files
+
+Download the 6 workload experiment datasets and initial pipelines from the [Google Drive Link](https://drive.google.com/drive/folders/1pNFqYCguAZL3iGYHd-jDoialrtf73fbR?usp=drive_link). Extract the `data/` folder and `pipelines/` folder to `experiments/reasoning/` directory.
+
 ### Python Dependencies
 
 Install the required Python packages:

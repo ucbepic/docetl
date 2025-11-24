@@ -101,7 +101,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-:::: docetl.schemas.CodeMapOp
+::: docetl.schemas.CodeMapOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -110,7 +110,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-:::: docetl.schemas.CodeReduceOp
+::: docetl.schemas.CodeReduceOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -119,7 +119,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-:::: docetl.schemas.CodeFilterOp
+::: docetl.schemas.CodeFilterOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -128,7 +128,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-:::: docetl.schemas.ExtractOp
+::: docetl.schemas.ExtractOp
     options:
         show_root_heading: true
         heading_level: 3

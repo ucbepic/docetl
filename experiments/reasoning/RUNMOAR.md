@@ -5,8 +5,8 @@ This guide explains how to run the MOAR optimizer `run_moar.py` and the simple a
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
-- [MOAR (`run_moar.py`)](#moarsearch-run_moarpy)
-- [Simple Agent (`run_simple_agent.py`)](#simple-agent-run_simple_agentpy)
+- [MOAR](#moarsearch-run_moarpy)
+- [Simple Agent](#simple-agent-run_simple_agentpy)
 - [Supported Datasets](#supported-datasets)
   - [Custom Datasets with User-Authored Accuracy Functions](#custom-datasets-with-user-authored-accuracy-functions)
 - [Available Models](#available-models)
@@ -45,7 +45,7 @@ export AZURE_API_VERSION="your_version_here"
   - `run_simple_agent.py`: `./outputs/simple_agent`
   
 
-- **`EXPERIMENT_DATA_DIR`**: Directory containing input data files. Can also be set via `--data_dir` parameter in `run_moar.py`.
+- **`EXPERIMENT_DATA_DIR`**: Directory containing input data files. Defaults to `./data/` if not set. Can also be set via `--data_dir` parameter in `run_moar.py`.
   
 
 ## MOARSearch (`run_moar.py`)

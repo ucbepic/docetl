@@ -83,6 +83,15 @@ class LanceDBRetriever(Retriever):
 
             db = self._connect()
             table_name = self._table_name()
+            dataset_name = self.config.get("dataset", "<unknown>")
+            idx_types = self._index_types()
+            try:
+                self.runner.console.log(
+                    f"[cyan]LanceDB[/cyan] ensure_index: table='{table_name}', dataset='{dataset_name}', "
+                    f"index_types={sorted(list(idx_types))}, build_policy='{build_policy}'"
+                )
+            except Exception:
+                pass
             table = None
             try:
                 existing_names = db.table_names()
@@ -90,18 +99,47 @@ class LanceDBRetriever(Retriever):
                 # Surface the real error instead of sidestepping
                 raise RuntimeError(f"Failed to list LanceDB tables: {exc}") from exc
             if build_policy == "never":
+                try:
+                    self.runner.console.log(
+                        f"[yellow]LanceDB[/yellow] skipping index build (build_index=never) for '{table_name}'"
+                    )
+                except Exception:
+                    pass
                 self._ensured = True
                 return
             if table_name in existing_names:
                 if build_policy == "always":
+                    try:
+                        self.runner.console.log(
+                            f"[cyan]LanceDB[/cyan] dropping existing table '{table_name}' (build_index=always)"
+                        )
+                    except Exception:
+                        pass
                     db.drop_table(table_name)
                 else:
                     # if_missing and table exists -> nothing to do
+                    try:
+                        self.runner.console.log(
+                            f"[green]LanceDB[/green] index exists for '{table_name}', skipping build (build_index=if_missing)"
+                        )
+                    except Exception:
+                        pass
                     self._ensured = True
                     return
 
             if table is None:
-                rows = self._iter_dataset_rows()
+                try:
+                    rows = self._iter_dataset_rows()
+                except Exception:
+                    # Dataset may not be available yet (e.g., produced by a prior step)
+                    try:
+                        self.runner.console.log(
+                            f"[yellow]LanceDB[/yellow] dataset '{dataset_name}' not available; "
+                            f"deferring index build for '{table_name}'"
+                        )
+                    except Exception:
+                        pass
+                    return
                 idx_types = self._index_types()
 
                 # Build per-row phrases for FTS and Embedding
@@ -153,16 +191,40 @@ class LanceDBRetriever(Retriever):
 
                 # Create table
                 table = db.create_table(table_name, data=data, mode="overwrite")
+                try:
+                    self.runner.console.log(
+                        f"[green]LanceDB[/green] created table '{table_name}' with {len(data)} rows "
+                        f"(fts={'fts' in idx_types}, embedding={'embedding' in idx_types})"
+                    )
+                except Exception:
+                    pass
 
                 # Create FTS index if fts enabled
                 if "fts" in idx_types:
                     try:
                         table.create_fts_index("text")
+                        try:
+                            self.runner.console.log(
+                                f"[green]LanceDB[/green] created FTS index on column 'text' for '{table_name}'"
+                            )
+                        except Exception:
+                            pass
                     except Exception:
                         # Index may already exist or backend unavailable; continue
-                        pass
+                        try:
+                            self.runner.console.log(
+                                f"[yellow]LanceDB[/yellow] FTS index creation skipped/failed for '{table_name}'"
+                            )
+                        except Exception:
+                            pass
 
             self._ensured = True
+            try:
+                self.runner.console.log(
+                    f"[green]LanceDB[/green] index ready for '{table_name}'"
+                )
+            except Exception:
+                pass
 
     def _render_query_phrase(self, tmpl: str | None, context: dict[str, Any]) -> str:
         if not tmpl:

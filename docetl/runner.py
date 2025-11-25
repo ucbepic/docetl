@@ -93,6 +93,7 @@ class DSLRunner(ConfigWrapper):
             config: dict[str, Any] | None
             parsing_tools: list[schemas.ParsingTool] | None
             datasets: dict[str, schemas.Dataset]
+            retrievers: dict[str, Any] | None
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
 
@@ -119,6 +120,7 @@ class DSLRunner(ConfigWrapper):
         self.total_cost = 0
         self._initialize_state()
         self._setup_parsing_tools()
+        self._setup_retrievers()
         self._build_operation_graph(config)
         self._compute_operation_hashes()
 
@@ -139,6 +141,31 @@ class DSLRunner(ConfigWrapper):
         self.parsing_tool_map = create_parsing_tool_map(
             self.config.get("parsing_tools", None)
         )
+
+    def _setup_retrievers(self) -> None:
+        """Instantiate retrievers from configuration (lazy index creation)."""
+        from docetl.retrievers.lancedb import LanceDBRetriever
+
+        self.retrievers: dict[str, Any] = {}
+        retrievers_cfg = self.config.get("retrievers", {}) or {}
+        for name, rconf in retrievers_cfg.items():
+            if not isinstance(rconf, dict):
+                raise ValueError(f"Invalid retriever '{name}' configuration")
+            if rconf.get("type") != "lancedb":
+                raise ValueError(
+                    f"Unsupported retriever type '{rconf.get('type')}' for '{name}'. Only 'lancedb' is supported."
+                )
+            required = ["dataset", "index_dir", "index_types"]
+            for key in required:
+                if key not in rconf:
+                    raise ValueError(
+                        f"Retriever '{name}' missing required key '{key}'."
+                    )
+            # Defaults
+            rconf.setdefault("query", {"top_k": 5})
+            rconf.setdefault("build_index", "if_missing")
+
+            self.retrievers[name] = LanceDBRetriever(self, name, rconf)
 
     def _build_operation_graph(self, config: dict) -> None:
         """Build the DAG of operations from configuration"""

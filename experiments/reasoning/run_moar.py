@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from docetl.moar import MOARSearch, Node, ParetoFrontier
+from docetl.moar import MOARSearch, Node, ParetoFrontier, AVAILABLE_MODELS
 from docetl.reasoning_optimizer.directives import (
     DEFAULT_MODEL, DEFAULT_OUTPUT_DIR, ALL_DIRECTIVES
 )
@@ -74,7 +74,7 @@ def run_moar_remote(
     data_dir: str | None = None,
     output_dir: str | None = None,
     experiment_name: str = "moar_experiment",
-    max_iterations: int = 100,
+    max_iterations: int = 40,
     exploration_weight: float = 1.414,
     model: str = DEFAULT_MODEL,
     dataset: str = "cuad",
@@ -119,7 +119,7 @@ def modal_main_moar(
     experiment_name: str,
     data_dir: str | None = None,
     output_dir: str | None = None,
-    max_iterations: int = 100,
+    max_iterations: int = 40,
     exploration_weight: float = 1.414,
     model: str = DEFAULT_MODEL,
     dataset: str = "cuad",
@@ -153,7 +153,7 @@ def run_moar_experiment(
     data_dir: str = None,
     output_dir: str = None, 
     experiment_name: str = "moar_experiment",
-    max_iterations: int = 100,
+    max_iterations: int = 40,
     exploration_weight: float = 1.414,
     model: str = DEFAULT_MODEL,
     dataset: str = "cuad",
@@ -226,27 +226,21 @@ def run_moar_experiment(
 
     # Use provided available_models or default list
     if available_models is None:
-        available_models = [
-            "gpt-5",
-            "gpt-5-mini",
-            "gpt-5-nano",
-            "gpt-4.1",
-            "gpt-4.1-mini",
-            "gpt-4.1-nano",
-            "gpt-4o",
-            "gpt-4o-mini",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-lite"]
+        available_models = AVAILABLE_MODELS
     
-    # Load custom accuracy function if provided
-    custom_evaluate_func = None
+    # Load evaluation function
     if accuracy_function:
         if not accuracy_metric_key:
             raise ValueError("--accuracy_metric_key must be provided when using --accuracy_function")
         print(f"📊 Loading custom accuracy function from: {accuracy_function}")
-        custom_evaluate_func = load_custom_evaluate_func(accuracy_function)
+        evaluate_func = load_custom_evaluate_func(accuracy_function)
         print(f"✅ Custom accuracy function loaded. Metric key: {accuracy_metric_key}")
+    else:
+        # Use default evaluation function from experiments
+        from experiments.reasoning.evaluation.utils import get_evaluate_func, dataset_accuracy_metrics
+        evaluate_func = get_evaluate_func(dataset, mode="train")
+        # Get the default metric key for this dataset
+        accuracy_metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
     
     # Initialize MOARSearch
     moar = MOARSearch(
@@ -256,12 +250,12 @@ def run_moar_experiment(
         dataset_stats=dataset_stats,
         dataset_name=dataset,
         available_models=available_models,
+        evaluate_func=evaluate_func,
         exploration_constant=exploration_weight,
         max_iterations=max_iterations,
         model=model,
         output_dir=str(output_path),
         build_first_layer=build_first_layer,
-        custom_evaluate_func=custom_evaluate_func,
         custom_metric_key=accuracy_metric_key,
     )
     print(f"✅ MOARSearch initialized with root node: {yaml_path}")
@@ -292,7 +286,7 @@ def run_moar_experiment(
         ground_truth_path=ground_truth_path,
         method_name="docetl_moar",
         root_cost=root_cost,
-        custom_evaluate_func=custom_evaluate_func,
+        custom_evaluate_func=evaluate_func,
         custom_metric_key=accuracy_metric_key,
     )
     # Save results
@@ -376,8 +370,8 @@ Examples:
                        help=f"Directory to save experiment outputs (default: EXPERIMENT_OUTPUT_DIR env var or {DEFAULT_OUTPUT_DIR})")
     parser.add_argument("--experiment_name", type=str, required=True,
                        help="Name for this experiment run")
-    parser.add_argument("--max_iterations", type=int, default=100,
-                       help="Maximum MOARSearch iterations (default: 100)")
+    parser.add_argument("--max_iterations", type=int, default=40,
+                       help="Maximum MOARSearch iterations (default: 40)")
     parser.add_argument("--exploration_weight", type=float, default=1.414,
                        help="UCB exploration parameter c (default: 1.414)")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL, 

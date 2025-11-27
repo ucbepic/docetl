@@ -1,25 +1,12 @@
-# Import evaluation function lookup
 import os
-import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
+
+matplotlib.use("Agg")  # Use non-interactive backend
 import matplotlib.pyplot as plt
-import threading
+
 from .Node import Node
-
-sys.path.append("../../experiments/reasoning")
-try:
-    from experiments.reasoning.evaluation.utils import get_evaluate_func
-except ImportError:
-    # Fallback import path
-    import os
-
-    sys.path.append(
-        os.path.join(os.path.dirname(__file__), "../../experiments/reasoning")
-    )
-    from evaluation.utils import get_evaluate_func
 
 
 class ParetoFrontier:
@@ -37,6 +24,7 @@ class ParetoFrontier:
         action_cost_changes: Dict[str, float],
         action_accuracy_changes: Dict[str, float],
         dataset_name: str,
+        evaluate_func: Callable[[str, str], Dict[str, Any]],
     ):
         """
         Initialize the Pareto Frontier.
@@ -46,11 +34,10 @@ class ParetoFrontier:
             action_cost_changes: Reference to MCTS action_cost_changes dictionary
             action_accuracy_changes: Reference to MCTS action_accuracy_changes dictionary
             dataset_name: Name of the dataset being optimized (for evaluation and metric selection)
+            evaluate_func: Evaluation function (method_name: str, results_file_path: str) -> dict
         """
         self.dataset_name = dataset_name
-
-        # Get evaluation function for this dataset
-        self.evaluate_func = get_evaluate_func(dataset_name)
+        self.evaluate_func = evaluate_func
 
         # Dataset-to-primary-metric mapping
         self.dataset_metrics = {
@@ -166,18 +153,20 @@ class ParetoFrontier:
     def project_to_frontier(self, node_acc, node_cost, frontier_data):
         """
         Project point onto the step function formed by frontier.
-        For a step function interpretation, the reward is simply the vertical distance 
+        For a step function interpretation, the reward is simply the vertical distance
         to the step function (accuracy distance only).
         """
         if not frontier_data:
-            return node_acc  
+            return node_acc
 
         # Sort frontier by cost (ascending)
         frontier_sorted = sorted(frontier_data, key=lambda x: x[1])  # Sort by cost
-        
+
         # Find the step function accuracy for this cost
-        step_function_accuracy = 0.0  # Default if cost is lower than all frontier points
-        
+        step_function_accuracy = (
+            0.0  # Default if cost is lower than all frontier points
+        )
+
         for fp_acc, fp_cost in frontier_sorted:
             if node_cost >= fp_cost:
                 # Cost is >= this frontier point's cost, so step function is at this accuracy
@@ -185,7 +174,7 @@ class ParetoFrontier:
             else:
                 # Cost is < this frontier point's cost, so we use the previous step
                 break
-        
+
         # Return the vertical (accuracy) distance to the step function
         vertical_distance = abs(node_acc - step_function_accuracy)
         return vertical_distance
@@ -205,16 +194,25 @@ class ParetoFrontier:
         if action in self.action_rewards:
             # Update cumulative reward sum
             self.action_rewards[action] += reward
-            
+
             # Track cost and accuracy changes
-            if node.parent and node.parent in self.plans_cost and node in self.plans_cost:
+            if (
+                node.parent
+                and node.parent in self.plans_cost
+                and node in self.plans_cost
+            ):
                 cost_change = self.plans_cost[node] - self.plans_cost[node.parent]
                 self.action_cost_changes[action] += cost_change
-                
-            if node.parent and node.parent in self.plans_accuracy and node in self.plans_accuracy:
-                accuracy_change = self.plans_accuracy[node] - self.plans_accuracy[node.parent]
-                self.action_accuracy_changes[action] += accuracy_change
 
+            if (
+                node.parent
+                and node.parent in self.plans_accuracy
+                and node in self.plans_accuracy
+            ):
+                accuracy_change = (
+                    self.plans_accuracy[node] - self.plans_accuracy[node.parent]
+                )
+                self.action_accuracy_changes[action] += accuracy_change
 
     def update_pareto_frontier_HV(self, new_node) -> Tuple[Dict[Node, int], bool]:
         """
@@ -285,7 +283,7 @@ class ParetoFrontier:
                 self.node_distances[node] = vertical_distance_to_old
                 # Update action rewards
                 self._update_action_rewards(node, vertical_distance_to_old)
-                
+
             elif (node not in new_frontier_set and node in old_frontier_set) or (
                 node.id == new_node.id
             ):
@@ -310,7 +308,7 @@ class ParetoFrontier:
                 distance_diff = -vertical_distance - old_distance
                 affected_nodes[node] = distance_diff
                 # Update node distances - negative for off frontier
-                self.node_distances[node] = -vertical_distance      
+                self.node_distances[node] = -vertical_distance
 
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
@@ -400,17 +398,17 @@ class ParetoFrontier:
     def __contains__(self, node: Node) -> bool:
         """Check if plan is managed by this frontier."""
         return node in self.plans
-    
+
     def delete_plan(self, node: Node) -> None:
         """
         Completely delete a node from all ParetoFrontier data structures.
         """
         if node in self.plans:
             self.plans.remove(node)
-        
+
         accuracy = self.plans_accuracy.pop(node, None)
         cost = self.plans_cost.pop(node, None)
-        
+
         if node in self.frontier_plans:
             self.frontier_plans.remove(node)
             if accuracy is not None and cost is not None:
@@ -418,5 +416,5 @@ class ParetoFrontier:
                     self.frontier_data.remove([accuracy, cost])
                 except ValueError:
                     pass
-        
+
         self.node_distances.pop(node, None)

@@ -4,27 +4,23 @@ Utility functions for MCTS implementation.
 This module contains helper functions and utilities used by the MCTS algorithm
 but not core to the MCTS structure itself.
 """
+
 import json
 import math
 import os
-import re
 import time
-from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-import litellm
-import yaml
 from pydantic import BaseModel
 
 from docetl.reasoning_optimizer.directives import (
     DIRECTIVE_GROUPS,
     Directive,
-    get_all_directive_strings,
     get_all_cost_directive_strings,
+    get_all_directive_strings,
 )
 from docetl.reasoning_optimizer.load_data import load_input_doc
-from docetl.reasoning_optimizer.op_descriptions import *
-from .Node import Node
+from docetl.reasoning_optimizer.op_descriptions import *  # noqa: F403, F405
 
 # Maximum number of tokens we will allow in the prompt we send to the model.
 # The Azure GPT-5 family allows 272,000 tokens.
@@ -49,9 +45,9 @@ def trim_history(history: list, keep_system_first: bool = True) -> list:
     """Trim the conversation history in-place so its estimated token count
     (via ``count_tokens``) does not exceed ``MAX_CONTEXT_TOKENS``.
 
-    We always keep the very first system message and the first user message so the 
-    assistant retains the global instructions and the initial query context. After 
-    that we drop the oldest messages until the budget is satisfied. Returns the 
+    We always keep the very first system message and the first user message so the
+    assistant retains the global instructions and the initial query context. After
+    that we drop the oldest messages until the budget is satisfied. Returns the
     trimmed history list.
     """
 
@@ -83,10 +79,10 @@ def trim_history(history: list, keep_system_first: bool = True) -> list:
 def get_directive_group(directive_name: str) -> str:
     """
     Get the group name for a directive.
-    
+
     Args:
         directive_name: Name of the directive
-        
+
     Returns:
         Group name if found, None otherwise
     """
@@ -141,7 +137,7 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
 
 def fix_models(parsed_yaml):
     """Fix model names based on model type (GPT -> Azure, Gemini -> Gemini provider)."""
-    
+
     def get_model_type(model_name):
         """Determine model type from model name."""
         if model_name.startswith("gpt"):
@@ -150,13 +146,15 @@ def fix_models(parsed_yaml):
             return "gemini"
         else:
             return "unknown"
-    
+
     def traverse(obj):
         if isinstance(obj, dict):
             for key, value in obj.items():
-                if (key == "model" or key == "default_model") and isinstance(value, str):
+                if (key == "model" or key == "default_model") and isinstance(
+                    value, str
+                ):
                     model_type = get_model_type(value)
-                    
+
                     if model_type == "azure" and not value.startswith("azure"):
                         obj[key] = f"azure/{value}"
                     elif model_type == "gemini" and not value.startswith("gemini/"):
@@ -168,51 +166,61 @@ def fix_models(parsed_yaml):
                 traverse(item)
 
     traverse(parsed_yaml)
-        
+
 
 def is_fully_explored(node, max_children_multiplier: float = 1.0) -> bool:
     """Check if a node has been fully explored based on visit count."""
     if node.parent is None:
         return True
-    allowed_children = max(2, 1 + math.floor(math.sqrt(float(node.visits)) * max_children_multiplier))
-    
+    allowed_children = max(
+        2, 1 + math.floor(math.sqrt(float(node.visits)) * max_children_multiplier)
+    )
+
     # Not only check the number of children, but also ensure all children have been simulated
     # A child is considered simulated if it has been visited at least once (visits > 0)
     # This ensures that children created but not yet simulated won't cause the parent to be considered fully explored
     if len(node.children) < allowed_children:
         return False
-    
+
     # Check if all children have been simulated (visited at least once)
     # This prevents selecting children that were just created but not yet simulated
     for child in node.children:
         if child.visits == 0:
             # This child hasn't been selected/simulated yet, so parent is not fully explored
             return False
-    
+
     return True
 
 
-def should_continue_search(iteration: int, max_iterations: int, start_time: float, 
-                          max_time: Optional[float] = None) -> bool:
+def should_continue_search(
+    iteration: int,
+    max_iterations: int,
+    start_time: float,
+    max_time: Optional[float] = None,
+) -> bool:
     """Determine if search should continue based on iteration count and time."""
     if iteration >= max_iterations:
         return False
-    
+
     if max_time is not None:
         elapsed_time = time.time() - start_time
         if elapsed_time >= max_time:
             return False
-    
+
     return True
 
 
-def calculate_ucb1(node, parent_visits: int, exploration_constant: float = math.sqrt(2)) -> float:
+def calculate_ucb1(
+    node, parent_visits: int, exploration_constant: float = math.sqrt(2)
+) -> float:
     """Calculate UCB1 value for node selection."""
     if node.visits == 0:
-        return float('inf')
-    
+        return float("inf")
+
     exploitation = node.value / node.visits
-    exploration = exploration_constant * math.sqrt(math.log(parent_visits) / node.visits)
+    exploration = exploration_constant * math.sqrt(
+        math.log(parent_visits) / node.visits
+    )
     return exploitation + exploration
 
 
@@ -220,15 +228,15 @@ def print_tree_visits_and_values(node=None, depth=0, file_handle=None):
     """Print tree structure with visit counts and values."""
     if node is None:
         return
-        
+
     indent = "  " * depth
     node_info = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value:.4f}"
-    
+
     if file_handle:
         file_handle.write(node_info + "\n")
     else:
         print(node_info)
-        
+
     for child in node.children:
         print_tree_visits_and_values(child, depth + 1, file_handle)
 
@@ -236,16 +244,31 @@ def print_tree_visits_and_values(node=None, depth=0, file_handle=None):
 def log_tree_to_file(root_node, iteration_num, output_dir="./outputs"):
     """Log the tree structure to a file."""
     log_file_path = os.path.join(output_dir, f"moar_tree_iteration_{iteration_num}.txt")
-    
+
     with open(log_file_path, "w") as f:
         f.write(f"MOAR Tree Structure - Iteration {iteration_num}\n")
         f.write("=" * 50 + "\n")
         print_tree_visits_and_values(root_node, file_handle=f)
 
 
-def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None, model_stats=None, available_models=None) -> tuple[str, str]:
+def create_expansion_prompt_acc(
+    node,
+    action_options,
+    input_query,
+    available_actions,
+    action_cost_changes,
+    action_accuracy_changes,
+    action_counts,
+    sample_input,
+    root_node,
+    yaml_file_path,
+    dataset=None,
+    node_accuracies=None,
+    model_stats=None,
+    available_models=None,
+) -> tuple[str, str]:
     """Create expansion prompt for accuracy optimization."""
-    
+
     # Use provided available_models list, or extract from model_stats as fallback
     if available_models:
         available_models_list = available_models
@@ -253,7 +276,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
         available_models_list = list(model_stats.keys())
     else:
         available_models_list = []
-    
+
     availabel_actions_str = ""
     for item in action_options:
         op_name = item[0]
@@ -266,7 +289,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
         cost_change = action_cost_changes.get(action, 0)
         accuracy_change = action_accuracy_changes.get(action, 0)
         count = action_counts.get(action, 0)
-        
+
         if count > 0:
             avg_cost_change = cost_change / count
             avg_accuracy_change = accuracy_change / count
@@ -327,7 +350,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     Selection Strategy:
     Consider the current query pipeline, which directive can best improve the accuracy.
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
-    - Actions with 0 uses have unknown potential, so you should explore them if applicable. 
+    - Actions with 0 uses have unknown potential, so you should explore them if applicable.
     - fusion directives are helpful
     - Consider both immediate improvement and learning about the action space
 
@@ -341,24 +364,39 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     The original query in YAML format using our operations: {input_query} \n
     The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
     """
-    
+
     # Create a condensed version for message history (without full operator/directive descriptions)
     condensed_user_message = f"""
     Recommend one specific rewrite directive for accuracy optimization.
-    
+
     Valid choices:
     {availabel_actions_str}
-    
+
     Action Performance History:
     {action_stats_str}
-    
-    Current pipeline: {input_query} 
+
+    Current pipeline: {input_query}
     """
-    
+
     return user_message, condensed_user_message
 
 
-def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None, model_stats=None, available_models=None) -> tuple[str, str]:
+def create_expansion_prompt_cost(
+    node,
+    action_options,
+    input_query,
+    available_actions,
+    action_cost_changes,
+    action_accuracy_changes,
+    action_counts,
+    sample_input,
+    root_node,
+    yaml_file_path,
+    dataset=None,
+    node_accuracies=None,
+    model_stats=None,
+    available_models=None,
+) -> tuple[str, str]:
     """Create expansion prompt for cost optimization."""
 
     # Use provided available_models list, or extract from model_stats as fallback
@@ -381,7 +419,7 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
         cost_change = action_cost_changes.get(action, 0)
         accuracy_change = action_accuracy_changes.get(action, 0)
         count = action_counts.get(action, 0)
-        
+
         if count > 0:
             avg_cost_change = cost_change / count
             avg_accuracy_change = accuracy_change / count
@@ -394,7 +432,6 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
             )
 
     action_stats_str = "\n".join(action_stats)
-
 
     input_schema = load_input_doc(yaml_file_path)
 
@@ -441,7 +478,7 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     These show the accuracy (acc) and cost for each model. Only reference this when evaluating model change options.
 
     Selection Strategy:
-    Consider the current query pipeline, which directive can best improve cost effectiveness. 
+    Consider the current query pipeline, which directive can best improve cost effectiveness.
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
     - Actions with 0 uses have unknown potential, so you should explore them if applicable.
     - fusion directives are helpful
@@ -456,17 +493,17 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     The original query in YAML format using our operations: {input_query} \n
     The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
     """
-    
+
     condensed_user_message = f"""
     Recommend one specific rewrite directive for cost optimization.
-    
+
     Valid choices:
     {availabel_actions_str}
-    
+
     Action Performance History:
     {action_stats_str}
-    
+
     Current pipeline: {input_query}
     """
-    
+
     return user_message, condensed_user_message

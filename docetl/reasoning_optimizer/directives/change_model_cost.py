@@ -12,11 +12,11 @@ from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiat
 def get_cheaper_models(current_model: str, model_stats: Dict = None) -> List[str]:
     """
     Get list of models that are cheaper than the current model.
-    
+
     Args:
         current_model: The current model name (may include "azure/" or "gemini/" prefix)
         model_stats: Dictionary of model statistics from MOARSearch
-    
+
     Returns:
         List of model names that are cheaper than current_model, sorted by cost (cheapest first)
     """
@@ -26,11 +26,11 @@ def get_cheaper_models(current_model: str, model_stats: Dict = None) -> List[str
     current_model_stats = model_stats.get(current_model)
     if current_model_stats is None:
         return []
-    
+
     current_cost = current_model_stats.get("cost")
     if current_cost is None:
         return []
-    
+
     cheaper_models = []
     for model, stats in model_stats.items():
         if not isinstance(stats, dict):
@@ -41,21 +41,28 @@ def get_cheaper_models(current_model: str, model_stats: Dict = None) -> List[str
 
     return cheaper_models
 
-from .base import (
-    AVAILABLE_MODELS,
+
+from .base import (  # noqa: E402
     MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS,
     Directive,
     DirectiveTestCase,
 )
 
 
-def create_model_specific_directives(current_model: str):
+def create_model_specific_directives(
+    current_model: str, allowed_model_list: List[str] = None
+):
     """Create model-specific directives for the current model."""
     directive = ChangeModelCostDirective(target_model=current_model)
     directive.name = f"change to {current_model}"
     directive.nl_description = f"Rewrites an operator to use the {current_model} model to optimize expenses while maintaining adequate performance."
-    directive.allowed_model_list = [current_model]  # Only allow this specific model
-    
+    if allowed_model_list is not None:
+        directive.allowed_model_list = allowed_model_list
+    else:
+        directive.allowed_model_list = [
+            current_model
+        ]  # Only allow this specific model if no list provided
+
     return directive
 
 
@@ -95,10 +102,10 @@ class ChangeModelCostDirective(Directive):
     )
 
     allowed_model_list: List[str] = Field(
-        default=AVAILABLE_MODELS,
+        default_factory=list,
         description="The allowed list of models to choose from",
     )
-    
+
     target_model: str = Field(
         default="",
         description="The specific target model for this directive instance",
@@ -182,12 +189,17 @@ class ChangeModelCostDirective(Directive):
     )
 
     def __eq__(self, other):
-        return isinstance(other, ChangeModelCostDirective) and self.target_model == other.target_model
+        return (
+            isinstance(other, ChangeModelCostDirective)
+            and self.target_model == other.target_model
+        )
 
     def __hash__(self):
         return hash(f"ChangeModelCostDirective_{self.target_model}")
 
-    def to_string_for_instantiate(self, original_op: Dict, dataset: str, model_stats: Dict = None) -> str:
+    def to_string_for_instantiate(
+        self, original_op: Dict, dataset: str, model_stats: Dict = None
+    ) -> str:
         """
         Generate a prompt for an agent to instantiate this directive for cost optimization.
 
@@ -202,7 +214,7 @@ class ChangeModelCostDirective(Directive):
         model_stats_str = ""
         if model_stats:
             model_stats_str = f"You have a list of model statistics on the task with the original query pipeline: \n {str(model_stats)}\n"
-        
+
         return (
             f"You are an expert at choosing the most cost-effective model for a given task while maintaining adequate performance.\n\n"
             f"Original Operation:\n"
@@ -254,7 +266,7 @@ class ChangeModelCostDirective(Directive):
         if self.target_model:
             schema = ChangeModelInstantiateSchema(model=self.target_model)
             return schema, message_history, 0.0
-        
+
         # Otherwise, use LLM to choose the model
         message_history.extend(
             [
@@ -264,7 +276,9 @@ class ChangeModelCostDirective(Directive):
                 },
                 {
                     "role": "user",
-                    "content": self.to_string_for_instantiate(original_op, dataset, model_stats),
+                    "content": self.to_string_for_instantiate(
+                        original_op, dataset, model_stats
+                    ),
                 },
             ]
         )
@@ -336,11 +350,12 @@ class ChangeModelCostDirective(Directive):
         global_default_model: str = None,
         dataset: str = None,
         model_stats: Dict = None,
+        allowed_model_list: List[str] = None,
         **kwargs,
     ):
         """
         Instantiate the directive for a list of operators.
-        
+
         Args:
             operators: List of operator configurations
             target_ops: List of target operation names
@@ -349,8 +364,13 @@ class ChangeModelCostDirective(Directive):
             global_default_model: Default model for the pipeline
             dataset: Dataset name
             model_stats: Dictionary of model statistics from MOARSearch (optional)
+            allowed_model_list: List of allowed models (optional)
             **kwargs: Additional keyword arguments
         """
+        # Update allowed_model_list if provided
+        if allowed_model_list is not None:
+            self.allowed_model_list = allowed_model_list
+
         new_ops_list = deepcopy(operators)
         inst_error = 0
         for target_op in target_ops:

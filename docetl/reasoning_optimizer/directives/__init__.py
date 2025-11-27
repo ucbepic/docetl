@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from .base import (
     Directive, 
     DirectiveTestCase, 
@@ -6,13 +6,12 @@ from .base import (
     MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS,
     DEFAULT_MODEL,
     DEFAULT_MAX_TPM,
-    AVAILABLE_MODELS,
     DEFAULT_OUTPUT_DIR
 )
 from .chaining import ChainingDirective
 from .gleaning import GleaningDirective
 from .change_model import ChangeModelDirective
-from .change_model_acc import ChangeModelAccDirective
+from .change_model_acc import ChangeModelAccDirective  # noqa: F401
 from .change_model_cost import ChangeModelCostDirective
 from .doc_summarization import DocSummarizationDirective
 from .isolating_subtasks import IsolatingSubtasksDirective
@@ -159,7 +158,6 @@ __all__ = [
     "MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS",
     "DEFAULT_MODEL",
     "DEFAULT_MAX_TPM", 
-    "AVAILABLE_MODELS",
     "DEFAULT_OUTPUT_DIR",
     "ChainingDirective",
     "GleaningDirective",

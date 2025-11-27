@@ -8,12 +8,7 @@ from pydantic import BaseModel, Field
 
 from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiateSchema
 
-from .base import (
-    AVAILABLE_MODELS,
-    MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS,
-    Directive,
-    DirectiveTestCase,
-)
+from .base import MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS, Directive, DirectiveTestCase
 
 
 class ChangeModelAccDirective(Directive):
@@ -52,7 +47,7 @@ class ChangeModelAccDirective(Directive):
     )
 
     allowed_model_list: List[str] = Field(
-        default=AVAILABLE_MODELS,
+        default_factory=list,
         description="The allowed list of models to choose from",
     )
 
@@ -276,11 +271,16 @@ class ChangeModelAccDirective(Directive):
         agent_llm: str,
         message_history: list = [],
         global_default_model: str = None,
+        allowed_model_list: List[str] = None,
         **kwargs,
     ):
         """
         Instantiate the directive for a list of operators.
         """
+        # Update allowed_model_list if provided
+        if allowed_model_list is not None:
+            self.allowed_model_list = allowed_model_list
+
         new_ops_list = deepcopy(operators)
         inst_error = 0
         for target_op in target_ops:

@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional
 
 from litellm import completion, model_cost
 from pydantic import BaseModel, Field
@@ -241,7 +241,7 @@ class AgenticDirectiveRunner:
 
     def run_agentic_loop(
         self, system_prompt: str, initial_user_message: str, response_schema: BaseModel
-        ):
+    ):
         """
         Run an agentic loop where the agent analyzes input data for directive instantiation.
 
@@ -254,7 +254,7 @@ class AgenticDirectiveRunner:
             Tuple of (parsed_response, message_history)
         """
         call_cost = 0.0
-       
+
         # Initialize message history
         self.message_history = [
             {"role": "system", "content": system_prompt},
@@ -464,7 +464,3 @@ Provide your response as a JSON object matching this schema: {response_schema.mo
         raise Exception(
             f"Failed to generate valid schema after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Error: {error_message}"
         )
-
-       
-
-   

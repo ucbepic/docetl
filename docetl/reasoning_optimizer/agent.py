@@ -15,7 +15,7 @@ from docetl.reasoning_optimizer.directives import (
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.utils import load_config
 
-from .op_descriptions import *
+from .op_descriptions import *  # noqa: F403, F405
 
 # argparse removed - use experiments/reasoning/run_baseline.py for CLI
 
@@ -272,7 +272,7 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
 
 def fix_models(parsed_yaml):
     """Fix model names based on model type (GPT -> Azure, Gemini -> Gemini provider)."""
-    
+
     def get_model_type(model_name):
         """Determine model type from model name."""
         if model_name.startswith("gpt"):
@@ -281,13 +281,13 @@ def fix_models(parsed_yaml):
             return "gemini"
         else:
             return "unknown"
-    
+
     def traverse(obj):
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if key == "model" and isinstance(value, str):
                     model_type = get_model_type(value)
-                    
+
                     if model_type == "azure" and not value.startswith("azure"):
                         obj[key] = f"azure/{value}"
                     elif model_type == "gemini" and not value.startswith("gemini/"):
@@ -539,7 +539,7 @@ def run_single_iteration(
         if os.path.exists(env_file):
             load_dotenv(env_file)
 
-        print(f"🔄 Executing pipeline to get cost and sample outputs...")
+        print("🔄 Executing pipeline to get cost and sample outputs...")
         runner = DSLRunner.from_yaml(output_file_path)
         runner.load()
 
@@ -549,7 +549,7 @@ def run_single_iteration(
             total_cost = runner.total_cost
             print(f"✅ Pipeline executed successfully, cost: ${total_cost:.4f}")
         else:
-            print(f"⚠️  No results from pipeline execution")
+            print("⚠️  No results from pipeline execution")
             raise Exception("No results from pipeline execution")
 
         runner.reset_env()

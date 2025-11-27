@@ -8,12 +8,7 @@ from pydantic import BaseModel, Field
 
 from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiateSchema
 
-from .base import (
-    AVAILABLE_MODELS,
-    MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS,
-    Directive,
-    DirectiveTestCase,
-)
+from .base import MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS, Directive, DirectiveTestCase
 
 
 class ChangeModelDirective(Directive):
@@ -51,7 +46,7 @@ class ChangeModelDirective(Directive):
     )
 
     allowed_model_list: List[str] = Field(
-        default=AVAILABLE_MODELS,
+        default_factory=list,
         description="The allowed list of models to choose from",
     )
 
@@ -64,21 +59,21 @@ class ChangeModelDirective(Directive):
 
             Input Tokens (1000s) | GPT-5   | GPT-5 nano   | GPT-4o mini
             ---------------------|---------|--------------|-------------------|
-            8                    | 99%     | 69%          | 32%               | 
-            16                   | 100%    | 64%          | 30%               | 
+            8                    | 99%     | 69%          | 32%               |
+            16                   | 100%    | 64%          | 30%               |
             32                   | 96%     | 55%          | 27%               |
-            64                   | 98%     | 45%          | 25%               | 
-            128                  | 97%     | 44%          | 25%               | 
-            256                  | 92%     | 40%          | -                 | 
-              
+            64                   | 98%     | 45%          | 25%               |
+            128                  | 97%     | 44%          | 25%               |
+            256                  | 92%     | 40%          | -                 |
+
 
             The context window and pricing details for each model are shown below (token prices are per 1 million tokens):
-            Model              | GPT-5-nano   | GPT-4o-mini | GPT-5     
+            Model              | GPT-5-nano   | GPT-4o-mini | GPT-5
             -------------------|--------------|-------------|----------
-            Context Window     | 400,000      | 128,000     | 400,000    
-            Max Output Tokens  | 128,000      | 16,384      | 128,000   
-            Input Token Price  | $0.05        | $0.15       | $1.25    
-            Output Token Price | $0.40        | $0.60       | $10    
+            Context Window     | 400,000      | 128,000     | 400,000
+            Max Output Tokens  | 128,000      | 16,384      | 128,000
+            Input Token Price  | $0.05        | $0.15       | $1.25
+            Output Token Price | $0.40        | $0.60       | $10
         """
         ),
     )
@@ -243,7 +238,7 @@ class ChangeModelDirective(Directive):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history, call_cost       
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -284,11 +279,16 @@ class ChangeModelDirective(Directive):
         message_history: list = [],
         optimize_goal="acc",
         global_default_model: str = None,
-        **kwargs
+        allowed_model_list: List[str] = None,
+        **kwargs,
     ):
         """
         Instantiate the directive for a list of operators.
         """
+        # Update allowed_model_list if provided
+        if allowed_model_list is not None:
+            self.allowed_model_list = allowed_model_list
+
         new_ops_list = deepcopy(operators)
         inst_error = 0
         for target_op in target_ops:
@@ -303,7 +303,7 @@ class ChangeModelDirective(Directive):
                     optimize_goal=optimize_goal,
                 )
                 print(rewrite)
-            except Exception as e:
+            except Exception:
                 inst_error += 1
             new_ops_list = self.apply(
                 global_default_model, new_ops_list, target_op, rewrite

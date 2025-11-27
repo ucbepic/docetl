@@ -16,7 +16,6 @@ from docetl.operations.unnest import UnnestOperation
 from docetl.operations.scan import ScanOperation
 from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
-from docetl.operations.topk import TopKOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -38,9 +37,7 @@ mapping = {
     "unnest": UnnestOperation,
     "scan": ScanOperation,
     "add_uuid": AddUuidOperation,
-    "extract": ExtractOperation,
-    "topk": TopKOperation,
-    "link_resolve": LinkResolveOperation
+    "extract": ExtractOperation
 }
 
 def get_operation(operation_type: str):

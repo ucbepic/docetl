@@ -1,13 +1,13 @@
 import json
 import os
-import time
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
+
 import litellm
 import yaml
-import threading
 
 from docetl.reasoning_optimizer.directives import (
     DIRECTIVE_GROUPS,
@@ -18,22 +18,12 @@ from docetl.reasoning_optimizer.directives.change_model_cost import (
     ChangeModelCostDirective,
     create_model_specific_directives,
 )
-from docetl.reasoning_optimizer.op_descriptions import *
+from docetl.reasoning_optimizer.op_descriptions import *  # noqa: F403, F405
 from docetl.utils import extract_output_from_json
+
 from .Node import Node
 from .ParetoFrontier import ParetoFrontier
-from .search_utils import *
-from pathlib import Path
-from experiments.reasoning.utils import VOLUME_MOUNT_PATH
-import sys
-sys.path.append("../../experiments/reasoning")
-try:
-    from experiments.reasoning.evaluation.utils import get_evaluate_func
-except ImportError:
-    sys.path.append(
-        os.path.join(os.path.dirname(__file__), "../../experiments/reasoning")
-    )
-    from evaluation.utils import get_evaluate_func
+from .search_utils import *  # noqa: F403, F405
 
 
 class MOARSearch:
@@ -53,12 +43,12 @@ class MOARSearch:
         dataset_stats: str,
         dataset_name: str,
         available_models: List[str],
+        evaluate_func: Callable,
         exploration_constant: float = 1.414,
         max_iterations: int = 20,
         model="gpt-5",
         output_dir: Optional[str] = None,
         build_first_layer: Optional[bool] = True,
-        custom_evaluate_func: Optional[Callable] = None,
         custom_metric_key: Optional[str] = None,
     ):
         """
@@ -66,27 +56,56 @@ class MOARSearch:
 
         Args:
             root_yaml_path: Path to the initial YAML configuration file
-            accuracy_comparator: Comparator for evaluating plan accuracy
             available_actions: List of available actions for expansion
+            sample_input: sample input data
+            dataset_stats: Statistics about the dataset
+            dataset_name: Name of the dataset
+            available_models: List of available model names
             exploration_constant: UCB exploration constant (default: sqrt(2))
             max_iterations: Maximum number of MOARSearch iterations
-            sample_input: sample input data
+            model: Model to use for agent LLM calls
             output_dir: Directory to save new pipeline files (None means same dir as original)
-            custom_evaluate_func: Custom evaluation function (method_name, results_file_path) -> dict
+            build_first_layer: Whether to build first layer nodes (default: True)
+            evaluate_func: Evaluation function (method_name: str, results_file_path: str) -> dict
             custom_metric_key: Key to extract from evaluation results dict for accuracy metric
         """
 
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.tree_lock = threading.RLock()
         self.max_concurrent_agents = 3
-        
+
         # Start with base available actions
         self.available_actions = set(available_actions)
+        self.available_models = available_models
+
+        # Update change model directives with available_models list
+        from docetl.reasoning_optimizer.directives.change_model import (
+            ChangeModelDirective,
+        )
+        from docetl.reasoning_optimizer.directives.change_model_acc import (
+            ChangeModelAccDirective,
+        )
+        from docetl.reasoning_optimizer.directives.change_model_cost import (
+            ChangeModelCostDirective,
+        )
+
+        for action in self.available_actions:
+            if isinstance(
+                action,
+                (
+                    ChangeModelDirective,
+                    ChangeModelAccDirective,
+                    ChangeModelCostDirective,
+                ),
+            ):
+                action.allowed_model_list = self.available_models
 
         # Initialize action tracking for all actions (base + model-specific)
         self.action_rewards = {action: 0.0 for action in self.available_actions}
         self.action_cost_changes = {action: 0.0 for action in self.available_actions}
-        self.action_accuracy_changes = {action: 0.0 for action in self.available_actions}
+        self.action_accuracy_changes = {
+            action: 0.0 for action in self.available_actions
+        }
         self.action_counts = {action: 0.0 for action in self.available_actions}
         self.exploration_constant = exploration_constant
         self.max_iterations = max_iterations
@@ -97,22 +116,19 @@ class MOARSearch:
         self.dataset_stats = dataset_stats
         self.dataset_name = dataset_name
         self.output_dir = output_dir
-        self.available_models = available_models
-        
+
         # Set up evaluation function and dataset metrics
-        if custom_evaluate_func is not None:
-            self.evaluate_func = custom_evaluate_func
-            if custom_metric_key is None:
-                raise ValueError("custom_metric_key must be provided when using custom_evaluate_func")
+        self.evaluate_func = evaluate_func
+
+        # Use predefined metric key for known datasets if custom_metric_key not provided
+        if custom_metric_key is not None:
             self.primary_metric_key = custom_metric_key
         else:
-            self.evaluate_func = get_evaluate_func(dataset_name, mode="train")
-            # Use predefined metric key for known datasets
             self.dataset_metrics = {
                 "cuad": "avg_f1",
                 "blackvault": "avg_distinct_locations",
                 "game_reviews": "weighted_score",
-                "medec": "combined_score", 
+                "medec": "combined_score",
                 "sustainability": "economic_activity_accuracy",
                 "biodex": "avg_rp_at_5",
             }
@@ -125,47 +141,52 @@ class MOARSearch:
 
         # Initialize log file (clear it)
         with open(self.log_path, "w", encoding="utf-8") as f:
-            f.write(f"Search Graph Visits and Values Log\n")
+            f.write("Search Graph Visits and Values Log\n")
             f.write(f"Root YAML: {root_yaml_path}\n")
             f.write(f"Max iterations: {max_iterations}\n")
             f.write(f"{'='*50}\n")
 
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(
-            self.action_rewards, self.action_cost_changes, 
-            self.action_accuracy_changes, dataset_name
+            self.action_rewards,
+            self.action_cost_changes,
+            self.action_accuracy_changes,
+            dataset_name,
+            self.evaluate_func,
         )
 
-        # Create comprehensive directive mapping 
+        # Create comprehensive directive mapping
         self.directive_name_to_obj = {
             action.name: action for action in self.available_actions
         }
-       
+
         # Track iterations without new Pareto optimal plans for early stopping
         self.iterations_without_improvement = 0
-        
+
         # Track total cost for all completion calls during search
         self.total_search_cost = 0.0
 
         self.model_stats = {}
         self.frontier_models = []
-        print(f"Building first layer nodes of the search graph")
+        print("Building first layer nodes of the search graph")
         # Initialization: build the first layer nodes of the search graph
         for model in self.available_models:
             new_yaml_file = deepcopy(self.root.parsed_yaml)
             new_yaml_file["default_model"] = model
             fix_models(new_yaml_file)
             if self.output_dir:
-                original_filename = os.path.basename(str(self.root.yaml_file_path)).removesuffix(".yaml")
+                original_filename = os.path.basename(
+                    str(self.root.yaml_file_path)
+                ).removesuffix(".yaml")
                 base_path = os.path.join(self.output_dir, original_filename)
                 os.makedirs(self.output_dir, exist_ok=True)
             else:
                 # Use same directory as original pipeline
                 base_path = str(self.root.yaml_file_path).removesuffix(".yaml")
-            
+
             new_yaml_path = f"{base_path}_{model}.yaml"
             new_yaml_file["pipeline"]["output"]["path"] = f"{base_path}_{model}.json"
-            
+
             with open(new_yaml_path, "w") as file:
                 yaml.dump(
                     new_yaml_file,
@@ -174,7 +195,7 @@ class MOARSearch:
                     allow_unicode=True,
                     sort_keys=False,
                 )
-            
+
             new_node = Node(yaml_file_path=new_yaml_path, parent=self.root)
             cost, accuracy = self.simulate(new_node)
             if cost == -1:
@@ -192,11 +213,11 @@ class MOARSearch:
         for child in self.root.children:
             if child not in self.pareto_frontier.frontier_plans:
                 children_to_remove.append(child)
-    
+
         for child in children_to_remove:
             self.pareto_frontier.delete_plan(child)
             child.delete()
-        
+
         # Process remaining frontier children (only those on the frontier)
         for child in self.root.children:
             if child not in self.pareto_frontier.frontier_plans:
@@ -207,15 +228,19 @@ class MOARSearch:
             child.value = 0
             child.visits = 1
 
-            model_specific_directive = create_model_specific_directives(child_model)
+            model_specific_directive = create_model_specific_directives(
+                child_model, self.available_models
+            )
             self.available_actions.add(model_specific_directive)
-            self.directive_name_to_obj[model_specific_directive.name] = model_specific_directive
+            self.directive_name_to_obj[model_specific_directive.name] = (
+                model_specific_directive
+            )
 
             action_name = "change to " + child_model
             action = self.directive_name_to_obj.get(action_name)
             child.latest_action = action
             child.sample_result = extract_output_from_json(child.yaml_file_path)
-            # Add memo entry for first layer nodes 
+            # Add memo entry for first layer nodes
             if child.op_dict:
                 first_op_name = list(child.op_dict.keys())[0]
                 child.add_memo_entry(action_name, first_op_name)
@@ -225,59 +250,67 @@ class MOARSearch:
                 for directive in self.available_actions:
                     if isinstance(directive, ChangeModelCostDirective):
                         child.mark_action_used(op_name, directive)
-        
+
         self.root.visits = len(self.root.children)
-        
+
         self.log_tree_to_file(0)
-        
+
         return
-        
 
     def evaluate_node(self, node: Node) -> float:
         """
         Evaluate a node's accuracy by running the evaluation function on its output.
-        
+
         Args:
             node: Node object representing the plan
-            
+
         Returns:
             The accuracy score for the node
         """
         if node.cost == -1:  # Handle error case
             return float("-inf")
-            
+
         result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
 
         try:
             results = self.evaluate_func("docetl_preprint", result_file_path)
 
             # Extract the appropriate metric based on dataset or custom metric key
-            if hasattr(self, 'primary_metric_key') and self.primary_metric_key:
+            if hasattr(self, "primary_metric_key") and self.primary_metric_key:
                 # Use custom metric key or predefined metric key
                 if self.primary_metric_key in results:
                     true_accuracy = results[self.primary_metric_key]
                 else:
                     # Fallback to first numerical value found if metric missing
                     true_accuracy = next(
-                        (v for v in results.values() if isinstance(v, (int, float))), 0.5
+                        (v for v in results.values() if isinstance(v, (int, float))),
+                        0.5,
                     )
             else:
                 # Fallback to first numerical value found if dataset unknown or metric missing
                 true_accuracy = next(
                     (v for v in results.values() if isinstance(v, (int, float))), 0.5
                 )
-                
+
         except Exception as e:
             print(f"⚠️ Evaluation failed for node {node.get_id()}: {e}")
             node._log_inf_occurrence("evaluation_failure", str(e), node.yaml_file_path)
             # Return -inf when evaluation fails, same as unexecutable plans
             return float("-inf")
-            
+
         # Guard against NaN values
-        if true_accuracy is None or (isinstance(true_accuracy, float) and (true_accuracy != true_accuracy)):  # NaN check
-            print(f"⚠️ Evaluation returned NaN for node {node.get_id()}, setting to -inf")
+        if true_accuracy is None or (
+            isinstance(true_accuracy, float) and (true_accuracy != true_accuracy)
+        ):  # NaN check
+            print(
+                f"⚠️ Evaluation returned NaN for node {node.get_id()}, setting to -inf"
+            )
             # Log -inf occurrence for debugging
-            node._log_inf_occurrence("nan_evaluation", f"Evaluation returned NaN or None: {true_accuracy}", node.yaml_file_path)
+            node._log_inf_occurrence(
+                "nan_evaluation",
+                f"Evaluation returned NaN or None: {true_accuracy}",
+                node.yaml_file_path,
+            )
             return float("-inf")
 
         return true_accuracy
@@ -292,18 +325,23 @@ class MOARSearch:
         self.start_time = time.time()
         self.iteration_count = 0
 
-        print(f"Starting concurrent MCTS search with {self.max_iterations} iterations and {self.max_concurrent_agents} agents...")
+        print(
+            f"Starting concurrent MCTS search with {self.max_iterations} iterations and {self.max_concurrent_agents} agents..."
+        )
 
         with ThreadPoolExecutor(max_workers=self.max_concurrent_agents) as executor:
             while self.should_continue():
                 # Submit up to max_concurrent_agents tasks
                 futures = []
-                agents_to_submit = min(self.max_concurrent_agents, self.max_iterations - self.iteration_count)
-                
+                agents_to_submit = min(
+                    self.max_concurrent_agents,
+                    self.max_iterations - self.iteration_count,
+                )
+
                 for _ in range(agents_to_submit):
                     future = executor.submit(self.search_iteration)
                     futures.append(future)
-                
+
                 # Wait for at least one agent to complete
                 for future in as_completed(futures):
                     try:
@@ -313,11 +351,11 @@ class MOARSearch:
                                 self.iteration_count += 1
                     except Exception as e:
                         print(f"Agent failed with error: {e}")
-                    
+
                     # Check if we should continue after each completion
                     if not self.should_continue():
                         break
-                
+
                 # Cancel remaining futures if stopping
                 if not self.should_continue():
                     for future in futures:
@@ -332,11 +370,10 @@ class MOARSearch:
 
         return frontier_plans
 
-
     def search_iteration(self):
         """Perform one complete MCTS iteration with thread safety."""
         thread_id = threading.current_thread().ident
-        
+
         # 1. Selection: Find the best leaf node (requires tree lock)
         dual_expand = False
         with self.tree_lock:
@@ -348,7 +385,6 @@ class MOARSearch:
                 self.increment_visits_up_tree(leaf)
             self.increment_visits_up_tree(leaf)
 
-
         # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
         with self.tree_lock:
             print(f"[Thread {thread_id}] EXPANSION")
@@ -357,34 +393,33 @@ class MOARSearch:
             if dual_expand:
                 print(f"[Thread {thread_id}] DUAL EXPANDING node {leaf.get_id()}")
                 try:
-                    acc_children =self.expand(leaf,"acc")
+                    acc_children = self.expand(leaf, "acc")
                     has_leaf_acc = 1
                 except RuntimeError as e:
                     print(e)
-                    has_leaf_acc= 0
+                    has_leaf_acc = 0
                 try:
-                    cost_children =self.expand(leaf,"cost")
+                    cost_children = self.expand(leaf, "cost")
                     has_leaf_cost = 1
                 except RuntimeError as e:
                     print(e)
-                    has_leaf_cost= 0
-            else: 
+                    has_leaf_cost = 0
+            else:
                 optimize_goal = self.get_optimize_goal(leaf)
                 if optimize_goal == "acc":
                     acc_children = self.expand(leaf, optimize_goal="acc")
                     has_leaf_acc = 1
-                    has_leaf_cost = 0  
+                    has_leaf_cost = 0
                 else:
                     cost_children = self.expand(leaf, optimize_goal="cost")
                     has_leaf_cost = 1
-                    has_leaf_acc = 0  
-
+                    has_leaf_acc = 0
 
         # 3. Simulation: Run simulations from the leaf
         is_frontier_updated = False
         if has_leaf_acc:
             is_frontier_updated = self._simulate_children(acc_children, "acc")
-            
+
         if has_leaf_cost:
             cost_frontier_updated = self._simulate_children(cost_children, "cost")
             is_frontier_updated = is_frontier_updated or cost_frontier_updated
@@ -397,72 +432,88 @@ class MOARSearch:
                 self.iterations_without_improvement += 1
 
             self.log_tree_to_file(self.iteration_count + 1)
-        
+
         success = has_leaf_acc or has_leaf_cost
-        print(f"[Thread {thread_id}] MCTS iteration completed: success={success}, has_leaf_acc={has_leaf_acc}, has_leaf_cost={has_leaf_cost}")
+        print(
+            f"[Thread {thread_id}] MCTS iteration completed: success={success}, has_leaf_acc={has_leaf_acc}, has_leaf_cost={has_leaf_cost}"
+        )
         return success
 
     def _simulate_children(self, children: List[Node], goal_type: str) -> bool:
         """
         Simulate a list of children and handle multi-instance vs single instance logic.
-        
+
         Args:
             children: List of child nodes to simulate
             goal_type: Type of goal ("acc" or "cost") for logging purposes
-            
+
         Returns:
             True if frontier was updated, False otherwise
         """
         is_frontier_updated = False
-        
+
         if len(children) > 1:
             print(f"Handling {len(children)} multi-instance candidates")
             candidate_results = []
-            
+
             # Simulate all candidates
             for num, candidate in enumerate(children):
                 cost, accuracy = self.simulate(candidate)
                 with self.tree_lock:
                     cost_to_add = max(cost, 0)
-                    print(f"💰 Adding multi-instance {goal_type} candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                    print(
+                        f"💰 Adding multi-instance {goal_type} candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})"
+                    )
                     self.total_search_cost += cost_to_add
-                print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
-                if cost != -1 and accuracy != float("-inf"):  
+                print(
+                    f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}"
+                )
+                if cost != -1 and accuracy != float("-inf"):
                     candidate_results.append((candidate, accuracy, cost))
                 else:
                     print(f"Multi-instance candidate {num} failed during simulation")
-            
+
             if candidate_results:
                 # Select the best candidate based on accuracy
-                best_candidate, best_accuracy, best_cost = max(candidate_results, key=lambda x: x[1])
-                print(f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}")
-                
+                best_candidate, best_accuracy, best_cost = max(
+                    candidate_results, key=lambda x: x[1]
+                )
+                print(
+                    f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}"
+                )
+
                 # Change the best candidate's ID back to a proper counter ID
                 old_id = best_candidate.get_id()
                 new_id = best_candidate.set_id_to_counter()
                 print(f"Updated best candidate ID from {old_id} to {new_id}")
-                
+
                 # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
                 for candidate in children:
                     if candidate != best_candidate:
                         candidate.delete(selected_node_final_id=new_id)
-                
+
                 # Process only the best candidate (requires tree lock for backprop)
-                affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
+                affected_nodes, is_frontier_updated = self.add_to_frontier(
+                    best_candidate, best_accuracy
+                )
                 with self.tree_lock:
                     self.backpropagate(affected_nodes, best_candidate)
             else:
-                print("No successful candidates found, deleting all multi-instance candidates")
+                print(
+                    "No successful candidates found, deleting all multi-instance candidates"
+                )
                 for candidate in children:
                     candidate.delete(selected_node_final_id=None)
-                
+
         else:
             # Single instantiations
             for child in children:
                 cost, accuracy = self.simulate(child)
                 with self.tree_lock:
                     cost_to_add = max(cost, 0)
-                    print(f"💰 Adding leaf {goal_type} simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                    print(
+                        f"💰 Adding leaf {goal_type} simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})"
+                    )
                     self.total_search_cost += cost_to_add
                 affected_nodes, temp_updated = self.add_to_frontier(child, accuracy)
                 if temp_updated:
@@ -470,7 +521,7 @@ class MOARSearch:
                 # Check if any node was added to the frontier (value = 1)
                 with self.tree_lock:
                     self.backpropagate(affected_nodes, child)
-        
+
         return is_frontier_updated
 
     def select(self, node: Node) -> Node:
@@ -491,76 +542,99 @@ class MOARSearch:
 
         return current
 
-
     def is_fully_explored(self, node: Node) -> bool:
         """Check if a node has been fully explored based on visit count."""
         return is_fully_explored(node)
 
-    def expansion_prompt_acc(self, node, action_options, input_query) -> tuple[str, str]:
+    def expansion_prompt_acc(
+        self, node, action_options, input_query
+    ) -> tuple[str, str]:
         return create_expansion_prompt_acc(
-            node, action_options, input_query, self.available_actions, 
-            self.action_cost_changes, self.action_accuracy_changes, self.action_counts, self.sample_input, 
-            self.root, node.yaml_file_path, self.dataset_name, self.pareto_frontier.plans_accuracy,
-            self.model_stats, self.available_models
+            node,
+            action_options,
+            input_query,
+            self.available_actions,
+            self.action_cost_changes,
+            self.action_accuracy_changes,
+            self.action_counts,
+            self.sample_input,
+            self.root,
+            node.yaml_file_path,
+            self.dataset_name,
+            self.pareto_frontier.plans_accuracy,
+            self.model_stats,
+            self.available_models,
         )
 
-    def expansion_prompt_cost(self, node, action_options, input_query) -> tuple[str, str]:
+    def expansion_prompt_cost(
+        self, node, action_options, input_query
+    ) -> tuple[str, str]:
         return create_expansion_prompt_cost(
-            node, action_options, input_query, self.available_actions,
-            self.action_cost_changes, self.action_accuracy_changes, self.action_counts, self.sample_input,
-            self.root, node.yaml_file_path, self.dataset_name, self.pareto_frontier.plans_accuracy,
-            self.model_stats, self.available_models
+            node,
+            action_options,
+            input_query,
+            self.available_actions,
+            self.action_cost_changes,
+            self.action_accuracy_changes,
+            self.action_counts,
+            self.sample_input,
+            self.root,
+            node.yaml_file_path,
+            self.dataset_name,
+            self.pareto_frontier.plans_accuracy,
+            self.model_stats,
+            self.available_models,
         )
 
     def is_first_layer_node(self, node: Node) -> bool:
         """
         Check if a node is a first layer node (direct child of root with model change action).
-        
+
         Args:
             node: Node to check
-            
+
         Returns:
             True if this is a first layer node, False otherwise
         """
         # First layer nodes are direct children of root
         if node.parent != self.root:
             return False
-        
+
         return True
 
     def get_optimize_goal(self, node: Node) -> str:
         """
         Determine the optimization goal based on the node's accuracy relative to other plans.
-        
+
         Args:
             node: Node to determine optimization goal for
-            
+
         Returns:
             "cost" for nodes in the top 50% accuracy plans, "acc" otherwise
         """
         if not self.pareto_frontier.plans_accuracy:
             # If no plans exist yet, optimize for accuracy
             return "acc"
-        
+
         # Get all accuracy values from tracked plans
         all_accuracies = list(self.pareto_frontier.plans_accuracy.values())
-        
+
         # Filter out invalid accuracies (negative infinity indicates failed plans)
         valid_accuracies = [acc for acc in all_accuracies if acc != float("-inf")]
-        
+
         if not valid_accuracies:
             # If no valid accuracies exist, optimize for accuracy
             return "acc"
-        
+
         # Calculate the 50th percentile threshold
         valid_accuracies.sort()
         n = len(valid_accuracies)
         percentile_50_index = n // 2  # This gives us the median (50th percentile)
         threshold = valid_accuracies[percentile_50_index]
-        
+
         # Get this node's accuracy (if it exists in the frontier)
         node_accuracy = self.pareto_frontier.plans_accuracy.get(node, float("-inf"))
-        
+
         # If node accuracy is above the 50th percentile, optimize for cost
         # Otherwise, optimize for accuracy
         if node_accuracy > threshold:
@@ -571,11 +645,11 @@ class MOARSearch:
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
         Expand a node with a specific optimization goal.
-        
+
         Args:
             node: Node to expand
             optimize_goal: The optimization goal to use
-            
+
         Returns:
             List of newly created child nodes
         """
@@ -604,27 +678,32 @@ class MOARSearch:
                     used_actions = node.used_actions[op_name]
                 else:
                     used_actions = set()
-                
+
                 # Get compression directives to exclude for code_map and extract operations
-                compression_exclusions = get_excluded_directives_for_operation(node, op_name)
-                
+                compression_exclusions = get_excluded_directives_for_operation(
+                    node, op_name
+                )
+
                 if last_op is None or last_op != op_name:
                     banned_directives = set()
-                
+
                 # Filter actions to only include cheaper models for cost optimization
                 op_config = node.op_dict[op_name]
                 current_model = op_config.get("model", "gpt-5")
                 dynamic_actions = []
-                
+
                 for directive in self.available_actions:
                     if isinstance(directive, ChangeModelCostDirective):
                         continue
                     else:
                         # Keep other directives as-is
                         dynamic_actions.append(directive)
-                
+
                 action_space = (
-                    set(dynamic_actions) - banned_directives - used_actions - compression_exclusions
+                    set(dynamic_actions)
+                    - banned_directives
+                    - used_actions
+                    - compression_exclusions
                 )  # The actions that are not used on this operator and not excluded by group
                 for action in action_space:
                     action_options.append((op_name, action.name))
@@ -644,10 +723,12 @@ class MOARSearch:
                     used_actions = node.used_actions[op_name]
                 else:
                     used_actions = set()
-                
+
                 # Get compression directives to exclude for code_map and extract operations
-                compression_exclusions = get_excluded_directives_for_operation(node, op_name)
-                
+                compression_exclusions = get_excluded_directives_for_operation(
+                    node, op_name
+                )
+
                 if last_op is None or last_op != op_name:
                     banned_directives = set()
 
@@ -657,13 +738,24 @@ class MOARSearch:
                 current_model = op_config.get("model", default_model)
                 dynamic_cost_directives = []
                 for directive in self.available_actions:
-                    if isinstance(directive, ChangeModelCostDirective) and directive.target_model:
-                        if self._is_cheaper_model(directive.target_model, current_model) and directive.target_model in self.frontier_models:
+                    if (
+                        isinstance(directive, ChangeModelCostDirective)
+                        and directive.target_model
+                    ):
+                        if (
+                            self._is_cheaper_model(
+                                directive.target_model, current_model
+                            )
+                            and directive.target_model in self.frontier_models
+                        ):
                             dynamic_cost_directives.append(directive)
                     else:
                         dynamic_cost_directives.append(directive)
                 action_space = (
-                    set(dynamic_cost_directives) - banned_directives - used_actions - compression_exclusions
+                    set(dynamic_cost_directives)
+                    - banned_directives
+                    - used_actions
+                    - compression_exclusions
                 )  # The cost actions that are not used on this operator and not excluded by group
                 for action in action_space:
                     action_options.append((op_name, action.name))
@@ -716,7 +808,9 @@ class MOARSearch:
             )
             call_cost = response._hidden_params["response_cost"]
             with self.tree_lock:
-                print(f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.total_search_cost:.4f})")
+                print(
+                    f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.total_search_cost:.4f})"
+                )
                 self.total_search_cost += call_cost
             reply = response.choices[0].message.content
 
@@ -731,7 +825,6 @@ class MOARSearch:
                 print(f"Failed to parse agent response: {e}")
                 retry_count += 1
                 continue
-
 
             # Check if directive is already used for this plan + target ops
             directive = self.directive_name_to_obj.get(directive_name)
@@ -779,24 +872,26 @@ class MOARSearch:
         # Mark action as used and increment use count immediately
         for target_op in target_op_list:
             node.mark_action_used(target_op, directive)
-        
+
         # Increment action count immediately to prevent race conditions
         self.action_counts[directive] += 1
 
         message_length = len(messages)
-        
+
         # Check if this directive supports multiple instantiations
         is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
         num_instantiations = 2 if is_multi_instance else 1
-        
-        print(f"Creating {num_instantiations} instantiation(s) for directive '{directive_name}'")
-        
+
+        print(
+            f"Creating {num_instantiations} instantiation(s) for directive '{directive_name}'"
+        )
+
         children = []
         instantiation_messages = messages.copy()
         for i in range(num_instantiations):
             try:
                 print(f"Creating instantiation {i+1}/{num_instantiations}")
-                
+
                 # For multi-instance directives, add variation to each instantiation
                 if is_multi_instance:
                     # Use accumulated message history (includes previous instantiations)
@@ -805,16 +900,11 @@ class MOARSearch:
                         variation_prompt = f"This is instantiation {i+1} of {num_instantiations} for the '{directive_name}' directive. Focus on creating a distinct approach by exploring different parameter combinations or implementation strategies. For example, you can try different models, different parameter settings (chunk size, top k, etc.), or different implementation strategies."
                     else:
                         variation_prompt = f"This is instantiation {i+1} of {num_instantiations} for the '{directive_name}' directive. Based on the previous {i} instantiation(s) shown above, create a DIFFERENT approach that explores alternative parameters, strategies, or implementations. AVOID repeating the exact same configs asthe previous instantiations."
-                    
-                    
+
                     # Insert variation context before the last user message
-                    variation_msg = {
-                        "role": "system",
-                        "content": variation_prompt
-                    }
+                    variation_msg = {"role": "system", "content": variation_prompt}
                     instantiation_messages.append(variation_msg)
 
-                
                 new_ops_list, updated_message_history, cost = directive.instantiate(
                     operators=node.parsed_yaml["operations"],
                     target_ops=target_op_list,
@@ -826,9 +916,12 @@ class MOARSearch:
                     pipeline_code=node.parsed_yaml,
                     dataset=self.dataset_name,
                     model_stats=self.model_stats,
+                    allowed_model_list=self.available_models,
                 )
                 with self.tree_lock:
-                    print(f"💰 Adding agent instantiation cost: ${cost:.4f} (total before: ${self.total_search_cost:.4f})")
+                    print(
+                        f"💰 Adding agent instantiation cost: ${cost:.4f} (total before: ${self.total_search_cost:.4f})"
+                    )
                     self.total_search_cost += cost
                 if new_ops_list is None:
                     print(f"Instantiation {i+1} failed: no ops list returned")
@@ -838,12 +931,22 @@ class MOARSearch:
 
                 # Create child node for this instantiation
                 # For multi-instance directives, use parent_id-instantiation_num format
-                custom_id = f"{node.get_id()}-{i+1}-{optimize_goal}" if is_multi_instance else None
-                child = self.instantiate_node(
-                    node, new_ops_list, directive_name, target_op_list, optimize_goal, 
-                    message_condensed + updated_message_history[message_length:], custom_id, is_multi_instance
+                custom_id = (
+                    f"{node.get_id()}-{i+1}-{optimize_goal}"
+                    if is_multi_instance
+                    else None
                 )
-                
+                child = self.instantiate_node(
+                    node,
+                    new_ops_list,
+                    directive_name,
+                    target_op_list,
+                    optimize_goal,
+                    message_condensed + updated_message_history[message_length:],
+                    custom_id,
+                    is_multi_instance,
+                )
+
                 children.append(child)
                 print(f"Instantiation {i+1} created successfully")
 
@@ -852,8 +955,10 @@ class MOARSearch:
                 continue
 
         if not children:
-            raise RuntimeError(f"All {num_instantiations} instantiation(s) failed for directive '{directive_name}'")
-        
+            raise RuntimeError(
+                f"All {num_instantiations} instantiation(s) failed for directive '{directive_name}'"
+            )
+
         return children
 
     def simulate(self, node: Node):
@@ -877,7 +982,9 @@ class MOARSearch:
         except Exception as e:
             print(f"Failed to execute plan for node {node.get_id()}: {str(e)}")
             # Log -inf occurrence for debugging
-            node._log_inf_occurrence("simulation_execution_failure", str(e), node.yaml_file_path)
+            node._log_inf_occurrence(
+                "simulation_execution_failure", str(e), node.yaml_file_path
+            )
             # Set cost to -1 to indicate failure (this is already done in Node.execute_plan)
             # Do not add failed plans to the frontier
             return cost, accuracy
@@ -886,13 +993,17 @@ class MOARSearch:
         try:
             accuracy = self.evaluate_node(node)
             cost = node.cost
-            print(f"Node {node.get_id()} evaluation - cost: ${cost:.2f}, accuracy: {accuracy:.4f}")
+            print(
+                f"Node {node.get_id()} evaluation - cost: ${cost:.2f}, accuracy: {accuracy:.4f}"
+            )
         except Exception as e:
             print(f"Failed to evaluate plan for node {node.get_id()}: {str(e)}")
             # Log -inf occurrence for debugging
-            node._log_inf_occurrence("simulation_evaluation_failure", str(e), node.yaml_file_path)
+            node._log_inf_occurrence(
+                "simulation_evaluation_failure", str(e), node.yaml_file_path
+            )
             return cost, accuracy
-        
+
         return cost, accuracy
 
     def add_to_frontier(self, node: Node, accuracy: float):
@@ -900,8 +1011,10 @@ class MOARSearch:
         if node.cost == -1 and node.latest_action in self.action_counts:
             self.action_counts[node.latest_action] -= 1
 
-        # Step 3: Add to frontier 
-        affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node, accuracy)
+        # Step 3: Add to frontier
+        affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(
+            node, accuracy
+        )
         self.action_rewards = self.pareto_frontier.action_rewards
         self.action_cost_changes = self.pareto_frontier.action_cost_changes
         self.action_accuracy_changes = self.pareto_frontier.action_accuracy_changes
@@ -927,7 +1040,7 @@ class MOARSearch:
             while current is not None:
                 current.update_value(val)
                 current = current.parent
-        
+
         visit_node.update_visit()
 
     def should_continue(self) -> bool:
@@ -947,11 +1060,10 @@ class MOARSearch:
     def get_frontier_summary(self) -> List[Dict[str, Any]]:
         """Get summary of all plans in the Pareto frontier."""
         return self.pareto_frontier.get_all_plans_summary()
-    
+
     def _is_cheaper_model(self, target_model: str, current_model: str) -> bool:
         """Check if target_model is cheaper than current_model for this dataset."""
-        
-        dataset_costs = self.model_stats
+
         # Remove 'azure/' or 'gemini/' prefix from current_model if present
         if current_model.startswith("azure/"):
             current_model = current_model[len("azure/") :]
@@ -962,13 +1074,13 @@ class MOARSearch:
             target_model = target_model[len("azure/") :]
         if target_model.startswith("gemini/"):
             target_model = target_model[len("gemini/") :]
-            
+
         current_cost = self.model_stats.get(current_model)["cost"]
         target_cost = self.model_stats.get(target_model)["cost"]
 
         if current_cost is None or target_cost is None:
             return False
-            
+
         return target_cost < current_cost
 
     def print_tree_visits_and_values(self, node=None, depth=0, file_handle=None):
@@ -1012,28 +1124,40 @@ class MOARSearch:
             f.write(f"{'='*50}\n")
 
             # Add action performance statistics
-            f.write(f"Action Performance Statistics:\n")
+            f.write("Action Performance Statistics:\n")
             for action in self.available_actions:
                 cost_change = self.action_cost_changes.get(action, 0)
                 accuracy_change = self.action_accuracy_changes.get(action, 0)
                 count = self.action_counts.get(action, 0)
-                
+
                 if count > 0:
                     avg_cost_change = cost_change / count
                     avg_accuracy_change = accuracy_change / count
-                    f.write(f"- {action.name}: {count} uses, avg change in cost: {avg_cost_change:+.2f}, avg change in accuracy: {avg_accuracy_change:+.4f}\n")
+                    f.write(
+                        f"- {action.name}: {count} uses, avg change in cost: {avg_cost_change:+.2f}, avg change in accuracy: {avg_accuracy_change:+.4f}\n"
+                    )
                 else:
-                    f.write(f"- {action.name}: {count} uses, avg change in cost: Unknown (never tried), avg change in accuracy: Unknown (never tried)\n")
-            f.write(f"\n")
+                    f.write(
+                        f"- {action.name}: {count} uses, avg change in cost: Unknown (never tried), avg change in accuracy: Unknown (never tried)\n"
+                    )
+            f.write("\n")
 
             # Add tree structure
-            f.write(f"Tree Structure:\n")
+            f.write("Tree Structure:\n")
             self.print_tree_visits_and_values(file_handle=f)
-            f.write(f"\n")
+            f.write("\n")
             f.write(f"Total search cost: ${self.total_search_cost:.2f}\n")
 
     def instantiate_node(
-        self, node, new_ops_list, directive_name, target_op_list, optimize_goal, message_condensed, custom_id=None, is_multi_instance=False
+        self,
+        node,
+        new_ops_list,
+        directive_name,
+        target_op_list,
+        optimize_goal,
+        message_condensed,
+        custom_id=None,
+        is_multi_instance=False,
     ):
         """
         Instantiate a new child node by applying the directive to the given node and target operations.
@@ -1050,9 +1174,7 @@ class MOARSearch:
         new_parsed_yaml = deepcopy(node.parsed_yaml)
         new_parsed_yaml["operations"] = new_ops_list
         new_parsed_yaml["bypass_cache"] = True
-        new_parsed_yaml = update_pipeline(
-            new_parsed_yaml, new_ops_list, target_op_list
-        )
+        new_parsed_yaml = update_pipeline(new_parsed_yaml, new_ops_list, target_op_list)
 
         fix_models(new_parsed_yaml)
 
@@ -1061,12 +1183,14 @@ class MOARSearch:
             node_id_for_file = custom_id
         else:
             node_id_for_file = Node.get_next_id()
-        
+
         # Determine where to save the new pipeline file
         if self.output_dir:
             # Use output directory with original filename as base (strip existing node IDs)
-            original_filename = os.path.basename(str(node.yaml_file_path)).removesuffix(".yaml")
-            # Remove any existing node ID suffix 
+            original_filename = os.path.basename(str(node.yaml_file_path)).removesuffix(
+                ".yaml"
+            )
+            # Remove any existing node ID suffix
             if "_" in original_filename:
                 # Split and take only the first part before any underscores with numbers
                 parts = original_filename.split("_")
@@ -1083,7 +1207,6 @@ class MOARSearch:
             # Use same directory as original pipeline
             base_path = str(node.yaml_file_path).removesuffix(".yaml")
 
-
         new_yaml_path = f"{base_path}_{node_id_for_file}.yaml"
         new_parsed_yaml["pipeline"]["output"][
             "path"
@@ -1099,7 +1222,13 @@ class MOARSearch:
             )
 
         # generate the child node
-        child = Node(yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed, id=custom_id, is_multi_instance=is_multi_instance)
+        child = Node(
+            yaml_file_path=new_yaml_path,
+            parent=node,
+            message_history=message_condensed,
+            id=custom_id,
+            is_multi_instance=is_multi_instance,
+        )
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
 
@@ -1149,13 +1278,15 @@ class MOARSearch:
 
         # Check if this was a compression directive and mark newly generated operators
         # to exclude all compression directives from their action space
-        compression_directive_names = [d.name for d in DIRECTIVE_GROUPS.get("compression", [])]
+        compression_directive_names = [
+            d.name for d in DIRECTIVE_GROUPS.get("compression", [])
+        ]
         if directive_name in compression_directive_names:
             # Find newly created operators by comparing old and new operation lists
             old_op_names = {op["name"] for op in node.parsed_yaml["operations"]}
             new_op_names = {op["name"] for op in new_ops_list}
             newly_created_ops = new_op_names - old_op_names
-            
+
             # Mark all compression directives as "used" for newly created operators
             # This prevents compression directives from being applied to operators
             # that were themselves generated by compression directives

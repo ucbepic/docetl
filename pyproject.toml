@@ -138,3 +138,9 @@ disallow_untyped_defs = true
 exclude = ['docetl/tests*']
 ignore_missing_imports = true
 show_error_codes = true
+
+[tool.ruff]
+# Ignore F405 (undefined names from star imports) since we intentionally use star imports
+# in several places for convenience
+[tool.ruff.lint]
+ignore = ["F405"]

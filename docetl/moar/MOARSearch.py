@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 import litellm
 import yaml
 
+from docetl.console import DOCETL_CONSOLE
 from docetl.reasoning_optimizer.directives import (
     DIRECTIVE_GROUPS,
     MULTI_INSTANCE_DIRECTIVES,
@@ -70,7 +71,8 @@ class MOARSearch:
             custom_metric_key: Key to extract from evaluation results dict for accuracy metric
         """
 
-        self.root = Node(root_yaml_path, c=exploration_constant)
+        self.console = DOCETL_CONSOLE
+        self.root = Node(root_yaml_path, c=exploration_constant, console=self.console)
         self.tree_lock = threading.RLock()
         self.max_concurrent_agents = 3
 
@@ -153,6 +155,7 @@ class MOARSearch:
             self.action_accuracy_changes,
             dataset_name,
             self.evaluate_func,
+            console=self.console,
         )
 
         # Create comprehensive directive mapping
@@ -168,7 +171,9 @@ class MOARSearch:
 
         self.model_stats = {}
         self.frontier_models = []
-        print("Building first layer nodes of the search graph")
+        self.console.log(
+            "[bold blue]Building first layer nodes of the search graph[/bold blue]"
+        )
         # Initialization: build the first layer nodes of the search graph
         for model in self.available_models:
             new_yaml_file = deepcopy(self.root.parsed_yaml)
@@ -196,7 +201,9 @@ class MOARSearch:
                     sort_keys=False,
                 )
 
-            new_node = Node(yaml_file_path=new_yaml_path, parent=self.root)
+            new_node = Node(
+                yaml_file_path=new_yaml_path, parent=self.root, console=self.console
+            )
             cost, accuracy = self.simulate(new_node)
             if cost == -1:
                 new_node.delete()
@@ -293,7 +300,9 @@ class MOARSearch:
                 )
 
         except Exception as e:
-            print(f"⚠️ Evaluation failed for node {node.get_id()}: {e}")
+            self.console.log(
+                f"[yellow]⚠️ Evaluation failed for node {node.get_id()}: {e}[/yellow]"
+            )
             node._log_inf_occurrence("evaluation_failure", str(e), node.yaml_file_path)
             # Return -inf when evaluation fails, same as unexecutable plans
             return float("-inf")
@@ -302,8 +311,8 @@ class MOARSearch:
         if true_accuracy is None or (
             isinstance(true_accuracy, float) and (true_accuracy != true_accuracy)
         ):  # NaN check
-            print(
-                f"⚠️ Evaluation returned NaN for node {node.get_id()}, setting to -inf"
+            self.console.log(
+                f"[yellow]⚠️ Evaluation returned NaN for node {node.get_id()}, setting to -inf[/yellow]"
             )
             # Log -inf occurrence for debugging
             node._log_inf_occurrence(
@@ -325,8 +334,8 @@ class MOARSearch:
         self.start_time = time.time()
         self.iteration_count = 0
 
-        print(
-            f"Starting concurrent MCTS search with {self.max_iterations} iterations and {self.max_concurrent_agents} agents..."
+        self.console.log(
+            f"[bold blue]Starting concurrent MCTS search with {self.max_iterations} iterations and {self.max_concurrent_agents} agents...[/bold blue]"
         )
 
         with ThreadPoolExecutor(max_workers=self.max_concurrent_agents) as executor:
@@ -350,7 +359,9 @@ class MOARSearch:
                             with self.tree_lock:
                                 self.iteration_count += 1
                     except Exception as e:
-                        print(f"Agent failed with error: {e}")
+                        self.console.log(
+                            f"[bold red]Agent failed with error: {e}[/bold red]"
+                        )
 
                     # Check if we should continue after each completion
                     if not self.should_continue():
@@ -377,9 +388,11 @@ class MOARSearch:
         # 1. Selection: Find the best leaf node (requires tree lock)
         dual_expand = False
         with self.tree_lock:
-            print(f"[Thread {thread_id}] SELECTION")
+            self.console.log(f"[dim][Thread {thread_id}][/dim] [cyan]SELECTION[/cyan]")
             leaf = self.select(self.root)
-            print(f"[Thread {thread_id}] SELECTED NODE: {leaf.get_id()}")
+            self.console.log(
+                f"[dim][Thread {thread_id}][/dim] [cyan]SELECTED NODE:[/cyan] {leaf.get_id()}"
+            )
             if self.is_first_layer_node(leaf) and leaf.visits == 1:
                 dual_expand = True
                 self.increment_visits_up_tree(leaf)
@@ -387,22 +400,26 @@ class MOARSearch:
 
         # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
         with self.tree_lock:
-            print(f"[Thread {thread_id}] EXPANSION")
+            self.console.log(
+                f"[dim][Thread {thread_id}][/dim] [magenta]EXPANSION[/magenta]"
+            )
             acc_children = []
             cost_children = []
             if dual_expand:
-                print(f"[Thread {thread_id}] DUAL EXPANDING node {leaf.get_id()}")
+                self.console.log(
+                    f"[dim][Thread {thread_id}][/dim] [magenta]DUAL EXPANDING node {leaf.get_id()}[/magenta]"
+                )
                 try:
                     acc_children = self.expand(leaf, "acc")
                     has_leaf_acc = 1
                 except RuntimeError as e:
-                    print(e)
+                    self.console.log(f"[yellow]{e}[/yellow]")
                     has_leaf_acc = 0
                 try:
                     cost_children = self.expand(leaf, "cost")
                     has_leaf_cost = 1
                 except RuntimeError as e:
-                    print(e)
+                    self.console.log(f"[yellow]{e}[/yellow]")
                     has_leaf_cost = 0
             else:
                 optimize_goal = self.get_optimize_goal(leaf)
@@ -434,8 +451,8 @@ class MOARSearch:
             self.log_tree_to_file(self.iteration_count + 1)
 
         success = has_leaf_acc or has_leaf_cost
-        print(
-            f"[Thread {thread_id}] MCTS iteration completed: success={success}, has_leaf_acc={has_leaf_acc}, has_leaf_cost={has_leaf_cost}"
+        self.console.log(
+            f"[dim][Thread {thread_id}][/dim] [green]MCTS iteration completed:[/green] success={success}, has_leaf_acc={has_leaf_acc}, has_leaf_cost={has_leaf_cost}"
         )
         return success
 
@@ -453,7 +470,9 @@ class MOARSearch:
         is_frontier_updated = False
 
         if len(children) > 1:
-            print(f"Handling {len(children)} multi-instance candidates")
+            self.console.log(
+                f"[bold blue]Handling {len(children)} multi-instance candidates[/bold blue]"
+            )
             candidate_results = []
 
             # Simulate all candidates
@@ -461,31 +480,35 @@ class MOARSearch:
                 cost, accuracy = self.simulate(candidate)
                 with self.tree_lock:
                     cost_to_add = max(cost, 0)
-                    print(
-                        f"💰 Adding multi-instance {goal_type} candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})"
+                    self.console.log(
+                        f"[green]💰 Adding multi-instance {goal_type} candidate cost:[/green] ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})"
                     )
                     self.total_search_cost += cost_to_add
-                print(
-                    f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}"
+                self.console.log(
+                    f"[dim]Multi-instance candidate {num} - Cost:[/dim] ${cost:.2f}, [dim]Accuracy:[/dim] {accuracy:.4f}"
                 )
                 if cost != -1 and accuracy != float("-inf"):
                     candidate_results.append((candidate, accuracy, cost))
                 else:
-                    print(f"Multi-instance candidate {num} failed during simulation")
+                    self.console.log(
+                        f"[yellow]Multi-instance candidate {num} failed during simulation[/yellow]"
+                    )
 
             if candidate_results:
                 # Select the best candidate based on accuracy
                 best_candidate, best_accuracy, best_cost = max(
                     candidate_results, key=lambda x: x[1]
                 )
-                print(
-                    f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}"
+                self.console.log(
+                    f"[bold green]Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}[/bold green]"
                 )
 
                 # Change the best candidate's ID back to a proper counter ID
                 old_id = best_candidate.get_id()
                 new_id = best_candidate.set_id_to_counter()
-                print(f"Updated best candidate ID from {old_id} to {new_id}")
+                self.console.log(
+                    f"[dim]Updated best candidate ID from {old_id} to {new_id}[/dim]"
+                )
 
                 # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
                 for candidate in children:
@@ -499,8 +522,8 @@ class MOARSearch:
                 with self.tree_lock:
                     self.backpropagate(affected_nodes, best_candidate)
             else:
-                print(
-                    "No successful candidates found, deleting all multi-instance candidates"
+                self.console.log(
+                    "[yellow]No successful candidates found, deleting all multi-instance candidates[/yellow]"
                 )
                 for candidate in children:
                     candidate.delete(selected_node_final_id=None)
@@ -511,8 +534,8 @@ class MOARSearch:
                 cost, accuracy = self.simulate(child)
                 with self.tree_lock:
                     cost_to_add = max(cost, 0)
-                    print(
-                        f"💰 Adding leaf {goal_type} simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})"
+                    self.console.log(
+                        f"[green]💰 Adding leaf {goal_type} simulation:[/green] ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})"
                     )
                     self.total_search_cost += cost_to_add
                 affected_nodes, temp_updated = self.add_to_frontier(child, accuracy)
@@ -537,7 +560,9 @@ class MOARSearch:
         current = node
 
         while self.is_fully_explored(current):
-            print(f"Node {current.get_id()} is fully explored, selecting best child")
+            self.console.log(
+                f"[dim]Node {current.get_id()} is fully explored, selecting best child[/dim]"
+            )
             current = current.best_child()
 
         return current
@@ -711,7 +736,7 @@ class MOARSearch:
                 raise RuntimeError(
                     "No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable."
                 )
-            print("OPTIMIZING ACC:")
+            self.console.log("[bold cyan]OPTIMIZING ACC:[/bold cyan]")
             user_message, condensed_user_message = self.expansion_prompt_acc(
                 node, action_options=action_options, input_query=node.parsed_yaml
             )
@@ -808,8 +833,8 @@ class MOARSearch:
             )
             call_cost = response._hidden_params["response_cost"]
             with self.tree_lock:
-                print(
-                    f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.total_search_cost:.4f})"
+                self.console.log(
+                    f"[green]💰 Adding LLM call cost:[/green] ${call_cost:.4f} (total before: ${self.total_search_cost:.4f})"
                 )
                 self.total_search_cost += call_cost
             reply = response.choices[0].message.content
@@ -818,18 +843,24 @@ class MOARSearch:
                 parsed = json.loads(reply)
                 directive_name = parsed.get("directive")
                 target_op_list = parsed.get("operators")
-                print(f"Directive: {directive_name}, Target ops: {target_op_list}")
+                self.console.log(
+                    f"[cyan]Directive:[/cyan] {directive_name}, [cyan]Target ops:[/cyan] {target_op_list}"
+                )
                 messages.append({"role": "assistant", "content": reply})
                 message_condensed.append({"role": "assistant", "content": reply})
             except Exception as e:
-                print(f"Failed to parse agent response: {e}")
+                self.console.log(
+                    f"[yellow]Failed to parse agent response: {e}[/yellow]"
+                )
                 retry_count += 1
                 continue
 
             # Check if directive is already used for this plan + target ops
             directive = self.directive_name_to_obj.get(directive_name)
             if directive is None:
-                print(f"Unknown directive name: {directive_name}")
+                self.console.log(
+                    f"[yellow]Unknown directive name: {directive_name}[/yellow]"
+                )
                 retry_count += 1
                 continue
 
@@ -842,8 +873,8 @@ class MOARSearch:
 
             if already_used:
                 retry_count += 1
-                print(
-                    f"Directive '{directive_name}' already used for these ops. Retry {retry_count}/{max_retries}"
+                self.console.log(
+                    f"[yellow]Directive '{directive_name}' already used for these ops. Retry {retry_count}/{max_retries}[/yellow]"
                 )
                 # Append feedback message as new user message
                 feedback_message = f"We have already tried the directive '{directive_name}' on these operators: {target_op_list}. Please pick another directive from the available options we listed in the previous message."
@@ -882,15 +913,17 @@ class MOARSearch:
         is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
         num_instantiations = 2 if is_multi_instance else 1
 
-        print(
-            f"Creating {num_instantiations} instantiation(s) for directive '{directive_name}'"
+        self.console.log(
+            f"[bold blue]Creating {num_instantiations} instantiation(s) for directive '{directive_name}'[/bold blue]"
         )
 
         children = []
         instantiation_messages = messages.copy()
         for i in range(num_instantiations):
             try:
-                print(f"Creating instantiation {i+1}/{num_instantiations}")
+                self.console.log(
+                    f"[dim]Creating instantiation {i+1}/{num_instantiations}[/dim]"
+                )
 
                 # For multi-instance directives, add variation to each instantiation
                 if is_multi_instance:
@@ -919,12 +952,14 @@ class MOARSearch:
                     allowed_model_list=self.available_models,
                 )
                 with self.tree_lock:
-                    print(
-                        f"💰 Adding agent instantiation cost: ${cost:.4f} (total before: ${self.total_search_cost:.4f})"
+                    self.console.log(
+                        f"[green]💰 Adding agent instantiation cost:[/green] ${cost:.4f} (total before: ${self.total_search_cost:.4f})"
                     )
                     self.total_search_cost += cost
                 if new_ops_list is None:
-                    print(f"Instantiation {i+1} failed: no ops list returned")
+                    self.console.log(
+                        f"[yellow]Instantiation {i+1} failed: no ops list returned[/yellow]"
+                    )
                     continue
 
                 instantiation_messages = updated_message_history
@@ -948,10 +983,14 @@ class MOARSearch:
                 )
 
                 children.append(child)
-                print(f"Instantiation {i+1} created successfully")
+                self.console.log(
+                    f"[green]Instantiation {i+1} created successfully[/green]"
+                )
 
             except Exception as e:
-                print(f"Instantiation {i+1} failed with error: {str(e)}")
+                self.console.log(
+                    f"[yellow]Instantiation {i+1} failed with error: {str(e)}[/yellow]"
+                )
                 continue
 
         if not children:
@@ -974,13 +1013,17 @@ class MOARSearch:
 
         accuracy = float("-inf")
         cost = -1
-        print(f"Simulating node {node.get_id()}, {node.yaml_file_path}")
+        self.console.log(
+            f"[dim]Simulating node {node.get_id()}, {node.yaml_file_path}[/dim]"
+        )
 
         try:
             # Step 1: Execute the plan (this will set node.cost)
             node.execute_plan()
         except Exception as e:
-            print(f"Failed to execute plan for node {node.get_id()}: {str(e)}")
+            self.console.log(
+                f"[yellow]Failed to execute plan for node {node.get_id()}: {str(e)}[/yellow]"
+            )
             # Log -inf occurrence for debugging
             node._log_inf_occurrence(
                 "simulation_execution_failure", str(e), node.yaml_file_path
@@ -993,11 +1036,13 @@ class MOARSearch:
         try:
             accuracy = self.evaluate_node(node)
             cost = node.cost
-            print(
-                f"Node {node.get_id()} evaluation - cost: ${cost:.2f}, accuracy: {accuracy:.4f}"
+            self.console.log(
+                f"[green]Node {node.get_id()} evaluation -[/green] [dim]cost:[/dim] ${cost:.2f}, [dim]accuracy:[/dim] {accuracy:.4f}"
             )
         except Exception as e:
-            print(f"Failed to evaluate plan for node {node.get_id()}: {str(e)}")
+            self.console.log(
+                f"[yellow]Failed to evaluate plan for node {node.get_id()}: {str(e)}[/yellow]"
+            )
             # Log -inf occurrence for debugging
             node._log_inf_occurrence(
                 "simulation_evaluation_failure", str(e), node.yaml_file_path
@@ -1050,8 +1095,8 @@ class MOARSearch:
 
         # Early stopping: return False if last 10 iterations found no Pareto optimal plans
         if self.iterations_without_improvement >= 10:
-            print(
-                f"Early stopping: No Pareto optimal plans found in last {self.iterations_without_improvement} iterations"
+            self.console.log(
+                f"[yellow]Early stopping: No Pareto optimal plans found in last {self.iterations_without_improvement} iterations[/yellow]"
             )
             return False
 
@@ -1107,7 +1152,7 @@ class MOARSearch:
         if file_handle:
             file_handle.write(output + "\n")
         else:
-            print(output)
+            self.console.log(output)
 
         for child in node.children:
             self.print_tree_visits_and_values(child, depth + 1, file_handle)
@@ -1225,6 +1270,7 @@ class MOARSearch:
         child = Node(
             yaml_file_path=new_yaml_path,
             parent=node,
+            console=self.console,
             message_history=message_condensed,
             id=custom_id,
             is_multi_instance=is_multi_instance,

@@ -224,7 +224,7 @@ def calculate_ucb1(
     return exploitation + exploration
 
 
-def print_tree_visits_and_values(node=None, depth=0, file_handle=None):
+def print_tree_visits_and_values(node=None, depth=0, file_handle=None, console=None):
     """Print tree structure with visit counts and values."""
     if node is None:
         return
@@ -235,20 +235,24 @@ def print_tree_visits_and_values(node=None, depth=0, file_handle=None):
     if file_handle:
         file_handle.write(node_info + "\n")
     else:
-        print(node_info)
+        if console is None:
+            from docetl.console import DOCETL_CONSOLE
+
+            console = DOCETL_CONSOLE
+        console.log(node_info)
 
     for child in node.children:
-        print_tree_visits_and_values(child, depth + 1, file_handle)
+        print_tree_visits_and_values(child, depth + 1, file_handle, console)
 
 
-def log_tree_to_file(root_node, iteration_num, output_dir="./outputs"):
+def log_tree_to_file(root_node, iteration_num, output_dir="./outputs", console=None):
     """Log the tree structure to a file."""
     log_file_path = os.path.join(output_dir, f"moar_tree_iteration_{iteration_num}.txt")
 
     with open(log_file_path, "w") as f:
         f.write(f"MOAR Tree Structure - Iteration {iteration_num}\n")
         f.write("=" * 50 + "\n")
-        print_tree_visits_and_values(root_node, file_handle=f)
+        print_tree_visits_and_values(root_node, file_handle=f, console=console)
 
 
 def create_expansion_prompt_acc(

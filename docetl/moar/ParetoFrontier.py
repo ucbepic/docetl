@@ -25,6 +25,7 @@ class ParetoFrontier:
         action_accuracy_changes: Dict[str, float],
         dataset_name: str,
         evaluate_func: Callable[[str, str], Dict[str, Any]],
+        console=None,
     ):
         """
         Initialize the Pareto Frontier.
@@ -35,7 +36,11 @@ class ParetoFrontier:
             action_accuracy_changes: Reference to MCTS action_accuracy_changes dictionary
             dataset_name: Name of the dataset being optimized (for evaluation and metric selection)
             evaluate_func: Evaluation function (method_name: str, results_file_path: str) -> dict
+            console: Console instance for logging (default: None, uses DOCETL_CONSOLE)
         """
+        from docetl.console import DOCETL_CONSOLE
+
+        self.console = console if console is not None else DOCETL_CONSOLE
         self.dataset_name = dataset_name
         self.evaluate_func = evaluate_func
 
@@ -241,8 +246,8 @@ class ParetoFrontier:
                 real_cost = self.plans_cost[node]
                 archive_frontier_data.append([acc, real_cost])
             else:
-                print(
-                    f"INVALID NODE: {node.id}, cost: {node.cost}, in_valid_nodes: {node in valid_nodes}"
+                self.console.log(
+                    f"[yellow]INVALID NODE:[/yellow] {node.id}, [dim]cost:[/dim] {node.cost}, [dim]in_valid_nodes:[/dim] {node in valid_nodes}"
                 )
 
         frontier = []

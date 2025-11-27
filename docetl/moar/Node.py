@@ -58,6 +58,7 @@ class Node:
         message_history=[],
         id: Optional[int] = None,
         is_multi_instance: bool = False,
+        console=None,
     ):
         """
         Initialize a Node with YAML file information.
@@ -67,7 +68,11 @@ class Node:
             parent: Parent node in the search tree
             c: Exploration constant for UCB calculation (default: sqrt(2))
             is_multi_instance: Whether this node is a multi-instance candidate (default: False)
+            console: Console instance for logging (default: None, uses DOCETL_CONSOLE)
         """
+        from docetl.console import DOCETL_CONSOLE
+
+        self.console = console if console is not None else DOCETL_CONSOLE
         self.yaml_file_path = yaml_file_path
         self.parsed_yaml = self._load_yaml()
         # Where the JSON results will be written (if defined in the YAML). This is
@@ -129,7 +134,7 @@ class Node:
             Exception: If the pipeline execution fails.
         """
 
-        print("EXECUTING PLAN: ", self.yaml_file_path)
+        self.console.log(f"[dim]EXECUTING PLAN:[/dim] {self.yaml_file_path}")
 
         # Get the current working directory (where the user called the command)
         cwd = os.getcwd()
@@ -166,8 +171,8 @@ class Node:
             try:
                 self.sample_result = extract_output_from_json(self.yaml_file_path)[:1]
             except Exception as e:
-                print(
-                    f"Error extracting output from JSON for {self.yaml_file_path}: {e}"
+                self.console.log(
+                    f"[yellow]Error extracting output from JSON for {self.yaml_file_path}: {e}[/yellow]"
                 )
                 self.sample_result = []
 
@@ -194,7 +199,9 @@ class Node:
             with open(self.yaml_file_path, "r", encoding="utf-8") as file:
                 return yaml.safe_load(file)
         except Exception as e:
-            print(f"Error loading YAML file {self.yaml_file_path}: {e}")
+            self.console.log(
+                f"[yellow]Error loading YAML file {self.yaml_file_path}: {e}[/yellow]"
+            )
             return {}
 
     def best_child(self) -> Node:
@@ -217,8 +224,8 @@ class Node:
 
         # Print visits and value for each child
         for child in self.children:
-            print(
-                f"Child {child.yaml_file_path}: visits = {child.visits}, value = {child.value}"
+            self.console.log(
+                f"[dim]Child {child.yaml_file_path}: visits = {child.visits}, value = {child.value}[/dim]"
             )
 
         # Calculate UCB values for all children
@@ -288,8 +295,8 @@ class Node:
             or (isinstance(value, float) and (value != value))
             or value == float("-inf")
         ):  # NaN or -inf check
-            print(
-                f"⚠️ Skipping backpropagation of -inf / NaN value to node {self.get_id()}"
+            self.console.log(
+                f"[yellow]⚠️ Skipping backpropagation of -inf / NaN value to node {self.get_id()}[/yellow]"
             )
             # Log -inf occurrence for debugging
             self._log_inf_occurrence(
@@ -393,7 +400,9 @@ class Node:
                 f.write(log_entry)
 
         except Exception as log_error:
-            print(f"Warning: Failed to log -inf occurrence: {log_error}")
+            self.console.log(
+                f"[yellow]Warning: Failed to log -inf occurrence: {log_error}[/yellow]"
+            )
 
     def _rename_files_for_new_id(self, old_id, new_id):
         """
@@ -413,7 +422,9 @@ class Node:
                 os.rename(old_yaml_path, new_yaml_path)
                 self.yaml_file_path = new_yaml_path
         except Exception as e:
-            print(f"Warning: Could not rename YAML file from {old_id} to {new_id}: {e}")
+            self.console.log(
+                f"[yellow]Warning: Could not rename YAML file from {old_id} to {new_id}: {e}[/yellow]"
+            )
 
         try:
             # Rename output JSON file
@@ -438,8 +449,8 @@ class Node:
                             sort_keys=False,
                         )
         except Exception as e:
-            print(
-                f"Warning: Could not rename result file from {old_id} to {new_id}: {e}"
+            self.console.log(
+                f"[yellow]Warning: Could not rename result file from {old_id} to {new_id}: {e}[/yellow]"
             )
 
     def add_memo_entry(self, directive_name: str, target_operator: str):
@@ -664,8 +675,8 @@ class Node:
 
                 if os.path.exists(self.yaml_file_path):
                     os.rename(self.yaml_file_path, backup_yaml_path)
-                    print(
-                        f"Moved YAML to backup: {self.yaml_file_path} → {backup_yaml_path}"
+                    self.console.log(
+                        f"[dim]Moved YAML to backup:[/dim] {self.yaml_file_path} → {backup_yaml_path}"
                     )
 
                 # Move result JSON file
@@ -677,13 +688,13 @@ class Node:
                     backup_result_path = os.path.join(backup_dir, new_result_filename)
 
                     os.rename(self.result_path, backup_result_path)
-                    print(
-                        f"Moved result to backup: {self.result_path} → {backup_result_path}"
+                    self.console.log(
+                        f"[dim]Moved result to backup:[/dim] {self.result_path} → {backup_result_path}"
                     )
 
         except Exception as e:
-            print(
-                f"Warning: Could not backup files for multi-instance node {self.id}: {e}"
+            self.console.log(
+                f"[yellow]Warning: Could not backup files for multi-instance node {self.id}: {e}[/yellow]"
             )
             # Fall back to regular deletion if backup fails
             self._delete_files_permanently()
@@ -702,15 +713,23 @@ class Node:
                     for char in os.path.basename(str(self.yaml_file_path))
                 ):
                     os.remove(self.yaml_file_path)
-                    print(f"Deleted generated YAML file: {self.yaml_file_path}")
+                    self.console.log(
+                        f"[dim]Deleted generated YAML file:[/dim] {self.yaml_file_path}"
+                    )
         except Exception as e:
-            print(f"Warning: Could not delete YAML file {self.yaml_file_path}: {e}")
+            self.console.log(
+                f"[yellow]Warning: Could not delete YAML file {self.yaml_file_path}: {e}[/yellow]"
+            )
 
         try:
             if self.result_path and os.path.exists(self.result_path):
                 # Only delete if it looks like a generated file (contains numbers)
                 if any(char.isdigit() for char in os.path.basename(self.result_path)):
                     os.remove(self.result_path)
-                    print(f"Deleted generated result file: {self.result_path}")
+                    self.console.log(
+                        f"[dim]Deleted generated result file:[/dim] {self.result_path}"
+                    )
         except Exception as e:
-            print(f"Warning: Could not delete result file {self.result_path}: {e}")
+            self.console.log(
+                f"[yellow]Warning: Could not delete result file {self.result_path}: {e}[/yellow]"
+            )

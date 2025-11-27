@@ -11,7 +11,7 @@ from .cache import (
 )
 from .llm import LLMResult, InvalidOutputError, truncate_messages
 from .progress import RichLoopBar, rich_as_completed
-from .validation import safe_eval, convert_val, convert_dict_schema_to_list_schema, get_user_input_for_schema, strict_render
+from .validation import safe_eval, convert_val, convert_dict_schema_to_list_schema, get_user_input_for_schema, strict_render, validate_output_types
 
 __all__ = [
     'APIWrapper',
@@ -32,5 +32,6 @@ __all__ = [
     'convert_dict_schema_to_list_schema',
     'get_user_input_for_schema',
     'truncate_messages',
-    "strict_render"
+    "strict_render",
+    'validate_output_types'
 ] 

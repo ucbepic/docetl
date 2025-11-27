@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
@@ -17,8 +16,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Loader2, Sparkles, Upload, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  Loader2,
+  Sparkles,
+  Upload,
+  Trash2,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { File as FileType, Operation, OutputType } from "@/app/types";
 import { toast } from "@/hooks/use-toast";
 import { useDatasetUpload } from "@/hooks/useDatasetUpload";
@@ -85,6 +93,75 @@ const extractSampleData = (jsonData: unknown[], sampleSize = 5): string => {
   return formattedData;
 };
 
+const formatFileSize = (bytes?: number | null): string => {
+  if (!bytes || bytes <= 0) {
+    return "Unknown size";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  const exponent = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  );
+  const value = bytes / Math.pow(1024, exponent);
+  return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[exponent]}`;
+};
+
+const getFileExtension = (input?: string | null): string => {
+  if (!input) {
+    return "";
+  }
+  const lastSegment = input.split("/").pop() || input;
+  const parts = lastSegment.split(".");
+  if (parts.length < 2) {
+    return "";
+  }
+  return parts.pop()?.toLowerCase() || "";
+};
+
+const parseDatasetContent = (text: string, extension: string): unknown[] => {
+  if (extension === "csv") {
+    const lines = text.split("\n").map((line) => line.trim());
+    if (lines.length === 0) {
+      return [];
+    }
+    const headers = lines[0]
+      .split(",")
+      .map((header) => header.trim())
+      .filter(Boolean);
+    if (headers.length === 0) {
+      return [];
+    }
+    const rows: Record<string, string>[] = [];
+    for (let i = 1; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (!line) {
+        continue;
+      }
+      const values = line.split(",");
+      const record: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        record[header] = values[index]?.trim() ?? "";
+      });
+      rows.push(record);
+    }
+    return rows;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    if (parsed && typeof parsed === "object") {
+      return [parsed];
+    }
+  } catch (error) {
+    console.error("Failed to parse dataset content:", error);
+  }
+
+  return [];
+};
+
 interface NaturalLanguagePipelineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -136,6 +213,57 @@ const NaturalLanguagePipelineDialog: React.FC<
   const [generatedOutput, setGeneratedOutput] = useState<string>("");
   const [instructions, setInstructions] = useState<string>("");
 
+  const steps = [
+    {
+      id: "upload",
+      label: "Upload & Describe",
+      description: "Provide your dataset and describe the outcome you need.",
+    },
+    {
+      id: "review",
+      label: "Review & Apply",
+      description: "Inspect the generated pipeline and apply it to the workspace.",
+    },
+  ] as const;
+
+  const activeStepIndex = steps.findIndex((step) => step.id === activeTab);
+  const canAccessReview = Boolean(generatedYaml || generatedOutput);
+
+  const datasetName =
+    uploadedFile?.name ?? currentFile?.name ?? "No dataset selected yet";
+  const datasetSize = uploadedFile?.blob
+    ? formatFileSize(uploadedFile.blob.size)
+    : currentFile?.blob
+    ? formatFileSize(currentFile.blob.size)
+    : null;
+
+  const operationCount = useMemo(() => {
+    if (!generatedYaml) {
+      return 0;
+    }
+    const matches = generatedYaml.match(/^\s{0,6}-\sname:/gm);
+    return matches ? matches.length : 0;
+  }, [generatedYaml]);
+
+  const handleStepChange = (stepId: (typeof steps)[number]["id"]) => {
+    if (stepId === "review" && !canAccessReview) {
+      return;
+    }
+    setActiveTab(stepId);
+  };
+
+  const previewText = isGenerating
+    ? "Generating pipeline..."
+    : generatedYaml ||
+      generatedOutput ||
+      "No pipeline generated yet. Upload a dataset and describe your goal to draft one.";
+
+  const statusLabel = isGenerating
+    ? "Generating"
+    : canAccessReview
+    ? "Ready to apply"
+    : "Draft";
+
   const { uploadLocalDataset } = useDatasetUpload({
     namespace,
     onFileUpload: (file: FileType) => {
@@ -146,42 +274,42 @@ const NaturalLanguagePipelineDialog: React.FC<
     setCurrentFile,
   });
 
-  const { restoreFromYAML } = useRestorePipeline({
-    setOperations,
-    setPipelineName,
-    setSampleSize,
-    setDefaultModel,
-    setFiles,
-    setCurrentFile,
-    setSystemPrompt,
-    files,
-    setOutput,
-  });
+    const { restoreFromYAML } = useRestorePipeline({
+      setOperations,
+      setPipelineName,
+      setSampleSize,
+      setDefaultModel,
+      setFiles,
+      setCurrentFile,
+      setSystemPrompt,
+      files,
+      setOutput,
+    });
 
-  // Setup request headers
-  const getRequestHeaders = useMemo(() => {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "x-source": "nl-pipeline-generator",
-      "x-model": "o1-mini",
-      "x-namespace": namespace,
-    };
+    // Setup request headers
+    const getRequestHeaders = useMemo(() => {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-source": "nl-pipeline-generator",
+        "x-model": "gpt-5",
+        "x-namespace": namespace,
+      };
 
-    // Check if personal OpenAI API key should be used
-    const usePersonalOpenAI =
-      localStorage.getItem("USE_PERSONAL_OPENAI") === "true";
+      // Check if personal OpenAI API key should be used
+      const usePersonalOpenAI =
+        localStorage.getItem("USE_PERSONAL_OPENAI") === "true";
 
-    if (usePersonalOpenAI) {
-      headers["x-use-openai"] = "true";
-      // Try to get API key from localStorage
-      const openAiKey = localStorage.getItem("OPENAI_API_KEY");
-      if (openAiKey) {
-        headers["x-openai-key"] = openAiKey;
+      if (usePersonalOpenAI) {
+        headers["x-use-openai"] = "true";
+        // Try to get API key from localStorage
+        const openAiKey = localStorage.getItem("OPENAI_API_KEY");
+        if (openAiKey) {
+          headers["x-openai-key"] = openAiKey;
+        }
       }
-    }
 
-    return headers;
-  }, [namespace]);
+      return headers;
+    }, [namespace]);
 
   // Get instructions on component mount
   useEffect(() => {
@@ -204,7 +332,7 @@ const NaturalLanguagePipelineDialog: React.FC<
 
   // Generate pipeline using the new endpoint
   const handleGenerate = async () => {
-    if (!uploadedFile) {
+    if (!uploadedFile && !currentFile) {
       toast({
         title: "No file uploaded",
         description: "Please upload a data file first.",
@@ -231,8 +359,56 @@ const NaturalLanguagePipelineDialog: React.FC<
     setActiveTab("review");
 
     try {
-      // Extract sample data
-      const sampleData = extractSampleData(fileData);
+      const datasetFile = uploadedFile ?? currentFile;
+      let datasetRecords = fileData;
+
+      if (
+        datasetRecords.length === 0 &&
+        datasetFile?.path
+      ) {
+        try {
+          const response = await fetch(
+            `/api/readFile?path=${encodeURIComponent(datasetFile.path)}`
+          );
+          if (response.ok) {
+            const text = await response.text();
+            const extension =
+              getFileExtension(datasetFile.path) ||
+              getFileExtension(datasetFile.name);
+            datasetRecords = parseDatasetContent(
+              text,
+              extension || "json"
+            );
+            if (datasetRecords.length > 0) {
+              setFileData(datasetRecords);
+            }
+          } else {
+            console.error(
+              "Failed to read dataset for pipeline generation:",
+              response.statusText
+            );
+          }
+        } catch (error) {
+          console.error("Error loading dataset for pipeline generation:", error);
+        }
+      }
+
+      if (datasetRecords.length === 0 && uploadedFile?.blob) {
+        try {
+          const text = await uploadedFile.blob.text();
+          const extension =
+            getFileExtension(uploadedFile.path) ||
+            getFileExtension(uploadedFile.name);
+          datasetRecords = parseDatasetContent(text, extension || "json");
+          if (datasetRecords.length > 0) {
+            setFileData(datasetRecords);
+          }
+        } catch (error) {
+          console.error("Error reading uploaded dataset blob:", error);
+        }
+      }
+
+      const sampleData = extractSampleData(datasetRecords);
 
       // Create the combined user message
       const promptText = `You are a DocETL pipeline generator. Your task is to create a YAML pipeline configuration based on the user's requirements and data.
@@ -322,9 +498,10 @@ Format your response exactly as follows:
     setIsUploading(true);
     try {
       const uploadedFile = e.target.files[0];
-      const fileExtension = uploadedFile.name.split(".").pop()?.toLowerCase();
+      const fileExtension =
+        uploadedFile.name.split(".").pop()?.toLowerCase() || "json";
 
-      if (!["json", "csv"].includes(fileExtension || "")) {
+      if (!["json", "csv"].includes(fileExtension)) {
         toast({
           title: "Invalid file type",
           description: "Please upload a JSON or CSV file",
@@ -343,26 +520,7 @@ Format your response exactly as follows:
 
       // Read file for sample data extraction
       const text = await uploadedFile.text();
-      let parsedData: unknown[] = [];
-
-      if (fileExtension === "json") {
-        parsedData = JSON.parse(text);
-      } else {
-        // For CSV, we'll use a simple parser
-        // In a real implementation, you'd want to use Papa.parse like in useDatasetUpload
-        const lines = text.split("\n");
-        const headers = lines[0].split(",").map((h) => h.trim());
-
-        for (let i = 1; i < lines.length; i++) {
-          if (!lines[i].trim()) continue;
-          const values = lines[i].split(",");
-          const obj: Record<string, string> = {};
-          headers.forEach((header, index) => {
-            obj[header] = values[index]?.trim() || "";
-          });
-          parsedData.push(obj);
-        }
-      }
+      const parsedData = parseDatasetContent(text, fileExtension);
 
       setFileData(parsedData);
       await uploadLocalDataset(fileToUpload);
@@ -386,10 +544,20 @@ Format your response exactly as follows:
 
   const handleApplyPipeline = async () => {
     try {
-      if (!uploadedFile) {
+      const datasetFile = uploadedFile ?? currentFile;
+      if (!datasetFile) {
         toast({
-          title: "No file uploaded",
-          description: "Cannot apply pipeline without an uploaded file.",
+          title: "No dataset available",
+          description: "Please upload or select a dataset before applying the pipeline.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!generatedYaml) {
+        toast({
+          title: "Pipeline not ready",
+          description: "Generate a pipeline before applying it.",
           variant: "destructive",
         });
         return;
@@ -398,16 +566,19 @@ Format your response exactly as follows:
       // Use the generated name or default
       const pipelineName = generatedName || "generated-pipeline";
 
+      const datasetPath = datasetFile.path || datasetFile.name;
+      const pathWithoutExtension = datasetPath.replace(/\.(json|csv)$/i, "");
+
       // Replace placeholders in the YAML with actual paths
       const updatedYaml = generatedYaml
-        .replace(/DATASET_PATH_PLACEHOLDER/g, uploadedFile.path)
+        .replace(/DATASET_PATH_PLACEHOLDER/g, datasetPath)
         .replace(
           /DATASET_PATH_PLACEHOLDER_OUTPUT/g,
-          `${uploadedFile.path.replace(/\.(json|csv)$/i, "")}_output.json`
+          `${pathWithoutExtension}_output.json`
         )
         .replace(
           /DATASET_PATH_PLACEHOLDER_INTERMEDIATES/g,
-          `${uploadedFile.path.replace(/\.(json|csv)$/i, "")}_intermediates`
+          `${pathWithoutExtension}_intermediates`
         );
 
       // Create pipeline file object with the generated name
@@ -459,201 +630,422 @@ Format your response exactly as follows:
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Generate Pipeline from Natural Language
-          </DialogTitle>
-          <DialogDescription>
-            Upload your data and describe what you want to do with it.
-            We&apos;ll use AI to generate a DocETL pipeline. Note that the
-            pipeline might have errors, so you should review the prompts before
-            you run it.
-          </DialogDescription>
-        </DialogHeader>
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Generate Pipeline from Natural Language
+            </DialogTitle>
+            <DialogDescription>
+              Upload your data and describe what you want to do with it. We&apos;ll
+              use AI to generate a DocETL pipeline. Review the prompts before
+              running anything in production. You can close this dialog at any time
+              to upload PDFs or author your pipeline manually in the workspace.
+            </DialogDescription>
+          </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload">1. Upload & Describe</TabsTrigger>
-            <TabsTrigger
-              value="review"
-              disabled={!generatedOutput && !generatedYaml}
-            >
-              2. Review & Apply
-            </TabsTrigger>
-          </TabsList>
+          <Alert className="border-blue-200 bg-blue-50/50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-sm font-semibold text-blue-900">
+              Need to upload PDFs or author manually?
+            </AlertTitle>
+            <AlertDescription className="text-xs text-blue-800">
+              You can close this dialog at any time to return to the workspace, where
+              you can upload PDFs or manually author your pipeline using the visual
+              editor.
+            </AlertDescription>
+          </Alert>
 
-          <TabsContent value="upload" className="space-y-4 mt-4">
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Upload Dataset
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Upload your CSV or JSON data file to generate a pipeline.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="border border-dashed rounded-md p-3 text-center transition-colors border-border hover:border-primary">
-                  <input
-                    type="file"
-                    id="file-upload"
-                    className="hidden"
-                    accept=".csv,.json"
-                    onChange={handleFileChange}
-                    disabled={isUploading}
-                  />
-                  <div className="flex flex-col items-center justify-center gap-1.5">
-                    <Upload className="h-5 w-5 mx-auto text-gray-400 mb-1" />
-                    <div className="flex items-center text-sm text-gray-500">
-                      <span>Drag and drop files here, or</span>
-                      <Label
-                        htmlFor="file-upload"
-                        className="ml-0.5 text-primary cursor-pointer hover:text-blue-600"
-                      >
-                        browse files
-                      </Label>
-                    </div>
-                    <p className="mt-0.5 text-[10px] text-gray-400">
-                      Accepted file types: .csv, .json
-                    </p>
-                  </div>
-                </div>
-                {isUploading && (
-                  <div className="mt-2 flex items-center text-xs text-gray-600">
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                    Uploading...
-                  </div>
-                )}
-                {uploadedFile && !isUploading && (
-                  <div className="mt-2 text-xs flex items-center justify-between">
-                    <div className="text-green-600 flex items-center">
-                      <div className="bg-green-100 text-green-600 p-0.5 rounded-full mr-1.5">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-3 w-3"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
+          <div className="space-y-6 pb-2">
+            <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                {steps.map((step, index) => {
+                  const isActive = index === activeStepIndex;
+                  const isComplete = index < activeStepIndex;
+                  const disabled = step.id === "review" && !canAccessReview;
+                  const baseClasses =
+                      "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors";
+                  const stateClasses = isActive
+                    ? "border-primary bg-primary/10 text-primary shadow-sm"
+                    : isComplete
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-border/60 bg-muted text-muted-foreground";
+                  return (
+                    <React.Fragment key={step.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleStepChange(step.id)}
+                        disabled={disabled}
+                        className={`${baseClasses} ${stateClasses} ${
+                          disabled
+                            ? "cursor-not-allowed opacity-60"
+                            : "hover:border-primary/40"
+                        }`}
                         >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
+                          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-current text-xs font-semibold">
+                          {index + 1}
+                        </span>
+                        <span className="whitespace-nowrap text-sm font-medium">
+                          {step.label}
+                        </span>
+                      </button>
+                      {index < steps.length - 1 && (
+                        <span
+                          className="hidden h-px w-8 rounded bg-border md:block"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {steps[activeStepIndex]?.description}
+              </p>
+            </div>
+
+            {activeTab === "upload" ? (
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+                <div className="space-y-4">
+                  <Card className="border shadow-sm">
+                    <CardHeader className="space-y-2">
+                      <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                        <Upload className="h-4 w-4 text-primary" />
+                        Dataset
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Upload a CSV or JSON file to ground the generated pipeline.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <label
+                          htmlFor="file-upload"
+                          className={`relative flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-4 rounded-lg border border-dashed transition-colors ${
+                            uploadedFile
+                              ? "border-primary/60 bg-primary/5"
+                              : "border-border bg-muted/30 hover:border-primary/60"
+                          }`}
+                        >
+                        <input
+                          type="file"
+                          id="file-upload"
+                          className="hidden"
+                          accept=".csv,.json"
+                          onChange={handleFileChange}
+                          disabled={isUploading}
+                        />
+                          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white shadow-sm">
+                          <Upload className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-foreground">
+                            {uploadedFile ? "Replace dataset" : "Drag & drop your file"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            or click to browse — supports CSV and JSON
+                          </p>
+                        </div>
+                      </label>
+
+                      {isUploading && (
+                        <Alert className="border-primary/20 bg-primary/5">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          <AlertTitle className="text-sm">
+                            Uploading dataset
+                          </AlertTitle>
+                          <AlertDescription className="text-xs">
+                            We&apos;ll start generating once the upload finishes.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      {uploadedFile && !isUploading && (
+                        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 font-medium text-primary">
+                                <FileText className="h-4 w-4" />
+                                <span className="truncate">{uploadedFile.name}</span>
+                              </div>
+                              <p className="text-xs uppercase tracking-wide text-primary/70">
+                                {datasetSize ?? "Size unavailable"}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={handleDeleteFile}
+                              title="Remove dataset"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter className="flex flex-col gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        Aim for a representative sample (under ~5MB) for faster
+                        iteration.
                       </div>
-                      {uploadedFile.name} uploaded successfully
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 text-gray-400 hover:text-red-500 rounded-full -m-1"
-                      onClick={handleDeleteFile}
-                      title="Delete dataset"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Describe Your Goal
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Tell us what you want to do with your data, and we&apos;ll
-                  generate a pipeline for you.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Textarea
-                  placeholder="Example: Extract customer sentiment and key issues from these support tickets, then summarize by category."
-                  value={userPrompt}
-                  onChange={(e) => setUserPrompt(e.target.value)}
-                  className="min-h-[120px] resize-none"
-                />
-              </CardContent>
-              <CardFooter className="pt-0">
-                <Button
-                  onClick={handleGenerate}
-                  disabled={!uploadedFile || !userPrompt.trim() || isGenerating}
-                  className="ml-auto"
-                  size="sm"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate Pipeline
-                    </>
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="review" className="space-y-4 mt-4">
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                      {generatedName ||
-                        "Generating Pipeline with o1-mini (this may take a minute)..."}
-                    </>
-                  ) : generatedName ? (
-                    <>
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      {generatedName}
-                    </>
-                  ) : (
-                    "Generated Pipeline"
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="bg-slate-50 rounded-md p-3 overflow-hidden border border-slate-100">
-                  <pre className="text-xs overflow-x-auto whitespace-pre-wrap text-slate-700">
-                    {isGenerating
-                      ? "Generating pipeline..."
-                      : generatedYaml || generatedOutput}
-                  </pre>
+                      {currentFile && !uploadedFile && (
+                        <div className="flex items-center gap-2 text-emerald-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Using dataset from your current workspace.
+                        </div>
+                      )}
+                    </CardFooter>
+                  </Card>
                 </div>
-              </CardContent>
-              <CardFooter className="flex justify-between pt-0">
-                <Button
-                  variant="outline"
-                  onClick={() => setActiveTab("upload")}
-                  size="sm"
-                  disabled={isGenerating}
-                >
-                  Back to Upload
-                </Button>
-                <Button
-                  onClick={handleApplyPipeline}
-                  size="sm"
-                  disabled={isGenerating || !generatedYaml}
-                >
-                  Apply Pipeline
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
-  );
+
+                <div className="space-y-4">
+                  <Alert className="border-primary/25 bg-primary/5">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <AlertTitle className="text-sm font-semibold">
+                      AI-assisted pipeline builder
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      We use <span className="font-medium">gpt-5</span> to draft your
+                      pipeline. Review prompts and file paths before applying them.
+                    </AlertDescription>
+                  </Alert>
+
+                  <Card className="border shadow-sm">
+                    <CardHeader className="space-y-2">
+                      <CardTitle className="text-sm font-semibold">
+                        Describe your goal
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Include the desired outcome, key columns, and any quality
+                        checks you need.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Textarea
+                        placeholder="Example: Extract customer sentiment and key issues from these support tickets, then summarize by category."
+                        value={userPrompt}
+                        onChange={(e) => setUserPrompt(e.target.value)}
+                        className="min-h-[200px] resize-none"
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          Tip: mention schema fields explicitly (e.g.,
+                          <code className="ml-1 rounded bg-muted px-1">ticket_body</code>).
+                        </span>
+                        <Button
+                          onClick={handleGenerate}
+                          disabled={
+                            (!uploadedFile && !currentFile) ||
+                            !userPrompt.trim() ||
+                            isGenerating
+                          }
+                          size="sm"
+                        >
+                          {isGenerating ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              Generate pipeline
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                    <div className="rounded-md border border-dashed border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      Want to inspect our full prompt scaffolding?{" "}
+                      <a
+                        href="https://docetl.org/llms-full.txt"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                      >
+                        Open the reference guide
+                      </a>
+                      .
+                    </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {isGenerating && (
+                  <Alert className="border-primary/20 bg-primary/5">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <AlertTitle className="text-sm font-semibold">
+                      Crafting your pipeline
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      gpt-5 is assembling operations, prompts, and schemas based on
+                      your request.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <Card className="border shadow-sm flex flex-col overflow-hidden">
+                    <CardHeader className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <CardTitle className="text-sm font-semibold">
+                          {generatedName || "Generated pipeline"}
+                        </CardTitle>
+                        <Badge
+                          variant={isGenerating ? "secondary" : "default"}
+                          className="flex items-center gap-1"
+                        >
+                          {isGenerating && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          )}
+                          {statusLabel}
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs">
+                        Review the YAML before applying it. Adjust prompts or dataset
+                        paths if needed.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-auto pt-0">
+                      <div className="rounded-md border border-dashed border-border bg-muted/40 p-4">
+                        <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                          {previewText}
+                        </pre>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="sticky bottom-0 left-0 right-0 flex flex-wrap items-center justify-between gap-2 border-t bg-card/95 px-6 py-3 supports-[backdrop-filter]:bg-card/80">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setActiveTab("upload")}
+                        disabled={isGenerating}
+                      >
+                        Back to upload
+                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (!generatedYaml || isGenerating) {
+                              return;
+                            }
+                            if (
+                              typeof navigator === "undefined" ||
+                              !navigator.clipboard
+                            ) {
+                              toast({
+                                title: "Copy unavailable",
+                                description:
+                                  "Clipboard access is not available in this environment.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            navigator.clipboard
+                              .writeText(generatedYaml)
+                              .then(() =>
+                                toast({
+                                  title: "Pipeline copied",
+                                  description:
+                                    "The generated YAML has been copied to your clipboard.",
+                                })
+                              )
+                              .catch(() =>
+                                toast({
+                                  title: "Copy failed",
+                                  description:
+                                    "We couldn’t copy the YAML automatically. Please try again.",
+                                  variant: "destructive",
+                                })
+                              );
+                          }}
+                          disabled={!generatedYaml || isGenerating}
+                        >
+                          Copy YAML
+                        </Button>
+                        <Button
+                          onClick={handleApplyPipeline}
+                          size="sm"
+                          disabled={isGenerating || !generatedYaml}
+                        >
+                          Apply pipeline
+                        </Button>
+                      </div>
+                    </CardFooter>
+                  </Card>
+
+                  <Card className="border shadow-sm h-fit">
+                    <CardHeader className="space-y-2">
+                      <CardTitle className="text-sm font-semibold">
+                        Pipeline snapshot
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Quick details about this draft.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-sm">
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          Dataset
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="truncate">{datasetName}</span>
+                        </div>
+                        {datasetSize && (
+                          <p className="text-xs text-muted-foreground">
+                            {datasetSize}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          Operations
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            {operationCount > 0
+                              ? `${operationCount} configured`
+                              : "Awaiting generation"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          Model
+                        </p>
+                        <Badge variant="outline" className="text-xs">
+                          {defaultModel}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          Next steps
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Apply the pipeline to send it into the workspace, then review
+                          prompts and schema inside the visual editor.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
 };
 
 export default NaturalLanguagePipelineDialog;

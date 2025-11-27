@@ -301,14 +301,14 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ),
     files: loadFromLocalStorage(localStorageKeys.FILES_KEY, mockFiles),
     cost: loadFromLocalStorage(localStorageKeys.COST_KEY, 0),
-    defaultModel: loadFromLocalStorage(
-      localStorageKeys.DEFAULT_MODEL_KEY,
-      "gpt-4o-mini"
-    ),
-    optimizerModel: loadFromLocalStorage(
-      localStorageKeys.OPTIMIZER_MODEL_KEY,
-      "gpt-4o-mini"
-    ),
+      defaultModel: loadFromLocalStorage(
+        localStorageKeys.DEFAULT_MODEL_KEY,
+        "gpt-5-nano"
+      ),
+      optimizerModel: loadFromLocalStorage(
+        localStorageKeys.OPTIMIZER_MODEL_KEY,
+        "gpt-5-nano"
+      ),
     autoOptimizeCheck: loadFromLocalStorage(
       localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
       false
@@ -428,8 +428,8 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       sampleSize: mockSampleSize,
       files: mockFiles,
       cost: 0,
-      defaultModel: "gpt-4o-mini",
-      optimizerModel: "gpt-4o-mini",
+        defaultModel: "gpt-5-nano",
+        optimizerModel: "gpt-5-nano",
       optimizerProgress: null,
       autoOptimizeCheck: false,
       highLevelGoal: "",

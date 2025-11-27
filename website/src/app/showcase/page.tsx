@@ -107,8 +107,30 @@ export default function DemosIndexPage() {
                   Congressional Health Hearings
                 </CardTitle>
                 <CardDescription>
-                  Analyze 243 health-related congressional hearings with memorable quotes, 
+                  Analyze 243 health-related congressional hearings with memorable quotes,
                   speaker dynamics, and evasion detection.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-end items-center text-sm text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  View Demo <ArrowRight className="ml-1 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link
+            href="/showcase/epstein-email-explorer"
+            className="block group"
+          >
+            <Card className="h-full hover:shadow-lg transition-shadow duration-200 hover:border-primary/50">
+              <CardHeader>
+                <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                  Epstein Email Archive Explorer
+                </CardTitle>
+                <CardDescription>
+                  Interactive explorer for 2,322 emails from Jeffrey Epstein&apos;s correspondence
+                  released by the House Oversight Committee, with AI-powered analysis.
                 </CardDescription>
               </CardHeader>
               <CardContent>

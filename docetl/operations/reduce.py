@@ -20,11 +20,16 @@ from jinja2 import Template
 from pydantic import Field, field_validator, model_validator
 
 from docetl.operations.base import BaseOperation
+from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
 )
-from docetl.operations.utils import rich_as_completed, strict_render
+from docetl.operations.utils import (
+    rich_as_completed,
+    strict_render,
+    validate_output_types,
+)
 
 # Import OutputMode enum for structured output checks
 from docetl.operations.utils.api import OutputMode
@@ -63,6 +68,10 @@ class ReduceOperation(BaseOperation):
         @field_validator("prompt")
         def validate_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     template = Template(v)
                     template_vars = template.environment.parse(v).find_all(
@@ -80,6 +89,10 @@ class ReduceOperation(BaseOperation):
         @field_validator("fold_prompt")
         def validate_fold_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     fold_template = Template(v)
                     fold_template_vars = fold_template.environment.parse(v).find_all(
@@ -100,6 +113,10 @@ class ReduceOperation(BaseOperation):
         @field_validator("merge_prompt")
         def validate_merge_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     merge_template = Template(v)
                     merge_template_vars = merge_template.environment.parse(v).find_all(
@@ -177,6 +194,39 @@ class ReduceOperation(BaseOperation):
         )
         self.intermediates = {}
         self.lineage_keys = self.config.get("output", {}).get("lineage", [])
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "prompt" in self.config and not has_jinja_syntax(self.config["prompt"]):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["prompt"], self.config["name"], "prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your prompt."
+                )
+            # Mark that we need to append document statement (for reduce, use inputs)
+            self.config["_append_document_to_prompt"] = True
+            self.config["_is_reduce_operation"] = True
+        if "fold_prompt" in self.config and not has_jinja_syntax(
+            self.config["fold_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["fold_prompt"], self.config["name"], "fold_prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your fold_prompt."
+                )
+            self.config["_append_document_to_fold_prompt"] = True
+            self.config["_is_reduce_operation"] = True
+        if "merge_prompt" in self.config and not has_jinja_syntax(
+            self.config["merge_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["merge_prompt"], self.config["name"], "merge_prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your merge_prompt."
+                )
+            self.config["_append_document_to_merge_prompt"] = True
+            self.config["_is_reduce_operation"] = True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
@@ -658,6 +708,13 @@ class ReduceOperation(BaseOperation):
             schema=self.config["output"]["schema"],
             use_structured_output=structured_mode,
         )[0]
+        # Enforce type validation against output schema
+        is_types_valid, _errors = validate_output_types(
+            output,
+            self.config["output"]["schema"],
+        )
+        if not is_types_valid:
+            return output, False
         if self.runner.api.validate_output(self.config, output, self.console):
             return output, True
         return output, False
@@ -710,8 +767,6 @@ class ReduceOperation(BaseOperation):
                     "val_rule": self.config.get("validate", []),
                     "validation_fn": self.validation_fn,
                 }
-                if self.config.get("validate", None)
-                else None
             ),
             bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
             verbose=self.config.get("verbose", False),

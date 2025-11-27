@@ -14,7 +14,12 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
-from docetl.utils import completion_cost, extract_jinja_variables
+from docetl.utils import (
+    completion_cost,
+    extract_jinja_variables,
+    has_jinja_syntax,
+    prompt_user_for_non_jinja_confirmation,
+)
 
 
 def find_cluster(item, cluster_map):
@@ -48,6 +53,10 @@ class ResolveOperation(BaseOperation):
         @field_validator("comparison_prompt")
         def validate_comparison_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     comparison_template = Template(v)
                     comparison_vars = comparison_template.environment.parse(v).find_all(
@@ -70,6 +79,10 @@ class ResolveOperation(BaseOperation):
         @field_validator("resolution_prompt")
         def validate_resolution_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     reduction_template = Template(v)
                     reduction_vars = reduction_template.environment.parse(v).find_all(
@@ -122,6 +135,38 @@ class ResolveOperation(BaseOperation):
                 raise ValueError("'schema' in 'output' configuration cannot be empty")
 
             return self
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "comparison_prompt" in self.config and not has_jinja_syntax(
+            self.config["comparison_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["comparison_prompt"],
+                self.config["name"],
+                "comparison_prompt",
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your comparison_prompt."
+                )
+            # Mark that we need to append document statement
+            # Note: comparison_prompt uses input1 and input2, so we'll handle it specially in strict_render
+            self.config["_append_document_to_comparison_prompt"] = True
+        if "resolution_prompt" in self.config and not has_jinja_syntax(
+            self.config["resolution_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["resolution_prompt"],
+                self.config["name"],
+                "resolution_prompt",
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your resolution_prompt."
+                )
+            # Mark that we need to append document statement (resolution uses inputs)
+            self.config["_append_document_to_resolution_prompt"] = True
+            self.config["_is_reduce_operation"] = True
 
     def compare_pair(
         self,
@@ -331,52 +376,71 @@ class ResolveOperation(BaseOperation):
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = (
+        # Start with pairs that meet blocking conditions, or empty list if no conditions
+        code_blocked_pairs = (
             list(filter(meets_blocking_conditions, comparison_pairs))
             if blocking_conditions
-            else comparison_pairs
+            else []
         )
 
-        # Apply limit_comparisons to blocked pairs
-        if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
-            self.console.log(
-                f"Randomly sampling {limit_comparisons} pairs out of {len(blocked_pairs)} blocked pairs."
-            )
-            blocked_pairs = random.sample(blocked_pairs, limit_comparisons)
-
-        # Initialize clusters with all indices
-        clusters = [{i} for i in range(len(input_data))]
-        cluster_map = {i: i for i in range(len(input_data))}
-
-        # If there are remaining comparisons, fill with highest cosine similarities
-        remaining_comparisons = (
-            limit_comparisons - len(blocked_pairs)
-            if limit_comparisons is not None
-            else float("inf")
-        )
-        if remaining_comparisons > 0 and blocking_threshold is not None:
-            # Compute cosine similarity for all pairs efficiently
+        # Apply cosine similarity blocking if threshold is specified
+        embedding_blocked_pairs = []
+        if blocking_threshold is not None and embeddings is not None:
             from sklearn.metrics.pairwise import cosine_similarity
 
             similarity_matrix = cosine_similarity(embeddings)
 
-            cosine_pairs = []
+            # Add pairs that meet the cosine similarity threshold and aren't already blocked
+            code_blocked_set = set(code_blocked_pairs)
+
             for i, j in comparison_pairs:
-                if (i, j) not in blocked_pairs and find_cluster(
-                    i, cluster_map
-                ) != find_cluster(j, cluster_map):
+                if (i, j) not in code_blocked_set:
                     similarity = similarity_matrix[i, j]
                     if similarity >= blocking_threshold:
-                        cosine_pairs.append((i, j, similarity))
+                        embedding_blocked_pairs.append((i, j))
 
-            if remaining_comparisons != float("inf"):
-                cosine_pairs.sort(key=lambda x: x[2], reverse=True)
-                additional_pairs = [
-                    (i, j) for i, j, _ in cosine_pairs[: int(remaining_comparisons)]
-                ]
-                blocked_pairs.extend(additional_pairs)
+            self.console.log(
+                f"Cosine similarity blocking: added {len(embedding_blocked_pairs)} pairs "
+                f"(threshold: {blocking_threshold})"
+            )
+
+        # Combine pairs with prioritization for sampling
+        all_blocked_pairs = code_blocked_pairs + embedding_blocked_pairs
+
+        # If no pairs are blocked at all, fall back to all comparison pairs
+        if not all_blocked_pairs:
+            all_blocked_pairs = comparison_pairs
+        # Apply limit_comparisons with prioritization
+        if limit_comparisons is not None and len(all_blocked_pairs) > limit_comparisons:
+            # Prioritize code-based pairs, then sample from embedding pairs if needed
+            if len(code_blocked_pairs) >= limit_comparisons:
+                # If we have enough code-based pairs, just sample from those
+                blocked_pairs = random.sample(code_blocked_pairs, limit_comparisons)
+                self.console.log(
+                    f"Using {limit_comparisons} code-based pairs (had {len(code_blocked_pairs)} available)"
+                )
             else:
-                blocked_pairs.extend((i, j) for i, j, _ in cosine_pairs)
+                # Take all code-based pairs + sample from embedding pairs
+                remaining_slots = limit_comparisons - len(code_blocked_pairs)
+                sampled_embedding_pairs = random.sample(
+                    embedding_blocked_pairs,
+                    min(remaining_slots, len(embedding_blocked_pairs)),
+                )
+                blocked_pairs = code_blocked_pairs + sampled_embedding_pairs
+                self.console.log(
+                    f"Using {len(code_blocked_pairs)} code-based + {len(sampled_embedding_pairs)} embedding-based pairs "
+                    f"(total: {len(blocked_pairs)})"
+                )
+        else:
+            blocked_pairs = all_blocked_pairs
+            if len(code_blocked_pairs) > 0 and len(embedding_blocked_pairs) > 0:
+                self.console.log(
+                    f"Using all {len(code_blocked_pairs)} code-based + {len(embedding_blocked_pairs)} embedding-based pairs"
+                )
+
+        # Initialize clusters with all indices
+        clusters = [{i} for i in range(len(input_data))]
+        cluster_map = {i: i for i in range(len(input_data))}
 
         # Modified merge_clusters to handle all indices with the same value
 
@@ -417,7 +481,7 @@ class ResolveOperation(BaseOperation):
         comparisons_made = len(blocked_pairs)
         comparisons_saved = total_possible_comparisons - comparisons_made
         self.console.log(
-            f"[green]Comparisons saved by blocking: {comparisons_saved} "
+            f"[green]Comparisons saved by deduping and blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
         self.console.log(

@@ -52,6 +52,7 @@ nav:
       - Performance:
           - Optimization Overview: optimization/overview.md
           - Configuration: optimization/configuration.md
+          - Fallback Models: optimization/fallback-models.md
           - Examples:
               - Basic Example: optimization/example.md
               - Python API Example: optimization/python-api.md
@@ -166,5 +167,5 @@ markdown_extensions:
   - pymdownx.details
   - attr_list
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg

@@ -1,0 +1,557 @@
+# =========================
+# Epstein Email Metadata Extraction Pipeline
+# =========================
+
+default_model: azure/gpt-4.1-mini
+bypass_cache: false
+
+fallback_models:
+  - groq/openai/gpt-oss-120b
+
+system_prompt:
+  dataset_description: Email correspondence from Jeffrey Epstein's estate released by House Oversight Committee, containing communications with various individuals regarding business, travel, legal matters, and social activities
+  persona: You are a data analyst. You will receive user-generated text that may contain hate speech, sexual content, self-harm, or violence. Your job is only to classify or extract structured labels. Do not rewrite, translate, or expand the content. You are also an experienced investigative journalist with expertise in white-collar crime, human trafficking cases, and analyzing evidence for potential criminal activity. You are meticulous, objective, and focused on extracting factual information that could be relevant to ongoing investigations or public interest journalism.
+
+# --------
+# Datasets
+# --------
+datasets:
+  epstein_emails:
+    type: file
+    path: "epstein-files/emails_dataset.json"
+
+# -----------
+# Operations
+# -----------
+operations:
+
+  # -------------------------------------------------------------------------
+  # 0) Sample for testing - only process 100 documents
+  # -------------------------------------------------------------------------
+  - name: sample_documents
+    type: sample
+    method: uniform
+    samples: 1000
+
+  # -------------------------------------------------------------------------
+  # 1) Filter to only actual emails (not books, articles, etc.)
+  # -------------------------------------------------------------------------
+  - name: classify_document_type
+    type: map
+    prompt: |
+      Determine if this document is an actual EMAIL or not.
+
+      An email will have standard email headers like:
+      - From: [name/email]
+      - Sent: [date/time]
+      - To: [recipients]
+      - Subject: [subject line]
+
+      Other document types (books, articles, reports, images, exhibits) will NOT have these headers.
+
+      Document text (first 1000 characters):
+      {{ input.email_text[:1000] }}
+
+      Return:
+      - is_email: true if this is an actual email, false otherwise
+    output:
+      schema:
+        is_email: bool
+
+  - name: filter_emails_only
+    type: code_filter
+    code: |
+      def transform(input_doc):
+          return input_doc.get("is_email") is True
+
+  # -------------------------------------------------------------------------
+  # 2) Extract basic email headers and metadata from thread
+  # -------------------------------------------------------------------------
+  - name: extract_email_headers
+    type: map
+    prompt: |
+      You are analyzing an email or email thread from the Jeffrey Epstein document release.
+
+      If this is a thread with multiple emails, extract information from the MOST RECENT email (the one at the top).
+
+      Email/Thread text:
+      {{ input.email_text }}
+
+      IMPORTANT INSTRUCTIONS:
+
+      **Participants:**
+      - Extract ALL people involved in this email/thread (senders, recipients, CC, BCC from all emails in the thread)
+      - For each person, extract their name and email as separate fields:
+        - name: Full name in format "Firstname Lastname" (e.g., "Jeffrey Epstein", "Alan Dershowitz")
+        - email: Email address (e.g., "jeevacation@gmail.com")
+      - If name is not available, use empty string ""
+      - If email is not available, corrupted, or redacted (e.g., "1.1.11.110....ii"), use empty string ""
+      - Only include VALID email addresses (must contain @ symbol and domain)
+      - Remove duplicates - each person should appear only once
+      - Return as array of objects: [{"name": "Firstname Lastname", "email": "email@domain.com"}, ...]
+
+      **Date and Time:**
+      - Extract from the MOST RECENT email (the one at the top of the thread)
+      - date: Must be in YYYY-MM-DD format (e.g., "2019-04-23")
+      - time: Must be in HH:MM:SS 24-hour format (e.g., "16:32:02" not "4:32:02 PM")
+      - Convert AM/PM times to 24-hour format (1:00 PM → 13:00:00, 11:00 AM → 11:00:00)
+      - If time has seconds, include them; if not, use :00 for seconds
+
+      Extract the following fields:
+      - participants: Array of objects with name and email for all people in the thread
+      - date: Date of most recent email in YYYY-MM-DD format
+      - time: Time of most recent email in HH:MM:SS 24-hour format
+      - subject: Email subject line from most recent email (empty string if none)
+      - has_attachments: Boolean - true if any email in thread has attachments
+      - attachment_names: Array of ALL attachment filenames mentioned in the thread (empty array if none)
+
+      Return strict JSON matching the schema.
+    output:
+      schema:
+        participants: "list[{name: string, email: string}]"
+        date: string
+        time: string
+        subject: string
+        has_attachments: bool
+        attachment_names: list[string]
+
+  # -------------------------------------------------------------------------
+  # 3) Clean up participants list
+  # -------------------------------------------------------------------------
+  - name: clean_participants
+    type: code_map
+    code: |
+      from typing import Any, Dict, List
+
+      def transform(input_doc: Dict[str, Any]) -> Dict[str, Any]:
+          participants = input_doc.get("participants", [])
+
+          # Remove participants where both name and email are empty
+          cleaned = []
+          for p in participants:
+              name = p.get("name", "").strip()
+              email = p.get("email", "").strip()
+
+              # Skip if both are empty
+              if not name and not email:
+                  continue
+
+              cleaned.append({"name": name, "email": email})
+
+          # Remove duplicates
+          seen = set()
+          deduplicated = []
+
+          for p in cleaned:
+              name = p["name"]
+              email = p["email"]
+
+              # Create a key for deduplication
+              # If both have values, use both; if only one, use that
+              if name and email:
+                  key = (name.lower(), email.lower())
+              elif email:
+                  # Same email, different/missing names - use email as key
+                  key = ("", email.lower())
+              else:
+                  # Only name, no email
+                  key = (name.lower(), "")
+
+              if key not in seen:
+                  seen.add(key)
+                  deduplicated.append(p)
+
+          return {
+              **input_doc,
+              "participants": deduplicated
+          }
+    output:
+      schema:
+        participants: "list[{name: string, email: string}]"
+
+  # -------------------------------------------------------------------------
+  # 4) Standardize and validate date/time formats with Python
+  # -------------------------------------------------------------------------
+  - name: standardize_datetime
+    type: code_map
+    code: |
+      from datetime import datetime
+      from typing import Any, Dict
+      import re
+
+      def transform(input_doc: Dict[str, Any]) -> Dict[str, Any]:
+          date_str = input_doc.get("date", "")
+          time_str = input_doc.get("time", "")
+
+          standardized_date = ""
+          standardized_time = ""
+
+          # Try to parse and standardize date
+          if date_str:
+              try:
+                  # Try various date formats
+                  for fmt in ["%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y"]:
+                      try:
+                          dt = datetime.strptime(date_str.strip(), fmt)
+                          standardized_date = dt.strftime("%Y-%m-%d")
+                          break
+                      except ValueError:
+                          continue
+
+                  # If still not parsed, keep original
+                  if not standardized_date:
+                      standardized_date = date_str
+              except Exception:
+                  standardized_date = date_str
+
+          # Try to parse and standardize time
+          if time_str:
+              try:
+                  # Clean up the time string
+                  time_clean = time_str.strip()
+
+                  # Try various time formats
+                  for fmt in ["%H:%M:%S", "%H:%M", "%I:%M:%S %p", "%I:%M %p", "%I:%M:%S%p", "%I:%M%p"]:
+                      try:
+                          dt = datetime.strptime(time_clean, fmt)
+                          standardized_time = dt.strftime("%H:%M:%S")
+                          break
+                      except ValueError:
+                          continue
+
+                  # If still not parsed, try to extract with regex
+                  if not standardized_time:
+                      # Match HH:MM:SS or HH:MM
+                      match = re.match(r'(\d{1,2}):(\d{2})(?::(\d{2}))?', time_clean)
+                      if match:
+                          hour = int(match.group(1))
+                          minute = int(match.group(2))
+                          second = int(match.group(3)) if match.group(3) else 0
+
+                          # Check for AM/PM
+                          if 'pm' in time_clean.lower() and hour < 12:
+                              hour += 12
+                          elif 'am' in time_clean.lower() and hour == 12:
+                              hour = 0
+
+                          standardized_time = f"{hour:02d}:{minute:02d}:{second:02d}"
+                      else:
+                          standardized_time = time_str
+
+              except Exception:
+                  standardized_time = time_str
+
+          return {
+              **input_doc,
+              "date": standardized_date,
+              "time": standardized_time
+          }
+    output:
+      schema:
+        date: string
+        time: string
+
+  # -------------------------------------------------------------------------
+  # 5) Extract entities and classify topics
+  # -------------------------------------------------------------------------
+  - name: extract_entities_and_topics
+    type: map
+    prompt: |
+      You are analyzing an email or email thread from the Jeffrey Epstein document release. Extract entities and classify the topics discussed.
+
+      Focus on the email conversation between participants. Ignore forwarded articles, newsletters, or other third-party content - only extract entities from what the participants themselves are writing.
+
+      Email/Thread text:
+      {{ input.email_text }}
+
+      Extract the following:
+
+      **Entity Extraction:**
+      - people_mentioned: Array of people the participants are discussing or referencing
+        - Format each name as "Firstname Lastname" if full name is known (e.g., "Paul Keating", "Julie Brown")
+        - If only last name mentioned (e.g., "Keating"), try to infer first name from context; if not possible, use just last name
+        - Do NOT use: lowercase ("paul keating"), initials only ("P. Keating"), or titles ("Mr. Keating")
+      - organizations: Array of companies/institutions the participants are discussing
+      - locations: Array of places the participants reference (properties, cities, travel destinations, etc.)
+      - phone_numbers: Array of phone numbers from participant messages
+      - urls: Array of URLs/links shared
+
+      **Notable Figures:**
+      - notable_figures: Array of high-profile individuals (politicians, celebrities, royalty, business leaders) that participants mention
+      - Format each name as "Firstname Lastname" (e.g., "Donald Trump", "Bill Clinton")
+
+      **Topic Classification:**
+      - primary_topic: Single most prominent topic category from this list:
+        [travel, legal, business, social, media_pr, real_estate, financial, personal, other]
+      - topics: Array of ALL applicable topic tags from the same list (can include multiple)
+
+      Return strict JSON matching the schema. Use empty arrays [] for any fields with no applicable values.
+    output:
+      schema:
+        people_mentioned: list[string]
+        organizations: list[string]
+        locations: list[string]
+        phone_numbers: list[string]
+        urls: list[string]
+        notable_figures: list[string]
+        primary_topic: string
+        topics: list[string]
+
+  # -------------------------------------------------------------------------
+  # 6) Standardize name variants for known people
+  # -------------------------------------------------------------------------
+  - name: standardize_names
+    type: code_map
+    code: |
+      from typing import Any, Dict, List
+
+      def transform(input_doc: Dict[str, Any]) -> Dict[str, Any]:
+          # Define name normalization mappings
+          name_mappings = {
+              # Jeffrey Epstein variants
+              "Jeffrey E.": "Jeffrey Epstein",
+              "jeffrey E.": "Jeffrey Epstein",
+              "Jeffrey E": "Jeffrey Epstein",
+              "jeffrey E": "Jeffrey Epstein",
+              "Jeff Epstein": "Jeffrey Epstein",
+              "Jefffrey Epstein": "Jeffrey Epstein",  # typo
+              "Jeffery Epstein": "Jeffrey Epstein",  # typo
+              "JEFF EPSTEIN": "Jeffrey Epstein",
+              "E. Jeffrey": "Jeffrey Epstein",
+
+              # Other common variants
+              "Ghislaine": "Ghislaine Maxwell",
+              "GM": "Ghislaine Maxwell",
+
+              # Add more as needed
+          }
+
+          def normalize_name(name: str) -> str:
+              """Normalize a single name using the mappings."""
+              if not name:
+                  return name
+
+              # Direct match
+              if name in name_mappings:
+                  return name_mappings[name]
+
+              # Case-insensitive match for safety
+              for variant, canonical in name_mappings.items():
+                  if name.lower() == variant.lower():
+                      return canonical
+
+              return name
+
+          def normalize_participant(participant: Dict[str, str]) -> Dict[str, str]:
+              """Normalize participant name."""
+              name = participant.get("name", "")
+              email = participant.get("email", "")
+
+              # If email is jeevacation@gmail.com, standardize to Jeffrey Epstein
+              if email and "jeevacation@gmail.com" in email.lower():
+                  return {"name": "Jeffrey Epstein", "email": email}
+
+              # Otherwise use name mapping
+              normalized_name = normalize_name(name)
+              return {"name": normalized_name, "email": email}
+
+          def normalize_list(items: List[str]) -> List[str]:
+              """Normalize a list of names."""
+              if not items:
+                  return items
+              return [normalize_name(item) for item in items]
+
+          # Normalize participants
+          participants = input_doc.get("participants", [])
+          normalized_participants = [normalize_participant(p) for p in participants]
+
+          return {
+              **input_doc,
+              "participants": normalized_participants,
+              "people_mentioned": normalize_list(input_doc.get("people_mentioned", [])),
+              "notable_figures": normalize_list(input_doc.get("notable_figures", [])),
+              "victim_names": normalize_list(input_doc.get("victim_names", []))
+          }
+    output:
+      schema:
+        participants: "list[{name: string, email: string}]"
+        people_mentioned: list[string]
+        notable_figures: list[string]
+        victim_names: list[string]
+
+  # -------------------------------------------------------------------------
+  # 7) Deduplicate entity lists (organizations, locations, people, etc.)
+  # -------------------------------------------------------------------------
+  - name: deduplicate_entities
+    type: code_map
+    code: |
+      from typing import Any, Dict, List
+
+      def transform(input_doc: Dict[str, Any]) -> Dict[str, Any]:
+          # Helper function to deduplicate a list (case-insensitive)
+          def deduplicate_list(items: List[str]) -> List[str]:
+              if not items:
+                  return []
+
+              seen = set()
+              result = []
+              for item in items:
+                  # Normalize for comparison (lowercase, strip whitespace)
+                  normalized = item.strip().lower()
+                  if normalized and normalized not in seen:
+                      seen.add(normalized)
+                      result.append(item.strip())  # Keep original casing
+              return result
+
+          # Deduplicate all entity arrays
+          return {
+              **input_doc,
+              "people_mentioned": deduplicate_list(input_doc.get("people_mentioned", [])),
+              "organizations": deduplicate_list(input_doc.get("organizations", [])),
+              "locations": deduplicate_list(input_doc.get("locations", [])),
+              "phone_numbers": deduplicate_list(input_doc.get("phone_numbers", [])),
+              "urls": deduplicate_list(input_doc.get("urls", [])),
+              "notable_figures": deduplicate_list(input_doc.get("notable_figures", [])),
+              "topics": deduplicate_list(input_doc.get("topics", []))
+          }
+    output:
+      schema:
+        people_mentioned: list[string]
+        organizations: list[string]
+        locations: list[string]
+        phone_numbers: list[string]
+        urls: list[string]
+        notable_figures: list[string]
+        topics: list[string]
+
+  # -------------------------------------------------------------------------
+  # 8) Infer people mentioned indirectly (nicknames, coded references)
+  # -------------------------------------------------------------------------
+  - name: infer_people
+    type: map
+    calibrate: true
+    prompt: |
+      You are analyzing an email/thread to identify people who may be referenced INDIRECTLY through nicknames, coded language, or contextual clues, but were NOT explicitly named.
+
+      Focus on the participants' messages. Ignore forwarded articles or newsletters - only infer from what the participants themselves are writing.
+
+      Email/Thread text:
+      {{ input.email_text }}
+
+      People already explicitly mentioned (DO NOT repeat these):
+      {{ input.people_mentioned }}
+
+      Identify additional people who may be referenced through:
+      - Nicknames or informal names (e.g., "The Donald" → Donald Trump)
+      - Coded references (e.g., "our friend in Palm Beach")
+      - Pronouns with clear referents from context (e.g., "he called me" where context suggests who)
+      - Job titles or roles that clearly indicate a specific person (e.g., "the President" in 2017 → Donald Trump)
+      - Vague references that context makes clear (e.g., "she" repeatedly in a context about Ghislaine Maxwell)
+
+      IMPORTANT:
+      - Only infer if you have STRONG contextual evidence
+      - Format as "Firstname Lastname" when you can identify them
+      - Include your reasoning for each inference
+      - Return empty array if no indirect references found
+
+      Extract:
+      - inferred_people: Array of objects with:
+        - name: "Firstname Lastname" of the inferred person
+        - reference: The actual text/phrase used in the email (e.g., "our mutual friend", "DT", "she")
+        - reasoning: Brief explanation of why you believe this refers to that person (1 sentence)
+
+      Return strict JSON matching the schema.
+    output:
+      schema:
+        inferred_people: "list[{name: string, reference: string, reasoning: string}]"
+
+  # -------------------------------------------------------------------------
+  # 9) Analyze content and assess potential illegality
+  # -------------------------------------------------------------------------
+  - name: analyze_content_and_legality
+    type: map
+    prompt: |
+      You are an experienced investigative journalist analyzing an email or email thread from the Jeffrey Epstein document release for newsworthy content and potential evidence of illegal activity.
+
+      Focus on the email conversation between participants. Ignore forwarded articles, newsletters, or other third-party content - only analyze what the participants themselves are writing and discussing.
+
+      Email/Thread text:
+      {{ input.email_text }}
+
+      **Content Analysis:**
+      1. summary: Write a concise 2-3 sentence summary of what the participants are discussing and any actions they're taking. Focus on their conversation, not article content.
+      2. key_quotes: Extract up to 5 significant direct quotes from the participants' messages (not from articles). These should be revealing, controversial, or evidentially important (empty array if nothing particularly significant)
+      3. tone: Classify the overall tone of the conversation as ONE of:
+         - routine: Standard business/transactional communication, matter-of-fact
+         - guarded: Careful language, evasive, possibly legally sensitive, avoiding directness
+         - urgent: Time-sensitive, demanding immediate action, pressured
+         - informal: Casual, friendly, personal relationship evident, social
+
+      **Illegality Assessment:**
+      Carefully analyze whether the participants' conversation contains evidence or discussion of potentially illegal activity.
+
+      Extract:
+      4. potential_crimes: String summary describing any potential illegal activity indicated by what the participants are saying or doing (not crimes mentioned in articles). Be specific about what conduct is described and why it may be illegal. Use empty string "" if no criminal activity is evident.
+
+      5. evidence_strength: Classify how directly this email implicates illegal activity as ONE of:
+         - explicit: Email directly discusses or coordinates illegal activity in clear terms
+         - suspicious: Email uses vague/coded language but pattern suggests illegal activity
+         - contextual: Email provides background (relationships, timelines, locations) relevant to known crimes
+         - none: No apparent connection to criminal activity
+
+      6. crime_types: Array of specific criminal activities this email may relate to. Use empty array [] if none apply. Options:
+         - trafficking_coordination: Arranging travel, meetings, or access involving victims/minors
+         - exploitation_of_minors: References to underage individuals in inappropriate contexts
+         - witness_tampering: Coordinating testimony, offering incentives, threats
+         - obstruction: Destroying evidence, coaching stories, misleading investigators
+         - financial_crimes: Suspicious payments, money laundering, offshore accounts
+         - perjury: Planning false statements, contradicting sworn testimony
+         - cover_up: Media manipulation, silencing victims, creating false narratives
+         - conspiracy: Joint planning of illegal activities with others
+
+      **Investigative Flags:**
+      7. mentions_victims: Boolean - do the participants mention or reference known victims or potential victims (including minors, "girls", etc.) in their messages
+      8. victim_names: Array of any victim names the participants mention (use empty array if none, or if only vague references)
+         - Format each name as "Firstname Lastname" if full name is available
+         - Only from participants' messages, not from articles
+      9. cover_up: String summary of any cover-up activity the participants are engaged in (coordinating stories, destroying evidence, silencing people). Use empty string "" if none evident.
+
+      Be objective and factual. Only flag potential crimes when there is actual textual evidence in what the participants are writing. Do not speculate beyond what is written.
+
+      Return strict JSON matching the schema.
+    output:
+      schema:
+        summary: string
+        key_quotes: list[string]
+        tone: string
+        potential_crimes: string
+        evidence_strength: string
+        crime_types: list[string]
+        mentions_victims: bool
+        victim_names: list[string]
+        cover_up: string
+
+# ----------
+# Pipeline
+# ----------
+pipeline:
+  steps:
+    - name: extract_metadata
+      input: epstein_emails
+      operations:
+        # - sample_documents
+        - classify_document_type
+        - filter_emails_only
+        - extract_email_headers
+        - clean_participants
+        - standardize_datetime
+        - extract_entities_and_topics
+        - deduplicate_entities
+        - infer_people
+        - analyze_content_and_legality
+        - standardize_names
+
+  output:
+    type: file
+    path: "epstein-files/emails_with_metadata.json"
+    intermediate_dir: "epstein-files/_intermediate"

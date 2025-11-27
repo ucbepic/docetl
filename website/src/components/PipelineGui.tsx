@@ -278,9 +278,8 @@ const PipelineGUI: React.FC = () => {
 
       if (result.should_optimize) {
         toast({
-          title: `Hey! Consider decomposing ${
-            operations[operations.length - 1].name
-          }`,
+          title: `Hey! Consider decomposing ${operations[operations.length - 1].name
+            }`,
           description: (
             <span
               className="cursor-pointer text-blue-500 hover:text-blue-700"
@@ -364,12 +363,12 @@ const PipelineGUI: React.FC = () => {
               id: id || uuidv4(),
               llmType:
                 type === "map" ||
-                type === "reduce" ||
-                type === "resolve" ||
-                type === "filter" ||
-                type === "parallel_map" ||
-                type === "rank" ||
-                type === "extract"
+                  type === "reduce" ||
+                  type === "resolve" ||
+                  type === "filter" ||
+                  type === "parallel_map" ||
+                  type === "rank" ||
+                  type === "extract"
                   ? "LLM"
                   : "non-LLM",
               type: type,
@@ -377,8 +376,8 @@ const PipelineGUI: React.FC = () => {
               prompt: prompt,
               output: output
                 ? {
-                    schema: schemaDictToItemSet(output.schema),
-                  }
+                  schema: schemaDictToItemSet(output.schema),
+                }
                 : undefined,
               validate: validate,
               gleaning: gleaning,
@@ -502,7 +501,9 @@ const PipelineGUI: React.FC = () => {
         };
         await restoreFromYAML(fileToUpload);
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error("Error handling file upload:", error);
+        console.error("Upload error details:", errorMessage);
       }
     }
   };
@@ -813,9 +814,8 @@ const PipelineGUI: React.FC = () => {
               </div>
 
               <div
-                className={`flex items-center gap-2 transition-transform duration-200 origin-left ${
-                  isLeftSideCollapsed ? "scale-x-0 w-0" : "scale-x-100"
-                }`}
+                className={`flex items-center gap-2 transition-transform duration-200 origin-left ${isLeftSideCollapsed ? "scale-x-0 w-0" : "scale-x-100"
+                  }`}
               >
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Popover>

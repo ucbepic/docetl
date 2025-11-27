@@ -9,13 +9,15 @@ from typing import Any
 
 import requests
 from jinja2 import Template
+
+from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 from litellm.utils import ModelResponse
 from pydantic import Field, field_validator, model_validator
 from tqdm import tqdm
 
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render
+from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types
 from docetl.operations.utils.api import OutputMode
 
 
@@ -49,6 +51,11 @@ class MapOperation(BaseOperation):
         @field_validator("batch_prompt")
         def validate_batch_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    # We'll mark it for later processing
+                    return v
                 try:
                     template = Template(v)
                     # Test render with a minimal inputs list to validate template
@@ -62,6 +69,11 @@ class MapOperation(BaseOperation):
         @field_validator("prompt")
         def validate_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    # We'll mark it for later processing
+                    return v
                 try:
                     Template(v)
                 except Exception as e:
@@ -118,6 +130,27 @@ class MapOperation(BaseOperation):
             "max_batch_size", kwargs.get("max_batch_size", None)
         )
         self.clustering_method = "random"
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "prompt" in self.config and not has_jinja_syntax(self.config["prompt"]):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["prompt"], self.config["name"], "prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your prompt."
+                )
+            # Mark that we need to append document statement
+            self.config["_append_document_to_prompt"] = True
+        if "batch_prompt" in self.config and not has_jinja_syntax(
+            self.config["batch_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["batch_prompt"], self.config["name"], "batch_prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your batch_prompt."
+                )
+            # Mark that we need to append document statement
+            self.config["_append_document_to_batch_prompt"] = True
 
     def _generate_calibration_context(self, input_data: list[dict]) -> str:
         """
@@ -317,10 +350,13 @@ Reference anchors:"""
                     if isinstance(response, ModelResponse)
                     else response
                 )
-                # Check that the output has all the keys in the schema
-                for key in self.config["output"]["schema"]:
-                    if key not in output:
-                        return output, False
+                # Type-check output values against schema declarations
+                is_types_valid, _errors = validate_output_types(
+                    output,
+                    self.config["output"]["schema"],
+                )
+                if not is_types_valid:
+                    return output, False
 
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
@@ -346,8 +382,6 @@ Reference anchors:"""
                         "val_rule": self.config.get("validate", []),
                         "validation_fn": validation_fn,
                     }
-                    if self.config.get("validate", None)
-                    else None
                 ),
                 gleaning_config=self.config.get("gleaning", None),
                 verbose=self.config.get("verbose", False),

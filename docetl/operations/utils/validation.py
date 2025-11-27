@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 from asteval import Interpreter
@@ -6,6 +7,8 @@ from jinja2 import Environment, StrictUndefined, Template
 from jinja2.exceptions import UndefinedError
 from rich import print as rprint
 from rich.prompt import Prompt
+
+from docetl.utils import has_jinja_syntax
 
 aeval = Interpreter()
 
@@ -28,17 +31,44 @@ def strict_render(template: Template | str, context: dict[str, Any]) -> str:
     # Create strict environment
     env = Environment(undefined=StrictUndefined)
 
-    # Convert string to Template if needed
+    # Only process string templates for non-Jinja syntax check
     if isinstance(template, str):
-
-        # # If "inputs" in the context, make sure they are not accessing some attribute of inputs
-        # if "inputs" in context and "{{ inputs." in template:
-        #     raise UndefinedError("The inputs variable is a list, so you cannot access attributes of inputs. Use inputs[index].key instead.")
-
+        template_string = template
+        
+        # Check if template doesn't have Jinja syntax and append document statement
+        if not has_jinja_syntax(template_string):
+            # Determine the operation type based on context variables
+            if "left" in context and "right" in context:
+                # Equijoin operation - append both documents
+                template_string = (
+                    f"{template_string}\n\nHere are the documents:\n"
+                    f"Left document: {{{{ left }}}}\n"
+                    f"Right document: {{{{ right }}}}"
+                )
+            elif "input1" in context and "input2" in context:
+                # Comparison operation (resolve) - append both documents
+                template_string = (
+                    f"{template_string}\n\nHere are the documents:\n"
+                    f"Document 1: {{{{ input1 }}}}\n"
+                    f"Document 2: {{{{ input2 }}}}"
+                )
+            elif "inputs" in context:
+                # Reduce operation - append "Here are the documents: {{ inputs }}"
+                template_string = (
+                    f"{template_string}\n\nHere are the documents: {{{{ inputs }}}}"
+                )
+            elif "input" in context:
+                # Regular operation - append "Here is the document: {{ input }}"
+                template_string = (
+                    f"{template_string}\n\nHere is the document: {{{{ input }}}}"
+                )
+        
+        # Convert string template to Template object
         try:
-            template = env.from_string(template)
+            template = env.from_string(template_string)
         except Exception as e:
             raise ValueError(f"Invalid template: {str(e)}")
+    # If template is already a Template object, use it as-is
 
     try:
         return template.render(context)
@@ -113,6 +143,109 @@ def convert_val(value: Any, model: str = "gpt-4o-mini") -> dict[str, Any]:
         return {"type": "string", "enum": enum_values}
     else:
         raise ValueError(f"Unsupported value type: {value}")
+
+
+def _is_integer(value: Any) -> bool:
+    """Return True if value is an int but not a bool."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value: Any) -> bool:
+    """Return True if value is a real number (int or float) but not a bool."""
+    return (isinstance(value, (int, float)) and not isinstance(value, bool))
+
+
+def _validate_scalar(value: Any, schema: dict[str, Any]) -> bool:
+    """Validate a scalar value against a simple JSON-schema-like dict produced by convert_val."""
+    expected_type = schema.get("type")
+    if expected_type == "string":
+        if not isinstance(value, str):
+            return False
+        # Enum constraint for strings
+        if "enum" in schema and value not in schema["enum"]:
+            return False
+        return True
+    if expected_type == "integer":
+        return _is_integer(value)
+    if expected_type == "number":
+        return _is_number(value)
+    if expected_type == "boolean":
+        return isinstance(value, bool)
+    return False
+
+
+def _validate_value_against_schema(value: Any, schema: dict[str, Any]) -> bool:
+    """Recursively validate value against JSON-schema-like dicts from convert_val."""
+    expected_type = schema.get("type")
+
+    if expected_type in {"string", "integer", "number", "boolean"}:
+        return _validate_scalar(value, schema)
+
+    if expected_type == "array":
+        if not isinstance(value, list):
+            return False
+        item_schema = schema.get("items", {})
+        # If items schema missing, accept any items
+        if not item_schema:
+            return True
+        for item in value:
+            if not _validate_value_against_schema(item, item_schema):
+                return False
+        return True
+
+    if expected_type == "object":
+        if not isinstance(value, dict):
+            return False
+        properties: dict[str, Any] = schema.get("properties", {})
+        required_keys: list[str] = schema.get("required", [])
+        additional_props_allowed = schema.get("additionalProperties", True)
+
+        # Check required keys
+        for req in required_keys:
+            if req not in value:
+                return False
+        # Validate known properties
+        for key, prop_schema in properties.items():
+            if key in value and not _validate_value_against_schema(value[key], prop_schema):
+                return False
+        # additionalProperties constraint
+        if not additional_props_allowed:
+            for key in value.keys():
+                if key not in properties:
+                    return False
+        return True
+
+    # Unknown schema type -> fail closed
+    return False
+
+
+def validate_output_types(
+    output: dict[str, Any], output_schema: dict[str, Any], model: str = "gpt-4o-mini"
+) -> tuple[bool, list[str]]:
+    """
+    Validate that each value in output conforms to the type specified by output_schema.
+
+    output_schema is the user-friendly dict like {"field": "string", "nums": "list[int]"}.
+    This function converts each entry via convert_val and checks values recursively.
+
+    Returns (is_valid, errors)
+    """
+    errors: list[str] = []
+    # Build per-field schemas from string declarations
+    field_schemas: dict[str, dict[str, Any]] = {
+        key: convert_val(value_type, model) for key, value_type in output_schema.items()
+    }
+
+    for field, field_schema in field_schemas.items():
+        if field not in output:
+            errors.append(f"Missing required field: {field}")
+            continue
+        if not _validate_value_against_schema(output[field], field_schema):
+            errors.append(
+                f"Field '{field}' has invalid type/value. Expected {field_schema}, got {type(output[field]).__name__}: {output[field]}"
+            )
+
+    return (len(errors) == 0), errors
 
 
 def convert_dict_schema_to_list_schema(schema: dict[str, Any]) -> dict[str, Any]:

@@ -45,7 +45,7 @@ parsing = [
   "pydub>=0.25.1",
   "python-pptx>=1.0.2",
   "azure-ai-documentintelligence>=1.0.0b4",
-  "paddlepaddle>=2.6.2",
+  "paddlepaddle>=2.6.2,<3.2",
   "pymupdf>=1.24.10",
 ]
 server = [

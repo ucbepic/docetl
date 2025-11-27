@@ -4,16 +4,24 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ### Setting up environment variables
 
-Copy the .env.sample file from the root directory to .env.local and modify the environment variables inside:
+The `.env.local` file controls the TypeScript frontend features in DocWrangler, such as:
+- The improve prompt feature
+- The chatbot assistant
+- Other UI-based LLM interactions
+
+**Note:** This is separate from the root `.env` file, which is used by the backend Python server for actual pipeline execution.
+
+Copy the `.env.local.example` file to `.env.local` and modify the environment variables:
 
 ```bash
+# API key for UI assistant features (chatbot, improve prompt, etc.)
 OPENAI_API_KEY=sk-xxx
 OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini
+MODEL_NAME=gpt-4o-mini  # Model for UI features, not pipeline execution
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
-NEXT_PUBLIC_BACKEND_PORT=8008
-
+NEXT_PUBLIC_BACKEND_PORT=8000
+NEXT_PUBLIC_HOSTED_DOCWRANGLER=false
 ```
 
 First, run the development server:

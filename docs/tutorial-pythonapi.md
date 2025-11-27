@@ -247,3 +247,42 @@ print(f"Optimized pipeline execution completed. Total cost: ${cost:.2f}")
     ```
 
     Learn more about the pandas integration in the [pandas documentation](pandas/index.md). 
+
+## Using a Code Operation to Normalize Medication Names (Python API)
+
+You can insert a code operation in the Python API pipeline to perform per-document transformations without calling an LLM. Code ops accept a Python function (it does not need to be named `transform`).
+
+```python
+from docetl.api import CodeMapOp
+
+# Normalize medication names (lowercase/trim)
+def normalize_medication(doc: dict) -> dict:
+    med = doc.get("medication", "")
+    return {"medication_norm": med.lower().strip() if isinstance(med, str) else med}
+
+# Add this op after unnesting and before resolve
+operations = [
+    # ... existing extract_medications (MapOp), unnest_medications (UnnestOp)
+    CodeMapOp(
+        name="normalize_medication",
+        type="code_map",
+        code=normalize_medication,
+    ),
+    # Optionally, update Resolve/Reduce to use "medication_norm" instead of "medication"
+]
+
+# And include it in the step order, e.g.
+step = PipelineStep(
+    name="medical_info_extraction",
+    input="transcripts",
+    operations=[
+        "extract_medications",
+        "unnest_medications",
+        "normalize_medication",  # new code op here
+        "resolve_medications",
+        "summarize_prescriptions",
+    ],
+)
+```
+
+This keeps your deterministic preprocessing in Python while still leveraging DocETL for the LLM-powered stages. 

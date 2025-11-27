@@ -50,12 +50,19 @@ Note: The prompt templates use Jinja2 syntax, allowing you to reference input fi
 
 ## Blocking
 
-To improve efficiency, the Resolve operation supports "blocking" - a technique to reduce the number of comparisons by only comparing entries that are likely to be matches. DocETL supports two types of blocking:
+To improve efficiency, the Resolve operation supports "blocking" - a technique to reduce the number of comparisons by only comparing entries that are likely to be matches. DocETL supports two types of blocking that work together:
 
-1. Embedding similarity: Compare embeddings of specified fields and only process pairs above a certain similarity threshold.
-2. Python conditions: Apply custom Python expressions to determine if a pair should be compared.
+1. **Code-based blocking**: Apply custom Python expressions to determine if a pair should be compared.
+2. **Embedding-based blocking**: Compare embeddings of specified fields and only process pairs above a certain similarity threshold.
 
-Here's an example of a Resolve operation with blocking:
+### How Blocking Works
+
+The Resolve operation creates a **union** of pairs that pass either blocking method:
+- First, pairs that satisfy any of the `blocking_conditions` are selected
+- Then, pairs that meet the `blocking_threshold` for embedding similarity are added (if not already included)
+- When sampling is needed (via `limit_comparisons`), code-based pairs are prioritized over embedding-based pairs
+
+Here's an example of a Resolve operation with both blocking methods:
 
 ```yaml
 - name: standardize_patient_names
@@ -72,19 +79,26 @@ Here's an example of a Resolve operation with blocking:
     - date_of_birth
   blocking_threshold: 0.8
   blocking_conditions:
-    - "left['last_name'][:2].lower() == right['last_name'][:2].lower()"
-    - "left['first_name'][:2].lower() == right['first_name'][:2].lower()"
-    - "left['date_of_birth'] == right['date_of_birth']"
-    - "left['ssn'][-4:] == right['ssn'][-4:]"
+    - "input1['last_name'][:2].lower() == input2['last_name'][:2].lower()"
+    - "input1['first_name'][:2].lower() == input2['first_name'][:2].lower()"
+    - "input1['date_of_birth'] == input2['date_of_birth']"
+    - "input1['ssn'][-4:] == input2['ssn'][-4:]"
 ```
 
-In this example, pairs will be considered for comparison if:
+In this example, pairs will be considered for comparison if they satisfy **any** of the following:
 
-- The embedding similarity of their `last_name` and `date_of_birth` fields is above 0.8, OR
+**Code-based conditions:**
 - The `last_name` fields start with the same two characters, OR
-- The `first_name` fields start with the same two characters, OR
+- The `first_name` fields start with the same two characters, OR  
 - The `date_of_birth` fields match exactly, OR
-- The last four digits of the `ssn` fields match.
+- The last four digits of the `ssn` fields match
+
+**OR**
+
+**Embedding-based condition:**
+- The embedding similarity of their `last_name` and `date_of_birth` fields is above 0.8
+
+This union approach maximizes recall while maintaining efficiency - exact rule matches are preserved while semantic similarities that might not match the rules are also captured.
 
 ## How the Comparison Algorithm Works
 

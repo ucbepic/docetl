@@ -17,7 +17,7 @@
             git config user.email 41898282+github-actions[bot]@users.noreply.github.com
         - uses: actions/setup-python@v5
           with:
-            python-version: 3.x
+            python-version: "3.13"
         - name: Install uv and sync docs deps
           run: |
             curl -LsSf https://astral.sh/uv/install.sh | sh

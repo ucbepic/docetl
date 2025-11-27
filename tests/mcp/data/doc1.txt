@@ -1,0 +1,5 @@
+DocETL is an ETL framework for LLM-powered document processing.
+This sample document contains a short paragraph describing the project.
+The goal is to enable easy ingestion, transformation, and summarization.
+
+

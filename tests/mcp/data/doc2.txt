@@ -1,0 +1,5 @@
+Large Language Models can extract structure from unstructured text.
+With DocETL, you can map, reduce, resolve, and split documents efficiently.
+This file exists to help you quickly test the MCP server end-to-end.
+
+

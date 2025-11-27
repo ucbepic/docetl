@@ -1,0 +1,5 @@
+This is a tiny third document for testing.
+Feel free to modify, add, or remove files in this folder as needed.
+The MCP server should discover these files and build a dataset.
+
+

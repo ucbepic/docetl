@@ -9,6 +9,34 @@ from docetl.runner import DSLRunner
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
+#
+# MCP subcommands
+#
+mcp_app = typer.Typer(
+    pretty_exceptions_enable=False, help="Model Context Protocol (MCP) server utilities"
+)
+
+
+@mcp_app.command("serve")
+def mcp_serve():
+    """
+    Start the DocETL MCP server over stdio.
+    Requires the optional 'mcp' extra. Install via: pip install "docetl[mcp]"
+    """
+    try:
+        from docetl_mcp.server import main as _mcp_main  # type: ignore
+    except Exception as e:
+        typer.echo(
+            "DocETL MCP server requires the 'mcp' extra and its dependencies.\n"
+            'Install with:\n  pip install "docetl[mcp]"\n\n'
+            f"Error: {e}"
+        )
+        raise typer.Exit(code=1)
+    _mcp_main()
+
+
+app.add_typer(mcp_app, name="mcp")
+
 
 @app.command()
 def build(

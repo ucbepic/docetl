@@ -76,6 +76,7 @@ nav:
           - Python API: api-reference/python.md
   
   - Tools & Resources:
+      - MCP Server: execution/mcp.md
       - UI Playground:
           - Setup: playground/index.md
           - Tutorial: playground/tutorial.md

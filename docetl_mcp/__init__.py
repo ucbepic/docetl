@@ -1,0 +1,5 @@
+"""
+DocETL MCP server package.
+"""
+
+

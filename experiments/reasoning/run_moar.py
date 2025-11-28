@@ -16,7 +16,8 @@ from docetl.moar import MOARSearch, Node, ParetoFrontier, AVAILABLE_MODELS
 from docetl.reasoning_optimizer.directives import (
     DEFAULT_MODEL, DEFAULT_OUTPUT_DIR, ALL_DIRECTIVES
 )
-from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_dataset_stats, load_custom_evaluate_func
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation
+from docetl.utils_dataset import get_dataset_stats
 import modal
 import yaml
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
@@ -222,7 +223,7 @@ def run_moar_experiment(
     available_actions = set(ALL_DIRECTIVES)
     
     # Get dataset statistics
-    dataset_stats = get_dataset_stats(dataset, yaml_path)
+    dataset_stats = get_dataset_stats(yaml_path, dataset)
 
     # Use provided available_models or default list
     if available_models is None:
@@ -233,12 +234,17 @@ def run_moar_experiment(
         if not accuracy_metric_key:
             raise ValueError("--accuracy_metric_key must be provided when using --accuracy_function")
         print(f"📊 Loading custom accuracy function from: {accuracy_function}")
-        evaluate_func = load_custom_evaluate_func(accuracy_function)
+        # Use docetl's load_custom_evaluate_func which handles the new signature
+        from docetl.utils_evaluation import load_custom_evaluate_func as docetl_load_eval
+        evaluate_func = docetl_load_eval(accuracy_function, dataset_path)
         print(f"✅ Custom accuracy function loaded. Metric key: {accuracy_metric_key}")
     else:
         # Use default evaluation function from experiments
         from experiments.reasoning.evaluation.utils import get_evaluate_func, dataset_accuracy_metrics
-        evaluate_func = get_evaluate_func(dataset, mode="train")
+        old_evaluate_func = get_evaluate_func(dataset, mode="train")
+        # Wrap to match new signature: MOARSearch expects (results_file_path) -> dict
+        def evaluate_func(results_file_path: str):
+            return old_evaluate_func("docetl_moar", results_file_path)
         # Get the default metric key for this dataset
         accuracy_metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
     

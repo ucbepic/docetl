@@ -51,6 +51,7 @@ class MOARSearch:
         output_dir: Optional[str] = None,
         build_first_layer: Optional[bool] = True,
         custom_metric_key: Optional[str] = None,
+        sample_dataset_path: Optional[str] = None,
     ):
         """
         Initialize the MOARSearch algorithm.
@@ -67,7 +68,7 @@ class MOARSearch:
             model: Model to use for agent LLM calls
             output_dir: Directory to save new pipeline files (None means same dir as original)
             build_first_layer: Whether to build first layer nodes (default: True)
-            evaluate_func: Evaluation function (method_name: str, results_file_path: str) -> dict
+            evaluate_func: Evaluation function (results_file_path: str) -> dict
             custom_metric_key: Key to extract from evaluation results dict for accuracy metric
         """
 
@@ -171,6 +172,9 @@ class MOARSearch:
 
         self.model_stats = {}
         self.frontier_models = []
+        self.sample_dataset_path = (
+            sample_dataset_path  # Path to sample dataset for optimization
+        )
         self.console.log(
             "[bold blue]Building first layer nodes of the search graph[/bold blue]"
         )
@@ -178,6 +182,14 @@ class MOARSearch:
         for model in self.available_models:
             new_yaml_file = deepcopy(self.root.parsed_yaml)
             new_yaml_file["default_model"] = model
+            # Update dataset path to use sample dataset if provided
+            if self.sample_dataset_path and "datasets" in new_yaml_file:
+                datasets = new_yaml_file["datasets"]
+                if isinstance(datasets, dict) and datasets:
+                    # Update the first dataset's path
+                    first_dataset_key = next(iter(datasets.keys()))
+                    if isinstance(datasets[first_dataset_key], dict):
+                        datasets[first_dataset_key]["path"] = self.sample_dataset_path
             fix_models(new_yaml_file)
             if self.output_dir:
                 original_filename = os.path.basename(
@@ -280,7 +292,7 @@ class MOARSearch:
         result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
 
         try:
-            results = self.evaluate_func("docetl_preprint", result_file_path)
+            results = self.evaluate_func(result_file_path)
 
             # Extract the appropriate metric based on dataset or custom metric key
             if hasattr(self, "primary_metric_key") and self.primary_metric_key:
@@ -342,10 +354,14 @@ class MOARSearch:
             while self.should_continue():
                 # Submit up to max_concurrent_agents tasks
                 futures = []
-                agents_to_submit = min(
-                    self.max_concurrent_agents,
-                    self.max_iterations - self.iteration_count,
-                )
+                with self.tree_lock:
+                    remaining_iterations = self.max_iterations - self.iteration_count
+                    if remaining_iterations <= 0:
+                        break
+                    agents_to_submit = min(
+                        self.max_concurrent_agents,
+                        remaining_iterations,
+                    )
 
                 for _ in range(agents_to_submit):
                     future = executor.submit(self.search_iteration)
@@ -357,7 +373,12 @@ class MOARSearch:
                         success = future.result()
                         if success:
                             with self.tree_lock:
-                                self.iteration_count += 1
+                                # Double-check we haven't exceeded max_iterations
+                                if self.iteration_count < self.max_iterations:
+                                    self.iteration_count += 1
+                                else:
+                                    # Already reached max, don't increment further
+                                    break
                     except Exception as e:
                         self.console.log(
                             f"[bold red]Agent failed with error: {e}[/bold red]"
@@ -1220,6 +1241,15 @@ class MOARSearch:
         new_parsed_yaml["operations"] = new_ops_list
         new_parsed_yaml["bypass_cache"] = True
         new_parsed_yaml = update_pipeline(new_parsed_yaml, new_ops_list, target_op_list)
+
+        # Update dataset path to use sample dataset if provided
+        if self.sample_dataset_path and "datasets" in new_parsed_yaml:
+            datasets = new_parsed_yaml["datasets"]
+            if isinstance(datasets, dict) and datasets:
+                # Update the first dataset's path
+                first_dataset_key = next(iter(datasets.keys()))
+                if isinstance(datasets[first_dataset_key], dict):
+                    datasets[first_dataset_key]["path"] = self.sample_dataset_path
 
         fix_models(new_parsed_yaml)
 

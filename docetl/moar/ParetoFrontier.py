@@ -24,7 +24,7 @@ class ParetoFrontier:
         action_cost_changes: Dict[str, float],
         action_accuracy_changes: Dict[str, float],
         dataset_name: str,
-        evaluate_func: Callable[[str, str], Dict[str, Any]],
+        evaluate_func: Callable[[str], Dict[str, Any]],
         console=None,
     ):
         """
@@ -35,7 +35,7 @@ class ParetoFrontier:
             action_cost_changes: Reference to MCTS action_cost_changes dictionary
             action_accuracy_changes: Reference to MCTS action_accuracy_changes dictionary
             dataset_name: Name of the dataset being optimized (for evaluation and metric selection)
-            evaluate_func: Evaluation function (method_name: str, results_file_path: str) -> dict
+            evaluate_func: Evaluation function (results_file_path: str) -> dict
             console: Console instance for logging (default: None, uses DOCETL_CONSOLE)
         """
         from docetl.console import DOCETL_CONSOLE

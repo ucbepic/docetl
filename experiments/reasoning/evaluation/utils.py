@@ -95,13 +95,14 @@ def _process_evaluation_items(nodes_or_files, evaluate_func, output_path, method
     
     return eval_results
 
-def identify_pareto_frontier(eval_results, dataset):
+def identify_pareto_frontier(eval_results, dataset, custom_metric_key=None):
     """
     Identify the Pareto frontier for a given dataset based on accuracy vs cost.
     
     Args:
         eval_results (list): List of evaluation results with cost and accuracy metrics
         dataset (str): Dataset name to determine which accuracy metric to use
+        custom_metric_key (str, optional): Custom metric key to use instead of dataset-specific metric
         
     Returns:
         list: Updated eval_results with 'on_frontier' field set to True/False
@@ -109,20 +110,24 @@ def identify_pareto_frontier(eval_results, dataset):
     if not eval_results:
         return eval_results
     
-    # Define the accuracy metric for each dataset
-    dataset_metrics = {
-        "cuad": "f1",
-        "blackvault": "avg_distinct_locations", 
-        "game_reviews": "combined_accuracy_score",
-        "medec": "combined_score",
-        "sustainability": "combined_score",
-        "biodex": "avg_rp_at_5",
-    }
-    
-    accuracy_metric = dataset_metrics.get(dataset.lower())
-    if not accuracy_metric:
-        print(f"⚠️  Unknown dataset '{dataset}', cannot identify Pareto frontier")
-        return eval_results
+    # Use custom metric key if provided, otherwise use dataset-specific metric
+    if custom_metric_key:
+        accuracy_metric = custom_metric_key
+    else:
+        # Define the accuracy metric for each dataset
+        dataset_metrics = {
+            "cuad": "f1",
+            "blackvault": "avg_distinct_locations", 
+            "game_reviews": "combined_accuracy_score",
+            "medec": "combined_score",
+            "sustainability": "combined_score",
+            "biodex": "avg_rp_at_5",
+        }
+        
+        accuracy_metric = dataset_metrics.get(dataset.lower())
+        if not accuracy_metric:
+            print(f"⚠️  Unknown dataset '{dataset}', cannot identify Pareto frontier")
+            return eval_results
     
     # Filter out results that don't have the required metrics
     valid_results = [r for r in eval_results if accuracy_metric in r and "cost" in r]
@@ -131,6 +136,20 @@ def identify_pareto_frontier(eval_results, dataset):
         return eval_results
     
     # Sort by cost (ascending) and accuracy (descending for maximization)
+    # Validate that all results have the required metrics
+    for r in valid_results:
+        if accuracy_metric not in r:
+            raise KeyError(
+                f"Missing required accuracy metric '{accuracy_metric}' in evaluation result. "
+                f"Available keys: {list(r.keys())}. "
+                f"This metric is required for Pareto frontier identification."
+            )
+        if "cost" not in r:
+            raise KeyError(
+                f"Missing required 'cost' metric in evaluation result. "
+                f"Available keys: {list(r.keys())}. "
+                f"This metric is required for Pareto frontier identification."
+            )
     valid_results.sort(key=lambda x: (x["cost"], -x[accuracy_metric]))
     
     # Initialize frontier status
@@ -163,13 +182,14 @@ def identify_pareto_frontier(eval_results, dataset):
     
     return eval_results
 
-def print_pareto_frontier_summary(eval_results, dataset):
+def print_pareto_frontier_summary(eval_results, dataset, custom_metric_key=None):
     """
     Print a summary of the Pareto frontier for a dataset.
     
     Args:
         eval_results (list): List of evaluation results with 'on_frontier' field
         dataset (str): Dataset name for display purposes
+        custom_metric_key (str, optional): Custom metric key to use instead of dataset-specific metric
     """
     frontier_points = [r for r in eval_results if r.get("on_frontier", False)]
     
@@ -177,17 +197,21 @@ def print_pareto_frontier_summary(eval_results, dataset):
         print(f"📊 No Pareto frontier points found for {dataset} dataset")
         return
     
-    # Define the accuracy metric for each dataset
-    dataset_metrics = {
-        "cuad": "f1",
-        "blackvault": "avg_distinct_locations", 
-        "game_reviews": "combined_accuracy_score",
-        "medec": "combined_score",
-        "sustainability": "combined_score",
-        "biodex": "avg_rp_at_5",
-    }
-    
-    accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
+    # Use custom metric key if provided, otherwise use dataset-specific metric
+    if custom_metric_key:
+        accuracy_metric = custom_metric_key
+    else:
+        # Define the accuracy metric for each dataset
+        dataset_metrics = {
+            "cuad": "f1",
+            "blackvault": "avg_distinct_locations", 
+            "game_reviews": "combined_accuracy_score",
+            "medec": "combined_score",
+            "sustainability": "combined_score",
+            "biodex": "avg_rp_at_5",
+        }
+        
+        accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
     
     # Sort frontier points by cost for better display
     frontier_points.sort(key=lambda x: x["cost"])
@@ -198,8 +222,19 @@ def print_pareto_frontier_summary(eval_results, dataset):
     print(f"{'='*60}")
     
     for i, point in enumerate(frontier_points, 1):
-        cost = point.get("cost", 0.0)
-        accuracy = point.get(accuracy_metric, 0.0)
+        if "cost" not in point:
+            raise KeyError(
+                f"Missing required 'cost' metric in frontier point. "
+                f"Available keys: {list(point.keys())}"
+            )
+        if accuracy_metric not in point:
+            raise KeyError(
+                f"Missing required accuracy metric '{accuracy_metric}' in frontier point. "
+                f"Available keys: {list(point.keys())}. "
+                f"This metric is required for Pareto frontier summary."
+            )
+        cost = point["cost"]
+        accuracy = point[accuracy_metric]
         file_name = point.get("file", "unknown")
         
         print(f"{i:<4} ${cost:<9.4f} {accuracy:<15.4f} {file_name:<30}")
@@ -208,7 +243,7 @@ def print_pareto_frontier_summary(eval_results, dataset):
     print(f"Total frontier points: {len(frontier_points)}")
     
 
-def save_pareto_frontier_results(eval_results, dataset, output_path):
+def save_pareto_frontier_results(eval_results, dataset, output_path, custom_metric_key=None):
     """
     Save Pareto frontier results to a separate JSON file for analysis.
     
@@ -216,23 +251,28 @@ def save_pareto_frontier_results(eval_results, dataset, output_path):
         eval_results (list): List of evaluation results with 'on_frontier' field
         dataset (str): Dataset name
         output_path (Path): Output directory path
+        custom_metric_key (str, optional): Custom metric key to use instead of dataset-specific metric
     """
     frontier_points = [r for r in eval_results if r.get("on_frontier", False)]
     
     if not frontier_points:
         return
     
-    # Define the accuracy metric for each dataset
-    dataset_metrics = {
-        "cuad": "f1",
-        "blackvault": "avg_distinct_locations", 
-        "game_reviews": "combined_accuracy_score",
-        "medec": "combined_score",
-        "sustainability": "combined_score",
-        "biodex": "avg_rp_at_5",
-    }
-    
-    accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
+    # Use custom metric key if provided, otherwise use dataset-specific metric
+    if custom_metric_key:
+        accuracy_metric = custom_metric_key
+    else:
+        # Define the accuracy metric for each dataset
+        dataset_metrics = {
+            "cuad": "f1",
+            "blackvault": "avg_distinct_locations", 
+            "game_reviews": "combined_accuracy_score",
+            "medec": "combined_score",
+            "sustainability": "combined_score",
+            "biodex": "avg_rp_at_5",
+        }
+        
+        accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
     
     # Sort frontier points by cost
     frontier_points.sort(key=lambda x: x["cost"])
@@ -248,6 +288,17 @@ def save_pareto_frontier_results(eval_results, dataset, output_path):
         curr = frontier_points[i]
         next_point = frontier_points[i + 1]
         
+        if "cost" not in curr or "cost" not in next_point:
+            raise KeyError(
+                f"Missing required 'cost' metric in frontier point. "
+                f"Available keys: {list(curr.keys() if 'cost' not in curr else next_point.keys())}"
+            )
+        if accuracy_metric not in curr or accuracy_metric not in next_point:
+            raise KeyError(
+                f"Missing required accuracy metric '{accuracy_metric}' in frontier point. "
+                f"Available keys: {list(curr.keys() if accuracy_metric not in curr else next_point.keys())}. "
+                f"This metric is required for cost-effectiveness analysis."
+            )
         cost_diff = next_point["cost"] - curr["cost"]
         accuracy_diff = next_point[accuracy_metric] - curr[accuracy_metric]
         
@@ -398,109 +449,20 @@ def get_evaluate_func(dataset, mode="train", custom_evaluate_func=None):
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
 
-def compute_dataset_stats(data, dataset_name="data"):
-    """
-    Compute statistics for a dataset by analyzing the actual data.
-    
-    Args:
-        data (list): List of data records
-        dataset_name (str): Name of the dataset
-        
-    Returns:
-        str: Formatted dataset statistics
-    """
-    if not data:
-        return f"Dataset: {dataset_name}\nType: file\nRecords loaded: 0\nNo data available"
-    
-    num_records = len(data)
-    total_tokens = 0
-    field_stats = {}
-    
-    # Analyze each record
-    for record in data:
-        if isinstance(record, dict):
-            for key, value in record.items():
-                # Skip if key starts with "GT "
-                if key.startswith("GT "):
-                    continue
-                
-                if key not in field_stats:
-                    field_stats[key] = {'total_chars': 0, 'count': 0, 'type': type(value).__name__}
-                
-                if isinstance(value, str):
-                    char_count = len(value)
-                    field_stats[key]['total_chars'] += char_count
-                    field_stats[key]['count'] += 1
-                    total_tokens += char_count / 4  # 4 characters per token approximation
-                elif isinstance(value, (int, float)):
-                    # Numbers are typically short, estimate as ~5 characters
-                    field_stats[key]['total_chars'] += 5
-                    field_stats[key]['count'] += 1
-                    total_tokens += 1.25
-                elif isinstance(value, list):
-                    # For lists, estimate based on string representation
-                    str_repr = str(value)
-                    char_count = len(str_repr)
-                    field_stats[key]['total_chars'] += char_count
-                    field_stats[key]['count'] += 1
-                    total_tokens += char_count / 4
-    
-    # Format the output
-    stats_lines = [
-        f"Dataset: {dataset_name}",
-        f"Type: file", 
-        f"Records loaded: {num_records}",
-        f"Input schema:"
-    ]
-    
-    for field, stats in field_stats.items():
-        if stats['count'] > 0:
-            avg_tokens = (stats['total_chars'] / stats['count']) / 4
-            field_type = "string" if stats['type'] in ['str'] else stats['type']
-            stats_lines.append(f"    {field}: {field_type} (avg: {avg_tokens:.1f} tokens)")
-    
-    stats_lines.append(f"Total tokens: {int(total_tokens):,}")
-    
-    return "\n        ".join(stats_lines)
-
 def get_dataset_stats(dataset, yaml_path):
     """
     Get dataset statistics by loading and analyzing the actual data.
     
     Args:
-        dataset (str): Dataset name ('cuad' or 'blackvault')
+        dataset (str): Dataset name (used for naming, actual data comes from yaml_path)
         yaml_path (str): Path to the YAML configuration file
         
     Returns:
         str: Formatted dataset statistics
     """
-    import yaml
-    
-    # Load the YAML config to get the data path
-    with open(yaml_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    # Extract dataset info from config
-    datasets = config.get('datasets', {})
-    if not datasets:
-        return f"Dataset: {dataset}\nType: file\nRecords loaded: 0\nNo datasets found in config"
-    
-    # Get the first dataset (assuming single dataset per config)
-    dataset_name, dataset_config = next(iter(datasets.items()))
-    data_path = dataset_config.get('path')
-    
-    if not data_path:
-        return f"Dataset: {dataset_name}\nType: file\nRecords loaded: 0\nNo data path found"
-    
-    # Load the data
-    try:
-        with open(data_path, 'r') as f:
-            data = json.load(f)
-        
-        return compute_dataset_stats(data, dataset_name)
-        
-    except Exception as e:
-        return f"Dataset: {dataset_name}\nType: file\nRecords loaded: 0\nError loading data: {e}"
+    from docetl.utils_dataset import get_dataset_stats as _get_dataset_stats
+    # Note: docetl version has signature (yaml_path, dataset_name), so we swap the order
+    return _get_dataset_stats(yaml_path, dataset)
 
 def _get_dataset_config(dataset, ground_truth_path, method_name):
     """Get dataset configuration for evaluation."""
@@ -654,13 +616,13 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
     # Identify Pareto frontier for all datasets
     if eval_results:
         print(f"\n🔍 Identifying Pareto frontier for {dataset} dataset...")
-        eval_results = identify_pareto_frontier(eval_results, dataset)
+        eval_results = identify_pareto_frontier(eval_results, dataset, custom_metric_key=custom_metric_key)
         
         # Print Pareto frontier summary
-        print_pareto_frontier_summary(eval_results, dataset)
+        print_pareto_frontier_summary(eval_results, dataset, custom_metric_key=custom_metric_key)
         
         # Save Pareto frontier results to separate file
-        save_pareto_frontier_results(eval_results, dataset, output_path)
+        save_pareto_frontier_results(eval_results, dataset, output_path, custom_metric_key=custom_metric_key)
     
     # Save evaluation results
     if eval_results:

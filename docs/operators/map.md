@@ -140,6 +140,7 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `optimize`                        | Flag to enable operation optimization                                                           | `True`                        |
 | `recursively_optimize`            | Flag to enable recursive optimization of operators synthesized as part of rewrite rules         | `false`                       |
 | `sample`                     | Number of samples to use for the operation                                                      | Processes all data            |
+| `limit`                      | Maximum number of outputs to produce before stopping                                            | Processes all data            |
 | `tools`                           | List of tool definitions for LLM use                                                            | None                          |
 | `validate`                        | List of Python expressions to validate the output                                               | None                          |
 | `flush_partial_results`           | Write results of individual batches of map operation to disk for faster inspection              | False  |
@@ -157,6 +158,10 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `num_calibration_docs` | Number of documents to use sample and generate outputs for, for calibration. | 10                          |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
+
+### Limiting execution
+
+Set `limit` when you only need the first _N_ map results or want to cap LLM spend. The operation slices the processed dataset to the first `limit` entries and also stops scheduling new prompts once that many outputs have been produced, even if a prompt returns multiple records. Filter operations inherit this behavior but redefine the count so the limit only applies to records whose filter predicate evaluates to `true` (see [Filter](./filter.md#optional-parameters)).
 
 
 !!! info "Validation and Gleaning"

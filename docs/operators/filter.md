@@ -83,6 +83,10 @@ This example demonstrates how the Filter operation distinguishes between high-im
 
 See [map optional parameters](./map.md#optional-parameters) for additional configuration options, including `batch_prompt` and `max_batch_size`.
 
+### Limiting filtered outputs
+
+`limit` behaves slightly differently for filter operations than for map operations. Because filter drops documents whose predicate evaluates to `false`, the limit counts only the documents that would be retained (i.e., the ones whose boolean output is `true`). DocETL will continue evaluating additional inputs until it has collected `limit` passing documents and then stop scheduling further LLM calls. This ensures you can request “the first N matches” without paying to score the entire dataset.
+
 !!! info "Validation"
 
     For more details on validation techniques and implementation, see [operators](../concepts/operators.md#validation).

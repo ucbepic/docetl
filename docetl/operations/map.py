@@ -44,6 +44,7 @@ class MapOperation(BaseOperation):
         litellm_completion_kwargs: dict[str, Any] = {}
         pdf_url_key: str | None = None
         flush_partial_result: bool = False
+        limit: int | None = Field(None, gt=0)
         # Calibration parameters
         calibrate: bool = False
         num_calibration_docs: int = Field(10, gt=0)
@@ -151,6 +152,12 @@ class MapOperation(BaseOperation):
                 )
             # Mark that we need to append document statement
             self.config["_append_document_to_batch_prompt"] = True
+
+    def _limit_applies_to_inputs(self) -> bool:
+        return True
+
+    def _handle_result(self, result: dict[str, Any]) -> tuple[dict | None, bool]:
+        return result, True
 
     def _generate_calibration_context(self, input_data: list[dict]) -> str:
         """
@@ -272,16 +279,26 @@ Reference anchors:"""
 
         The method uses parallel processing to improve performance.
         """
+        limit_value = self.config.get("limit")
+
         # Check if there's no prompt and only drop_keys
         if "prompt" not in self.config and "drop_keys" in self.config:
+            data_to_process = input_data
+            if limit_value is not None and self._limit_applies_to_inputs():
+                data_to_process = input_data[:limit_value]
             # If only drop_keys is specified, simply drop the keys and return
             dropped_results = []
-            for item in input_data:
+            for item in data_to_process:
                 new_item = {
                     k: v for k, v in item.items() if k not in self.config["drop_keys"]
                 }
                 dropped_results.append(new_item)
+                if limit_value is not None and len(dropped_results) >= limit_value:
+                    break
             return dropped_results, 0.0  # Return the modified data with no cost
+
+        if limit_value is not None and self._limit_applies_to_inputs():
+            input_data = input_data[:limit_value]
 
         # Generate calibration context if enabled
         calibration_context = ""
@@ -512,40 +529,62 @@ Reference anchors:"""
 
             return all_results, total_cost
 
-        with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
-            batch_size = self.max_batch_size if self.max_batch_size is not None else 1
-            futures = []
-            for i in range(0, len(input_data), batch_size):
-                batch = input_data[i : i + batch_size]
-                futures.append(executor.submit(_process_map_batch, batch))
-            results = []
-            total_cost = 0
-            pbar = RichLoopBar(
-                range(len(futures)),
-                desc=f"Processing {self.config['name']} (map) on all documents",
-                console=self.console,
-            )
-            for batch_index in pbar:
-                result_list, item_cost = futures[batch_index].result()
-                if result_list:
-                    if "drop_keys" in self.config:
-                        result_list = [
-                            {
-                                k: v
-                                for k, v in result.items()
-                                if k not in self.config["drop_keys"]
-                            }
-                            for result in result_list
-                        ]
-                    results.extend(result_list)
-                    # --- BEGIN: Flush partial checkpoint ---
-                    if self.config.get("flush_partial_results", False):
-                        op_name = self.config["name"]
-                        self.runner._flush_partial_results(
-                            op_name, batch_index, result_list
-                        )
-                    # --- END: Flush partial checkpoint ---
-                total_cost += item_cost
+        limit_counter = 0
+
+        batch_size = self.max_batch_size if self.max_batch_size is not None else 1
+        total_batches = (
+            (len(input_data) + batch_size - 1) // batch_size if input_data else 0
+        )
+        results: list[dict] = []
+        total_cost = 0.0
+        limit_reached = False
+
+        pbar = RichLoopBar(
+            range(total_batches),
+            desc=f"Processing {self.config['name']} (map) on all documents",
+            console=self.console,
+        )
+
+        for batch_index in pbar:
+            if limit_value is not None and limit_counter >= limit_value:
+                break
+
+            batch_start = batch_index * batch_size
+            batch = input_data[batch_start : batch_start + batch_size]
+            if not batch:
+                break
+
+            result_list, item_cost = _process_map_batch(batch)
+            total_cost += item_cost
+
+            if result_list:
+                if "drop_keys" in self.config:
+                    result_list = [
+                        {
+                            k: v
+                            for k, v in result.items()
+                            if k not in self.config["drop_keys"]
+                        }
+                        for result in result_list
+                    ]
+
+                if self.config.get("flush_partial_results", False):
+                    op_name = self.config["name"]
+                    self.runner._flush_partial_results(op_name, batch_index, result_list)
+
+                for result in result_list:
+                    processed_result, counts_towards_limit = self._handle_result(result)
+                    if processed_result is not None:
+                        results.append(processed_result)
+
+                    if limit_value is not None and counts_towards_limit:
+                        limit_counter += 1
+                        if limit_counter >= limit_value:
+                            limit_reached = True
+                            break
+
+            if limit_reached:
+                break
 
         if self.status:
             self.status.start()

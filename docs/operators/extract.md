@@ -140,6 +140,9 @@ This strategy asks the LLM to generate regex patterns matching the desired conte
 | `timeout` | Timeout for LLM calls in seconds | 120 |
 | `skip_on_error` | Continue processing if errors occur | false |
 | `litellm_completion_kwargs` | Additional parameters for LiteLLM calls | {} |
+| `limit` | Maximum number of documents to extract from before stopping | Processes all data |
+
+When `limit` is set, Extract only reformats and submits the first _N_ documents. This is handy when the upstream dataset is large and you want to cap cost while previewing results.
 
 ## Best Practices
 

@@ -1221,7 +1221,7 @@ class MOARSearch:
         Instantiate a new child node by applying the directive to the given node and target operations.
         Args:
             node: The parent node
-            directive: The directive object to apply
+            new_ops_list: The entire pipeline operations list (not a subset)
             directive_name: The name of the directive
             target_op_list: List of target operations
             optimize_goal: The optimization goal (e.g., 'acc' or 'cost')

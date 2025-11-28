@@ -113,7 +113,7 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
 
     Args:
         orig_config (dict): The original pipeline configuration
-        new_ops_list (list): List of new operations to add
+        new_ops_list (list): The entire pipeline operations list (not a subset)
         target_ops (list): List of target operation names to replace
 
     Returns:

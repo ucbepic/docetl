@@ -162,7 +162,6 @@ def run_moar_optimization(
     # Optional parameters
     exploration_weight = optimizer_config.get("exploration_weight", 1.414)
     build_first_layer = optimizer_config.get("build_first_layer", False)
-    ground_truth_path = optimizer_config.get("ground_truth_path")
 
     # Resolve save directory (handle relative paths)
     save_dir = Path(save_dir)
@@ -236,39 +235,23 @@ def run_moar_optimization(
 
     # Run evaluation
     DOCETL_CONSOLE.log("[bold blue]📊 Running evaluation...[/bold blue]")
-    try:
-        from experiments.reasoning.evaluation.utils import run_dataset_evaluation
 
-        # Prepare nodes for evaluation
-        nodes_for_evaluation = []
-        for n in moar.pareto_frontier.plans:
-            n.moar_accuracy = moar.pareto_frontier.plans_accuracy.get(n)
-            n.on_frontier = n in moar.pareto_frontier.frontier_plans
-            nodes_for_evaluation.append(n)
+    # Prepare nodes for evaluation
+    nodes_for_evaluation = []
+    for n in moar.pareto_frontier.plans:
+        n.moar_accuracy = moar.pareto_frontier.plans_accuracy.get(n)
+        n.on_frontier = n in moar.pareto_frontier.frontier_plans
+        nodes_for_evaluation.append(n)
 
-        root_cost = moar.root.cost
+    from docetl.utils_evaluation import run_evaluation
 
-        # Wrap evaluate_func to match run_dataset_evaluation's expected signature (method_name, results_file_path)
-        def wrapped_eval_for_experiments(method_name: str, results_file_path: str):
-            # Ignore method_name, just call our wrapped function with results_file_path
-            return evaluate_func(results_file_path)
-
-        eval_results, pareto_auc = run_dataset_evaluation(
-            dataset=dataset_name,
-            nodes_or_files=nodes_for_evaluation,
-            output_path=save_dir,
-            ground_truth_path=ground_truth_path,
-            method_name="docetl_moar",
-            root_cost=root_cost,
-            custom_evaluate_func=wrapped_eval_for_experiments,
-            custom_metric_key=metric_key,
-        )
-    except ImportError:
-        DOCETL_CONSOLE.log(
-            "[yellow]⚠️ Evaluation package not available, skipping evaluation[/yellow]"
-        )
-        eval_results = None
-        pareto_auc = None
+    eval_results = run_evaluation(
+        nodes_or_files=nodes_for_evaluation,
+        evaluate_func=evaluate_func,
+        metric_key=metric_key,
+        output_path=save_dir,
+        dataset_name=dataset_name,
+    )
 
     # Save experiment summary
     results = {
@@ -279,7 +262,6 @@ def run_moar_optimization(
         "exploration_weight": exploration_weight,
         "save_dir": str(save_dir),
         "dataset": dataset_name,
-        "ground_truth": ground_truth_path,
         "start_time": start_time.isoformat(),
         "end_time": end_time.isoformat(),
         "duration_seconds": duration,
@@ -292,8 +274,6 @@ def run_moar_optimization(
         ),
     }
 
-    if pareto_auc is not None:
-        results["pareto_auc"] = pareto_auc
     if eval_results:
         results["evaluation_file"] = str(save_dir / "evaluation_metrics.json")
 

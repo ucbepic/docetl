@@ -18,7 +18,8 @@ from typing import Dict, List, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from litellm import completion
 from docetl.runner import DSLRunner
-from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics, load_custom_evaluate_func
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics
+from docetl.utils_evaluation import load_custom_evaluate_func as docetl_load_custom_evaluate_func
 import modal
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 from experiments.reasoning.evaluation.utils import dataset_accuracy_metrics
@@ -669,7 +670,49 @@ def run_simple_agent_experiment(dataset: str, output_dir: str = None, model: str
         if not accuracy_metric_key:
             raise ValueError("--accuracy_metric_key must be provided when using --accuracy_function")
         print(f"📊 Loading custom accuracy function from: {accuracy_function}")
-        custom_evaluate_func = load_custom_evaluate_func(accuracy_function)
+        
+        # Infer dataset path from yaml_path or use a default
+        dataset_file_path = None
+        if yaml_path:
+            # Try to infer dataset path from yaml config
+            try:
+                with open(yaml_path, 'r') as f:
+                    yaml_config = yaml.safe_load(f)
+                    datasets = yaml_config.get('datasets', {})
+                    if datasets:
+                        # Get first dataset path
+                        first_dataset = next(iter(datasets.values()))
+                        if isinstance(first_dataset, dict) and 'path' in first_dataset:
+                            dataset_file_path = first_dataset['path']
+            except Exception:
+                pass
+        
+        # If we couldn't infer, try to construct from dataset name
+        if not dataset_file_path:
+            # Try common paths for experiment datasets
+            potential_paths = [
+                f"experiments/reasoning/data/train/{dataset.lower()}.json",
+                f"experiments/reasoning/data/test/{dataset.lower()}.json",
+            ]
+            for path in potential_paths:
+                if Path(path).exists():
+                    dataset_file_path = path
+                    break
+        
+        if not dataset_file_path:
+            # Use a placeholder - docetl's load_custom_evaluate_func requires it
+            # but the function might not use it
+            dataset_file_path = f"experiments/reasoning/data/train/{dataset.lower()}.json"
+        
+        # Load using docetl's version, which returns (results_file_path) -> dict
+        docetl_eval_func = docetl_load_custom_evaluate_func(accuracy_function, dataset_file_path)
+        
+        # Wrap to match experiments' expected signature: (method_name, results_file_path) -> dict
+        def wrapped_eval_func(method_name: str, results_file_path: str):
+            # Ignore method_name, just call docetl's function
+            return docetl_eval_func(results_file_path)
+        
+        custom_evaluate_func = wrapped_eval_func
         print(f"✅ Custom accuracy function loaded. Metric key: {accuracy_metric_key}")
     
     # Initialize agent and executor

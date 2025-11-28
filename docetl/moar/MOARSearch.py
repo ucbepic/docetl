@@ -201,8 +201,12 @@ class MOARSearch:
                 # Use same directory as original pipeline
                 base_path = str(self.root.yaml_file_path).removesuffix(".yaml")
 
-            new_yaml_path = f"{base_path}_{model}.yaml"
-            new_yaml_file["pipeline"]["output"]["path"] = f"{base_path}_{model}.json"
+            # Sanitize model name for file paths (replace / with _)
+            sanitized_model = model.replace("/", "_")
+            new_yaml_path = f"{base_path}_{sanitized_model}.yaml"
+            new_yaml_file["pipeline"]["output"][
+                "path"
+            ] = f"{base_path}_{sanitized_model}.json"
 
             with open(new_yaml_path, "w") as file:
                 yaml.dump(
@@ -242,7 +246,6 @@ class MOARSearch:
             if child not in self.pareto_frontier.frontier_plans:
                 continue
             child_model = child.parsed_yaml["default_model"]
-            child_model = child_model.replace("azure/", "").replace("gemini/", "")
             self.frontier_models.append(child_model)
             child.value = 0
             child.visits = 1
@@ -1129,17 +1132,6 @@ class MOARSearch:
 
     def _is_cheaper_model(self, target_model: str, current_model: str) -> bool:
         """Check if target_model is cheaper than current_model for this dataset."""
-
-        # Remove 'azure/' or 'gemini/' prefix from current_model if present
-        if current_model.startswith("azure/"):
-            current_model = current_model[len("azure/") :]
-        if current_model.startswith("gemini/"):
-            current_model = current_model[len("gemini/") :]
-        # Remove 'azure/' or 'gemini/' prefix from target_model if present
-        if target_model.startswith("azure/"):
-            target_model = target_model[len("azure/") :]
-        if target_model.startswith("gemini/"):
-            target_model = target_model[len("gemini/") :]
 
         current_cost = self.model_stats.get(current_model)["cost"]
         target_cost = self.model_stats.get(target_model)["cost"]

@@ -33,9 +33,6 @@ jobs:
       - name: Copy environment file
         run: cp .env.sample .env
 
-      - name: Copy environment file
-        run: cp .env.sample .env
-
       - name: Install dependencies
         run: |
           uv sync --all-groups --all-extras

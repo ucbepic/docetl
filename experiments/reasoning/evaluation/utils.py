@@ -1,6 +1,7 @@
 import json
 import matplotlib.pyplot as plt
 from pathlib import Path
+
 from .cuad import evaluate_results as cuad_evaluate
 from .blackvault import evaluate_results as blackvault_evaluate
 from .game_reviews import evaluate_results as game_reviews_evaluate
@@ -8,8 +9,6 @@ from .medec import evaluate_results as medec_evaluate
 from .sustainability import evaluate_results as sustainability_evaluate
 from .biodex import evaluate_results as biodex_evaluate
 from .facility import evaluate_results as facility_evaluate
-import importlib.util
-from pathlib import Path
 
 dataset_accuracy_metrics = {
     "cuad": "avg_f1",
@@ -99,6 +98,9 @@ def identify_pareto_frontier(eval_results, dataset, custom_metric_key=None):
     """
     Identify the Pareto frontier for a given dataset based on accuracy vs cost.
     
+    This function delegates to docetl's identify_pareto_frontier, but maintains
+    backward compatibility with dataset-specific metric keys.
+    
     Args:
         eval_results (list): List of evaluation results with cost and accuracy metrics
         dataset (str): Dataset name to determine which accuracy metric to use
@@ -107,8 +109,7 @@ def identify_pareto_frontier(eval_results, dataset, custom_metric_key=None):
     Returns:
         list: Updated eval_results with 'on_frontier' field set to True/False
     """
-    if not eval_results:
-        return eval_results
+    from docetl.utils_evaluation import identify_pareto_frontier as docetl_identify_pareto_frontier
     
     # Use custom metric key if provided, otherwise use dataset-specific metric
     if custom_metric_key:
@@ -125,77 +126,27 @@ def identify_pareto_frontier(eval_results, dataset, custom_metric_key=None):
         }
         
         accuracy_metric = dataset_metrics.get(dataset.lower())
-        if not accuracy_metric:
-            print(f"⚠️  Unknown dataset '{dataset}', cannot identify Pareto frontier")
-            return eval_results
     
-    # Filter out results that don't have the required metrics
-    valid_results = [r for r in eval_results if accuracy_metric in r and "cost" in r]
-    if not valid_results:
-        print(f"⚠️  No valid results with {accuracy_metric} and cost metrics")
+    if not accuracy_metric:
+        print(f"⚠️  Unknown dataset '{dataset}', cannot identify Pareto frontier")
         return eval_results
     
-    # Sort by cost (ascending) and accuracy (descending for maximization)
-    # Validate that all results have the required metrics
-    for r in valid_results:
-        if accuracy_metric not in r:
-            raise KeyError(
-                f"Missing required accuracy metric '{accuracy_metric}' in evaluation result. "
-                f"Available keys: {list(r.keys())}. "
-                f"This metric is required for Pareto frontier identification."
-            )
-        if "cost" not in r:
-            raise KeyError(
-                f"Missing required 'cost' metric in evaluation result. "
-                f"Available keys: {list(r.keys())}. "
-                f"This metric is required for Pareto frontier identification."
-            )
-    valid_results.sort(key=lambda x: (x["cost"], -x[accuracy_metric]))
-    
-    # Initialize frontier status
-    for result in eval_results:
-        result["on_frontier"] = False
-    
-    # Identify Pareto frontier points
-    frontier_points = []
-    for result in valid_results:
-        # Check if this point is dominated by any existing frontier point
-        is_dominated = False
-        for frontier_point in frontier_points:
-            # A point is dominated if another point has lower or equal cost AND higher or equal accuracy
-            if (frontier_point["cost"] <= result["cost"] and 
-                frontier_point[accuracy_metric] >= result[accuracy_metric]):
-                is_dominated = True
-                break
-        
-        if not is_dominated:
-            frontier_points.append(result)
-            # Mark this result as on the frontier
-            for eval_result in eval_results:
-                if (eval_result.get("file") == result.get("file") and 
-                    eval_result.get("cost") == result.get("cost")):
-                    eval_result["on_frontier"] = True
-                    break
-    
-    print(f"📊 Identified {len(frontier_points)} Pareto frontier points for {dataset} dataset")
-    print(f"   Accuracy metric: {accuracy_metric}")
-    
-    return eval_results
+    # Use docetl's implementation
+    return docetl_identify_pareto_frontier(eval_results, accuracy_metric)
 
 def print_pareto_frontier_summary(eval_results, dataset, custom_metric_key=None):
     """
     Print a summary of the Pareto frontier for a dataset.
+    
+    This function delegates to docetl's print_pareto_frontier_summary, but maintains
+    backward compatibility with dataset-specific metric keys.
     
     Args:
         eval_results (list): List of evaluation results with 'on_frontier' field
         dataset (str): Dataset name for display purposes
         custom_metric_key (str, optional): Custom metric key to use instead of dataset-specific metric
     """
-    frontier_points = [r for r in eval_results if r.get("on_frontier", False)]
-    
-    if not frontier_points:
-        print(f"📊 No Pareto frontier points found for {dataset} dataset")
-        return
+    from docetl.utils_evaluation import print_pareto_frontier_summary as docetl_print_summary
     
     # Use custom metric key if provided, otherwise use dataset-specific metric
     if custom_metric_key:
@@ -213,39 +164,16 @@ def print_pareto_frontier_summary(eval_results, dataset, custom_metric_key=None)
         
         accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
     
-    # Sort frontier points by cost for better display
-    frontier_points.sort(key=lambda x: x["cost"])
-    
-    print(f"\n🏆 Pareto Frontier Summary for {dataset.upper()} Dataset:")
-    print(f"{'='*60}")
-    print(f"{'Rank':<4} {'Cost ($)':<10} {accuracy_metric.upper():<15} {'File':<30}")
-    print(f"{'='*60}")
-    
-    for i, point in enumerate(frontier_points, 1):
-        if "cost" not in point:
-            raise KeyError(
-                f"Missing required 'cost' metric in frontier point. "
-                f"Available keys: {list(point.keys())}"
-            )
-        if accuracy_metric not in point:
-            raise KeyError(
-                f"Missing required accuracy metric '{accuracy_metric}' in frontier point. "
-                f"Available keys: {list(point.keys())}. "
-                f"This metric is required for Pareto frontier summary."
-            )
-        cost = point["cost"]
-        accuracy = point[accuracy_metric]
-        file_name = point.get("file", "unknown")
-        
-        print(f"{i:<4} ${cost:<9.4f} {accuracy:<15.4f} {file_name:<30}")
-    
-    print(f"{'='*60}")
-    print(f"Total frontier points: {len(frontier_points)}")
+    # Use docetl's implementation
+    docetl_print_summary(eval_results, accuracy_metric, dataset)
     
 
 def save_pareto_frontier_results(eval_results, dataset, output_path, custom_metric_key=None):
     """
     Save Pareto frontier results to a separate JSON file for analysis.
+    
+    This function delegates to docetl's save_pareto_frontier_results, but maintains
+    backward compatibility with dataset-specific metric keys.
     
     Args:
         eval_results (list): List of evaluation results with 'on_frontier' field
@@ -253,10 +181,7 @@ def save_pareto_frontier_results(eval_results, dataset, output_path, custom_metr
         output_path (Path): Output directory path
         custom_metric_key (str, optional): Custom metric key to use instead of dataset-specific metric
     """
-    frontier_points = [r for r in eval_results if r.get("on_frontier", False)]
-    
-    if not frontier_points:
-        return
+    from docetl.utils_evaluation import save_pareto_frontier_results as docetl_save_frontier
     
     # Use custom metric key if provided, otherwise use dataset-specific metric
     if custom_metric_key:
@@ -274,101 +199,9 @@ def save_pareto_frontier_results(eval_results, dataset, output_path, custom_metr
         
         accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
     
-    # Sort frontier points by cost
-    frontier_points.sort(key=lambda x: x["cost"])
-    
-    # Add rank and cost-effectiveness information
-    for i, point in enumerate(frontier_points):
-        point["rank"] = i + 1
-        point["accuracy_metric"] = accuracy_metric
-    
-    # Calculate cost-effectiveness ratios between consecutive points
-    cost_effectiveness_analysis = []
-    for i in range(len(frontier_points) - 1):
-        curr = frontier_points[i]
-        next_point = frontier_points[i + 1]
-        
-        if "cost" not in curr or "cost" not in next_point:
-            raise KeyError(
-                f"Missing required 'cost' metric in frontier point. "
-                f"Available keys: {list(curr.keys() if 'cost' not in curr else next_point.keys())}"
-            )
-        if accuracy_metric not in curr or accuracy_metric not in next_point:
-            raise KeyError(
-                f"Missing required accuracy metric '{accuracy_metric}' in frontier point. "
-                f"Available keys: {list(curr.keys() if accuracy_metric not in curr else next_point.keys())}. "
-                f"This metric is required for cost-effectiveness analysis."
-            )
-        cost_diff = next_point["cost"] - curr["cost"]
-        accuracy_diff = next_point[accuracy_metric] - curr[accuracy_metric]
-        
-        if cost_diff > 0 and accuracy_diff > 0:
-            cost_effectiveness = cost_diff / accuracy_diff
-            cost_effectiveness_analysis.append({
-                "from_file": curr["file"],
-                "to_file": next_point["file"],
-                "cost_increase": cost_diff,
-                "accuracy_increase": accuracy_diff,
-                "cost_per_unit_improvement": cost_effectiveness
-            })
-    
-    # Create frontier summary
-    frontier_summary = {
-        "dataset": dataset,
-        "accuracy_metric": accuracy_metric,
-        "total_frontier_points": len(frontier_points),
-        "frontier_points": frontier_points,
-        "cost_effectiveness_analysis": cost_effectiveness_analysis,
-        "timestamp": str(Path().cwd())
-    }
-    
-    # Save to file
-    frontier_file = output_path / f"pareto_frontier_{dataset}.json"
-    with open(frontier_file, "w") as f:
-        json.dump(frontier_summary, f, indent=2)
-    
-    print(f"💾 Pareto frontier results saved to: {frontier_file}")
+    # Use docetl's implementation
+    docetl_save_frontier(eval_results, output_path, accuracy_metric, dataset)
 
-def load_custom_evaluate_func(accuracy_function_path: str):
-    """
-    Load a custom evaluation function from a Python file.
-    
-    Args:
-        accuracy_function_path (str): Path to a Python file containing an `evaluate_results` function
-        
-    Returns:
-        callable: Evaluation function that takes (method_name, results_file_path, ground_truth_path=None, original_json_file=None)
-        
-    Raises:
-        ValueError: If the file doesn't exist or doesn't contain `evaluate_results` function
-    """
-    
-    
-    func_path = Path(accuracy_function_path)
-    if not func_path.exists():
-        raise ValueError(f"Accuracy function file not found: {accuracy_function_path}")
-    
-    spec = importlib.util.spec_from_file_location("custom_evaluate", func_path)
-    if spec is None or spec.loader is None:
-        raise ValueError(f"Could not load module from: {accuracy_function_path}")
-    
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    
-    if not hasattr(module, 'evaluate_results'):
-        raise ValueError(f"Module {accuracy_function_path} does not contain 'evaluate_results' function")
-    
-    evaluate_func = getattr(module, 'evaluate_results')
-    
-    def wrapped_eval_func(method_name, results_file_path):
-        """
-        Wrapper that calls the custom evaluate_results function.
-        The custom function should have signature:
-        evaluate_results(method_name, results_file, ground_truth_file=None, original_json_file=None)
-        """
-        return evaluate_func(method_name, results_file_path)
-    
-    return wrapped_eval_func
 
 def get_evaluate_func(dataset, mode="train", custom_evaluate_func=None):
     """
@@ -542,6 +375,9 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
     """
     Run evaluation for a specific dataset on a set of nodes or files.
     
+    When custom_evaluate_func is provided, this delegates to docetl's run_evaluation.
+    Otherwise, it uses experiment-specific dataset evaluation functions.
+    
     Args:
         dataset (str): Dataset name ('cuad' or 'blackvault')
         nodes_or_files (list): List of nodes (with result_path) or file paths
@@ -555,44 +391,84 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
     Returns:
         tuple: (eval_results, None) where eval_results is list of evaluation metrics
     """
-    eval_results = []
-    
     if custom_evaluate_func is not None:
         if custom_metric_key is None:
             raise ValueError("custom_metric_key must be provided when using custom_evaluate_func")
         
-        # Process custom evaluation
-        for item in nodes_or_files:
-            jf, node_data = _extract_node_data(item)
-            if jf is None or not Path(jf).exists():
-                continue
-            
-            try:
-                metrics = custom_evaluate_func(method_name, jf)
-                display_path = _get_display_path(jf, output_path)
-                
-                # Extract the custom metric
-                accuracy_value = metrics.get(custom_metric_key)
-                if accuracy_value is None:
-                    print(f"⚠️  Warning: Custom metric key '{custom_metric_key}' not found in evaluation results for {jf}")
-                    accuracy_value = next((v for v in metrics.values() if isinstance(v, (int, float))), 0.0)
-                
-                result = {
-                    "file": display_path,
-                    custom_metric_key: accuracy_value,
-                    **metrics,  # Include all metrics from custom function
-                    **node_data
-                }
-                result = _add_frontier_info(result, item)
-                eval_results.append(result)
-            except Exception as e:
-                print(f"   ⚠️  Evaluation failed for {jf}: {e}")
+        # Use docetl's run_evaluation for custom evaluation functions
+        from docetl.utils_evaluation import run_evaluation
+        import inspect
         
-        # Create plots if we have results
+        # Check the signature of custom_evaluate_func
+        sig = inspect.signature(custom_evaluate_func)
+        param_names = list(sig.parameters.keys())
+        num_params = len(param_names)
+        
+        # Wrap custom_evaluate_func to match docetl's signature (results_file_path) -> dict
+        # Functions can have different signatures:
+        # - (results_file_path) -> dict (docetl style)
+        # - (method_name, results_file_path) -> dict
+        # - (method_name, results_file_path, ground_truth_file, ...) -> dict (with kwargs)
+        if num_params == 1:
+            # Function already takes (results_file_path) - use as-is
+            wrapped_eval_func = custom_evaluate_func
+        elif num_params == 2:
+            # Function takes (method_name, results_file_path) - wrap it
+            def wrapped_eval_func(results_file_path: str):
+                return custom_evaluate_func(method_name, results_file_path)
+        else:
+            # Function takes more than 2 params - pass extras as kwargs
+            # First param is typically method_name, second is results_file_path
+            # Remaining params should be passed as kwargs
+            def wrapped_eval_func(results_file_path: str):
+                kwargs = {}
+                # Check if function expects ground_truth_file/ground_truth_path
+                if 'ground_truth_file' in param_names and ground_truth_path:
+                    kwargs['ground_truth_file'] = ground_truth_path
+                elif 'ground_truth_path' in param_names and ground_truth_path:
+                    kwargs['ground_truth_path'] = ground_truth_path
+                
+                # Check if function expects original_json_file
+                # Try to infer from dataset config if available
+                if 'original_json_file' in param_names:
+                    # Try to get from dataset config
+                    config = _get_dataset_config(dataset, ground_truth_path, method_name)
+                    if config and 'original_json_file' in config:
+                        kwargs['original_json_file'] = config['original_json_file']
+                    # Or try common paths
+                    elif dataset:
+                        potential_paths = [
+                            f"experiments/reasoning/data/train/{dataset.lower()}.json",
+                            f"experiments/reasoning/data/test/{dataset.lower()}.json",
+                        ]
+                        for path in potential_paths:
+                            if Path(path).exists():
+                                kwargs['original_json_file'] = path
+                                break
+                
+                # Call with positional args first, then kwargs
+                if num_params >= 2:
+                    # First param is method_name, second is results_file_path
+                    return custom_evaluate_func(method_name, results_file_path, **kwargs)
+                else:
+                    # Shouldn't happen, but handle gracefully
+                    return custom_evaluate_func(results_file_path, **kwargs)
+        
+        eval_results = run_evaluation(
+            nodes_or_files=nodes_or_files,
+            evaluate_func=wrapped_eval_func,
+            metric_key=custom_metric_key,
+            output_path=output_path,
+            dataset_name=dataset,
+        )
+        
+        # Create plots if we have results (experiment-specific plotting)
         if eval_results:
             _create_generic_plots(eval_results, output_path, custom_metric_key)
+        
+        return eval_results, None
     else:
-        # Use dataset configuration
+        # Use dataset configuration (experiment-specific evaluation)
         config = _get_dataset_config(dataset, ground_truth_path, method_name)
         if config is None:
             raise ValueError(f"Unknown dataset: {dataset}")
@@ -612,26 +488,26 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             plot_func = _get_plot_func(config["plot_func_name"])
             if plot_func:
                 plot_func(eval_results, output_path)
-    
-    # Identify Pareto frontier for all datasets
-    if eval_results:
-        print(f"\n🔍 Identifying Pareto frontier for {dataset} dataset...")
-        eval_results = identify_pareto_frontier(eval_results, dataset, custom_metric_key=custom_metric_key)
         
-        # Print Pareto frontier summary
-        print_pareto_frontier_summary(eval_results, dataset, custom_metric_key=custom_metric_key)
+        # Identify Pareto frontier for all datasets
+        if eval_results:
+            print(f"\n🔍 Identifying Pareto frontier for {dataset} dataset...")
+            eval_results = identify_pareto_frontier(eval_results, dataset, custom_metric_key=custom_metric_key)
+            
+            # Print Pareto frontier summary
+            print_pareto_frontier_summary(eval_results, dataset, custom_metric_key=custom_metric_key)
+            
+            # Save Pareto frontier results to separate file
+            save_pareto_frontier_results(eval_results, dataset, output_path, custom_metric_key=custom_metric_key)
         
-        # Save Pareto frontier results to separate file
-        save_pareto_frontier_results(eval_results, dataset, output_path, custom_metric_key=custom_metric_key)
-    
-    # Save evaluation results
-    if eval_results:
-        eval_out_file = output_path / "evaluation_metrics.json"
-        with open(eval_out_file, "w") as f:
-            json.dump(eval_results, f, indent=2)
-        print(f"📊 Evaluation results written to {eval_out_file}")
-    
-    return eval_results, None
+        # Save evaluation results
+        if eval_results:
+            eval_out_file = output_path / "evaluation_metrics.json"
+            with open(eval_out_file, "w") as f:
+                json.dump(eval_results, f, indent=2)
+            print(f"📊 Evaluation results written to {eval_out_file}")
+        
+        return eval_results, None
 
 def _create_cuad_plots(eval_results, output_path):
     """Create plots for CUAD dataset"""

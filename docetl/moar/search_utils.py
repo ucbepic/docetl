@@ -136,36 +136,8 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
 
 
 def fix_models(parsed_yaml):
-    """Fix model names based on model type (GPT -> Azure, Gemini -> Gemini provider)."""
-
-    def get_model_type(model_name):
-        """Determine model type from model name."""
-        if model_name.startswith("gpt"):
-            return "azure"
-        elif model_name.startswith("gemini"):
-            return "gemini"
-        else:
-            return "unknown"
-
-    def traverse(obj):
-        if isinstance(obj, dict):
-            for key, value in obj.items():
-                if (key == "model" or key == "default_model") and isinstance(
-                    value, str
-                ):
-                    model_type = get_model_type(value)
-
-                    if model_type == "azure" and not value.startswith("azure"):
-                        obj[key] = f"azure/{value}"
-                    elif model_type == "gemini" and not value.startswith("gemini/"):
-                        obj[key] = f"gemini/{value}"
-                else:
-                    traverse(value)
-        elif isinstance(obj, list):
-            for item in obj:
-                traverse(item)
-
-    traverse(parsed_yaml)
+    """No-op: Model names should be specified correctly in the YAML."""
+    pass
 
 
 def is_fully_explored(node, max_children_multiplier: float = 1.0) -> bool:

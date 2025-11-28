@@ -4,8 +4,8 @@ from docetl.operations.code_operations import CodeFilterOperation, CodeMapOperat
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.filter import FilterOperation
 from docetl.operations.gather import GatherOperation
-from docetl.operations.link_resolve import LinkResolveOperation
 from docetl.operations.map import MapOperation, ParallelMapOperation
+from docetl.operations.link_resolve import LinkResolveOperation
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
 from docetl.operations.rank import RankOperation

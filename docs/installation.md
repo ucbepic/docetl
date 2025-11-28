@@ -55,6 +55,12 @@ If you want to use only the parsing extra:
 uv sync --extra parsing
 ```
 
+If you want to use the parsing tools, you need to install the `parsing` extra:
+
+```bash
+poetry install --extras "parsing"
+```
+
 This will create a virtual environment and install all the required dependencies.
 
 4. Set up your OpenAI API key:

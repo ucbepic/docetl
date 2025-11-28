@@ -1,0 +1,30 @@
+# Requirements for running run_moar.py and run_simple_agent.py
+# 
+# Install with: pip install -r experiments/reasoning/requirements.txt
+#
+# Note: All dependencies listed here are required for the scripts to function.
+# Modal is required if you want to run experiments on Modal (recommended for long-running experiments).
+
+# Core LLM and API dependencies
+litellm>=1.75.4
+
+# Data validation and serialization
+pydantic>=2.9.2
+pyyaml>=6.0
+
+# Remote execution (required for Modal runs, optional for local-only execution)
+modal>=0.64.0
+
+# Data processing and evaluation (used in evaluation modules and DocETL operations)
+pandas>=2.3.0
+numpy>=1.24.0
+scipy>=1.10.0
+scikit-learn>=1.5.2
+
+# Plotting and visualization (used in evaluation/utils.py for generating plots)
+matplotlib>=3.7.0
+
+# Progress bars and console output (used in DocETL operations and runner)
+tqdm>=4.66.4
+rich>=13.7.1
+

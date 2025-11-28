@@ -1,6 +1,29 @@
 # DocETL Optimizer
 
-The DocETL optimizer finds a plan that improves the accuracy of your document processing pipelines. It works by analyzing and potentially rewriting operations marked for optimization, finding optimal plans for execution.
+DocETL provides two optimizer options to improve your document processing pipelines:
+
+## MOAR Optimizer (Recommended)
+
+The **MOAR (Multi-Objective Agentic Rewrites)** optimizer uses Monte Carlo Tree Search to explore optimization space and find Pareto-optimal solutions that balance accuracy and cost. It's the recommended optimizer for most use cases.
+
+**Key Features:**
+
+- Multi-objective optimization (accuracy + cost)
+- Returns multiple Pareto-optimal solutions
+- Automatic model exploration
+- Custom evaluation functions
+- Intelligent search using MCTS
+
+See the [MOAR Optimizer Guide](moar.md) for detailed documentation and examples.
+
+## V1 Optimizer (Deprecated)
+
+!!! warning "Deprecated"
+    The V1 optimizer is deprecated and no longer recommended. Use MOAR instead for all new optimizations.
+
+The V1 optimizer uses a greedy approach with validation to find improved pipeline configurations. It's still available for backward compatibility but should not be used for new projects.
+
+The rest of this page describes the general optimization concepts that apply to both optimizers.
 
 ## Key Features
 
@@ -81,3 +104,17 @@ After applying the optimizer, your pipeline could be transformed into a more eff
 3. **Reduce Operation**: For each contract, combine the extracted and tagged clauses from each chunk.
 
 The goal of the DocETL optimizer is to try many ways of rewriting your pipeline and then select the best one. This may take some time (20-30 minutes for very complex tasks and large documents). But the optimizer's ability to break down complex tasks into more manageable sub-steps can lead to more accurate and reliable results.
+
+## Choosing an Optimizer
+
+**Use MOAR if:**
+
+- You want to explore cost-accuracy trade-offs
+- You need multiple solution options (Pareto frontier)
+- You have custom evaluation metrics
+- You want automatic model exploration
+
+!!! warning "V1 Optimizer Deprecated"
+    The V1 optimizer is deprecated. Use MOAR instead. If you have existing V1-optimized pipelines, they will continue to work, but new optimizations should use MOAR.
+
+For detailed MOAR usage, see the [MOAR Optimizer Guide](moar.md).

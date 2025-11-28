@@ -86,23 +86,35 @@ class APIWrapper(object):
         from litellm import Router
 
         # Build model list: operation model first, then fallbacks
-        model_list = [{
-            "model_name": operation_model,
-            "litellm_params": {
-                "model": operation_model,
-                **({"api_base": self.default_lm_api_base} if self.default_lm_api_base else {})
+        model_list = [
+            {
+                "model_name": operation_model,
+                "litellm_params": {
+                    "model": operation_model,
+                    **(
+                        {"api_base": self.default_lm_api_base}
+                        if self.default_lm_api_base
+                        else {}
+                    ),
+                },
             }
-        }]
+        ]
         model_names = [operation_model]
 
         # Add fallback models, skipping duplicates
         seen = {operation_model}
         for cfg in self.fallback_models_config:
-            name = cfg.get("model_name") if isinstance(cfg, dict) else (cfg if isinstance(cfg, str) else None)
+            name = (
+                cfg.get("model_name")
+                if isinstance(cfg, dict)
+                else (cfg if isinstance(cfg, str) else None)
+            )
             if not name or name in seen:
                 continue
             seen.add(name)
-            params = cfg.get("litellm_params", {}).copy() if isinstance(cfg, dict) else {}
+            params = (
+                cfg.get("litellm_params", {}).copy() if isinstance(cfg, dict) else {}
+            )
             params["model"] = name
             if self.default_lm_api_base and "api_base" not in params:
                 params["api_base"] = self.default_lm_api_base
@@ -171,7 +183,11 @@ class APIWrapper(object):
                     extra_kwargs["api_base"] = self.default_embedding_api_base
 
                 # Use embedding router if available (for fallback models)
-                embedding_fn = self.embedding_router.embedding if self.embedding_router else embedding
+                embedding_fn = (
+                    self.embedding_router.embedding
+                    if self.embedding_router
+                    else embedding
+                )
                 result = embedding_fn(model=model, input=input, **extra_kwargs)
                 # Cache the result
                 c.set(key, result)
@@ -260,6 +276,10 @@ class APIWrapper(object):
             and self.runner.config.get("from_docwrangler", False)
         ):
             model = "azure/" + model
+
+        # Pop off temperature if it's gpt-5 in the model name
+        if "gpt-5" in model:
+            litellm_completion_kwargs.pop("temperature", None)
 
         total_cost = 0.0
         validated = False
@@ -361,7 +381,9 @@ class APIWrapper(object):
                         # Use router if available (for fallback models), otherwise use direct completion
                         # When using router, ensure gleaning model is tried first, then fallback models
                         if self.router and self.fallback_models_config:
-                            completion_fn = self._get_router_with_operation_model(gleaning_model)
+                            completion_fn = self._get_router_with_operation_model(
+                                gleaning_model
+                            )
                         else:
                             completion_fn = completion
 
@@ -847,6 +869,10 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             completion_fn = self._get_router_with_operation_model(model)
         else:
             completion_fn = completion
+
+        # Pop off temperature if it's gpt-5 in the model name
+        if "gpt-5" in model:
+            extra_litellm_kwargs.pop("temperature", None)
 
         if use_structured_output:
             try:

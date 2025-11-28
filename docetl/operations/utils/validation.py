@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Any
 
 from asteval import Interpreter
@@ -34,7 +33,7 @@ def strict_render(template: Template | str, context: dict[str, Any]) -> str:
     # Only process string templates for non-Jinja syntax check
     if isinstance(template, str):
         template_string = template
-        
+
         # Check if template doesn't have Jinja syntax and append document statement
         if not has_jinja_syntax(template_string):
             # Determine the operation type based on context variables
@@ -62,7 +61,7 @@ def strict_render(template: Template | str, context: dict[str, Any]) -> str:
                 template_string = (
                     f"{template_string}\n\nHere is the document: {{{{ input }}}}"
                 )
-        
+
         # Convert string template to Template object
         try:
             template = env.from_string(template_string)
@@ -152,7 +151,7 @@ def _is_integer(value: Any) -> bool:
 
 def _is_number(value: Any) -> bool:
     """Return True if value is a real number (int or float) but not a bool."""
-    return (isinstance(value, (int, float)) and not isinstance(value, bool))
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _validate_scalar(value: Any, schema: dict[str, Any]) -> bool:
@@ -206,7 +205,9 @@ def _validate_value_against_schema(value: Any, schema: dict[str, Any]) -> bool:
                 return False
         # Validate known properties
         for key, prop_schema in properties.items():
-            if key in value and not _validate_value_against_schema(value[key], prop_schema):
+            if key in value and not _validate_value_against_schema(
+                value[key], prop_schema
+            ):
                 return False
         # additionalProperties constraint
         if not additional_props_allowed:

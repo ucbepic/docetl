@@ -57,7 +57,26 @@ website/next-env.d.ts
 
 # experiments
 experiments/*.json
+experiments/reasoning/data/*.json
 
 metrics_vs_cost.png
 tests/data/anthropic-red-team-attempts.jsonl
 tests/data/get_freshstack.py
+!experiments/reasoning/data/operators_documentation.txt
+*.txt
+*.yaml
+*.yml
+*.json
+!*lotus_evaluation.json
+!*pz_evaluation.json
+!*pz_*_evaluation.json
+*.png
+graph.py
+graph_baseline.py
+kendalltau.py
+
+slides/*
+node_modules/*
+
+reaction_index/
+*experiments/reasoning/othersystems/biodex/.chroma-biodex/

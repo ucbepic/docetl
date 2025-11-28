@@ -4,6 +4,8 @@ This module contains utilities for clustering based on different methods.
 We use these in map and reduce operations.
 """
 
+import json
+
 from docetl.operations.utils import APIWrapper
 from docetl.utils import completion_cost
 
@@ -26,10 +28,10 @@ def get_embeddings_for_clustering(
     for i in range(0, len(items), batch_size):
         batch = items[i : i + batch_size]
         texts = [
-            " ".join(str(item[key]) for key in embedding_keys if key in item)[:10000]
+            " ".join(str(item[key]) for key in embedding_keys if key in item)[:1000]
             for item in batch
         ]
-        response = api_wrapper.gen_embedding(embedding_model, texts)
+        response = api_wrapper.gen_embedding(embedding_model, json.dumps(texts))
         embeddings.extend([data["embedding"] for data in response["data"]])
         cost += completion_cost(response)
 

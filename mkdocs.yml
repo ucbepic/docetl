@@ -23,7 +23,6 @@ nav:
           - Operators & Validation: concepts/operators.md
           - Output Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
-          - Optimization: concepts/optimization.md
       - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md
@@ -49,13 +48,22 @@ nav:
               - Overview: pandas/index.md
               - Operations: pandas/operations.md
               - Examples: pandas/examples.md
-      - Performance:
-          - Optimization Overview: optimization/overview.md
-          - Configuration: optimization/configuration.md
-          - Fallback Models: optimization/fallback-models.md
-          - Examples:
-              - Basic Example: optimization/example.md
-              - Python API Example: optimization/python-api.md
+  
+  - Optimization:
+      - Overview: optimization/overview.md
+      - MOAR Optimizer:
+          - Introduction: optimization/moar.md
+          - Getting Started: optimization/moar/getting-started.md
+          - Configuration: optimization/moar/configuration.md
+          - Evaluation Functions: optimization/moar/evaluation.md
+          - Understanding Results: optimization/moar/results.md
+          - Examples: optimization/moar/examples.md
+          - Troubleshooting: optimization/moar/troubleshooting.md
+      # - Configuration: optimization/configuration.md  # V1 optimizer - commented out
+      # - Fallback Models: optimization/fallback-models.md  # V1 optimizer - commented out
+      # - Examples:
+      #     - Basic Example: optimization/example.md  # V1 optimizer - commented out
+      #     - Python API Example: optimization/python-api.md  # V1 optimizer - commented out
   
   - Tutorials & Examples:
     - Presidential Debate Analysis: examples/presidential-debate-themes.md

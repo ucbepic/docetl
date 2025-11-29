@@ -54,6 +54,19 @@ def test_reduce_operation(
     assert cost > 0
 
 
+def test_reduce_operation_limit(
+    reduce_config, default_model, max_threads, reduce_sample_data, runner
+):
+    reduce_config["limit"] = 2
+    reduce_config["bypass_cache"] = True
+    operation = ReduceOperation(runner, reduce_config, default_model, max_threads)
+    results, cost = operation.execute(reduce_sample_data)
+
+    assert len(results) == 2
+    assert {result["group"] for result in results}.issubset({"A", "B"})
+    assert cost > 0
+
+
 def test_reduce_operation_with_all_key(
     reduce_config, default_model, max_threads, reduce_sample_data, runner
 ):

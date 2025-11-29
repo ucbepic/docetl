@@ -1,4 +1,5 @@
 import pytest
+from docetl.operations.extract import ExtractOperation
 from docetl.operations.filter import FilterOperation
 from docetl.operations.unnest import UnnestOperation
 from docetl.operations.equijoin import EquijoinOperation
@@ -33,6 +34,17 @@ def filter_sample_data():
         {"text": "Brief.", "word_count": 1},
     ]
 
+@pytest.fixture
+def extract_config_missing_key():
+    return {
+        "name": "missing_key_extract",
+        "type": "extract",
+        "prompt": "Identify portions of the document that contain numeric data: {{ input.text }}",
+        "document_keys": ["missing_key"],
+        "model": "gpt-4o-mini",
+        "skip_on_error": True,
+    }
+
 
 def test_filter_operation(
     filter_config, default_model, max_threads, filter_sample_data, runner
@@ -44,6 +56,25 @@ def test_filter_operation(
     assert all(len(result["text"].split()) > 3 for result in results)
 
 
+def test_filter_operation_limit_counts_true_outputs(
+    filter_config, default_model, max_threads, runner
+):
+    filter_config["limit"] = 1
+    filter_config["bypass_cache"] = True
+    sample_data = [
+        {"text": "Tiny.", "word_count": 1},
+        {"text": "This example clearly exceeds three words.", "word_count": 7},
+        {"text": "Another sufficiently long sentence lives here.", "word_count": 6},
+    ]
+
+    operation = FilterOperation(runner, filter_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == 1
+    assert results[0]["text"] == sample_data[1]["text"]
+    assert cost >= 0
+
+
 def test_filter_operation_empty_input(
     filter_config, default_model, max_threads, runner
 ):
@@ -53,6 +84,24 @@ def test_filter_operation_empty_input(
     assert len(results) == 0
     assert cost == 0
 
+
+def test_extract_operation_limit(
+    extract_config_missing_key, default_model, max_threads, runner
+):
+    extract_config_missing_key["limit"] = 1
+    operation = ExtractOperation(
+        runner, extract_config_missing_key, default_model, max_threads
+    )
+    sample_data = [
+        {"id": 1, "text": "Document about contracts"},
+        {"id": 2, "text": "Document about finance"},
+    ]
+
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == 1
+    assert results[0]["id"] == 1
+    assert cost == 0
 
 # Unnest Operation Tests
 @pytest.fixture

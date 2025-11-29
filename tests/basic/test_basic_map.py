@@ -194,6 +194,21 @@ def test_map_operation_with_batching(
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
+def test_map_operation_limit(
+    map_config,
+    default_model,
+    max_threads,
+    map_sample_data,
+    runner,
+):
+    map_config["limit"] = 2
+    map_config["bypass_cache"] = True
+    operation = MapOperation(runner, map_config, default_model, max_threads)
+    results, cost = operation.execute(map_sample_data)
+
+    assert len(results) == 2
+    assert cost >= 0
+
 
 def test_map_operation_with_empty_input(
     map_config_with_batching, default_model, max_threads, runner

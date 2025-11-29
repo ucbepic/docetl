@@ -531,64 +531,80 @@ Reference anchors:"""
 
         limit_counter = 0
         batch_size = self.max_batch_size if self.max_batch_size is not None else 1
+        total_batches = (len(input_data) + batch_size - 1) // batch_size
+        if total_batches == 0:
+            if self.status:
+                self.status.start()
+            return [], 0.0
+
+        worker_limit = self.max_batch_size or self.max_threads or 1
+        window_size = (
+            total_batches
+            if limit_value is None
+            else max(1, (limit_value + batch_size - 1) // batch_size)
+        )
+
         results: list[dict] = []
         total_cost = 0.0
         limit_reached = False
+        op_name = self.config["name"]
 
-        if input_data:
-            with ThreadPoolExecutor(
-                max_workers=self.max_batch_size or 1
-            ) as executor:
-                futures = []
-                for i in range(0, len(input_data), batch_size):
-                    batch = input_data[i : i + batch_size]
-                    futures.append(executor.submit(_process_map_batch, batch))
+        with ThreadPoolExecutor(max_workers=worker_limit) as executor:
+            with RichLoopBar(
+                total=total_batches,
+                desc=f"Processing {op_name} (map) on all documents",
+                console=self.console,
+            ) as pbar:
+                chunk_start = 0
+                while chunk_start < total_batches and not limit_reached:
+                    chunk_end = min(total_batches, chunk_start + window_size)
+                    chunk_ordinals = list(range(chunk_start, chunk_end))
+                    futures = []
+                    for ordinal in chunk_ordinals:
+                        start_idx = ordinal * batch_size
+                        batch = input_data[start_idx : start_idx + batch_size]
+                        futures.append(executor.submit(_process_map_batch, batch))
 
-                pbar = RichLoopBar(
-                    range(len(futures)),
-                    desc=f"Processing {self.config['name']} (map) on all documents",
-                    console=self.console,
-                )
+                    for relative_idx, future in enumerate(futures):
+                        if limit_value is not None and limit_counter >= limit_value:
+                            limit_reached = True
+                            break
 
-                for batch_index in pbar:
-                    if limit_value is not None and limit_counter >= limit_value:
-                        break
+                        result_list, item_cost = future.result()
+                        total_cost += item_cost
 
-                    result_list, item_cost = futures[batch_index].result()
-                    total_cost += item_cost
+                        if result_list:
+                            if "drop_keys" in self.config:
+                                result_list = [
+                                    {
+                                        k: v
+                                        for k, v in result.items()
+                                        if k not in self.config["drop_keys"]
+                                    }
+                                    for result in result_list
+                                ]
 
-                    if result_list:
-                        if "drop_keys" in self.config:
-                            result_list = [
-                                {
-                                    k: v
-                                    for k, v in result.items()
-                                    if k not in self.config["drop_keys"]
-                                }
-                                for result in result_list
-                            ]
+                            if self.config.get("flush_partial_results", False):
+                                self.runner._flush_partial_results(
+                                    op_name, chunk_ordinals[relative_idx], result_list
+                                )
 
-                        if self.config.get("flush_partial_results", False):
-                            op_name = self.config["name"]
-                            self.runner._flush_partial_results(
-                                op_name, batch_index, result_list
-                            )
+                            for result in result_list:
+                                processed_result, counts_towards_limit = (
+                                    self._handle_result(result)
+                                )
+                                if processed_result is not None:
+                                    results.append(processed_result)
 
-                        for result in result_list:
-                            processed_result, counts_towards_limit = self._handle_result(
-                                result
-                            )
-                            if processed_result is not None:
-                                results.append(processed_result)
+                                if limit_value is not None and counts_towards_limit:
+                                    limit_counter += 1
+                                    if limit_counter >= limit_value:
+                                        limit_reached = True
+                                        break
 
-                            if limit_value is not None and counts_towards_limit:
-                                limit_counter += 1
-                                if limit_counter >= limit_value:
-                                    limit_reached = True
-                                    break
+                        pbar.update()
 
-                    if limit_reached:
-                        break
+                    chunk_start = chunk_end
 
         if self.status:
             self.status.start()

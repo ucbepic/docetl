@@ -530,61 +530,65 @@ Reference anchors:"""
             return all_results, total_cost
 
         limit_counter = 0
-
         batch_size = self.max_batch_size if self.max_batch_size is not None else 1
-        total_batches = (
-            (len(input_data) + batch_size - 1) // batch_size if input_data else 0
-        )
         results: list[dict] = []
         total_cost = 0.0
         limit_reached = False
 
-        pbar = RichLoopBar(
-            range(total_batches),
-            desc=f"Processing {self.config['name']} (map) on all documents",
-            console=self.console,
-        )
+        if input_data:
+            with ThreadPoolExecutor(
+                max_workers=self.max_batch_size or 1
+            ) as executor:
+                futures = []
+                for i in range(0, len(input_data), batch_size):
+                    batch = input_data[i : i + batch_size]
+                    futures.append(executor.submit(_process_map_batch, batch))
 
-        for batch_index in pbar:
-            if limit_value is not None and limit_counter >= limit_value:
-                break
+                pbar = RichLoopBar(
+                    range(len(futures)),
+                    desc=f"Processing {self.config['name']} (map) on all documents",
+                    console=self.console,
+                )
 
-            batch_start = batch_index * batch_size
-            batch = input_data[batch_start : batch_start + batch_size]
-            if not batch:
-                break
+                for batch_index in pbar:
+                    if limit_value is not None and limit_counter >= limit_value:
+                        break
 
-            result_list, item_cost = _process_map_batch(batch)
-            total_cost += item_cost
+                    result_list, item_cost = futures[batch_index].result()
+                    total_cost += item_cost
 
-            if result_list:
-                if "drop_keys" in self.config:
-                    result_list = [
-                        {
-                            k: v
-                            for k, v in result.items()
-                            if k not in self.config["drop_keys"]
-                        }
-                        for result in result_list
-                    ]
+                    if result_list:
+                        if "drop_keys" in self.config:
+                            result_list = [
+                                {
+                                    k: v
+                                    for k, v in result.items()
+                                    if k not in self.config["drop_keys"]
+                                }
+                                for result in result_list
+                            ]
 
-                if self.config.get("flush_partial_results", False):
-                    op_name = self.config["name"]
-                    self.runner._flush_partial_results(op_name, batch_index, result_list)
+                        if self.config.get("flush_partial_results", False):
+                            op_name = self.config["name"]
+                            self.runner._flush_partial_results(
+                                op_name, batch_index, result_list
+                            )
 
-                for result in result_list:
-                    processed_result, counts_towards_limit = self._handle_result(result)
-                    if processed_result is not None:
-                        results.append(processed_result)
+                        for result in result_list:
+                            processed_result, counts_towards_limit = self._handle_result(
+                                result
+                            )
+                            if processed_result is not None:
+                                results.append(processed_result)
 
-                    if limit_value is not None and counts_towards_limit:
-                        limit_counter += 1
-                        if limit_counter >= limit_value:
-                            limit_reached = True
-                            break
+                            if limit_value is not None and counts_towards_limit:
+                                limit_counter += 1
+                                if limit_counter >= limit_value:
+                                    limit_reached = True
+                                    break
 
-            if limit_reached:
-                break
+                    if limit_reached:
+                        break
 
         if self.status:
             self.status.start()

@@ -20,7 +20,6 @@ from jinja2 import Template
 from pydantic import Field, field_validator, model_validator
 
 from docetl.operations.base import BaseOperation
-from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
@@ -33,7 +32,11 @@ from docetl.operations.utils import (
 
 # Import OutputMode enum for structured output checks
 from docetl.operations.utils.api import OutputMode
-from docetl.utils import completion_cost
+from docetl.utils import (
+    completion_cost,
+    has_jinja_syntax,
+    prompt_user_for_non_jinja_confirmation,
+)
 
 
 class ReduceOperation(BaseOperation):
@@ -776,6 +779,7 @@ class ReduceOperation(BaseOperation):
 
         end_time = time.time()
         self._update_fold_time(end_time - start_time)
+        fold_cost = response.total_cost
 
         if response.validated:
             structured_mode = (
@@ -844,6 +848,7 @@ class ReduceOperation(BaseOperation):
 
         end_time = time.time()
         self._update_merge_time(end_time - start_time)
+        merge_cost = response.total_cost
 
         if response.validated:
             structured_mode = (

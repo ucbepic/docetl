@@ -426,6 +426,12 @@ Reference anchors:"""
                         output[f"_observability_{self.config['name']}"] = {
                             "prompt": prompt
                         }
+                # Add retrieved context if save_retriever_output is enabled
+                if self.config.get("save_retriever_output", False):
+                    for output in outputs:
+                        output[f"_{self.config['name']}_retrieved_context"] = (
+                            retrieval_context if retrieval_context else ""
+                        )
                 return outputs, llm_result.total_cost
 
             return None, llm_result.total_cost

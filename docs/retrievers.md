@@ -111,12 +111,22 @@ Notes:
 
 Attach the retriever to any LLM-powered op with `retriever: <name>`. Include `{{ retrieval_context }}` in your prompt or let DocETL prepend it automatically.
 
+### Operation Parameters
+
+When using a retriever with an operation, the following additional parameters are available:
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| retriever | string | - | Name of the retriever to use (must be defined in the `retrievers` section). |
+| save_retriever_output | bool | false | If true, saves the retrieved context to `_<operation_name>_retrieved_context` in the output. Useful for debugging and verifying retrieval quality. |
+
 ### Map
 ```yaml
 operations:
   - name: tag_visit
     type: map
     retriever: medical_r
+    save_retriever_output: true  # Optional: save retrieved context to output
     output:
       schema:
         tag: string
@@ -127,6 +137,8 @@ operations:
       Transcript:
       {{ input.src }}
 ```
+
+When `save_retriever_output: true`, each output document will include a `_tag_visit_retrieved_context` field containing the exact context that was retrieved and used for that document.
 
 ### Extract
 ```yaml

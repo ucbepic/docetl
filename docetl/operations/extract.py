@@ -118,7 +118,7 @@ class ExtractOperation(BaseOperation):
 
     def _execute_line_number_strategy(
         self, item: dict, doc_key: str
-    ) -> tuple[list[dict[str, Any]], float]:
+    ) -> tuple[list[str], float, str]:
         """
         Executes the line number extraction strategy for a single document key.
 
@@ -226,7 +226,7 @@ Do not include explanatory text in your response, only the JSON object.
                 self.console.log(
                     f"[bold red]Error parsing LLM response: {llm_result.response}. Skipping.[/bold red]"
                 )
-                return [], llm_result.total_cost
+                return [], llm_result.total_cost, retrieval_context
 
             for line_range in parsed_output.get("line_ranges", []):
                 start_line = line_range.get("start_line", 0)
@@ -254,20 +254,20 @@ Do not include explanatory text in your response, only the JSON object.
 
                 extracted_texts.append("".join(extracted_content))
 
-            return extracted_texts, llm_result.total_cost
+            return extracted_texts, llm_result.total_cost, retrieval_context
 
         except Exception as e:
             if self.config.get("skip_on_error", True):
                 self.console.log(
                     f"[bold red]Error parsing LLM response: {str(e)}. Skipping.[/bold red]"
                 )
-                return [], llm_result.total_cost
+                return [], llm_result.total_cost, retrieval_context
             else:
                 raise RuntimeError(f"Error parsing LLM response: {str(e)}") from e
 
     def _execute_regex_strategy(
         self, item: dict, doc_key: str
-    ) -> tuple[list[str], float]:
+    ) -> tuple[list[str], float, str]:
         """
         Executes the regex extraction strategy for a single document key.
 
@@ -276,7 +276,7 @@ Do not include explanatory text in your response, only the JSON object.
             doc_key (str): The key of the document text to process.
 
         Returns:
-            tuple[list[str], float]: A tuple containing the extraction results and the cost.
+            tuple[list[str], float, str]: A tuple containing the extraction results, cost, and retrieval context.
         """
         import re
 
@@ -286,7 +286,7 @@ Do not include explanatory text in your response, only the JSON object.
                 self.console.log(
                     f"[yellow]Warning: Key '{doc_key}' not found or not a string in document. Skipping.[/yellow]"
                 )
-                return [], 0.0
+                return [], 0.0, ""
             else:
                 raise ValueError(
                     f"Key '{doc_key}' not found or not a string in document"
@@ -388,14 +388,14 @@ Return only the JSON object with your patterns, no explanatory text.
                     else:
                         raise ValueError(f"Invalid regex pattern '{pattern}': {str(e)}")
 
-            return extracted_texts, llm_result.total_cost
+            return extracted_texts, llm_result.total_cost, retrieval_context
 
         except Exception as e:
             if self.config.get("skip_on_error", True):
                 self.console.log(
                     f"[bold red]Error parsing LLM response: {str(e)}. Skipping.[/bold red]"
                 )
-                return [], llm_result.total_cost
+                return [], llm_result.total_cost, retrieval_context
             else:
                 raise RuntimeError(f"Error parsing LLM response: {str(e)}") from e
 
@@ -463,7 +463,7 @@ Return only the JSON object with your patterns, no explanatory text.
                 doc_key, future, output_item = futures[i]
 
                 try:
-                    extracted_texts_duped, cost = future.result()
+                    extracted_texts_duped, cost, retrieval_context = future.result()
 
                     # Remove duplicates and empty strings
                     extracted_texts_duped = [
@@ -484,6 +484,12 @@ Return only the JSON object with your patterns, no explanatory text.
                         output_item[output_key] = "\n\n".join(extracted_texts)
                     else:
                         output_item[output_key] = extracted_texts
+
+                    # Save retrieved context if enabled
+                    if self.config.get("save_retriever_output", False):
+                        output_item[f"_{self.config['name']}_retrieved_context"] = (
+                            retrieval_context if retrieval_context else ""
+                        )
 
                 except Exception as e:
                     if self.config.get("skip_on_error", True):

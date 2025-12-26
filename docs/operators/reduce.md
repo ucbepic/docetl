@@ -66,6 +66,8 @@ This Reduce operation processes customer feedback grouped by department:
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                                                  | 2                           |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
+| `retriever` | Name of a retriever to use for RAG. See [Retrievers](../retrievers.md). | None                          |
+| `save_retriever_output` | If true, saves the retrieved context to `_<operation_name>_retrieved_context` in the output. | False                          |
 
 ## Advanced Features
 

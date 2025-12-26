@@ -367,6 +367,16 @@ class ReduceOperation(BaseOperation):
                 # Add the _observability_{self.config['name']} key to the result
                 result[f"_observability_{self.config['name']}"] = {"prompts": prompts}
 
+            # Add retrieved context if save_retriever_output is enabled
+            if self.config.get("save_retriever_output", False):
+                ctx = (
+                    retrieval_context
+                    if retrieval_context
+                    and retrieval_context != "No extra context available."
+                    else ""
+                )
+                result[f"_{self.config['name']}_retrieved_context"] = ctx
+
             # Apply pass-through at the group level
             if (
                 result is not None

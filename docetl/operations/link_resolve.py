@@ -7,11 +7,29 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render
+from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 from .clustering_utils import get_embeddings_for_clustering
 
 
 class LinkResolveOperation(BaseOperation):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "comparison_prompt" in self.config and not has_jinja_syntax(
+            self.config["comparison_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["comparison_prompt"],
+                self.config["name"],
+                "comparison_prompt",
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your comparison_prompt."
+                )
+            # Mark that we need to append document statement
+            # Note: link_resolve uses link_value, id_value, and item, so strict_render will handle it
+            self.config["_append_document_to_comparison_prompt"] = True
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the resolve links operation on the provided dataset.

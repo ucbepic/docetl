@@ -36,7 +36,7 @@ DocETL uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, which 
 
 ## Preparing the Data
 
-Organize your medical transcript data in a JSON file as a list of objects. Each object should have a "src" key containing the transcript text. You can download the example dataset [here](../assets/medical_transcripts.json).
+Organize your medical transcript data in a JSON file as a list of objects. Each object should have a "src" key containing the transcript text. You can download the example dataset [here](assets/medical_transcripts.json).
 
 !!! example "Sample Data Structure"
 

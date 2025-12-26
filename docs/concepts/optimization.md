@@ -56,13 +56,31 @@ The DocETL optimizer operates using the following mechanism:
 
 ### Using the Optimizer
 
-You can invoke the optimizer using the following command:
+DocETL provides two optimizer options:
+
+#### MOAR Optimizer (Recommended)
+
+The MOAR optimizer uses Monte Carlo Tree Search to find Pareto-optimal solutions balancing accuracy and cost:
 
 ```bash
-docetl build your_pipeline.yaml
+docetl build your_pipeline.yaml --optimizer moar
 ```
 
-This command will save the optimized pipeline to `your_pipeline_opt.yaml`. Note that the optimizer will only rewrite operators where you've set `optimize: true`. Leaving this field unset will skip optimization for that operator.
+See the [MOAR Optimizer Guide](../optimization/moar.md) for detailed instructions.
+
+#### V1 Optimizer (Deprecated)
+
+!!! warning "Deprecated"
+    The V1 optimizer is deprecated and no longer recommended. Use MOAR instead.
+
+The V1 optimizer uses a greedy approach with validation. It's still available for backward compatibility:
+
+```bash
+docetl build your_pipeline.yaml --optimizer v1
+```
+
+!!! warning "Not Recommended"
+    The V1 optimizer should not be used for new projects. Use MOAR instead.
 
 <!-- ### Automatic Entity Resolution
 

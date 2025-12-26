@@ -14,7 +14,12 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
-from docetl.utils import completion_cost, extract_jinja_variables
+from docetl.utils import (
+    completion_cost,
+    extract_jinja_variables,
+    has_jinja_syntax,
+    prompt_user_for_non_jinja_confirmation,
+)
 
 
 def find_cluster(item, cluster_map):
@@ -48,6 +53,10 @@ class ResolveOperation(BaseOperation):
         @field_validator("comparison_prompt")
         def validate_comparison_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     comparison_template = Template(v)
                     comparison_vars = comparison_template.environment.parse(v).find_all(
@@ -70,6 +79,10 @@ class ResolveOperation(BaseOperation):
         @field_validator("resolution_prompt")
         def validate_resolution_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     reduction_template = Template(v)
                     reduction_vars = reduction_template.environment.parse(v).find_all(
@@ -122,6 +135,38 @@ class ResolveOperation(BaseOperation):
                 raise ValueError("'schema' in 'output' configuration cannot be empty")
 
             return self
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "comparison_prompt" in self.config and not has_jinja_syntax(
+            self.config["comparison_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["comparison_prompt"],
+                self.config["name"],
+                "comparison_prompt",
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your comparison_prompt."
+                )
+            # Mark that we need to append document statement
+            # Note: comparison_prompt uses input1 and input2, so we'll handle it specially in strict_render
+            self.config["_append_document_to_comparison_prompt"] = True
+        if "resolution_prompt" in self.config and not has_jinja_syntax(
+            self.config["resolution_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["resolution_prompt"],
+                self.config["name"],
+                "resolution_prompt",
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your resolution_prompt."
+                )
+            # Mark that we need to append document statement (resolution uses inputs)
+            self.config["_append_document_to_resolution_prompt"] = True
+            self.config["_is_reduce_operation"] = True
 
     def compare_pair(
         self,

@@ -32,7 +32,11 @@ from docetl.operations.utils import (
 
 # Import OutputMode enum for structured output checks
 from docetl.operations.utils.api import OutputMode
-from docetl.utils import completion_cost
+from docetl.utils import (
+    completion_cost,
+    has_jinja_syntax,
+    prompt_user_for_non_jinja_confirmation,
+)
 
 
 class ReduceOperation(BaseOperation):
@@ -67,6 +71,10 @@ class ReduceOperation(BaseOperation):
         @field_validator("prompt")
         def validate_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     template = Template(v)
                     template_vars = template.environment.parse(v).find_all(
@@ -84,6 +92,10 @@ class ReduceOperation(BaseOperation):
         @field_validator("fold_prompt")
         def validate_fold_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     fold_template = Template(v)
                     fold_template_vars = fold_template.environment.parse(v).find_all(
@@ -104,6 +116,10 @@ class ReduceOperation(BaseOperation):
         @field_validator("merge_prompt")
         def validate_merge_prompt(cls, v):
             if v is not None:
+                # Check if it has Jinja syntax
+                if not has_jinja_syntax(v):
+                    # This will be handled during initialization with user confirmation
+                    return v
                 try:
                     merge_template = Template(v)
                     merge_template_vars = merge_template.environment.parse(v).find_all(
@@ -181,6 +197,39 @@ class ReduceOperation(BaseOperation):
         )
         self.intermediates = {}
         self.lineage_keys = self.config.get("output", {}).get("lineage", [])
+        # Check for non-Jinja prompts and prompt user for confirmation
+        if "prompt" in self.config and not has_jinja_syntax(self.config["prompt"]):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["prompt"], self.config["name"], "prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your prompt."
+                )
+            # Mark that we need to append document statement (for reduce, use inputs)
+            self.config["_append_document_to_prompt"] = True
+            self.config["_is_reduce_operation"] = True
+        if "fold_prompt" in self.config and not has_jinja_syntax(
+            self.config["fold_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["fold_prompt"], self.config["name"], "fold_prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your fold_prompt."
+                )
+            self.config["_append_document_to_fold_prompt"] = True
+            self.config["_is_reduce_operation"] = True
+        if "merge_prompt" in self.config and not has_jinja_syntax(
+            self.config["merge_prompt"]
+        ):
+            if not prompt_user_for_non_jinja_confirmation(
+                self.config["merge_prompt"], self.config["name"], "merge_prompt"
+            ):
+                raise ValueError(
+                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your merge_prompt."
+                )
+            self.config["_append_document_to_merge_prompt"] = True
+            self.config["_is_reduce_operation"] = True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
@@ -756,6 +805,7 @@ class ReduceOperation(BaseOperation):
 
         end_time = time.time()
         self._update_fold_time(end_time - start_time)
+        fold_cost = response.total_cost
 
         if response.validated:
             structured_mode = (
@@ -831,6 +881,7 @@ class ReduceOperation(BaseOperation):
 
         end_time = time.time()
         self._update_merge_time(end_time - start_time)
+        merge_cost = response.total_cost
 
         if response.validated:
             structured_mode = (

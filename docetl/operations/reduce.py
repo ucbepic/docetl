@@ -297,6 +297,16 @@ class ReduceOperation(BaseOperation):
                 group_list = group_elems
 
             total_cost = 0.0
+            # Build retrieval context once per group
+            try:
+                retrieval_context = self._maybe_build_retrieval_context(
+                    {
+                        "reduce_key": dict(zip(self.config["reduce_key"], key)),
+                        "inputs": group_list,
+                    }
+                )
+            except Exception:
+                retrieval_context = "No extra context available."
 
             # Apply value sampling if enabled
             value_sampling = self.config.get("value_sampling", {})
@@ -326,18 +336,26 @@ class ReduceOperation(BaseOperation):
 
             # Only execute merge-based plans if associative = True
             if "merge_prompt" in self.config and self.config.get("associative", True):
-                result, prompts, cost = self._parallel_fold_and_merge(key, group_list)
+                result, prompts, cost = self._parallel_fold_and_merge(
+                    key, group_list, retrieval_context
+                )
             elif self.config.get("fold_batch_size", None) and self.config.get(
                 "fold_batch_size"
             ) >= len(group_list):
                 # If the fold batch size is greater than or equal to the number of items in the group,
                 # we can just run a single fold operation
-                result, prompt, cost = self._batch_reduce(key, group_list)
+                result, prompt, cost = self._batch_reduce(
+                    key, group_list, None, retrieval_context
+                )
                 prompts = [prompt]
             elif "fold_prompt" in self.config:
-                result, prompts, cost = self._incremental_reduce(key, group_list)
+                result, prompts, cost = self._incremental_reduce(
+                    key, group_list, retrieval_context
+                )
             else:
-                result, prompt, cost = self._batch_reduce(key, group_list)
+                result, prompt, cost = self._batch_reduce(
+                    key, group_list, None, retrieval_context
+                )
                 prompts = [prompt]
 
             total_cost += cost
@@ -348,6 +366,16 @@ class ReduceOperation(BaseOperation):
             if self.config.get("enable_observability", False):
                 # Add the _observability_{self.config['name']} key to the result
                 result[f"_observability_{self.config['name']}"] = {"prompts": prompts}
+
+            # Add retrieved context if save_retriever_output is enabled
+            if self.config.get("save_retriever_output", False):
+                ctx = (
+                    retrieval_context
+                    if retrieval_context
+                    and retrieval_context != "No extra context available."
+                    else ""
+                )
+                result[f"_{self.config['name']}_retrieved_context"] = ctx
 
             # Apply pass-through at the group level
             if (
@@ -467,7 +495,7 @@ class ReduceOperation(BaseOperation):
         return [group_list[i] for i in top_k_indices], cost
 
     def _parallel_fold_and_merge(
-        self, key: tuple, group_list: list[dict]
+        self, key: tuple, group_list: list[dict], retrieval_context: str
     ) -> tuple[dict | None, float]:
         """
         Perform parallel folding and merging on a group of items.
@@ -632,7 +660,7 @@ class ReduceOperation(BaseOperation):
         )
 
     def _incremental_reduce(
-        self, key: tuple, group_list: list[dict]
+        self, key: tuple, group_list: list[dict], retrieval_context: str
     ) -> tuple[dict | None, list[str], float]:
         """
         Perform an incremental reduce operation on a group of items.
@@ -728,6 +756,7 @@ class ReduceOperation(BaseOperation):
         batch: list[dict],
         current_output: dict | None,
         scratchpad: str | None = None,
+        retrieval_context: str | None = None,
     ) -> tuple[dict | None, str, float]:
         """
         Perform an incremental fold operation on a batch of items.
@@ -744,7 +773,7 @@ class ReduceOperation(BaseOperation):
             the prompt used, and the cost of the fold operation.
         """
         if current_output is None:
-            return self._batch_reduce(key, batch, scratchpad)
+            return self._batch_reduce(key, batch, scratchpad, retrieval_context)
 
         start_time = time.time()
         fold_prompt = strict_render(
@@ -753,8 +782,15 @@ class ReduceOperation(BaseOperation):
                 "inputs": batch,
                 "output": current_output,
                 "reduce_key": dict(zip(self.config["reduce_key"], key)),
+                "retrieval_context": retrieval_context or "",
             },
         )
+        if retrieval_context and "retrieval_context" not in self.config.get(
+            "fold_prompt", ""
+        ):
+            fold_prompt = (
+                f"Here is some extra context:\n{retrieval_context}\n\n{fold_prompt}"
+            )
 
         response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
@@ -801,7 +837,7 @@ class ReduceOperation(BaseOperation):
         return None, fold_prompt, fold_cost
 
     def _merge_results(
-        self, key: tuple, outputs: list[dict]
+        self, key: tuple, outputs: list[dict], retrieval_context: str | None = None
     ) -> tuple[dict | None, str, float]:
         """
         Merge multiple outputs into a single result.
@@ -822,8 +858,15 @@ class ReduceOperation(BaseOperation):
             {
                 "outputs": outputs,
                 "reduce_key": dict(zip(self.config["reduce_key"], key)),
+                "retrieval_context": retrieval_context or "",
             },
         )
+        if retrieval_context and "retrieval_context" not in self.config.get(
+            "merge_prompt", ""
+        ):
+            merge_prompt = (
+                f"Here is some extra context:\n{retrieval_context}\n\n{merge_prompt}"
+            )
         response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
             "merge",
@@ -918,7 +961,11 @@ class ReduceOperation(BaseOperation):
             self.merge_times.append(time)
 
     def _batch_reduce(
-        self, key: tuple, group_list: list[dict], scratchpad: str | None = None
+        self,
+        key: tuple,
+        group_list: list[dict],
+        scratchpad: str | None = None,
+        retrieval_context: str | None = None,
     ) -> tuple[dict | None, str, float]:
         """
         Perform a batch reduce operation on a group of items.
@@ -938,8 +985,13 @@ class ReduceOperation(BaseOperation):
             {
                 "reduce_key": dict(zip(self.config["reduce_key"], key)),
                 "inputs": group_list,
+                "retrieval_context": retrieval_context or "",
             },
         )
+        if retrieval_context and "retrieval_context" not in self.config.get(
+            "prompt", ""
+        ):
+            prompt = f"Here is some extra context:\n{retrieval_context}\n\n{prompt}"
         item_cost = 0
 
         response = self.runner.api.call_llm(

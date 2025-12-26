@@ -140,6 +140,8 @@ This strategy asks the LLM to generate regex patterns matching the desired conte
 | `timeout` | Timeout for LLM calls in seconds | 120 |
 | `skip_on_error` | Continue processing if errors occur | false |
 | `litellm_completion_kwargs` | Additional parameters for LiteLLM calls | {} |
+| `retriever` | Name of a retriever to use for RAG. See [Retrievers](../retrievers.md). | None |
+| `save_retriever_output` | If true, saves the retrieved context to `_<operation_name>_retrieved_context` in the output. | False |
 
 ## Best Practices
 

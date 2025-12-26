@@ -155,6 +155,8 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `pdf_url_key` | If specified, the key in the input that contains the URL of the PDF to process. | None                          |
 | `calibrate` | Improve consistency across documents by using sample data as reference anchors. | False                          |
 | `num_calibration_docs` | Number of documents to use sample and generate outputs for, for calibration. | 10                          |
+| `retriever` | Name of a retriever to use for RAG. See [Retrievers](../retrievers.md). | None                          |
+| `save_retriever_output` | If true, saves the retrieved context to `_<operation_name>_retrieved_context` in the output. | False                          |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
 

@@ -9,8 +9,6 @@ from typing import Any
 
 import requests
 from jinja2 import Template
-
-from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 from litellm.utils import ModelResponse
 from pydantic import Field, field_validator, model_validator
 from tqdm import tqdm
@@ -19,6 +17,7 @@ from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types
 from docetl.operations.utils.api import OutputMode
+from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 
 class MapOperation(BaseOperation):
@@ -309,7 +308,17 @@ Reference anchors:"""
             item: dict, initial_result: dict | None = None
         ) -> tuple[dict | None, float]:
 
-            prompt = strict_render(self.config["prompt"], {"input": item})
+            # Build retrieval context (if configured)
+            retrieval_context = self._maybe_build_retrieval_context({"input": item})
+            ctx = {"input": item, "retrieval_context": retrieval_context}
+            rendered = strict_render(self.config["prompt"], ctx)
+            # If template didn't use retrieval_context, prepend a standard header
+            prompt = (
+                f"Here is some extra context:\n{retrieval_context}\n\n{rendered}"
+                if retrieval_context
+                and "retrieval_context" not in self.config["prompt"]
+                else rendered
+            )
             messages = [{"role": "user", "content": prompt}]
             if self.config.get("pdf_url_key", None):
                 # Append the pdf to the prompt
@@ -417,6 +426,12 @@ Reference anchors:"""
                         output[f"_observability_{self.config['name']}"] = {
                             "prompt": prompt
                         }
+                # Add retrieved context if save_retriever_output is enabled
+                if self.config.get("save_retriever_output", False):
+                    for output in outputs:
+                        output[f"_{self.config['name']}_retrieved_context"] = (
+                            retrieval_context if retrieval_context else ""
+                        )
                 return outputs, llm_result.total_cost
 
             return None, llm_result.total_cost

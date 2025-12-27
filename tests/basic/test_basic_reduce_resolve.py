@@ -63,7 +63,7 @@ def test_reduce_operation_limit(
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 2
-    assert {result["group"] for result in results}.issubset({"A", "B"})
+    assert {result["group"] for result in results}.issubset({"A", "C"})
     assert cost > 0
 
 

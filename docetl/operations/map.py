@@ -564,6 +564,11 @@ Reference anchors:"""
         limit_reached = False
         op_name = self.config["name"]
 
+        if limit_value is not None and not self._limit_applies_to_inputs():
+            self.console.log(
+                f"[yellow]Note: Operation will terminate early once {limit_value} items pass the filter condition.[/yellow]"
+            )
+
         with ThreadPoolExecutor(max_workers=worker_limit) as executor:
             with RichLoopBar(
                 total=total_batches,

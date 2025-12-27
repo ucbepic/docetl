@@ -288,6 +288,8 @@ class ReduceOperation(BaseOperation):
 
         limit_value = self.config.get("limit")
         if limit_value is not None:
+            # Sort by group size (smallest first) and take the limit
+            grouped_data = sorted(grouped_data, key=lambda x: len(x[1]))
             grouped_data = grouped_data[:limit_value]
 
         def process_group(

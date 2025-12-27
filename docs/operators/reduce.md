@@ -72,7 +72,7 @@ This Reduce operation processes customer feedback grouped by department:
 
 ### Limiting group processing
 
-Set `limit` to short-circuit the reduce phase after the first _N_ groups have been aggregated. This is useful for previewing results or capping LLM usage when you only need the earliest groups (according to the original input order). Groups beyond the limit are never scheduled, so you avoid extra fold/merge calls. If a grouped reduce returns more than one record per group, the final output list is truncated to `limit`.
+Set `limit` to short-circuit the reduce phase after _N_ groups have been aggregated. When `limit` is set, groups are sorted by size (smallest first) and only the _N_ smallest groups are processed. This is useful for previewing results or capping LLM usage while minimizing cost by processing groups with fewer documents. Groups beyond the limit are never scheduled, so you avoid extra fold/merge calls. If a grouped reduce returns more than one record per group, the final output list is truncated to `limit`.
 
 ## Advanced Features
 

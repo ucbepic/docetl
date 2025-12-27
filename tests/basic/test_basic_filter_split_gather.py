@@ -46,6 +46,18 @@ def extract_config_missing_key():
     }
 
 
+@pytest.fixture
+def extract_config_limit():
+    return {
+        "name": "limit_extract",
+        "type": "extract",
+        "prompt": "Extract the main topic from this text: {{ input.text }}",
+        "document_keys": ["text"],
+        "model": "gpt-4o-mini",
+        "limit": 1,
+    }
+
+
 def test_filter_operation(
     filter_config, default_model, max_threads, filter_sample_data, runner
 ):
@@ -86,11 +98,10 @@ def test_filter_operation_empty_input(
 
 
 def test_extract_operation_limit(
-    extract_config_missing_key, default_model, max_threads, runner
+    extract_config_limit, default_model, max_threads, runner
 ):
-    extract_config_missing_key["limit"] = 1
     operation = ExtractOperation(
-        runner, extract_config_missing_key, default_model, max_threads
+        runner, extract_config_limit, default_model, max_threads
     )
     sample_data = [
         {"id": 1, "text": "Document about contracts"},
@@ -101,7 +112,6 @@ def test_extract_operation_limit(
 
     assert len(results) == 1
     assert results[0]["id"] == 1
-    assert cost == 0
 
 # Unnest Operation Tests
 @pytest.fixture

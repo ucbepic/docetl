@@ -67,6 +67,7 @@ class ReduceOperation(BaseOperation):
         timeout: int | None = None
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
         enable_observability: bool = False
+        limit: int | None = Field(None, gt=0)
 
         @field_validator("prompt")
         def validate_prompt(cls, v):
@@ -285,6 +286,12 @@ class ReduceOperation(BaseOperation):
             # Convert the grouped data to a list of tuples
             grouped_data = list(grouped_data.items())
 
+        limit_value = self.config.get("limit")
+        if limit_value is not None:
+            # Sort by group size (smallest first) and take the limit
+            grouped_data = sorted(grouped_data, key=lambda x: len(x[1]))
+            grouped_data = grouped_data[:limit_value]
+
         def process_group(
             key: tuple, group_elems: list[dict]
         ) -> tuple[dict | None, float]:
@@ -418,6 +425,9 @@ class ReduceOperation(BaseOperation):
                 total_cost += item_cost
                 if output is not None:
                     results.append(output)
+
+        if limit_value is not None and len(results) > limit_value:
+            results = results[:limit_value]
 
         if self.config.get("persist_intermediates", False):
             for result in results:

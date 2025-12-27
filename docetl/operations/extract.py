@@ -26,6 +26,7 @@ class ExtractOperation(BaseOperation):
         timeout: int | None = None
         skip_on_error: bool = False
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
+        limit: int | None = Field(None, gt=0)
 
         @field_validator("prompt")
         def validate_prompt(cls, v):
@@ -409,6 +410,10 @@ Return only the JSON object with your patterns, no explanatory text.
         Returns:
             tuple[list[dict], float]: A tuple containing the processed data and the total cost of the operation.
         """
+        limit_value = self.config.get("limit")
+        if limit_value is not None:
+            input_data = input_data[:limit_value]
+
         if not input_data:
             return [], 0.0
 

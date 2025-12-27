@@ -3,7 +3,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar
@@ -15,6 +15,7 @@ class CodeMapOperation(BaseOperation):
         code: Any
         concurrent_thread_count: int = os.cpu_count()
         drop_keys: list[str] | None = None
+        limit: int | None = Field(None, gt=0)
 
         @field_validator("code")
         @classmethod
@@ -44,6 +45,10 @@ class CodeMapOperation(BaseOperation):
             raise ValueError(f"Invalid code configuration: {str(e)}")
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
+        limit_value = self.config.get("limit")
+        if limit_value is not None:
+            input_data = input_data[:limit_value]
+
         namespace = {}
         exec(self.config["code"], namespace)
         transform_fn = namespace["transform"]
@@ -78,6 +83,7 @@ class CodeReduceOperation(BaseOperation):
         type: str = "code_reduce"
         code: Any
         concurrent_thread_count: int = os.cpu_count()
+        limit: int | None = Field(None, gt=0)
 
         @field_validator("code")
         @classmethod
@@ -131,6 +137,12 @@ class CodeReduceOperation(BaseOperation):
 
             grouped_data = list(grouped_data.items())
 
+        limit_value = self.config.get("limit")
+        if limit_value is not None:
+            # Sort by group size (smallest first) and take the limit
+            grouped_data = sorted(grouped_data, key=lambda x: len(x[1]))
+            grouped_data = grouped_data[:limit_value]
+
         results = []
         with ThreadPoolExecutor(
             max_workers=self.config.get("concurrent_thread_count", os.cpu_count())
@@ -168,6 +180,7 @@ class CodeFilterOperation(BaseOperation):
         type: str = "code_filter"
         code: Any
         concurrent_thread_count: int = os.cpu_count()
+        limit: int | None = Field(None, gt=0)
 
         @field_validator("code")
         @classmethod
@@ -201,6 +214,7 @@ class CodeFilterOperation(BaseOperation):
         exec(self.config["code"], namespace)
         filter_fn = namespace["transform"]
 
+        limit_value = self.config.get("limit")
         results = []
         with ThreadPoolExecutor(
             max_workers=self.config.get("concurrent_thread_count", os.cpu_count())
@@ -215,4 +229,6 @@ class CodeFilterOperation(BaseOperation):
                 should_keep = futures[i].result()
                 if should_keep:
                     results.append(input_data[i])
+                    if limit_value is not None and len(results) >= limit_value:
+                        break
         return results, 0.0

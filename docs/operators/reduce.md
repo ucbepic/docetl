@@ -52,6 +52,7 @@ This Reduce operation processes customer feedback grouped by department:
 | Parameter                 | Description                                                                                            | Default                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------- |
 | `sample`                  | Number of samples to use for the operation                                                             | None                        |
+| `limit`                   | Maximum number of groups to process before stopping                                                    | All groups                  |
 | `synthesize_resolve`      | If false, won't synthesize a resolve operation between map and reduce                                  | true                        |
 | `model`                   | The language model to use                                                                              | Falls back to default_model |
 | `input`                   | Specifies the schema or keys to subselect from each item                                               | All keys from input items   |
@@ -68,6 +69,10 @@ This Reduce operation processes customer feedback grouped by department:
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
 | `retriever` | Name of a retriever to use for RAG. See [Retrievers](../retrievers.md). | None                          |
 | `save_retriever_output` | If true, saves the retrieved context to `_<operation_name>_retrieved_context` in the output. | False                          |
+
+### Limiting group processing
+
+Set `limit` to short-circuit the reduce phase after _N_ groups have been aggregated. When `limit` is set, groups are sorted by size (smallest first) and only the _N_ smallest groups are processed. This is useful for previewing results or capping LLM usage while minimizing cost by processing groups with fewer documents. Groups beyond the limit are never scheduled, so you avoid extra fold/merge calls. If a grouped reduce returns more than one record per group, the final output list is truncated to `limit`.
 
 ## Advanced Features
 

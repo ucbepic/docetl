@@ -33,6 +33,30 @@ class FilterOperation(MapOperation):
 
             return self
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._filter_key = next(
+            iter(
+                [
+                    k
+                    for k in self.config["output"]["schema"].keys()
+                    if k != "_short_explanation"
+                ]
+            )
+        )
+        self._filter_is_build = False
+
+    def _limit_applies_to_inputs(self) -> bool:
+        return False
+
+    def _handle_result(self, result: dict[str, Any]) -> tuple[dict | None, bool]:
+        keep_record = bool(result.get(self._filter_key))
+        result.pop(self._filter_key, None)
+
+        if self._filter_is_build or keep_record:
+            return result, keep_record
+        return None, False
+
     def execute(
         self, input_data: list[dict], is_build: bool = False
     ) -> tuple[list[dict], float]:
@@ -46,56 +70,10 @@ class FilterOperation(MapOperation):
         Returns:
             tuple[list[dict], float]: A tuple containing the filtered list of dictionaries
             and the total cost of the operation.
-
-        This method performs the following steps:
-        1. Processes each input item using an LLM model
-        2. Validates the output
-        3. Filters the results based on the specified filter key
-        4. Calculates the total cost of the operation
-
-        The method uses multi-threading to process items in parallel, improving performance
-        for large datasets.
-
-        Usage:
-        ```python
-        from docetl.operations import FilterOperation
-
-        config = {
-            "prompt": "Determine if the following item is important: {{input}}",
-            "output": {
-                "schema": {"is_important": "bool"}
-            },
-            "model": "gpt-3.5-turbo"
-        }
-        filter_op = FilterOperation(config)
-        input_data = [
-            {"id": 1, "text": "Critical update"},
-            {"id": 2, "text": "Regular maintenance"}
-        ]
-        results, cost = filter_op.execute(input_data)
-        print(f"Filtered results: {results}")
-        print(f"Total cost: {cost}")
-        ```
         """
-        filter_key = next(
-            iter(
-                [
-                    k
-                    for k in self.config["output"]["schema"].keys()
-                    if k != "_short_explanation"
-                ]
-            )
-        )
-
-        # Inject retrieval into inner map execution (super)
-        results, total_cost = super().execute(input_data)
-
-        # Drop records with filter_key values that are False
-        if not is_build:
-            results = [result for result in results if result[filter_key]]
-
-        # Drop the filter_key from the results
-        for result in results:
-            result.pop(filter_key, None)
-
-        return results, total_cost
+        previous_state = self._filter_is_build
+        self._filter_is_build = is_build
+        try:
+            return super().execute(input_data)
+        finally:
+            self._filter_is_build = previous_state

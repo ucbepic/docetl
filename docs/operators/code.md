@@ -91,3 +91,10 @@ The transform function should return True for items to keep and False for items 
 | reduce_key | Key(s) to group by (code_reduce only) | "_all" |
 | pass_through | Pass through unmodified keys from first item in group (code_reduce only) | false |
 | concurrent_thread_count | The number of threads to start | the number of logical CPU cores (os.cpu_count()) |
+| limit | Maximum number of outputs to produce before stopping | Processes all data |
+
+The `limit` parameter behaves differently for each operation type:
+
+- **code_map**: Limits the number of input documents to process
+- **code_filter**: Limits the number of documents that pass the filter (outputs)
+- **code_reduce**: Limits the number of groups to reduce, selecting the smallest groups first (by document count)

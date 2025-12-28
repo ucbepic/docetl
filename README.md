@@ -13,7 +13,8 @@ DocETL is a tool for creating and executing data processing pipelines, especiall
 2. A Python package for running production pipelines from the command line or Python code
 
 > 💡 **Need Help Writing Your Pipeline?**  
-> Want to use an LLM like ChatGPT or Claude to help you write your pipeline? See [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy paste into ChatGPT or Claude, before describing your task.
+> You can use **Claude Code** (recommended) to help you write your pipeline—see the quickstart: https://ucbepic.github.io/docetl/quickstart-claude-code/  
+> If you’d rather use ChatGPT or the Claude app, see [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy/paste before describing your task.
 
 
 ### 🌟 Community Projects

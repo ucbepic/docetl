@@ -244,5 +244,104 @@ def version():
     typer.echo(f"DocETL version: {docetl.__version__}")
 
 
+@app.command("install-skill")
+def install_skill(
+    uninstall: bool = typer.Option(
+        False, "--uninstall", "-u", help="Remove the installed skill instead"
+    ),
+):
+    """
+    Install the DocETL Claude Code skill to your personal skills directory.
+
+    This makes the DocETL skill available in Claude Code for any project.
+    The skill helps you build and run DocETL pipelines.
+    """
+    import shutil
+
+    # Find the skill source - try multiple locations
+    # 1. Installed package location (via importlib.resources)
+    # 2. Development location (relative to this file)
+    skill_source = None
+
+    # Try to find via package resources first
+    try:
+        import importlib.resources as pkg_resources
+
+        # For Python 3.9+, use files()
+        try:
+            package_root = Path(pkg_resources.files("docetl")).parent
+            potential_source = package_root / ".claude" / "skills" / "docetl"
+            if potential_source.exists():
+                skill_source = potential_source
+        except (TypeError, AttributeError):
+            pass
+    except ImportError:
+        pass
+
+    # Fallback: try relative to this file (development mode)
+    if skill_source is None:
+        dev_source = Path(__file__).parent.parent / ".claude" / "skills" / "docetl"
+        if dev_source.exists():
+            skill_source = dev_source
+
+    if skill_source is None or not skill_source.exists():
+        console.print(
+            Panel(
+                "[bold red]Error:[/bold red] Could not find the DocETL skill files.\n\n"
+                "This may happen if the package was not installed correctly.\n"
+                "Try reinstalling: [bold]pip install --force-reinstall docetl[/bold]",
+                title="[bold red]Skill Not Found[/bold red]",
+                border_style="red",
+            )
+        )
+        raise typer.Exit(1)
+
+    # Target directory
+    skill_target = Path.home() / ".claude" / "skills" / "docetl"
+
+    if uninstall:
+        if skill_target.exists():
+            shutil.rmtree(skill_target)
+            console.print(
+                Panel(
+                    f"[bold green]Success![/bold green] DocETL skill removed from:\n"
+                    f"[dim]{skill_target}[/dim]",
+                    title="[bold green]Skill Uninstalled[/bold green]",
+                    border_style="green",
+                )
+            )
+        else:
+            console.print(
+                Panel(
+                    "[yellow]The DocETL skill is not currently installed.[/yellow]",
+                    title="[yellow]Nothing to Uninstall[/yellow]",
+                    border_style="yellow",
+                )
+            )
+        return
+
+    # Create parent directories if needed
+    skill_target.parent.mkdir(parents=True, exist_ok=True)
+
+    # Copy the skill
+    if skill_target.exists():
+        shutil.rmtree(skill_target)
+
+    shutil.copytree(skill_source, skill_target)
+
+    console.print(
+        Panel(
+            f"[bold green]Success![/bold green] DocETL skill installed to:\n"
+            f"[dim]{skill_target}[/dim]\n\n"
+            "[bold]Next steps:[/bold]\n"
+            "1. Restart Claude Code if it's running\n"
+            "2. The skill will automatically activate when you work on DocETL tasks\n\n"
+            "[dim]To uninstall: docetl install-skill --uninstall[/dim]",
+            title="[bold green]Skill Installed[/bold green]",
+            border_style="green",
+        )
+    )
+
+
 if __name__ == "__main__":
     app()

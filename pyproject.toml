@@ -1,6 +1,6 @@
 [project]
 name = "docetl"
-version = "0.2.5"
+version = "0.2.6"
 description = "ETL with LLM operations."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -122,7 +122,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 packages = ["docetl"]
-include = ["docetl/**", "server/**", "README.md", "LICENSE"]
+include = ["docetl/**", "server/**", "README.md", "LICENSE", ".claude/skills/**"]
 exclude = ["website/**/*"]
 
 [tool.pytest.ini_options]

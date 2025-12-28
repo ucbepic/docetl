@@ -14,6 +14,7 @@ nav:
   - Getting Started:
       - Overview: index.md
       - Installation: installation.md
+      - Quick Start (Claude Code): quickstart-claude-code.md
       - Quick Start Tutorial: tutorial.md
       - Quick Start Tutorial (Python API): tutorial-pythonapi.md
       - Best Practices: best-practices.md

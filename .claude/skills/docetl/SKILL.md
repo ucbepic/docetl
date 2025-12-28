@@ -1,6 +1,6 @@
 ---
 name: docetl
-description: Build and run LLM-powered data processing pipelines with DocETL. Use when users want to process documents, extract information, analyze text, or run ETL tasks on unstructured data. Helps with data collection, pipeline creation, execution, and optimization.
+description: Build and run LLM-powered data processing pipelines with DocETL. Use when users say "docetl", want to analyze unstructured data, process documents, extract information, or run ETL tasks on text. Helps with data collection, pipeline creation, execution, and optimization.
 ---
 
 # DocETL Pipeline Development

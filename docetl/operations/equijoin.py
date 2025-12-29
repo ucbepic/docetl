@@ -262,11 +262,8 @@ class EquijoinOperation(BaseOperation):
             and not blocking_conditions
             and not limit_comparisons
         ):
-            # Get target recall: operation config > global optimizer_config > default 0.95
-            target_recall = self.config.get(
-                "blocking_target_recall",
-                self.runner.config.get("optimizer_config", {}).get("target_recall", 0.95)
-            )
+            # Get target recall from operation config (default 0.95)
+            target_recall = self.config.get("blocking_target_recall", 0.95)
             self.console.log(
                 f"[yellow]No blocking configuration specified. "
                 f"Auto-computing embedding-based blocking threshold "

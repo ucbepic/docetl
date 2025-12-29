@@ -1,5 +1,4 @@
 import json
-import os
 from copy import deepcopy
 from typing import Dict, List, Type
 
@@ -182,14 +181,10 @@ class MapToMapResolveReduceDirective(Directive):
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
-                azure=True,
                 response_format=MapToMapResolveReduceInstantiateSchema,
             )
 
-            call_cost = resp._hidden_params["response_cost"]
+            call_cost = resp._hidden_params.get("response_cost", 0)
 
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)

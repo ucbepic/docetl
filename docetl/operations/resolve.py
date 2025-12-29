@@ -41,6 +41,7 @@ class ResolveOperation(BaseOperation):
         comparison_model: str | None = None
         blocking_keys: list[str] | None = None
         blocking_threshold: float | None = Field(None, ge=0, le=1)
+        blocking_target_recall: float | None = Field(None, ge=0, le=1)
         blocking_conditions: list[str] | None = None
         input: dict[str, Any] | None = None
         embedding_batch_size: int | None = Field(None, gt=0)
@@ -281,11 +282,10 @@ class ResolveOperation(BaseOperation):
             and not blocking_conditions
             and not limit_comparisons
         ):
-            # Get target recall from optimizer_config (default 0.95)
-            target_recall = (
-                self.runner.config.get("optimizer_config", {})
-                .get("resolve_config", {})
-                .get("target_recall", 0.95)
+            # Get target recall: operation config > global optimizer_config > default 0.95
+            target_recall = self.config.get(
+                "blocking_target_recall",
+                self.runner.config.get("optimizer_config", {}).get("target_recall", 0.95)
             )
             self.console.log(
                 f"[yellow]No blocking configuration specified. "

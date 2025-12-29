@@ -64,6 +64,7 @@ class EquijoinOperation(BaseOperation):
         comparison_prompt: str
         output: dict[str, Any] | None = None
         blocking_threshold: float | None = None
+        blocking_target_recall: float | None = None
         blocking_conditions: list[str] | None = None
         limits: dict[str, int] | None = None
         comparison_model: str | None = None
@@ -261,11 +262,10 @@ class EquijoinOperation(BaseOperation):
             and not blocking_conditions
             and not limit_comparisons
         ):
-            # Get target recall from optimizer_config (default 0.95)
-            target_recall = (
-                self.runner.config.get("optimizer_config", {})
-                .get("equijoin_config", {})
-                .get("target_recall", 0.95)
+            # Get target recall: operation config > global optimizer_config > default 0.95
+            target_recall = self.config.get(
+                "blocking_target_recall",
+                self.runner.config.get("optimizer_config", {}).get("target_recall", 0.95)
             )
             self.console.log(
                 f"[yellow]No blocking configuration specified. "

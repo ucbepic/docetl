@@ -24,12 +24,14 @@ interface AnsiRendererProps {
   text: string;
   readyState: number;
   setTerminalOutput: (text: string) => void;
+  isDecomposing?: boolean;
 }
 
 const AnsiRenderer: React.FC<AnsiRendererProps> = ({
   text,
   readyState,
   setTerminalOutput,
+  isDecomposing = false,
 }) => {
   const html = convert.toHtml(text);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,7 +53,9 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
     }
   };
 
-  const isWebSocketClosed = readyState === WebSocket.CLOSED;
+  // Consider connected if either WebSocket is open OR decomposing is in progress
+  const isConnected = readyState === WebSocket.OPEN || isDecomposing;
+  const isWebSocketClosed = readyState === WebSocket.CLOSED && !isDecomposing;
 
   return (
     <div
@@ -92,9 +96,11 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
           )}
         </div>
         <div className="flex justify-between items-center text-xs text-gray-500">
-          <div className={isWebSocketClosed ? "text-red-500" : ""}>
+          <div className={isWebSocketClosed ? "text-red-500" : isDecomposing ? "text-blue-400" : ""}>
             Status:{" "}
-            {readyState === WebSocket.CONNECTING
+            {isDecomposing
+              ? "Decomposing..."
+              : readyState === WebSocket.CONNECTING
               ? "Connecting"
               : readyState === WebSocket.OPEN
               ? "Connected"
@@ -106,10 +112,7 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
           </div>
           <button
             onClick={() => setTerminalOutput("")}
-            className={`hover:text-white transition-colors ${
-              isWebSocketClosed ? "cursor-not-allowed opacity-50" : ""
-            }`}
-            disabled={isWebSocketClosed}
+            className="hover:text-white transition-colors"
           >
             Clear
           </button>

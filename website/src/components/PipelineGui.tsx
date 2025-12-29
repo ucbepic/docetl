@@ -40,9 +40,12 @@ import { Input } from "@/components/ui/input";
 import { schemaDictToItemSet } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { useOptimizeCheck } from "@/hooks/useOptimizeCheck";
+import { useDecomposeWebSocket } from "@/hooks/useDecomposeWebSocket";
 import { canBeOptimized } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
 import { OptimizationDialog } from "@/components/OptimizationDialog";
+import { DecompositionComparisonDialog } from "@/components/DecompositionComparisonDialog";
+import { DecomposeResult } from "@/app/types";
 import {
   Popover,
   PopoverContent,
@@ -240,6 +243,9 @@ const PipelineGUI: React.FC = () => {
     apiKeys,
     extraPipelineSettings,
     setExtraPipelineSettings,
+    isDecomposing,
+    setIsDecomposing,
+    onRequestDecompositionRef,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { toast } = useToast();
@@ -253,12 +259,14 @@ const PipelineGUI: React.FC = () => {
     outputData?: Array<Record<string, unknown>>;
     operationName?: string;
     operationId?: string;
+    numDocsAnalyzed?: number;
   }>({
     isOpen: false,
     content: "",
     prompt: undefined,
     operationName: undefined,
     operationId: undefined,
+    numDocsAnalyzed: undefined,
   });
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedPipelineName, setEditedPipelineName] = useState(pipelineName);
@@ -277,14 +285,13 @@ const PipelineGUI: React.FC = () => {
       setCost((prev) => prev + result.cost);
 
       if (result.should_optimize) {
-        toast({
-          title: `Hey! Consider decomposing ${operations[operations.length - 1].name
-            }`,
+        const lastOp = operations[operations.length - 1];
+        const { dismiss } = toast({
+          title: `Hey! Consider decomposing ${lastOp.name}`,
           description: (
             <span
               className="cursor-pointer text-blue-500 hover:text-blue-700"
               onClick={() => {
-                const lastOp = operations[operations.length - 1];
                 setOptimizationDialog({
                   isOpen: true,
                   content: result.should_optimize,
@@ -293,7 +300,9 @@ const PipelineGUI: React.FC = () => {
                   operationId: lastOp.id,
                   inputData: result.input_data,
                   outputData: result.output_data,
+                  numDocsAnalyzed: result.num_docs_analyzed,
                 });
+                dismiss();
               }}
             >
               Click here to see why.
@@ -312,6 +321,144 @@ const PipelineGUI: React.FC = () => {
     },
   });
 
+  const [decomposeDialog, setDecomposeDialog] = useState<{
+    isOpen: boolean;
+    result: DecomposeResult | null;
+    targetOpId: string | null;
+    operationName: string | null;
+  }>({
+    isOpen: false,
+    result: null,
+    targetOpId: null,
+    operationName: null,
+  });
+
+  // Ref to store the current decomposition target (avoids stale closure issue)
+  const decompositionTargetRef = useRef<{
+    operationId: string;
+    operationName: string;
+  } | null>(null);
+
+  const { startDecomposition, cancel: cancelDecomposition } = useDecomposeWebSocket({
+    namespace,
+    onOutput: (output) => {
+      // Stream output to the terminal
+      setTerminalOutput(output);
+    },
+    onComplete: (result) => {
+      setIsDecomposing(false);
+      setCost((prev) => prev + (result.cost || 0));
+
+      // Read from ref to avoid stale closure
+      const target = decompositionTargetRef.current;
+      console.log("Decomposition complete:", {
+        result,
+        target,
+        decomposed_operations: result.decomposed_operations,
+      });
+
+      // Show the comparison dialog instead of auto-applying
+      setDecomposeDialog({
+        isOpen: true,
+        result,
+        targetOpId: target?.operationId || null,
+        operationName: target?.operationName || null,
+      });
+    },
+    onError: (error) => {
+      setIsDecomposing(false);
+      toast({
+        title: "Decomposition Failed",
+        description: error,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleApplyDecomposition = () => {
+    const { result, targetOpId } = decomposeDialog;
+    console.log("handleApplyDecomposition called:", { result, targetOpId, decomposeDialog });
+    if (!result || !targetOpId) {
+      console.warn("handleApplyDecomposition: missing result or targetOpId", { result, targetOpId });
+      return;
+    }
+
+    if (
+      result.decomposed_operations &&
+      result.decomposed_operations.length > 0 &&
+      result.winning_directive !== "original"
+    ) {
+      setOperations((prev) => {
+        // Find the index of the target operation
+        const targetIdx = prev.findIndex((op) => op.id === targetOpId);
+        if (targetIdx === -1) return prev;
+
+        // Convert decomposed operations to our Operation format
+        const newOps: Operation[] = result.decomposed_operations!.map(
+          (opConfig) => ({
+            id: uuidv4(),
+            llmType:
+              opConfig.type === "map" ||
+              opConfig.type === "reduce" ||
+              opConfig.type === "filter" ||
+              opConfig.type === "parallel_map"
+                ? "LLM"
+                : "non-LLM",
+            type: opConfig.type as Operation["type"],
+            name: opConfig.name as string,
+            prompt: opConfig.prompt as string | undefined,
+            output: opConfig.output
+              ? {
+                  schema: schemaDictToItemSet(
+                    (opConfig.output as { schema: Record<string, string> })
+                      .schema
+                  ),
+                }
+              : undefined,
+            gleaning: opConfig.gleaning as Operation["gleaning"],
+            otherKwargs: Object.fromEntries(
+              Object.entries(opConfig).filter(
+                ([key]) =>
+                  !["name", "type", "prompt", "output", "gleaning"].includes(key)
+              )
+            ),
+            visibility: true,
+          })
+        );
+
+        // Replace the target operation with the new operations
+        const newOperations = [...prev];
+        newOperations.splice(targetIdx, 1, ...newOps);
+        return newOperations;
+      });
+
+      toast({
+        title: "Decomposition Applied",
+        description: `Applied ${result.winning_directive} directive. Created ${result.decomposed_operations.length} operation(s).`,
+      });
+    }
+
+    setDecomposeDialog({
+      isOpen: false,
+      result: null,
+      targetOpId: null,
+      operationName: null,
+    });
+  };
+
+  const handleCancelDecomposition = () => {
+    toast({
+      title: "Decomposition Cancelled",
+      description: "Keeping the original operation.",
+    });
+    setDecomposeDialog({
+      isOpen: false,
+      result: null,
+      targetOpId: null,
+      operationName: null,
+    });
+  };
+
   const { restoreFromYAML } = useRestorePipeline({
     setOperations,
     setPipelineName,
@@ -328,79 +475,18 @@ const PipelineGUI: React.FC = () => {
     if (lastMessage) {
       if (lastMessage.type === "output") {
         setTerminalOutput(lastMessage.data);
-      } else if (lastMessage.type === "optimizer_progress") {
-        setOptimizerProgress({
-          status: lastMessage.status,
-          progress: lastMessage.progress,
-          shouldOptimize: lastMessage.should_optimize,
-          rationale: lastMessage.rationale,
-          validatorPrompt: lastMessage.validator_prompt,
-        });
       } else if (lastMessage.type === "result") {
         const runCost = lastMessage.data.cost || 0;
-        setOptimizerProgress(null);
 
-        // See if there was an optimized operation
-        const optimizedOps = lastMessage.data.optimized_ops;
-        if (optimizedOps) {
-          const newOperations = optimizedOps.map((optimizedOp) => {
-            const {
-              id,
-              type,
-              name,
-              prompt,
-              output,
-              validate,
-              gleaning,
-              sample,
-              ...otherKwargs
-            } = optimizedOp;
-
-            // Find matching operation in previous operations list
-            const existingOp = operations.find((op) => op.name === name);
-
-            return {
-              id: id || uuidv4(),
-              llmType:
-                type === "map" ||
-                  type === "reduce" ||
-                  type === "resolve" ||
-                  type === "filter" ||
-                  type === "parallel_map" ||
-                  type === "rank" ||
-                  type === "extract"
-                  ? "LLM"
-                  : "non-LLM",
-              type: type,
-              name: name || "Untitled Operation",
-              prompt: prompt,
-              output: output
-                ? {
-                  schema: schemaDictToItemSet(output.schema),
-                }
-                : undefined,
-              validate: validate,
-              gleaning: gleaning,
-              sample: sample,
-              otherKwargs: otherKwargs || {},
-              ...(existingOp?.runIndex && { runIndex: existingOp.runIndex }),
-              visibility: true,
-            } as Operation;
-          });
-
-          setOperations(newOperations);
-        } else {
-          // No optimized operations, so we need to check if we should optimize the last operation
-          // Trigger should optimize for the last operation
-          if (autoOptimizeCheck) {
-            const lastOp = operations[operations.length - 1];
-            if (lastOp && canBeOptimized(lastOp.type)) {
-              submitTask({
-                yaml_config: lastMessage.data.yaml_config,
-                step_name: "data_processing", // TODO: Make this a constant
-                op_name: lastOp.name,
-              });
-            }
+        // Trigger should_optimize check for the last operation if enabled
+        if (autoOptimizeCheck) {
+          const lastOp = operations[operations.length - 1];
+          if (lastOp && canBeOptimized(lastOp.type)) {
+            submitTask({
+              yaml_config: lastMessage.data.yaml_config,
+              step_name: "data_processing",
+              op_name: lastOp.name,
+            });
           }
         }
 
@@ -692,20 +778,35 @@ const PipelineGUI: React.FC = () => {
   };
 
   const handleStop = () => {
-    sendMessage("kill");
+    // Stop pipeline run if running
+    if (isLoadingOutputs) {
+      sendMessage("kill");
+      if (readyState === WebSocket.CLOSED) {
+        setIsLoadingOutputs(false);
+      }
+    }
 
-    if (readyState === WebSocket.CLOSED && isLoadingOutputs) {
-      setIsLoadingOutputs(false);
+    // Stop decomposition if running
+    if (isDecomposing) {
+      cancelDecomposition();
+      setIsDecomposing(false);
     }
   };
 
   const handleOptimizeFromDialog = async () => {
-    if (!optimizationDialog.operationId) return;
+    if (!optimizationDialog.operationId || !optimizationDialog.operationName) return;
+
+    // Store target in ref so onComplete callback can access it
+    decompositionTargetRef.current = {
+      operationId: optimizationDialog.operationId,
+      operationName: optimizationDialog.operationName,
+    };
 
     try {
-      setTerminalOutput("");
-      setIsLoadingOutputs(true);
+      setIsDecomposing(true);
+      setTerminalOutput(""); // Clear terminal output
 
+      // Write the pipeline config to get a YAML file path
       const response = await fetch("/api/writePipelineConfig", {
         method: "POST",
         headers: {
@@ -732,23 +833,114 @@ const PipelineGUI: React.FC = () => {
 
       const { filePath } = await response.json();
 
-      await connect();
+      // Use the WebSocket decompose endpoint for streaming output
+      await startDecomposition(
+        filePath,
+        "data_processing",  // Matches the step name in generatePipelineConfig
+        optimizationDialog.operationName
+      );
 
-      sendMessage({
-        yaml_config: filePath,
-        optimize: true,
+      toast({
+        title: "Decomposing Operation",
+        description: "Analyzing and generating candidate decompositions. Watch the console for progress.",
       });
     } catch (error) {
-      console.error("Error optimizing operation:", error);
+      console.error("Error starting decomposition:", error);
+      setIsDecomposing(false);
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Failed to start decomposition",
         variant: "destructive",
       });
-      disconnect();
-      setIsLoadingOutputs(false);
     }
   };
+
+  // Handler for decomposition requests from OperationCard dropdown
+  const handleDecompositionRequest = useCallback(
+    async (operationId: string, operationName: string) => {
+      // Store target in ref so onComplete callback can access it
+      decompositionTargetRef.current = {
+        operationId,
+        operationName,
+      };
+
+      try {
+        setIsDecomposing(true);
+        setTerminalOutput(""); // Clear terminal output
+
+        // Set the dialog state so we know which operation we're decomposing
+        setDecomposeDialog((prev) => ({
+          ...prev,
+          targetOpId: operationId,
+          operationName: operationName,
+        }));
+
+        // Write the pipeline config to get a YAML file path
+        const response = await fetch("/api/writePipelineConfig", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            default_model: defaultModel,
+            data: { path: currentFile?.path || "" },
+            operations,
+            operation_id: operationId,
+            name: pipelineName,
+            sample_size: sampleSize,
+            optimize: true,
+            namespace: namespace,
+            apiKeys: apiKeys,
+            optimizerModel: optimizerModel,
+            extraPipelineSettings: extraPipelineSettings,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const { filePath } = await response.json();
+
+        // Start decomposition via WebSocket
+        startDecomposition(filePath, "data_processing", operationName);
+
+        toast({
+          title: "Decomposing Operation",
+          description:
+            "Analyzing and generating candidate decompositions. Watch the console for progress.",
+        });
+      } catch (error) {
+        console.error("Error starting decomposition:", error);
+        setIsDecomposing(false);
+        toast({
+          title: "Error",
+          description:
+            error instanceof Error ? error.message : "Failed to start decomposition",
+          variant: "destructive",
+        });
+      }
+    },
+    [
+      defaultModel,
+      currentFile,
+      operations,
+      pipelineName,
+      sampleSize,
+      namespace,
+      apiKeys,
+      optimizerModel,
+      extraPipelineSettings,
+      startDecomposition,
+      setIsDecomposing,
+      setTerminalOutput,
+      toast,
+    ]
+  );
+
+  // Register the decomposition handler in context so OperationCard can use it
+  // Using ref assignment instead of state to avoid infinite loops
+  onRequestDecompositionRef.current = handleDecompositionRequest;
 
   return (
     <div className="flex flex-col h-full">
@@ -1053,7 +1245,7 @@ const PipelineGUI: React.FC = () => {
                   variant="destructive"
                   className="rounded-sm whitespace-nowrap"
                   onClick={handleStop}
-                  disabled={!isLoadingOutputs}
+                  disabled={!isLoadingOutputs && !isDecomposing}
                 >
                   <StopCircle size={16} className="mr-2" />
                   Stop
@@ -1144,10 +1336,21 @@ const PipelineGUI: React.FC = () => {
         operationName={optimizationDialog.operationName}
         inputData={optimizationDialog.inputData}
         outputData={optimizationDialog.outputData}
+        numDocsAnalyzed={optimizationDialog.numDocsAnalyzed}
         onOpenChange={(open) =>
           setOptimizationDialog((prev) => ({ ...prev, isOpen: open }))
         }
         onDecompose={handleOptimizeFromDialog}
+      />
+      <DecompositionComparisonDialog
+        isOpen={decomposeDialog.isOpen}
+        result={decomposeDialog.result}
+        operationName={decomposeDialog.operationName || undefined}
+        onOpenChange={(open) =>
+          setDecomposeDialog((prev) => ({ ...prev, isOpen: open }))
+        }
+        onApply={handleApplyDecomposition}
+        onCancel={handleCancelDecomposition}
       />
     </div>
   );

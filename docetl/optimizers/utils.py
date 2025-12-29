@@ -30,7 +30,7 @@ class LLMClient:
         Initialize the LLMClient.
 
         Args:
-            model (str, optional): The name of the LLM model to use. Defaults to "gpt-4o".
+            model (str, optional): The name of the LLM model to use. Defaults to "gpt-5.1".
             **litellm_kwargs: Additional keyword arguments for the LLM model.
         """
         self.rewrite_agent_model = rewrite_agent_model

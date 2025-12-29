@@ -1,5 +1,4 @@
 import json
-import os
 from copy import deepcopy
 from typing import Dict, List, Type
 
@@ -268,18 +267,15 @@ class DocumentChunkingDirective(Directive):
             ]
         )
 
+        last_error = None
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             call_cost = 0.0
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
-                azure=True,
                 response_format=DocumentChunkingInstantiateSchema,
             )
-            call_cost = resp._hidden_params["response_cost"]
+            call_cost = resp._hidden_params.get("response_cost", 0)
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DocumentChunkingInstantiateSchema(**parsed_res)
@@ -290,11 +286,12 @@ class DocumentChunkingDirective(Directive):
                 )
                 return schema, message_history, call_cost
             except Exception as err:
+                last_error = err
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
 
         raise Exception(
-            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Last error: {last_error}"
         )
 
     def apply(
@@ -404,16 +401,19 @@ class DocumentChunkingDirective(Directive):
             sample_op["stratify_key"] = stratify_keys
 
             if rewrite.sampling_config.samples_per_group:
-                sample_op["samples_per_group"] = rewrite.sampling_config.samples_per_group
-            
-            
+                sample_op["samples_per_group"] = (
+                    rewrite.sampling_config.samples_per_group
+                )
+
             # Add optional fields if provided
             if rewrite.sampling_config.random_state is not None:
                 sample_op["random_state"] = rewrite.sampling_config.random_state
-            
+
             if rewrite.sampling_config.method_kwargs is not None:
                 try:
-                    sample_op["method_kwargs"] = json.loads(rewrite.sampling_config.method_kwargs)
+                    sample_op["method_kwargs"] = json.loads(
+                        rewrite.sampling_config.method_kwargs
+                    )
                 except Exception as e:
                     raise ValueError(f"Invalid method_kwargs: {e}")
 

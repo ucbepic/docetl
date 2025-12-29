@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from copy import deepcopy
 from typing import Dict, List, Type
@@ -7,14 +6,20 @@ from typing import Dict, List, Type
 from litellm import completion
 from pydantic import BaseModel, Field
 
-from docetl.reasoning_optimizer.instantiate_schemas import MapReduceFusionInstantiateSchema
+from docetl.reasoning_optimizer.instantiate_schemas import (
+    MapReduceFusionInstantiateSchema,
+)
 
 from .base import MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS, Directive, DirectiveTestCase
 
 
 class MapReduceFusionDirective(Directive):
-    name: str = Field(default="map_reduce_fusion", description="The name of the directive")
-    formal_description: str = Field(default="Map -> Reduce => Map (with new prompt) -> Reduce (with new propmt)")
+    name: str = Field(
+        default="map_reduce_fusion", description="The name of the directive"
+    )
+    formal_description: str = Field(
+        default="Map -> Reduce => Map (with new prompt) -> Reduce (with new propmt)"
+    )
     nl_description: str = Field(
         default="Transform a Map operation followed by a Reduce operation over long documents by updating the Map prompt to first extract or process only the relevant information from each document. Then, modify the Reduce prompt to operate on these processed outputs instead of the full document content."
     )
@@ -42,7 +47,7 @@ class MapReduceFusionDirective(Directive):
             "  type: reduce\\n"
             "  reduce_key: category\\n"
             "  prompt: |\\n"
-            "    For each category \\\"{{ reduce_key }}\\\", extract all organization names from these documents:\\n"
+            '    For each category \\"{{ reduce_key }}\\", extract all organization names from these documents:\\n'
             "    {% for input in inputs %}\\n"
             "    Document {{ loop.index }}: {{ input.content }}\\n"
             "    {% endfor %}\\n"
@@ -79,7 +84,7 @@ class MapReduceFusionDirective(Directive):
                         "reduce_key": "category",
                         "prompt": "For each category '{{ reduce_key }}', extract organizations from: {% for input in inputs %}{{ input.content }}{% endfor %}",
                         "output": {"schema": {"organizations": "list[str]"}},
-                    }
+                    },
                 ],
                 target_ops=["classify_document", "extract_organizations"],
                 expected_behavior="Should modify map to classify AND extract organizations per document, then reduce to aggregate pre-extracted organizations",
@@ -101,7 +106,7 @@ class MapReduceFusionDirective(Directive):
                         "reduce_key": "doc_type",
                         "prompt": "For each document type '{{ reduce_key }}', find all people mentioned: {% for input in inputs %}Document: {{ input.text }}{% endfor %}",
                         "output": {"schema": {"people": "list[str]"}},
-                    }
+                    },
                 ],
                 target_ops=["analyze_document", "find_people"],
                 expected_behavior="Should modify map to analyze type AND extract people per document, then reduce to combine pre-extracted people lists",
@@ -159,7 +164,7 @@ class MapReduceFusionDirective(Directive):
         reduce_op: Dict,
         expected_document_key,
         agent_llm: str,
-        message_history: list = []
+        message_history: list = [],
     ):
         """
         Use LLM to instantiate this directive by transforming the map and reduce operations.
@@ -173,66 +178,85 @@ class MapReduceFusionDirective(Directive):
         Returns:
             MapReduceFusionInstantiateSchema: The structured output from the LLM.
         """
-        
-        message_history.extend([
-            {"role": "system", "content": "You are a helpful AI assistant for optimizing document processing pipelines."},
-            {"role": "user", "content": self.to_string_for_instantiate([map_op, reduce_op])},
-        ])
 
+        message_history.extend(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a helpful AI assistant for optimizing document processing pipelines.",
+                },
+                {
+                    "role": "user",
+                    "content": self.to_string_for_instantiate([map_op, reduce_op]),
+                },
+            ]
+        )
+
+        last_error = None
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
-
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
-                azure=True,
-                response_format=MapReduceFusionInstantiateSchema
+                response_format=MapReduceFusionInstantiateSchema,
             )
-            call_cost = resp._hidden_params["response_cost"]
+            call_cost = resp._hidden_params.get("response_cost", 0)
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
-                if "new_map_name" not in parsed_res or "new_map_prompt" not in parsed_res or "new_key" not in parsed_res or "new_reduce_prompt" not in parsed_res:
+                if (
+                    "new_map_name" not in parsed_res
+                    or "new_map_prompt" not in parsed_res
+                    or "new_key" not in parsed_res
+                    or "new_reduce_prompt" not in parsed_res
+                ):
                     raise ValueError(
                         "Response from LLM is missing required keys: 'new_map_name', 'new_map_prompt', 'new_key', or 'new_reduce_prompt'"
                     )
-                
+
                 schema = MapReduceFusionInstantiateSchema(
                     new_map_name=parsed_res["new_map_name"],
                     new_map_prompt=parsed_res["new_map_prompt"],
                     new_key=parsed_res["new_key"],
-                    new_reduce_prompt=parsed_res["new_reduce_prompt"]
+                    new_reduce_prompt=parsed_res["new_reduce_prompt"],
                 )
 
                 # Validate the schema
                 MapReduceFusionInstantiateSchema.validate_reduce_prompt_references_new_key(
                     schema.new_reduce_prompt, schema.new_key, expected_document_key
                 )
-                
+
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history, call_cost       
+                return schema, message_history, call_cost
             except Exception as err:
+                last_error = err
                 error_message = f"Validation error: {err}\\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
-        
-        raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts.")
-    
-    def apply(self, global_default_model, ops_list: List[Dict], map_target: str, reduce_target: str, rewrite: MapReduceFusionInstantiateSchema) -> List[Dict]:
+
+        raise Exception(
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Last error: {last_error}"
+        )
+
+    def apply(
+        self,
+        global_default_model,
+        ops_list: List[Dict],
+        map_target: str,
+        reduce_target: str,
+        rewrite: MapReduceFusionInstantiateSchema,
+    ) -> List[Dict]:
         """
         Apply the directive to the pipeline config.
         """
         # Create a copy of the pipeline config
         new_ops_list = deepcopy(ops_list)
-        
+
         # Find positions of the target ops
         map_pos = None
         reduce_pos = None
         orig_map_op = None
         orig_reduce_op = None
-        
+
         for i, op in enumerate(ops_list):
             if op["name"] == map_target:
                 map_pos = i
@@ -240,13 +264,15 @@ class MapReduceFusionDirective(Directive):
             elif op["name"] == reduce_target:
                 reduce_pos = i
                 orig_reduce_op = op
-        
+
         if map_pos is None or reduce_pos is None:
-            raise ValueError(f"Could not find target operations: {map_target}, {reduce_target}")
-        
+            raise ValueError(
+                f"Could not find target operations: {map_target}, {reduce_target}"
+            )
+
         # Get default model
         default_model = orig_map_op.get("model", global_default_model)
-        
+
         # Create the new map operation with fused functionality
         new_map_op = {
             "name": rewrite.new_map_name,
@@ -257,11 +283,11 @@ class MapReduceFusionDirective(Directive):
             "output": {
                 "schema": {
                     **orig_map_op.get("output", {}).get("schema", {}),
-                    rewrite.new_key: "list[str]"
+                    rewrite.new_key: "list[str]",
                 }
-            }
+            },
         }
-        
+
         # Create the new reduce operation that works with pre-extracted data
         new_reduce_op = {
             "name": orig_reduce_op["name"],
@@ -270,54 +296,58 @@ class MapReduceFusionDirective(Directive):
             "prompt": rewrite.new_reduce_prompt,
             "model": default_model,
             "litellm_completion_kwargs": {"temperature": 0},
-            "output": orig_reduce_op.get("output", {})
+            "output": orig_reduce_op.get("output", {}),
         }
-        
+
         # Replace the operations
         new_ops_list[map_pos] = new_map_op
         new_ops_list[reduce_pos] = new_reduce_op
-        
+
         return new_ops_list
-    
+
     def instantiate(
-        self, 
-        operators: List[Dict], 
-        target_ops: List[str], 
-        agent_llm: str, 
-        message_history: list = [], 
-        optimize_goal="acc", 
-        global_default_model: str = None, 
-        **kwargs
+        self,
+        operators: List[Dict],
+        target_ops: List[str],
+        agent_llm: str,
+        message_history: list = [],
+        optimize_goal="acc",
+        global_default_model: str = None,
+        **kwargs,
     ):
         """
         Instantiate the directive for a list of operators.
         """
         # Assert that there are exactly two target ops (map and reduce)
         if len(target_ops) != 2:
-            raise ValueError("map_reduce_fusion directive requires exactly two target operators: a map and a reduce operation")
-        
+            raise ValueError(
+                "map_reduce_fusion directive requires exactly two target operators: a map and a reduce operation"
+            )
+
         # Find the map and reduce operations
         first_op = None
         second_op = None
-        
+
         for op in operators:
             if op["name"] == target_ops[0]:
                 first_op = op
             elif op["name"] == target_ops[1]:
                 second_op = op
-        
+
         if first_op is None or second_op is None:
             raise ValueError(f"Could not find target operations: {target_ops}")
-        
+
         if first_op.get("type") == "map" and second_op.get("type") == "reduce":
             map_op = first_op
             reduce_op = second_op
             map_target = target_ops[0]
             reduce_target = target_ops[1]
         else:
-            raise ValueError("Target operators must be one map operation followed by one reduce operation!")
-        
-         # Extract expected document key from the reduce prompt template
+            raise ValueError(
+                "Target operators must be one map operation followed by one reduce operation!"
+            )
+
+        # Extract expected document key from the reduce prompt template
         prompt_template = reduce_op["prompt"]
         # Find all occurrences of {{ input.key }} in the prompt
         input_key_pattern = r"\{\{\s*([^\}\s]+)\s*\}\}"
@@ -335,7 +365,9 @@ class MapReduceFusionDirective(Directive):
         ]
 
         if document_key_candidates:
-            expected_document_key = document_key_candidates[0]  # Pick the first candidate
+            expected_document_key = document_key_candidates[
+                0
+            ]  # Pick the first candidate
         elif input_keys:
             expected_document_key = input_keys[0]  # Fall back to the first input key
         else:
@@ -344,8 +376,12 @@ class MapReduceFusionDirective(Directive):
         print(f"Detected document key: {expected_document_key}")
 
         # Instantiate the directive
-        rewrite, message_history, call_cost = self.llm_instantiate(map_op, reduce_op, expected_document_key, agent_llm, message_history)
-        
+        rewrite, message_history, call_cost = self.llm_instantiate(
+            map_op, reduce_op, expected_document_key, agent_llm, message_history
+        )
+
         # Apply the rewrite to the operators
-        new_ops_plan = self.apply(global_default_model, operators, map_target, reduce_target, rewrite)
+        new_ops_plan = self.apply(
+            global_default_model, operators, map_target, reduce_target, rewrite
+        )
         return new_ops_plan, message_history, call_cost

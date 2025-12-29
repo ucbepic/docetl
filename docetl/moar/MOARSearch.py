@@ -849,13 +849,9 @@ class MOARSearch:
             response = litellm.completion(
                 model=self.model,
                 messages=messages,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
-                azure=True,
                 response_format=ExpandResponseFormat,
             )
-            call_cost = response._hidden_params["response_cost"]
+            call_cost = response._hidden_params.get("response_cost", 0)
             with self.tree_lock:
                 self.console.log(
                     f"[green]💰 Adding LLM call cost:[/green] ${call_cost:.4f} (total before: ${self.total_search_cost:.4f})"

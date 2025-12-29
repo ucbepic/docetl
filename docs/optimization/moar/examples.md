@@ -25,15 +25,15 @@ optimizer_config:
   dataset_path: workloads/medical/raw_sample.json  # Use sample for faster optimization
   save_dir: workloads/medical/moar_results
   available_models:  # LiteLLM model names - ensure API keys are set in your environment
-    - gpt-4.1-nano
-    - gpt-4.1-mini
-    - gpt-4.1
+    - gpt-5.1-nano
+    - gpt-5.1-mini
+    - gpt-5.1
     - gpt-4o
     - gpt-4o-mini
   evaluation_file: workloads/medical/evaluate_medications.py
   metric_key: medication_extraction_score
   max_iterations: 40
-  model: gpt-4.1
+  rewrite_agent_model: gpt-5.1
 
 system_prompt:
   dataset_description: a collection of transcripts of doctor visits

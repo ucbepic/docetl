@@ -80,9 +80,9 @@ Test your evaluation function independently and check MOAR logs for errors.
     
     ```yaml
     available_models:
-      - gpt-4.1-nano      # Cheapest, lower accuracy
-      - gpt-4.1-mini      # Low cost, decent accuracy
-      - gpt-4.1           # Balanced
+      - gpt-5.1-nano      # Cheapest, lower accuracy
+      - gpt-5.1-mini      # Low cost, decent accuracy
+      - gpt-5.1           # Balanced
       - gpt-4o             # Higher cost, better accuracy
     ```
 

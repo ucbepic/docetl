@@ -123,7 +123,8 @@ class Directive(BaseModel, ABC):
 
                 try:
                     # 1. Execute the directive
-                    actual_output, _ = self.instantiate(
+                    # instantiate returns (new_ops_plan, message_history, call_cost)
+                    instantiate_result = self.instantiate(
                         operators=(
                             [test_case.input_config]
                             if isinstance(test_case.input_config, dict)
@@ -134,6 +135,11 @@ class Directive(BaseModel, ABC):
                         input_file_path=temp_file_path,
                         pipeline_code=fake_pipeline,
                     )
+                    # Handle both 2-tuple and 3-tuple returns
+                    if isinstance(instantiate_result, tuple):
+                        actual_output = instantiate_result[0]
+                    else:
+                        actual_output = instantiate_result
 
                     # 2. Use LLM judge to evaluate
                     judge_result = self._llm_judge_test(

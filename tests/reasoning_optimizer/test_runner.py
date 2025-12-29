@@ -10,14 +10,13 @@ from typing import Dict, List
 from datetime import datetime
 
 from docetl.reasoning_optimizer.directives import (
-    ChainingDirective, 
+    ChainingDirective,
     GleaningDirective,
     ReduceGleaningDirective,
     ReduceChainingDirective,
     ChangeModelDirective,
     DocSummarizationDirective,
     IsolatingSubtasksDirective,
-    DocCompressionDirective,
     DeterministicDocCompressionDirective,
     OperatorFusionDirective,
     DocumentChunkingDirective,
@@ -28,8 +27,12 @@ from docetl.reasoning_optimizer.directives import (
     SwapWithCodeDirective,
     HierarchicalReduceDirective,
     CascadeFilteringDirective,
-    TestResult
+    MapToMapResolveReduceDirective,
+    MapResolveToMapWithCategoriesDirective,
+    TestResult,
 )
+# DocCompressionDirective is commented out in __init__.py, import directly
+from docetl.reasoning_optimizer.directives.doc_compression import DocCompressionDirective
 
 def run_all_directive_tests(agent_llm: str = "gpt-4.1") -> Dict[str, List[TestResult]]:
     """
@@ -68,6 +71,8 @@ def run_all_directive_tests(agent_llm: str = "gpt-4.1") -> Dict[str, List[TestRe
         SwapWithCodeDirective(),
         HierarchicalReduceDirective(),
         CascadeFilteringDirective(),
+        MapToMapResolveReduceDirective(),
+        MapResolveToMapWithCategoriesDirective(),
     ]
     
     all_results = {}
@@ -176,6 +181,8 @@ def run_specific_directive_test(directive_name: str, agent_llm: str = "gpt-4o-mi
         "clarify_instructions": ClarifyInstructionsDirective(),
         "swap_with_code": SwapWithCodeDirective(),
         "cascade_filtering": CascadeFilteringDirective(),
+        "map_to_map_resolve_reduce": MapToMapResolveReduceDirective(),
+        "map_resolve_to_map_with_categories": MapResolveToMapWithCategoriesDirective(),
     }
     
     if directive_name.lower() not in directive_map:

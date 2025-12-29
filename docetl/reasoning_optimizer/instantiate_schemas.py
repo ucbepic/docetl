@@ -61,7 +61,7 @@ class MapOpConfig(BaseModel):
         ...,
         description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting.",
     )
-    
+
     @classmethod
     def validate_prompt_contains_input_key(cls, value: str) -> str:
         """
@@ -563,7 +563,6 @@ class ChunkHeaderSummaryInstantiateSchema(BaseModel):
         return v
 
 
-
 class SamplingConfig(BaseModel):
     """Configuration for optional sampling in document chunking."""
 
@@ -634,7 +633,7 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         default=None,
         description="Optional sampling configuration. If provided, inserts a Sample operation between Gather and Map. Use by default UNLESS task requires processing ALL chunks (like comprehensive extraction of all instances).",
     )
-   
+
     def validate_split_key_exists_in_input(self, input_file_path: str) -> None:
         """
         Validates that the split_key exists in the input JSON file items.
@@ -811,7 +810,6 @@ class DocumentChunkingTopKInstantiateSchema(BaseModel):
         ...,
         description="Configuration for the topk operation to select relevant chunks",
     )
-
 
     def validate_split_key_exists_in_input(self, input_file_path: str) -> None:
         """
@@ -1209,6 +1207,109 @@ class SearchReplaceEdit(BaseModel):
     #     ...,
     #     description="Explanation of why this edit improves the pipeline (cost, accuracy, or both)",
     # )
+
+
+class MapToMapResolveReduceInstantiateSchema(BaseModel):
+    """
+    Schema for inserting a Resolve operation between Map and Reduce.
+    Transforms Map -> Reduce => Map -> Resolve -> Reduce pattern.
+    The Resolve operation deduplicates/normalizes entities before aggregation.
+    """
+
+    resolve_name: str = Field(..., description="The name of the new Resolve operator")
+    comparison_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for comparing two items. Must use {{ input1.key }} and {{ input2.key }} to reference fields from both items being compared.",
+    )
+    resolution_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for resolving matched items into a canonical form. Must use {% for input in inputs %} to iterate over matched items.",
+    )
+    blocking_conditions: List[str] = Field(
+        ...,
+        description="List of Python expressions that determine if two items should be compared. Each expression has access to 'input1' and 'input2' dicts. Example: \"input1['category'].lower() == input2['category'].lower()\"",
+    )
+    blocking_keys: List[str] = Field(
+        ...,
+        description="Keys to use for blocking/grouping items before comparison. Must include at least the reduce_key from the downstream Reduce operation, plus any additional context helpful for resolution.",
+    )
+    limit_comparisons: int = Field(
+        default=15000,
+        description="Maximum number of pairs to compare. Code-based blocked pairs are prioritized. Defaults to 15000 to avoid O(n^2) comparisons.",
+        gt=0,
+    )
+
+    @field_validator("comparison_prompt")
+    @classmethod
+    def check_comparison_prompt(cls, v: str) -> str:
+        if "input1" not in v or "input2" not in v:
+            raise ValueError(
+                "comparison_prompt must reference both 'input1' and 'input2' variables"
+            )
+        return v
+
+    @field_validator("resolution_prompt")
+    @classmethod
+    def check_resolution_prompt(cls, v: str) -> str:
+        if "inputs" not in v:
+            raise ValueError(
+                "resolution_prompt must reference 'inputs' variable for iterating over matched items"
+            )
+        return v
+
+    @field_validator("blocking_conditions")
+    @classmethod
+    def check_blocking_conditions(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError(
+                "At least one blocking condition must be provided to avoid O(n^2) comparisons"
+            )
+        for condition in v:
+            if "input1" not in condition or "input2" not in condition:
+                raise ValueError(
+                    f"Blocking condition must reference both 'input1' and 'input2': {condition}"
+                )
+        return v
+
+
+class MapResolveToMapWithCategoriesInstantiateSchema(BaseModel):
+    """
+    Schema for replacing Map -> Resolve with a single Map that has predefined categories.
+    The agent proposes categories based on analysis of the data/task, and the new Map
+    forces outputs into one of these categories (or 'none of the above'), effectively
+    doing entity resolution deterministically.
+    """
+
+    categories: List[str] = Field(
+        ...,
+        description="List of valid category values that the map output should be constrained to. Should include all distinct canonical values discovered from analyzing the data/task.",
+    )
+    category_key: str = Field(
+        ...,
+        description="The key in the output schema that will contain the category value",
+    )
+    new_prompt: str = Field(
+        ...,
+        description="The new prompt for the Map operation that includes the category list and instructs the LLM to output one of the predefined categories. Must reference {{ input.key }} for input fields.",
+    )
+    include_none_of_above: bool = Field(
+        default=True,
+        description="Whether to include 'None of the above' as a valid category option for items that don't fit any category",
+    )
+
+    @field_validator("categories")
+    @classmethod
+    def check_categories(cls, v: List[str]) -> List[str]:
+        if len(v) < 2:
+            raise ValueError("At least 2 categories must be provided")
+        if len(v) != len(set(v)):
+            raise ValueError("Categories must be unique")
+        return v
+
+    @field_validator("new_prompt")
+    @classmethod
+    def check_new_prompt(cls, v: str) -> str:
+        return MapOpConfig.validate_prompt_contains_input_key(v)
 
 
 class ArbitraryRewriteInstantiateSchema(BaseModel):

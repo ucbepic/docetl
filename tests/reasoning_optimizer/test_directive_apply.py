@@ -6,7 +6,7 @@ Simple apply tests for directive testing - just ensure apply() doesn't crash.
 # Simple apply tests - no pytest needed
 
 from docetl.reasoning_optimizer.directives import (
-    ChainingDirective, 
+    ChainingDirective,
     GleaningDirective,
     ReduceGleaningDirective,
     ReduceChainingDirective,
@@ -14,7 +14,6 @@ from docetl.reasoning_optimizer.directives import (
     OperatorFusionDirective,
     DocSummarizationDirective,
     IsolatingSubtasksDirective,
-    DocCompressionDirective,
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
     DocumentChunkingTopKDirective,
@@ -22,8 +21,12 @@ from docetl.reasoning_optimizer.directives import (
     TakeHeadTailDirective,
     ClarifyInstructionsDirective,
     SwapWithCodeDirective,
-    HierarchicalReduceDirective
+    HierarchicalReduceDirective,
+    MapToMapResolveReduceDirective,
+    MapResolveToMapWithCategoriesDirective,
 )
+# DocCompressionDirective is commented out in __init__.py, import directly
+from docetl.reasoning_optimizer.directives.doc_compression import DocCompressionDirective
 
 
 def test_chaining_apply():
@@ -1012,6 +1015,237 @@ def test_cascade_filtering_apply():
     assert "high-quality research paper" in result[5]["prompt"]
 
 
+def test_map_to_map_resolve_reduce_apply():
+    """Test that map_to_map_resolve_reduce apply doesn't crash"""
+    directive = MapToMapResolveReduceDirective()
+
+    # Pipeline with map followed by reduce
+    ops_list = [
+        {
+            "name": "extract_companies",
+            "type": "map",
+            "prompt": "Extract company name from: {{ input.article }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"company_name": "string"}},
+        },
+        {
+            "name": "aggregate_by_sector",
+            "type": "reduce",
+            "reduce_key": "sector",
+            "prompt": "List companies:\n{% for input in inputs %}\n- {{ input.company_name }}\n{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"companies": "list[str]"}},
+        },
+    ]
+
+    from docetl.reasoning_optimizer.instantiate_schemas import (
+        MapToMapResolveReduceInstantiateSchema,
+    )
+
+    rewrite = MapToMapResolveReduceInstantiateSchema(
+        resolve_name="normalize_company_names",
+        comparison_prompt="""Are these two company names referring to the same company?
+Company 1: {{ input1.company_name }}
+Company 2: {{ input2.company_name }}
+Consider variations like abbreviations (IBM vs International Business Machines).""",
+        resolution_prompt="""Given these variations of a company name:
+{% for input in inputs %}
+- {{ input.company_name }}
+{% endfor %}
+Return the canonical/official company name.""",
+        blocking_conditions=[
+            "input1['company_name'][:3].lower() == input2['company_name'][:3].lower()",
+            "input1['company_name'].split()[0].lower() == input2['company_name'].split()[0].lower()",
+        ],
+        blocking_keys=["sector", "company_name"],  # Must include reduce_key (sector)
+        limit_comparisons=1000,
+    )
+
+    result = directive.apply(
+        "gpt-4o-mini", ops_list, "extract_companies", "aggregate_by_sector", rewrite
+    )
+    assert isinstance(result, list)
+    assert len(result) == 3  # map + resolve + reduce
+
+    # Check the resolve operation was inserted correctly
+    assert result[0]["name"] == "extract_companies"
+    assert result[0]["type"] == "map"
+
+    assert result[1]["name"] == "normalize_company_names"
+    assert result[1]["type"] == "resolve"
+    assert "comparison_prompt" in result[1]
+    assert "resolution_prompt" in result[1]
+    assert "blocking_conditions" in result[1]
+    assert "blocking_keys" in result[1]
+    assert result[1]["blocking_keys"] == ["sector", "company_name"]
+    assert result[1]["limit_comparisons"] == 1000
+    assert "input1" in result[1]["comparison_prompt"]
+    assert "input2" in result[1]["comparison_prompt"]
+    assert "inputs" in result[1]["resolution_prompt"]
+    # Output schema should be derived from reduce_key
+    assert result[1]["output"]["schema"] == {"sector": "string"}
+
+    assert result[2]["name"] == "aggregate_by_sector"
+    assert result[2]["type"] == "reduce"
+
+
+def test_map_to_map_resolve_reduce_apply_with_multiple_reduce_keys():
+    """Test map_to_map_resolve_reduce with multiple reduce_keys"""
+    directive = MapToMapResolveReduceDirective()
+
+    ops_list = [
+        {
+            "name": "extract_products",
+            "type": "map",
+            "prompt": "Extract product info: {{ input.description }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"product_name": "string", "category": "string"}},
+        },
+        {
+            "name": "aggregate_products",
+            "type": "reduce",
+            "reduce_key": ["brand", "region"],  # Multiple reduce keys
+            "prompt": "List products:\n{% for input in inputs %}{{ input.product_name }}{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"products": "list[str]"}},
+        },
+    ]
+
+    from docetl.reasoning_optimizer.instantiate_schemas import (
+        MapToMapResolveReduceInstantiateSchema,
+    )
+
+    rewrite = MapToMapResolveReduceInstantiateSchema(
+        resolve_name="normalize_products",
+        comparison_prompt="Same product? {{ input1.product_name }} vs {{ input2.product_name }}",
+        resolution_prompt="Normalize: {% for input in inputs %}{{ input.product_name }}{% endfor %}",
+        blocking_conditions=[
+            "input1['category'] == input2['category']",
+        ],
+        blocking_keys=["brand", "region", "product_name"],  # Must include reduce_keys
+        limit_comparisons=500,
+    )
+
+    result = directive.apply(
+        "gpt-4o-mini", ops_list, "extract_products", "aggregate_products", rewrite
+    )
+    assert result[1]["type"] == "resolve"
+    assert "blocking_keys" in result[1]
+    assert result[1]["blocking_keys"] == ["brand", "region", "product_name"]
+    # Output schema should include all reduce_keys
+    assert result[1]["output"]["schema"] == {"brand": "string", "region": "string"}
+
+
+def test_map_resolve_to_map_with_categories_apply():
+    """Test that map_resolve_to_map_with_categories apply doesn't crash"""
+    directive = MapResolveToMapWithCategoriesDirective()
+
+    # Pipeline with map followed by resolve
+    ops_list = [
+        {
+            "name": "extract_sentiment",
+            "type": "map",
+            "prompt": "What is the sentiment? {{ input.review }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"sentiment": "string"}},
+        },
+        {
+            "name": "normalize_sentiment",
+            "type": "resolve",
+            "comparison_prompt": "Same sentiment? {{ input1.sentiment }} vs {{ input2.sentiment }}",
+            "resolution_prompt": "Normalize: {% for input in inputs %}{{ input.sentiment }}{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"sentiment": "string"}},
+        },
+    ]
+
+    from docetl.reasoning_optimizer.instantiate_schemas import (
+        MapResolveToMapWithCategoriesInstantiateSchema,
+    )
+
+    rewrite = MapResolveToMapWithCategoriesInstantiateSchema(
+        categories=["Positive", "Negative", "Neutral", "Mixed"],
+        category_key="sentiment",
+        new_prompt="""Classify the sentiment of this review into one of these categories:
+- Positive: Clearly positive sentiment
+- Negative: Clearly negative sentiment
+- Neutral: No strong sentiment
+- Mixed: Both positive and negative
+- None of the above
+
+Review: {{ input.review }}
+
+Return exactly one category.""",
+        include_none_of_above=True,
+    )
+
+    result = directive.apply(
+        "gpt-4o-mini", ops_list, "extract_sentiment", "normalize_sentiment", rewrite
+    )
+    assert isinstance(result, list)
+    assert len(result) == 1  # map only, resolve removed
+
+    # Check the map operation was modified correctly
+    assert result[0]["name"] == "extract_sentiment"
+    assert result[0]["type"] == "map"
+    assert "Positive" in result[0]["prompt"]
+    assert "Negative" in result[0]["prompt"]
+    assert "None of the above" in result[0]["prompt"]
+
+    # Check validation was added
+    assert "validate" in result[0]
+    assert len(result[0]["validate"]) == 1
+    assert "Positive" in result[0]["validate"][0]
+    assert "None of the above" in result[0]["validate"][0]
+
+
+def test_map_resolve_to_map_with_categories_no_none_of_above():
+    """Test map_resolve_to_map_with_categories without 'None of the above' option"""
+    directive = MapResolveToMapWithCategoriesDirective()
+
+    ops_list = [
+        {
+            "name": "classify_type",
+            "type": "map",
+            "prompt": "What type is this? {{ input.text }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"item_type": "string"}},
+        },
+        {
+            "name": "normalize_type",
+            "type": "resolve",
+            "comparison_prompt": "Same type? {{ input1.item_type }} vs {{ input2.item_type }}",
+            "resolution_prompt": "Normalize: {% for input in inputs %}{{ input.item_type }}{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"item_type": "string"}},
+        },
+    ]
+
+    from docetl.reasoning_optimizer.instantiate_schemas import (
+        MapResolveToMapWithCategoriesInstantiateSchema,
+    )
+
+    rewrite = MapResolveToMapWithCategoriesInstantiateSchema(
+        categories=["TypeA", "TypeB", "TypeC"],
+        category_key="item_type",
+        new_prompt="""Classify into: TypeA, TypeB, or TypeC
+Text: {{ input.text }}""",
+        include_none_of_above=False,
+    )
+
+    result = directive.apply(
+        "gpt-4o-mini", ops_list, "classify_type", "normalize_type", rewrite
+    )
+    assert len(result) == 1
+
+    # Check validation does NOT include 'None of the above'
+    assert "validate" in result[0]
+    assert "None of the above" not in result[0]["validate"][0]
+    assert "TypeA" in result[0]["validate"][0]
+    assert "TypeB" in result[0]["validate"][0]
+    assert "TypeC" in result[0]["validate"][0]
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -1077,5 +1311,17 @@ if __name__ == "__main__":
     
     test_cascade_filtering_apply()
     print("✅ Cascade filtering apply test passed")
+
+    test_map_to_map_resolve_reduce_apply()
+    print("✅ Map to map resolve reduce apply test passed")
+
+    test_map_to_map_resolve_reduce_apply_with_multiple_reduce_keys()
+    print("✅ Map to map resolve reduce with multiple reduce keys apply test passed")
+
+    test_map_resolve_to_map_with_categories_apply()
+    print("✅ Map resolve to map with categories apply test passed")
+
+    test_map_resolve_to_map_with_categories_no_none_of_above()
+    print("✅ Map resolve to map with categories (no none of above) apply test passed")
 
     print("\n🎉 All directive apply tests passed!")

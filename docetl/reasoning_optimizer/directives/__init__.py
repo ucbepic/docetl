@@ -30,6 +30,8 @@ from .map_reduce_fusion import MapReduceFusionDirective
 from .hierarchical_reduce import HierarchicalReduceDirective
 from .cascade_filtering import CascadeFilteringDirective
 from .arbitrary_rewrite import ArbitraryRewriteDirective
+from .map_to_map_resolve_reduce import MapToMapResolveReduceDirective
+from .map_resolve_to_map_with_categories import MapResolveToMapWithCategoriesDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
@@ -53,6 +55,8 @@ ALL_DIRECTIVES = [
     HierarchicalReduceDirective(),
     CascadeFilteringDirective(),
     ArbitraryRewriteDirective(),
+    MapToMapResolveReduceDirective(),
+    MapResolveToMapWithCategoriesDirective(),
 ]
 
 ALL_COST_DIRECTIVES = [
@@ -179,8 +183,10 @@ __all__ = [
     "HierarchicalReduceDirective",
     "CascadeFilteringDirective",
     "ArbitraryRewriteDirective",
+    "MapToMapResolveReduceDirective",
+    "MapResolveToMapWithCategoriesDirective",
     "ALL_DIRECTIVES",
-    "DIRECTIVE_REGISTRY", 
+    "DIRECTIVE_REGISTRY",
     "get_all_directive_strings",
     "instantiate_directive"
 ]

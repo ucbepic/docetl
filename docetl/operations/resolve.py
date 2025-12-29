@@ -14,6 +14,7 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
+from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.utils import (
     completion_cost,
     extract_jinja_variables,
@@ -266,26 +267,85 @@ class ResolveOperation(BaseOperation):
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
+        limit_comparisons = self.config.get("limit_comparisons")
+        total_cost = 0
         if self.status:
             self.status.stop()
 
-        if not blocking_threshold and not blocking_conditions:
-            # Prompt the user for confirmation
-            if not Confirm.ask(
-                "[yellow]Warning: No blocking keys or conditions specified. "
-                "This may result in a large number of comparisons. "
-                "We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
-                "Do you want to continue without blocking?[/yellow]",
-                console=self.runner.console,
-            ):
-                raise ValueError("Operation cancelled by user.")
+        # Track pre-computed embeddings from auto-optimization
+        precomputed_embeddings = None
+
+        # Auto-compute blocking threshold if no blocking configuration is provided
+        if (
+            not blocking_threshold
+            and not blocking_conditions
+            and not limit_comparisons
+        ):
+            # Get target recall from optimizer_config (default 0.95)
+            target_recall = (
+                self.runner.config.get("optimizer_config", {})
+                .get("resolve_config", {})
+                .get("target_recall", 0.95)
+            )
+            self.console.log(
+                f"[yellow]No blocking configuration specified. "
+                f"Auto-computing embedding-based blocking threshold "
+                f"(target recall: {target_recall:.0%})...[/yellow]"
+            )
+            # Determine blocking keys if not set
+            auto_blocking_keys = blocking_keys if blocking_keys else None
+            if not auto_blocking_keys:
+                prompt_template = self.config.get("comparison_prompt", "")
+                prompt_vars = extract_jinja_variables(prompt_template)
+                prompt_vars = [
+                    var for var in prompt_vars
+                    if var not in ["input", "input1", "input2"]
+                ]
+                auto_blocking_keys = list(
+                    set([var.split(".")[-1] for var in prompt_vars])
+                )
+            if not auto_blocking_keys:
+                auto_blocking_keys = list(input_data[0].keys())
+            blocking_keys = auto_blocking_keys
+            # Create comparison function for threshold optimization
+            def compare_fn_for_optimization(item1, item2):
+                return self.compare_pair(
+                    self.config["comparison_prompt"],
+                    self.config.get("comparison_model", self.default_model),
+                    item1,
+                    item2,
+                    blocking_keys=[],  # Don't use key-based shortcut during optimization
+                    timeout_seconds=self.config.get("timeout", 120),
+                    max_retries_per_timeout=self.config.get(
+                        "max_retries_per_timeout", 2
+                    ),
+                )
+            # Run threshold optimization
+            optimizer = RuntimeBlockingOptimizer(
+                runner=self.runner,
+                config=self.config,
+                default_model=self.default_model,
+                max_threads=self.max_threads,
+                console=self.console,
+                target_recall=target_recall,
+                sample_size=min(100, len(input_data) * (len(input_data) - 1) // 4),
+            )
+            blocking_threshold, precomputed_embeddings, optimization_cost = (
+                optimizer.optimize_resolve(
+                    input_data,
+                    compare_fn_for_optimization,
+                    blocking_keys=blocking_keys,
+                )
+            )
+            total_cost += optimization_cost
+            self.console.log(
+                f"[green]Using auto-computed blocking threshold: {blocking_threshold}[/green]"
+            )
 
         input_schema = self.config.get("input", {}).get("schema", {})
         if not blocking_keys:
             # Set them to all keys in the input data
             blocking_keys = list(input_data[0].keys())
-        limit_comparisons = self.config.get("limit_comparisons")
-        total_cost = 0
 
         def is_match(item1: dict[str, Any], item2: dict[str, Any]) -> bool:
             return any(
@@ -296,48 +356,49 @@ class ResolveOperation(BaseOperation):
         # Calculate embeddings if blocking_threshold is set
         embeddings = None
         if blocking_threshold is not None:
-
-            def get_embeddings_batch(
-                items: list[dict[str, Any]]
-            ) -> list[tuple[list[float], float]]:
-                embedding_model = self.config.get(
-                    "embedding_model", "text-embedding-3-small"
+            # Use precomputed embeddings if available from auto-optimization
+            if precomputed_embeddings is not None:
+                embeddings = precomputed_embeddings
+                self.console.log(
+                    "[cyan]Using precomputed embeddings from threshold optimization[/cyan]"
                 )
-                model_input_context_length = model_cost.get(embedding_model, {}).get(
-                    "max_input_tokens", 8192
-                )
-
-                texts = [
-                    " ".join(str(item[key]) for key in blocking_keys if key in item)[
-                        : model_input_context_length * 3
+            else:
+                def get_embeddings_batch(
+                    items: list[dict[str, Any]]
+                ) -> list[tuple[list[float], float]]:
+                    embedding_model = self.config.get(
+                        "embedding_model", "text-embedding-3-small"
+                    )
+                    model_input_context_length = model_cost.get(embedding_model, {}).get(
+                        "max_input_tokens", 8192
+                    )
+                    texts = [
+                        " ".join(str(item[key]) for key in blocking_keys if key in item)[
+                            : model_input_context_length * 3
+                        ]
+                        for item in items
                     ]
-                    for item in items
-                ]
-
-                response = self.runner.api.gen_embedding(
-                    model=embedding_model, input=texts
-                )
-                return [
-                    (data["embedding"], completion_cost(response))
-                    for data in response["data"]
-                ]
-
-            embeddings = []
-            costs = []
-            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                for i in range(
-                    0, len(input_data), self.config.get("embedding_batch_size", 1000)
-                ):
-                    batch = input_data[
-                        i : i + self.config.get("embedding_batch_size", 1000)
+                    response = self.runner.api.gen_embedding(
+                        model=embedding_model, input=texts
+                    )
+                    return [
+                        (data["embedding"], completion_cost(response))
+                        for data in response["data"]
                     ]
-                    batch_results = list(executor.map(get_embeddings_batch, [batch]))
-
-                    for result in batch_results:
-                        embeddings.extend([r[0] for r in result])
-                        costs.extend([r[1] for r in result])
-
-                total_cost += sum(costs)
+                embeddings = []
+                costs = []
+                with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                    for i in range(
+                        0, len(input_data), self.config.get("embedding_batch_size", 1000)
+                    ):
+                        batch = input_data[
+                            i : i + self.config.get("embedding_batch_size", 1000)
+                        ]
+                        batch_results = list(executor.map(get_embeddings_batch, [batch]))
+                        for result in batch_results:
+                            embeddings.extend([r[0] for r in result])
+                            costs.extend([r[1] for r in result])
+                    total_cost += sum(costs)
 
         # Generate all pairs to compare, ensuring no duplicate comparisons
         def get_unique_comparison_pairs() -> (

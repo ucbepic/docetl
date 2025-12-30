@@ -17,6 +17,7 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import strict_render
+from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.progress import RichLoopBar
 from docetl.utils import (
     completion_cost,
@@ -63,6 +64,7 @@ class EquijoinOperation(BaseOperation):
         comparison_prompt: str
         output: dict[str, Any] | None = None
         blocking_threshold: float | None = None
+        blocking_target_recall: float | None = None
         blocking_conditions: list[str] | None = None
         limits: dict[str, int] | None = None
         comparison_model: str | None = None
@@ -250,6 +252,58 @@ class EquijoinOperation(BaseOperation):
         if self.status:
             self.status.stop()
 
+        # Track pre-computed embeddings from auto-optimization
+        precomputed_left_embeddings = None
+        precomputed_right_embeddings = None
+
+        # Auto-compute blocking threshold if no blocking configuration is provided
+        if not blocking_threshold and not blocking_conditions and not limit_comparisons:
+            # Get target recall from operation config (default 0.95)
+            target_recall = self.config.get("blocking_target_recall", 0.95)
+            self.console.log(
+                f"[yellow]No blocking configuration. Auto-computing threshold (target recall: {target_recall:.0%})...[/yellow]"
+            )
+
+            # Create comparison function for threshold optimization
+            def compare_fn_for_optimization(left_item, right_item):
+                return self.compare_pair(
+                    self.config["comparison_prompt"],
+                    self.config.get("comparison_model", self.default_model),
+                    left_item,
+                    right_item,
+                    timeout_seconds=self.config.get("timeout", 120),
+                    max_retries_per_timeout=self.config.get(
+                        "max_retries_per_timeout", 2
+                    ),
+                )
+
+            # Run threshold optimization
+            optimizer = RuntimeBlockingOptimizer(
+                runner=self.runner,
+                config=self.config,
+                default_model=self.default_model,
+                max_threads=self.max_threads,
+                console=self.console,
+                target_recall=target_recall,
+                sample_size=min(100, len(left_data) * len(right_data) // 4),
+            )
+            (
+                blocking_threshold,
+                precomputed_left_embeddings,
+                precomputed_right_embeddings,
+                optimization_cost,
+            ) = optimizer.optimize_equijoin(
+                left_data,
+                right_data,
+                compare_fn_for_optimization,
+                left_keys=left_keys,
+                right_keys=right_keys,
+            )
+            total_cost += optimization_cost
+            self.console.log(
+                f"[green]Using auto-computed blocking threshold: {blocking_threshold}[/green]"
+            )
+
         # Initial blocking using multiprocessing
         num_processes = min(cpu_count(), len(left_data))
 
@@ -298,45 +352,60 @@ class EquijoinOperation(BaseOperation):
         )
 
         if blocking_threshold is not None:
-            embedding_model = self.config.get("embedding_model", self.default_model)
-            model_input_context_length = model_cost.get(embedding_model, {}).get(
-                "max_input_tokens", 8192
-            )
-
-            def get_embeddings(
-                input_data: list[dict[str, Any]], keys: list[str], name: str
-            ) -> tuple[list[list[float]], float]:
-                texts = [
-                    " ".join(str(item[key]) for key in keys if key in item)[
-                        : model_input_context_length * 4
-                    ]
-                    for item in input_data
-                ]
-
-                embeddings = []
-                total_cost = 0
+            # Use precomputed embeddings if available from auto-optimization
+            if (
+                precomputed_left_embeddings is not None
+                and precomputed_right_embeddings is not None
+            ):
+                left_embeddings = precomputed_left_embeddings
+                right_embeddings = precomputed_right_embeddings
+            else:
+                embedding_model = self.config.get("embedding_model", self.default_model)
+                model_input_context_length = model_cost.get(embedding_model, {}).get(
+                    "max_input_tokens", 8192
+                )
                 batch_size = 2000
-                for i in range(0, len(texts), batch_size):
-                    batch = texts[i : i + batch_size]
-                    self.console.log(
-                        f"On iteration {i} for creating embeddings for {name} data"
-                    )
-                    response = self.runner.api.gen_embedding(
-                        model=embedding_model,
-                        input=batch,
-                    )
-                    embeddings.extend([data["embedding"] for data in response["data"]])
-                    total_cost += completion_cost(response)
-                return embeddings, total_cost
 
-            left_embeddings, left_cost = get_embeddings(left_data, left_keys, "left")
-            right_embeddings, right_cost = get_embeddings(
-                right_data, right_keys, "right"
-            )
-            total_cost += left_cost + right_cost
-            self.console.log(
-                f"Created embeddings for datasets. Total embedding creation cost: {total_cost}"
-            )
+                def get_embeddings(
+                    input_data: list[dict[str, Any]], keys: list[str], name: str
+                ) -> tuple[list[list[float]], float]:
+                    texts = [
+                        " ".join(str(item[key]) for key in keys if key in item)[
+                            : model_input_context_length * 4
+                        ]
+                        for item in input_data
+                    ]
+                    embeddings = []
+                    embedding_cost = 0
+                    num_batches = (len(texts) + batch_size - 1) // batch_size
+
+                    for batch_idx, i in enumerate(range(0, len(texts), batch_size)):
+                        batch = texts[i : i + batch_size]
+                        if num_batches > 1:
+                            self.console.log(
+                                f"[dim]Creating {name} embeddings: batch {batch_idx + 1}/{num_batches} "
+                                f"({min(i + batch_size, len(texts))}/{len(texts)} items)[/dim]"
+                            )
+                        response = self.runner.api.gen_embedding(
+                            model=embedding_model,
+                            input=batch,
+                        )
+                        embeddings.extend(
+                            [data["embedding"] for data in response["data"]]
+                        )
+                        embedding_cost += completion_cost(response)
+                    return embeddings, embedding_cost
+
+                self.console.log(
+                    f"[cyan]Creating embeddings for {len(left_data)} left + {len(right_data)} right items...[/cyan]"
+                )
+                left_embeddings, left_cost = get_embeddings(
+                    left_data, left_keys, "left"
+                )
+                right_embeddings, right_cost = get_embeddings(
+                    right_data, right_keys, "right"
+                )
+                total_cost += left_cost + right_cost
 
             # Compute all cosine similarities in one call
             from sklearn.metrics.pairwise import cosine_similarity

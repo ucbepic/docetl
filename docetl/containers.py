@@ -465,7 +465,8 @@ class OpContainer:
                     return cached_data, 0, curr_logs
 
         # Try to load from checkpoint if available
-        if not is_build:
+        # Skip if this operation has bypass_cache: true
+        if not is_build and not self.config.get("bypass_cache", False):
             attempted_input_data = self.runner._load_from_checkpoint_if_exists(
                 self.name.split("/")[0], self.name.split("/")[-1]
             )

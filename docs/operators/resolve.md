@@ -44,9 +44,9 @@ This Resolve operation processes patient names to identify and standardize dupli
 
 Note: The prompt templates use Jinja2 syntax, allowing you to reference input fields directly (e.g., `input1.patient_name`).
 
-!!! warning "Performance Consideration"
+!!! info "Automatic Blocking"
 
-    You should not run this operation as-is unless your dataset is small! Running O(n^2) comparisons with an LLM can be extremely time-consuming for large datasets. Instead, optimize your pipeline first using `docetl build pipeline.yaml` and run the optimized version, which will generate efficient blocking rules for the operation. Make sure you've set `optimize: true` in your resolve operation config.
+    If you don't specify any blocking configuration (`blocking_threshold`, `blocking_conditions`, or `limit_comparisons`), the Resolve operation will automatically compute an optimal embedding-based blocking threshold at runtime. It samples pairs from your data, runs LLM comparisons on the sample, and finds a threshold that achieves 95% recall by default. You can adjust this with the `blocking_target_recall` parameter.
 
 ## Blocking
 
@@ -132,7 +132,8 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 | `resolution_model`        | The language model to use for reducing matched entries                            | Falls back to `default_model` |
 | `comparison_model`        | The language model to use for comparing potential matches                         | Falls back to `default_model` |
 | `blocking_keys`           | List of keys to use for initial blocking                                          | All keys in the input data    |
-| `blocking_threshold`      | Embedding similarity threshold for considering entries as potential matches       | None                          |
+| `blocking_threshold`      | Embedding similarity threshold for considering entries as potential matches       | Auto-computed if not set      |
+| `blocking_target_recall`  | Target recall when auto-computing blocking threshold (0.0 to 1.0)                 | 0.95                          |
 | `blocking_conditions`     | List of conditions for initial blocking                                           | []                            |
 | `input`                   | Specifies the schema or keys to subselect from each item to pass into the prompts | All keys from input items     |
 | `embedding_batch_size`    | The number of entries to send to the embedding model at a time                    | 1000                          |
@@ -140,9 +141,9 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 | `limit_comparisons`       | Maximum number of comparisons to perform                                          | None                          |
 | `timeout`                 | Timeout for each LLM call in seconds                                              | 120                           |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                             | 2                             |
-| `sample`                  | Number of samples to use for the operation                                                      |   None                        |
-| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
-| `bypass_cache` | If true, bypass the cache for this operation. | False                          |
+| `sample`                  | Number of samples to use for the operation                                        | None                          |
+| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls.                      | {}                            |
+| `bypass_cache`            | If true, bypass the cache for this operation.                                     | False                         |
 
 ## Best Practices
 

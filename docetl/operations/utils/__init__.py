@@ -1,4 +1,5 @@
 from .api import APIWrapper
+from .blocking import RuntimeBlockingOptimizer
 from .cache import (
     cache,
     cache_key,
@@ -15,6 +16,7 @@ from .validation import safe_eval, convert_val, convert_dict_schema_to_list_sche
 
 __all__ = [
     'APIWrapper',
+    'RuntimeBlockingOptimizer',
     'cache',
     'cache_key',
     'clear_cache',

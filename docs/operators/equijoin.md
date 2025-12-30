@@ -34,9 +34,9 @@ This Equijoin operation matches job candidates to job postings:
 
     The prompt template uses Jinja2 syntax, allowing you to reference input fields directly (e.g., `left.skills`). You can reference the left and right documents using `left` and `right` respectively.
 
-!!! warning "Performance Consideration"
+!!! info "Automatic Blocking"
 
-    For large datasets, running comparisons with an LLM can be time-consuming. It's recommended to optimize your pipeline using `docetl build pipeline.yaml` to generate efficient blocking rules for the operation.
+    If you don't specify any blocking configuration (`blocking_threshold`, `blocking_conditions`, or `limit_comparisons`), the Equijoin operation will automatically compute an optimal embedding-based blocking threshold at runtime. It samples pairs from your data, runs LLM comparisons on the sample, and finds a threshold that achieves 95% recall by default. You can adjust this with the `blocking_target_recall` parameter.
 
 ## Blocking
 
@@ -95,10 +95,19 @@ A full Equijoin step combining both ideas might look like:
 
 Equijoin shares many parameters with the Resolve operation. For a detailed list of required and optional parameters, please see the [Parameters section in the Resolve operation documentation](resolve.md#required-parameters).
 
-Key differences for Equijoin include:
+### Equijoin-Specific Parameters
+
+| Parameter                 | Description                                                                       | Default                       |
+| ------------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
+| `limits`                  | Maximum matches for each left/right item: `{"left": n, "right": m}`               | No limit                      |
+| `blocking_keys`           | Keys for embedding blocking: `{"left": [...], "right": [...]}`                    | All keys from each dataset    |
+| `blocking_threshold`      | Embedding similarity threshold for considering pairs                              | Auto-computed if not set      |
+| `blocking_target_recall`  | Target recall when auto-computing blocking threshold (0.0 to 1.0)                 | 0.95                          |
+
+Key differences from Resolve:
 
 - `resolution_prompt` is not used in Equijoin.
-- `limits` parameter is specific to Equijoin, allowing you to set maximum matches for each left and right item.
+- `blocking_keys` uses a dict with `left` and `right` keys instead of a simple list.
 
 ## Incorporating Into a Pipeline
 

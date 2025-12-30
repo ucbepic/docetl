@@ -348,10 +348,25 @@ class DocumentChunkingDirective(Directive):
         if not gather_config_dict:
             gather_config_dict = {"previous": {"tail": {"count": 1}}}
 
+        # Fix any content_key references to use the correct chunk key
+        correct_content_key = f"{rewrite.split_key}_chunk"
+
+        def fix_content_keys(config):
+            """Recursively fix content_key references in gather config."""
+            if isinstance(config, dict):
+                for key, value in config.items():
+                    if key == "content_key":
+                        config[key] = correct_content_key
+                    elif isinstance(value, dict):
+                        fix_content_keys(value)
+            return config
+
+        gather_config_dict = fix_content_keys(gather_config_dict)
+
         gather_op = {
             "name": gather_name,
             "type": "gather",
-            "content_key": f"{rewrite.split_key}_chunk",
+            "content_key": correct_content_key,
             "doc_id_key": f"{split_name}_id",
             "order_key": f"{split_name}_chunk_num",
             "peripheral_chunks": gather_config_dict,

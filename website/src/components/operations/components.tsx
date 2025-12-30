@@ -314,6 +314,7 @@ export const ReduceOperationComponent: React.FC<OperationComponentProps> = ({
       <PromptInput
         prompt={operation.prompt || ""}
         onChange={handlePromptChange}
+        operationType="reduce"
       />
       <OutputSchema
         schema={schemaItems}

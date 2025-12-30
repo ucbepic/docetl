@@ -267,10 +267,6 @@ class AgentCommunicator:
             response = completion(
                 model=self.model,
                 messages=messages,
-                azure=True,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
                 response_format={"type": "json_object"}
             )
             
@@ -290,10 +286,6 @@ class AgentCommunicator:
             response = completion(
                 model=self.model,
                 messages=messages + [{"role": "user", "content": request_msg}],
-                azure=True,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
                 response_format={"type": "json_object"}
             )
             

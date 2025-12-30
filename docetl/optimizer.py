@@ -55,7 +55,7 @@ class Optimizer:
     def __init__(
         self,
         runner: "DSLRunner",
-        rewrite_agent_model: str = "gpt-4o",
+        rewrite_agent_model: str = "gpt-5.1",
         judge_agent_model: str = "gpt-4o-mini",
         litellm_kwargs: dict[str, Any] = {},
         resume: bool = False,
@@ -67,7 +67,7 @@ class Optimizer:
 
         Args:
             yaml_file (str): Path to the YAML configuration file.
-            model (str): The name of the language model to use. Defaults to "gpt-4o".
+            model (str): The name of the language model to use. Defaults to "gpt-5.1".
             resume (bool): Whether to resume optimization from a previous run. Defaults to False.
             timeout (int): Timeout in seconds for operations. Defaults to 60.
 

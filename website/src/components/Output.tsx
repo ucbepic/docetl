@@ -81,6 +81,7 @@ const useOutputContext = () => {
   const {
     output,
     isLoadingOutputs,
+    isDecomposing,
     terminalOutput,
     setTerminalOutput,
     optimizerProgress,
@@ -91,6 +92,7 @@ const useOutputContext = () => {
   return {
     output,
     isLoadingOutputs,
+    isDecomposing,
     terminalOutput,
     setTerminalOutput,
     optimizerProgress,
@@ -385,7 +387,7 @@ VisualizeContent.displayName = "VisualizeContent";
 
 // Move ConsoleContent outside
 export const ConsoleContent = memo(() => {
-  const { terminalOutput, setTerminalOutput, optimizerProgress } =
+  const { terminalOutput, setTerminalOutput, optimizerProgress, isDecomposing } =
     useOutputContext();
   const { readyState } = useWebSocket();
 
@@ -469,6 +471,7 @@ export const ConsoleContent = memo(() => {
           text={terminalOutput || ""}
           readyState={readyState}
           setTerminalOutput={setTerminalOutput}
+          isDecomposing={isDecomposing}
         />
       </div>
     </div>
@@ -478,7 +481,7 @@ ConsoleContent.displayName = "ConsoleContent";
 
 // Main Output component
 export const Output = memo(() => {
-  const { output, isLoadingOutputs, sampleSize, operations } =
+  const { output, isLoadingOutputs, isDecomposing, sampleSize, operations } =
     useOutputContext();
   const operation = useOperation(output?.operationId);
 
@@ -500,10 +503,14 @@ export const Output = memo(() => {
     );
   }, [operation]);
 
-  // Effect for tab changes
+  // Effect for tab changes - switch to console when loading or decomposing
   useEffect(() => {
-    setActiveTab(isLoadingOutputs ? "console" : "table");
-  }, [isLoadingOutputs]);
+    if (isLoadingOutputs || isDecomposing) {
+      setActiveTab("console");
+    } else {
+      setActiveTab("table");
+    }
+  }, [isLoadingOutputs, isDecomposing]);
 
   // Memoize columns
   const columns = useMemo(() => {

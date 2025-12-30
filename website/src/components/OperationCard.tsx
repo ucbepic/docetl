@@ -39,7 +39,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { debounce } from "lodash";
 import { Guardrails, GleaningConfig } from "./operations/args";
 import createOperationComponent from "./operations/components";
-import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Badge } from "./ui/badge";
 import {
   Popover,
@@ -161,7 +160,7 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                       }`}
                   />
                 </HoverCardTrigger>
-                <HoverCardContent className="w-72" side="bottom" align="start">
+                <HoverCardContent className="w-96 max-h-80" side="bottom" align="start">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium">
                       {optimizeResult === undefined || optimizeResult === null
@@ -170,13 +169,15 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                         ? "Decomposition Status"
                         : "Decomposition Recommended"}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {optimizeResult === undefined || optimizeResult === null
-                        ? "Analyzing operation complexity..."
-                        : optimizeResult === ""
-                        ? "No decomposition needed for this operation"
-                        : "Recommended decomposition: " + optimizeResult}
-                    </p>
+                    <div className="max-h-64 overflow-y-auto">
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {optimizeResult === undefined || optimizeResult === null
+                          ? "Analyzing operation complexity..."
+                          : optimizeResult === ""
+                          ? "No decomposition needed for this operation"
+                          : optimizeResult}
+                      </p>
+                    </div>
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -367,7 +368,7 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                     disabled={disabled}
                   >
                     <Zap className="mr-2 h-4 w-4" />
-                    Optimize Operation
+                    Decompose Operation
                   </Button>
                 )}
 
@@ -720,7 +721,6 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     output: pipelineOutput,
     setOutput,
     isLoadingOutputs,
-    setIsLoadingOutputs,
     numOpRun,
     setNumOpRun,
     currentFile,
@@ -730,18 +730,14 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     sampleSize,
     setCost,
     defaultModel,
-    optimizerModel,
-    setTerminalOutput,
     namespace,
     apiKeys,
-    systemPrompt,
     extraPipelineSettings,
+    onRequestDecompositionRef,
   } = usePipelineContext();
   const { toast } = useToast();
 
   const operationRef = useRef(operation);
-  const { connect, sendMessage, lastMessage, readyState, disconnect } =
-    useWebSocket();
 
   useEffect(() => {
     operationRef.current = operation;
@@ -808,75 +804,19 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
   const handleOptimizeConfirm = useCallback(async () => {
     if (!operation) return;
 
-    try {
-      // Clear the output
-      setTerminalOutput("");
-      setIsLoadingOutputs(true);
+    setShowOptimizeDialog(false);
 
-      // Write pipeline config
-      const response = await fetch("/api/writePipelineConfig", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          default_model: defaultModel,
-          data: { path: currentFile?.path || "" },
-          operations,
-          operation_id: operation.id,
-          name: pipelineName,
-          sample_size: sampleSize,
-          optimize: true,
-          clear_intermediate: false,
-          system_prompt: systemPrompt,
-          namespace: namespace,
-          apiKeys: apiKeys,
-          optimizerModel: optimizerModel,
-          extraPipelineSettings: extraPipelineSettings,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const { filePath } = await response.json();
-
-      // Ensure WebSocket is connected
-      await connect();
-
-      // Send message to run the pipeline
-      sendMessage({
-        yaml_config: filePath,
-        optimize: true,
-      });
-    } catch (error) {
-      console.error("Error optimizing operation:", error);
+    // Use the decomposition flow from context if available
+    if (onRequestDecompositionRef.current) {
+      onRequestDecompositionRef.current(operation.id, operation.name);
+    } else {
       toast({
         title: "Error",
-        description: error.message,
+        description: "Decomposition handler not available",
         variant: "destructive",
       });
-      // Close the WebSocket connection
-      disconnect();
-    } finally {
-      setShowOptimizeDialog(false);
     }
-  }, [
-    operation,
-    defaultModel,
-    currentFile,
-    operations,
-    pipelineName,
-    sampleSize,
-    optimizerModel,
-    connect,
-    sendMessage,
-    systemPrompt,
-    namespace,
-    apiKeys,
-    extraPipelineSettings,
-  ]);
+  }, [operation, onRequestDecompositionRef, toast]);
 
   const onShowOutput = useCallback(async () => {
     if (!operation) return;
@@ -1224,7 +1164,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Optimize Operation</AlertDialogTitle>
+            <AlertDialogTitle>Decompose Operation</AlertDialogTitle>
             <AlertDialogDescription>
               {!hasOpenAIKey && !isLocalMode ? (
                 <div className="space-y-2">
@@ -1232,8 +1172,8 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
                     OpenAI API Key Required
                   </p>
                   <p>
-                    To use the optimizer, please add your OpenAI API key in Edit{" "}
-                    {">"}
+                    To decompose operations, please add your OpenAI API key in
+                    Edit {">"}
                     Edit API Keys.
                   </p>
                   <button
@@ -1245,11 +1185,10 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
                 </div>
               ) : (
                 <p>
-                  This will analyze the operation and replace it with another
-                  pipeline that has higher accuracy (as determined by an
-                  LLM-as-a-judge), if it can be found. Do you want to proceed?
-                  The process may take between 2 and 10 minutes, depending on
-                  how complex your data is.
+                  This will analyze the operation and try different
+                  decomposition strategies (chaining, chunking, gleaning, etc.)
+                  to improve accuracy. The best strategy will be selected via
+                  LLM-as-a-judge comparison. Do you want to proceed?
                 </p>
               )}
             </AlertDialogDescription>
@@ -1260,7 +1199,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
               onClick={handleOptimizeConfirm}
               disabled={!hasOpenAIKey && !isLocalMode}
             >
-              Proceed
+              Decompose
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

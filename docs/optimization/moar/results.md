@@ -19,7 +19,7 @@ High-level summary of the optimization run:
 {
   "optimizer": "moar",
   "input_pipeline": "pipeline.yaml",
-  "model": "gpt-4.1",
+  "rewrite_agent_model": "gpt-5.1",
   "max_iterations": 40,
   "save_dir": "results/moar_optimization",
   "dataset": "transcripts",

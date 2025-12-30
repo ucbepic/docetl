@@ -109,12 +109,12 @@ optimizer_config:
   available_models:  # LiteLLM model names - ensure API keys are set in your environment
     - gpt-4o-mini
     - gpt-4o
-    - gpt-4.1-mini
-    - gpt-4.1
+    - gpt-5.1-mini
+    - gpt-5.1
   evaluation_file: evaluate_medications.py
   metric_key: medication_extraction_score  # This must match a key in your evaluation function's return dictionary
   max_iterations: 40
-  model: gpt-4.1
+  rewrite_agent_model: gpt-5.1
   dataset_path: data/transcripts_sample.json  # Optional: use sample/hold-out dataset
 ```
 

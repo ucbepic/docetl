@@ -204,10 +204,6 @@ def get_openai_response(
     response = litellm.completion(
         model=model,
         messages=messages,
-        api_key=os.environ.get("AZURE_API_KEY"),
-        api_base=os.environ.get("AZURE_API_BASE"),
-        api_version=os.environ.get("AZURE_API_VERSION"),
-        azure=True,
         response_format=ResponseFormat,
     )
     assistant_response = response.choices[0].message.content

@@ -699,7 +699,7 @@ class DSLRunner(ConfigWrapper):
             "litellm_kwargs", {}
         )
         kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "rewrite_agent_model", "gpt-4o"
+            "rewrite_agent_model", "gpt-5.1"
         )
         kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
             "judge_agent_model", "gpt-4o-mini"
@@ -727,7 +727,7 @@ class DSLRunner(ConfigWrapper):
             "litellm_kwargs", {}
         )
         kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "rewrite_agent_model", "gpt-4o"
+            "rewrite_agent_model", "gpt-5.1"
         )
         kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
             "judge_agent_model", "gpt-4o-mini"

@@ -29,6 +29,7 @@ interface PipelineState {
     validatorPrompt: string;
   } | null;
   isLoadingOutputs: boolean;
+  isDecomposing: boolean;
   numOpRun: number;
   pipelineName: string;
   sampleSize: number | null;
@@ -59,6 +60,7 @@ interface PipelineContextType extends PipelineState {
     } | null>
   >;
   setIsLoadingOutputs: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsDecomposing: React.Dispatch<React.SetStateAction<boolean>>;
   setNumOpRun: React.Dispatch<React.SetStateAction<number>>;
   setPipelineName: React.Dispatch<React.SetStateAction<string>>;
   setSampleSize: React.Dispatch<React.SetStateAction<number | null>>;
@@ -82,6 +84,10 @@ interface PipelineContextType extends PipelineState {
   setApiKeys: React.Dispatch<React.SetStateAction<APIKey[]>>;
   setExtraPipelineSettings: React.Dispatch<
     React.SetStateAction<Record<string, unknown> | null>
+  >;
+  // Ref for triggering decomposition from OperationCard (using ref to avoid infinite loops)
+  onRequestDecompositionRef: React.MutableRefObject<
+    ((operationId: string, operationName: string) => void) | null
   >;
 }
 
@@ -290,6 +296,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.IS_LOADING_OUTPUTS_KEY,
       false
     ),
+    isDecomposing: false, // Transient state, not persisted
     numOpRun: loadFromLocalStorage(localStorageKeys.NUM_OP_RUN_KEY, 0),
     pipelineName: loadFromLocalStorage(
       localStorageKeys.PIPELINE_NAME_KEY,
@@ -332,6 +339,11 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
   const [unsavedChanges, setUnsavedChanges] = useState(false);
   const stateRef = useRef(state);
   const [isMounted, setIsMounted] = useState(false);
+
+  // Ref for triggering decomposition from OperationCard (using ref to avoid infinite loops)
+  const onRequestDecompositionRef = useRef<
+    ((operationId: string, operationName: string) => void) | null
+  >(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -423,6 +435,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       output: null,
       terminalOutput: "",
       isLoadingOutputs: false,
+      isDecomposing: false,
       numOpRun: 0,
       pipelineName: mockPipelineName,
       sampleSize: mockSampleSize,
@@ -529,6 +542,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       (value) => setStateAndUpdate("isLoadingOutputs", value),
       [setStateAndUpdate]
     ),
+    setIsDecomposing: useCallback(
+      (value) => setStateAndUpdate("isDecomposing", value),
+      [setStateAndUpdate]
+    ),
     setNumOpRun: useCallback(
       (value) => setStateAndUpdate("numOpRun", value),
       [setStateAndUpdate]
@@ -589,6 +606,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       (value) => setStateAndUpdate("extraPipelineSettings", value),
       [setStateAndUpdate]
     ),
+    onRequestDecompositionRef,
   };
 
   return (

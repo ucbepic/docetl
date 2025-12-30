@@ -27,6 +27,7 @@ class OptimizeResult(BaseModel):
     should_optimize: str | None = None
     input_data: list[dict[str, Any]] | None = None
     output_data: list[dict[str, Any]] | None = None
+    num_docs_analyzed: int | None = None
     cost: float | None = None
     error: str | None = None
     created_at: datetime
@@ -36,3 +37,24 @@ class OptimizeRequest(BaseModel):
     yaml_config: str
     step_name: str
     op_name: str
+
+
+class DecomposeRequest(BaseModel):
+    yaml_config: str
+    step_name: str
+    op_name: str
+
+
+class DecomposeResult(BaseModel):
+    task_id: str
+    status: TaskStatus
+    decomposed_operations: list[dict[str, Any]] | None = None
+    winning_directive: str | None = None
+    candidates_evaluated: int | None = None
+    original_outputs: list[dict[str, Any]] | None = None
+    decomposed_outputs: list[dict[str, Any]] | None = None
+    comparison_rationale: str | None = None
+    cost: float | None = None
+    error: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None

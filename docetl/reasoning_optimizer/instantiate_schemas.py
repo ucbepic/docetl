@@ -445,8 +445,12 @@ class DeterministicDocCompressionInstantiateSchema(BaseModel):
             raise ValueError(
                 "Code must define a function named 'transform' that takes input_doc as parameter"
             )
-        if "return {" not in v and "return dict(" not in v:
-            raise ValueError("Code must return a dictionary")
+        if (
+            "return {" not in v
+            and "return dict(" not in v
+            and "output = dict(" not in v
+        ):
+            raise ValueError(f"Code must return a dictionary. Instead the code is: {v}")
         return v
 
     def validate_code_returns_target_keys(self, target_ops_configs: List[Dict]) -> None:

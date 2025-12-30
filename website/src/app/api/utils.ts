@@ -33,6 +33,77 @@ export function getNamespaceDir(homeDir: string, namespace: string) {
   return path.join(homeDir, ".docetl", namespace);
 }
 
+/**
+ * Safely parse a JSON value - returns the parsed value if it's a string,
+ * or the original value if it's already an object.
+ * @param value - The value to parse
+ * @param fieldName - Name of the field (for error messages)
+ * @returns The parsed value
+ */
+function safeParseJSON(
+  value: unknown,
+  fieldName: string
+): Record<string, unknown> | unknown[] {
+  if (value === null || value === undefined) {
+    throw new Error(`Field '${fieldName}' is null or undefined`);
+  }
+
+  // If it's already an object or array, return as-is
+  if (typeof value === "object") {
+    return value as Record<string, unknown> | unknown[];
+  }
+
+  // If it's a string, try to parse it
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (e) {
+      throw new Error(
+        `Field '${fieldName}' contains invalid JSON: ${value.slice(0, 100)}${value.length > 100 ? "..." : ""}`
+      );
+    }
+  }
+
+  throw new Error(
+    `Field '${fieldName}' has unexpected type '${typeof value}': ${String(value).slice(0, 100)}`
+  );
+}
+
+/**
+ * Recursively sanitize an object for YAML serialization.
+ * Converts any nested [object Object] strings to proper objects.
+ */
+function sanitizeForYaml(obj: unknown, path: string = ""): unknown {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (typeof obj === "string") {
+    // Check for [object Object] which indicates a serialization issue
+    if (obj === "[object Object]") {
+      console.warn(
+        `Warning: Found '[object Object]' string at path '${path}'. This indicates a serialization issue.`
+      );
+      return {}; // Return empty object as fallback
+    }
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item, idx) => sanitizeForYaml(item, `${path}[${idx}]`));
+  }
+
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = sanitizeForYaml(value, path ? `${path}.${key}` : key);
+    }
+    return result;
+  }
+
+  return obj;
+}
+
 export function generatePipelineConfig(
   namespace: string,
   default_model: string,
@@ -82,9 +153,18 @@ export function generatePipelineConfig(
       const litellm_completion_kwargs =
         op.otherKwargs?.litellm_completion_kwargs;
       if (litellm_completion_kwargs) {
-        op.otherKwargs.litellm_completion_kwargs = JSON.parse(
-          litellm_completion_kwargs
-        );
+        try {
+          op.otherKwargs.litellm_completion_kwargs = safeParseJSON(
+            litellm_completion_kwargs,
+            `${op.name}.litellm_completion_kwargs`
+          );
+        } catch (e) {
+          console.warn(
+            `Warning: Could not parse litellm_completion_kwargs for operation '${op.name}':`,
+            e
+          );
+          // Keep the original value if parsing fails
+        }
       }
 
       const newOp: Record<string, unknown> = {
@@ -175,10 +255,14 @@ export function generatePipelineConfig(
       // If it's a sample operation with custom method, parse the samples as key-value pairs
       if (op.type === "sample" && op.otherKwargs?.method === "custom") {
         try {
-          newOp.samples = JSON.parse(op.otherKwargs.samples);
+          newOp.samples = safeParseJSON(
+            op.otherKwargs.samples,
+            `${op.name}.samples`
+          );
         } catch (error) {
           console.warn(
-            "Failed to parse custom samples as JSON, using raw value"
+            `Failed to parse custom samples for operation '${op.name}':`,
+            error
           );
         }
       }
@@ -217,14 +301,12 @@ export function generatePipelineConfig(
   // Fix type errors by asserting the pipeline config type
   let pipelineConfig: any = {
     from_docwrangler: true,
-    optimizer_model: optimizerModel,
     datasets,
     default_model,
-    ...(enable_observability && {
-      optimizer_config: {
-        force_decompose: true,
-      },
-    }),
+    optimizer_config: {
+      rewrite_agent_model: optimizerModel,
+      ...(enable_observability && { force_decompose: true }),
+    },
     operations: updatedOperations,
     pipeline: {
       steps: [
@@ -308,7 +390,9 @@ export function generatePipelineConfig(
   const outputOpName = operationsToRun[currentOpIndex].name;
   outputPath = path.join(outputBase, "data_processing", outputOpName + ".json");
 
-  const yamlString = yaml.dump(pipelineConfig);
+  // Sanitize the config before serializing to YAML to catch any [object Object] issues
+  const sanitizedConfig = sanitizeForYaml(pipelineConfig, "pipelineConfig");
+  const yamlString = yaml.dump(sanitizedConfig);
 
   console.log(yamlString);
 

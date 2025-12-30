@@ -31,6 +31,7 @@ interface PromptInputProps {
   onChange: (value: string) => void;
   disableValidation?: boolean;
   placeholder?: string;
+  operationType?: "map" | "reduce" | "filter" | "resolve" | "other";
 }
 
 export const PromptInput: React.FC<PromptInputProps> = React.memo(
@@ -38,31 +39,62 @@ export const PromptInput: React.FC<PromptInputProps> = React.memo(
     prompt,
     onChange,
     disableValidation = false,
-    placeholder = "Enter prompt (must be a Jinja2 template)",
+    placeholder = "Enter prompt (Jinja2 template optional)",
+    operationType = "map",
   }) => {
-    const validateJinjaTemplate = (value: string) => {
+    const hasJinjaTemplate = (value: string) => {
       if (disableValidation) return true;
       const hasOpenBrace = value.includes("{{");
       const hasCloseBrace = value.includes("}}");
       return hasOpenBrace && hasCloseBrace;
     };
 
+    const isReduce = operationType === "reduce";
+    const templateVar = isReduce ? "inputs" : "input";
+    const exampleKey = isReduce ? "inputs[0].content" : "input.content";
+
     return (
       <>
         <Textarea
           placeholder={placeholder}
           className={`mb-1 rounded-sm text-sm font-mono ${
-            !validateJinjaTemplate(prompt) ? "border-red-500" : ""
+            !hasJinjaTemplate(prompt) ? "border-amber-400" : ""
           }`}
           rows={Math.max(3, Math.ceil(prompt.split("\n").length))}
           value={prompt}
           onChange={(e) => onChange(e.target.value)}
         />
-        {!validateJinjaTemplate(prompt) && (
-          <div className="text-red-500 text-sm mb-1">
-            Prompt must contain Jinja2 template syntax {"{"}
-            {"{"} and {"}"}
-            {"}"}
+        {!hasJinjaTemplate(prompt) && (
+          <div className="text-amber-600 text-sm mb-1 space-y-1">
+            <div>
+              <strong>Warning:</strong> No Jinja2 template found.
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {isReduce ? (
+                <>
+                  {"{"}
+                  {"{"} inputs {"}"}
+                  {"}"} (the list of all documents) will be auto-appended. For
+                  example, if documents have keys {'"'}id{'"'} and {'"'}content
+                  {'"'}, all docs with all keys will be included. To reference
+                  specific keys, use a for loop: {"{"}% for doc in inputs %{"}"}{" "}
+                  {"{"}
+                  {"{"} doc.content {"}"}
+                  {"}"} {"{"}% endfor %{"}"}.
+                </>
+              ) : (
+                <>
+                  {"{"}
+                  {"{"} input {"}"}
+                  {"}"} (the full document) will be auto-appended. For example,
+                  if documents have keys {'"'}id{'"'}, {'"'}title{'"'}, and {'"'}
+                  content{'"'}, all three will be included. To use only specific
+                  keys (e.g., just {'"'}content{'"'}), add {"{"}
+                  {"{"} input.content {"}"}
+                  {"}"} to your prompt.
+                </>
+              )}
+            </div>
           </div>
         )}
       </>
@@ -77,6 +109,7 @@ PromptInput.propTypes = {
   onChange: PropTypes.func.isRequired,
   disableValidation: PropTypes.bool,
   placeholder: PropTypes.string,
+  operationType: PropTypes.oneOf(["map", "reduce", "filter", "resolve", "other"]),
 };
 
 interface SchemaFormProps {

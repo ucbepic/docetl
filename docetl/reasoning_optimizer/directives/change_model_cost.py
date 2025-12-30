@@ -1,5 +1,4 @@
 import json
-import os
 from copy import deepcopy
 from typing import Dict, List, Type
 
@@ -282,17 +281,14 @@ class ChangeModelCostDirective(Directive):
                 },
             ]
         )
+        last_error = None
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
-                azure=True,
                 response_format=ChangeModelInstantiateSchema,
             )
-            call_cost = resp._hidden_params["response_cost"]
+            call_cost = resp._hidden_params.get("response_cost", 0)
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = ChangeModelInstantiateSchema(**parsed_res)
@@ -310,11 +306,12 @@ class ChangeModelCostDirective(Directive):
                 )
                 return schema, message_history, call_cost
             except Exception as err:
+                last_error = err
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
 
         raise Exception(
-            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Last error: {last_error}"
         )
 
     def apply(

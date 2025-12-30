@@ -14,7 +14,7 @@ All fields in `optimizer_config` are required (no defaults):
 | `evaluation_file` | `str` | Path to Python file containing `@register_eval` decorated function |
 | `metric_key` | `str` | Key in evaluation results dictionary to use as accuracy metric |
 | `max_iterations` | `int` | Maximum number of MOARSearch iterations to run |
-| `model` | `str` | LLM model to use for directive instantiation during search |
+| `rewrite_agent_model` | `str` | LLM model to use for directive instantiation during search |
 
 !!! warning "All Fields Required"
     MOAR will error if any required field is missing. There are no defaults.
@@ -67,19 +67,19 @@ The optimizer will use the sample dataset, but your final pipeline uses the full
 ### Available Models
 
 !!! info "LiteLLM Model Names"
-    Use LiteLLM model names (e.g., `gpt-4o-mini`, `gpt-4o`, `gpt-4.1`). Make sure your API keys are set in your environment.
+    Use LiteLLM model names (e.g., `gpt-4o-mini`, `gpt-4o`, `gpt-5.1`). Make sure your API keys are set in your environment.
 
 ```yaml
 available_models:  # LiteLLM model names - ensure API keys are set
-  - gpt-4.1-nano      # Cheapest, lower accuracy
-  - gpt-4.1-mini      # Low cost, decent accuracy
-  - gpt-4.1           # Balanced
+  - gpt-5.1-nano      # Cheapest, lower accuracy
+  - gpt-5.1-mini      # Low cost, decent accuracy
+  - gpt-5.1           # Balanced
   - gpt-4o             # Higher cost, better accuracy
 ```
 
 ### Model for Directive Instantiation
 
-The `model` field specifies which LLM to use for generating optimization directives during the search process. This doesn't affect the models tested in `available_models`.
+The `rewrite_agent_model` field specifies which LLM to use for generating optimization directives during the search process. This doesn't affect the models tested in `available_models`.
 
 !!! tip "Cost Consideration"
     Use a cheaper model (like `gpt-4o-mini`) for directive instantiation to reduce search costs.
@@ -104,12 +104,12 @@ optimizer_config:
   available_models:
     - gpt-4o-mini
     - gpt-4o
-    - gpt-4.1-mini
-    - gpt-4.1
+    - gpt-5.1-mini
+    - gpt-5.1
   evaluation_file: evaluate_medications.py
   metric_key: medication_extraction_score
   max_iterations: 40
-  model: gpt-4.1
+  rewrite_agent_model: gpt-5.1
   dataset_path: data/sample.json  # Optional
   exploration_weight: 1.414  # Optional
 ```

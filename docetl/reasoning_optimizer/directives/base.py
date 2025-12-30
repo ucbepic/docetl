@@ -222,7 +222,6 @@ class Directive(BaseModel, ABC):
             model=agent_llm,
             messages=messages,
             response_format=JudgeResponse,
-            azure=True,
         )
 
         # Parse the JSON response

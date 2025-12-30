@@ -23,6 +23,7 @@ interface OptimizationDialogProps {
   operationName?: string;
   inputData?: Array<Record<string, unknown>>;
   outputData?: Array<Record<string, unknown>>;
+  numDocsAnalyzed?: number;
   onOpenChange: (open: boolean) => void;
   onDecompose?: () => void;
 }
@@ -34,6 +35,7 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
   inputData,
   outputData,
   operationName,
+  numDocsAnalyzed,
   onOpenChange,
   onDecompose,
 }) => {
@@ -140,9 +142,9 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
         <DialogHeader className="flex-shrink-0 border-b pb-4">
           <DialogTitle className="text-xl">Operation Too Complex</DialogTitle>
           <p className="text-base mt-2">
-            This operation might be too complex for the LLM to handle
-            efficiently. We recommend breaking it down into smaller, more
-            manageable steps.
+            After analyzing {numDocsAnalyzed ?? "several"} documents, this
+            operation might be too complex for the LLM to handle efficiently. We
+            recommend breaking it down into smaller, more manageable steps.
           </p>
         </DialogHeader>
 

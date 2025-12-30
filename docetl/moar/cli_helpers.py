@@ -153,10 +153,11 @@ def run_moar_optimization(
             "optimizer_config must contain 'max_iterations' (number of MOARSearch iterations) for MOAR optimizer"
         )
 
-    model = optimizer_config.get("model")
+    # Use rewrite_agent_model for consistency with rest of codebase, fallback to model for backwards compatibility
+    model = optimizer_config.get("rewrite_agent_model") or optimizer_config.get("model")
     if not model:
         raise ValueError(
-            "optimizer_config must contain 'model' (LLM model name for directive instantiation) for MOAR optimizer"
+            "optimizer_config must contain 'rewrite_agent_model' (LLM model name for directive instantiation) for MOAR optimizer"
         )
 
     # Optional parameters

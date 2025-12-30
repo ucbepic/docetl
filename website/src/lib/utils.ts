@@ -6,7 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function canBeOptimized(operationType: string) {
-  return ["resolve", "map", "reduce", "filter"].includes(operationType);
+  // Only map operations can be decomposed
+  return operationType === "map";
 }
 
 export const generateId = () => {

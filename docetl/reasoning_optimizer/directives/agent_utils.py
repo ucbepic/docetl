@@ -324,10 +324,6 @@ Focus on quality over quantity - a few diverse, informative examples are better 
                 model=self.agent_llm,
                 messages=self.message_history,
                 response_format=AgentDecision,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
-                azure=True,
             )
             call_cost += response._hidden_params["response_cost"]
 
@@ -415,10 +411,6 @@ Provide your response as a JSON object matching this schema: {response_schema.mo
                 model=self.agent_llm,
                 messages=self.message_history,
                 response_format=response_schema,
-                api_key=os.environ.get("AZURE_API_KEY"),
-                api_base=os.environ.get("AZURE_API_BASE"),
-                api_version=os.environ.get("AZURE_API_VERSION"),
-                azure=True,
             )
             call_cost += schema_response._hidden_params["response_cost"]
 

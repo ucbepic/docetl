@@ -10,7 +10,6 @@ import jinja2
 from jinja2 import Template
 from litellm import model_cost
 from pydantic import Field, ValidationInfo, field_validator, model_validator
-from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
@@ -277,17 +276,11 @@ class ResolveOperation(BaseOperation):
         precomputed_embeddings = None
 
         # Auto-compute blocking threshold if no blocking configuration is provided
-        if (
-            not blocking_threshold
-            and not blocking_conditions
-            and not limit_comparisons
-        ):
+        if not blocking_threshold and not blocking_conditions and not limit_comparisons:
             # Get target recall from operation config (default 0.95)
             target_recall = self.config.get("blocking_target_recall", 0.95)
             self.console.log(
-                f"[yellow]No blocking configuration specified. "
-                f"Auto-computing embedding-based blocking threshold "
-                f"(target recall: {target_recall:.0%})...[/yellow]"
+                f"[yellow]No blocking configuration. Auto-computing threshold (target recall: {target_recall:.0%})...[/yellow]"
             )
             # Determine blocking keys if not set
             auto_blocking_keys = blocking_keys if blocking_keys else None
@@ -295,7 +288,8 @@ class ResolveOperation(BaseOperation):
                 prompt_template = self.config.get("comparison_prompt", "")
                 prompt_vars = extract_jinja_variables(prompt_template)
                 prompt_vars = [
-                    var for var in prompt_vars
+                    var
+                    for var in prompt_vars
                     if var not in ["input", "input1", "input2"]
                 ]
                 auto_blocking_keys = list(
@@ -304,6 +298,7 @@ class ResolveOperation(BaseOperation):
             if not auto_blocking_keys:
                 auto_blocking_keys = list(input_data[0].keys())
             blocking_keys = auto_blocking_keys
+
             # Create comparison function for threshold optimization
             def compare_fn_for_optimization(item1, item2):
                 return self.compare_pair(
@@ -317,6 +312,7 @@ class ResolveOperation(BaseOperation):
                         "max_retries_per_timeout", 2
                     ),
                 )
+
             # Run threshold optimization
             optimizer = RuntimeBlockingOptimizer(
                 runner=self.runner,
@@ -335,9 +331,6 @@ class ResolveOperation(BaseOperation):
                 )
             )
             total_cost += optimization_cost
-            self.console.log(
-                f"[green]Using auto-computed blocking threshold: {blocking_threshold}[/green]"
-            )
 
         input_schema = self.config.get("input", {}).get("schema", {})
         if not blocking_keys:
@@ -356,118 +349,98 @@ class ResolveOperation(BaseOperation):
             # Use precomputed embeddings if available from auto-optimization
             if precomputed_embeddings is not None:
                 embeddings = precomputed_embeddings
-                self.console.log(
-                    "[cyan]Using precomputed embeddings from threshold optimization[/cyan]"
-                )
             else:
-                def get_embeddings_batch(
-                    items: list[dict[str, Any]]
-                ) -> list[tuple[list[float], float]]:
-                    embedding_model = self.config.get(
-                        "embedding_model", "text-embedding-3-small"
-                    )
-                    model_input_context_length = model_cost.get(embedding_model, {}).get(
-                        "max_input_tokens", 8192
-                    )
+                self.console.log(
+                    f"[cyan]Creating embeddings for {len(input_data)} items...[/cyan]"
+                )
+                embedding_model = self.config.get(
+                    "embedding_model", "text-embedding-3-small"
+                )
+                model_input_context_length = model_cost.get(embedding_model, {}).get(
+                    "max_input_tokens", 8192
+                )
+                batch_size = self.config.get("embedding_batch_size", 1000)
+                embeddings = []
+                embedding_cost = 0.0
+                num_batches = (len(input_data) + batch_size - 1) // batch_size
+
+                for batch_idx in range(num_batches):
+                    start_idx = batch_idx * batch_size
+                    end_idx = min(start_idx + batch_size, len(input_data))
+                    batch = input_data[start_idx:end_idx]
+
+                    if num_batches > 1:
+                        self.console.log(
+                            f"[dim]Creating embeddings: batch {batch_idx + 1}/{num_batches} "
+                            f"({end_idx}/{len(input_data)} items)[/dim]"
+                        )
+
                     texts = [
-                        " ".join(str(item[key]) for key in blocking_keys if key in item)[
-                            : model_input_context_length * 3
-                        ]
-                        for item in items
+                        " ".join(
+                            str(item[key]) for key in blocking_keys if key in item
+                        )[: model_input_context_length * 3]
+                        for item in batch
                     ]
                     response = self.runner.api.gen_embedding(
                         model=embedding_model, input=texts
                     )
-                    return [
-                        (data["embedding"], completion_cost(response))
-                        for data in response["data"]
-                    ]
-                embeddings = []
-                costs = []
-                with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                    for i in range(
-                        0, len(input_data), self.config.get("embedding_batch_size", 1000)
-                    ):
-                        batch = input_data[
-                            i : i + self.config.get("embedding_batch_size", 1000)
-                        ]
-                        batch_results = list(executor.map(get_embeddings_batch, [batch]))
-                        for result in batch_results:
-                            embeddings.extend([r[0] for r in result])
-                            costs.extend([r[1] for r in result])
-                    total_cost += sum(costs)
+                    embeddings.extend([data["embedding"] for data in response["data"]])
+                    embedding_cost += completion_cost(response)
 
-        # Generate all pairs to compare, ensuring no duplicate comparisons
-        def get_unique_comparison_pairs() -> (
-            tuple[list[tuple[int, int]], dict[tuple[str, ...], list[int]]]
-        ):
-            # Create a mapping of values to their indices
-            value_to_indices: dict[tuple[str, ...], list[int]] = {}
-            for i, item in enumerate(input_data):
-                # Create a hashable key from the blocking keys
-                key = tuple(str(item.get(k, "")) for k in blocking_keys)
-                if key not in value_to_indices:
-                    value_to_indices[key] = []
-                value_to_indices[key].append(i)
+                total_cost += embedding_cost
 
-            # Generate pairs for comparison, comparing each unique value combination only once
-            comparison_pairs = []
-            keys = list(value_to_indices.keys())
+        # Build a mapping of blocking key values to indices
+        # This is used later for cluster merging (when two items match, merge all items sharing their key values)
+        value_to_indices: dict[tuple[str, ...], list[int]] = {}
+        for i, item in enumerate(input_data):
+            key = tuple(str(item.get(k, "")) for k in blocking_keys)
+            if key not in value_to_indices:
+                value_to_indices[key] = []
+            value_to_indices[key].append(i)
 
-            # First, handle comparisons between different values
-            for i in range(len(keys)):
-                for j in range(i + 1, len(keys)):
-                    # Only need one comparison between different values
-                    idx1 = value_to_indices[keys[i]][0]
-                    idx2 = value_to_indices[keys[j]][0]
-                    if idx1 < idx2:  # Maintain ordering to avoid duplicates
-                        comparison_pairs.append((idx1, idx2))
+        # Total number of pairs to potentially compare
+        n = len(input_data)
+        total_pairs = n * (n - 1) // 2
 
-            return comparison_pairs, value_to_indices
-
-        comparison_pairs, value_to_indices = get_unique_comparison_pairs()
-
-        # Filter pairs based on blocking conditions
-        def meets_blocking_conditions(pair: tuple[int, int]) -> bool:
-            i, j = pair
-            return (
-                is_match(input_data[i], input_data[j]) if blocking_conditions else False
-            )
-
-        # Start with pairs that meet blocking conditions, or empty list if no conditions
-        code_blocked_pairs = (
-            list(filter(meets_blocking_conditions, comparison_pairs))
-            if blocking_conditions
-            else []
-        )
+        # Apply code-based blocking conditions (check all pairs)
+        code_blocked_pairs = []
+        if blocking_conditions:
+            for i in range(n):
+                for j in range(i + 1, n):
+                    if is_match(input_data[i], input_data[j]):
+                        code_blocked_pairs.append((i, j))
 
         # Apply cosine similarity blocking if threshold is specified
         embedding_blocked_pairs = []
         if blocking_threshold is not None and embeddings is not None:
+            import numpy as np
             from sklearn.metrics.pairwise import cosine_similarity
 
             similarity_matrix = cosine_similarity(embeddings)
-
-            # Add pairs that meet the cosine similarity threshold and aren't already blocked
             code_blocked_set = set(code_blocked_pairs)
 
-            for i, j in comparison_pairs:
-                if (i, j) not in code_blocked_set:
-                    similarity = similarity_matrix[i, j]
-                    if similarity >= blocking_threshold:
-                        embedding_blocked_pairs.append((i, j))
+            # Use numpy to efficiently find all pairs above threshold
+            i_indices, j_indices = np.triu_indices(n, k=1)
+            similarities = similarity_matrix[i_indices, j_indices]
+            above_threshold_mask = similarities >= blocking_threshold
 
-            self.console.log(
-                f"Cosine similarity blocking: added {len(embedding_blocked_pairs)} pairs "
-                f"(threshold: {blocking_threshold})"
-            )
+            # Get pairs above threshold
+            above_threshold_i = i_indices[above_threshold_mask]
+            above_threshold_j = j_indices[above_threshold_mask]
 
-        # Combine pairs with prioritization for sampling
+            # Filter out pairs already in code_blocked_set
+            embedding_blocked_pairs = [
+                (int(i), int(j))
+                for i, j in zip(above_threshold_i, above_threshold_j)
+                if (i, j) not in code_blocked_set
+            ]
+
+        # Combine pairs from both blocking methods
         all_blocked_pairs = code_blocked_pairs + embedding_blocked_pairs
 
-        # If no pairs are blocked at all, fall back to all comparison pairs
-        if not all_blocked_pairs:
-            all_blocked_pairs = comparison_pairs
+        # If no blocking was applied, compare all pairs
+        if not blocking_conditions and blocking_threshold is None:
+            all_blocked_pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
         # Apply limit_comparisons with prioritization
         if limit_comparisons is not None and len(all_blocked_pairs) > limit_comparisons:
             # Prioritize code-based pairs, then sample from embedding pairs if needed
@@ -534,18 +507,6 @@ class ResolveOperation(BaseOperation):
                             cluster_map[root_idx] = root1
                             clusters[root_idx] = set()
 
-        # Calculate and print statistics
-        total_possible_comparisons = len(input_data) * (len(input_data) - 1) // 2
-        comparisons_made = len(blocked_pairs)
-        comparisons_saved = total_possible_comparisons - comparisons_made
-        self.console.log(
-            f"[green]Comparisons saved by deduping and blocking: {comparisons_saved} "
-            f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
-        )
-        self.console.log(
-            f"[blue]Number of pairs to compare: {len(blocked_pairs)}[/blue]"
-        )
-
         # Compute an auto-batch size based on the number of comparisons
         def auto_batch() -> int:
             # Maximum batch size limit for 4o-mini model
@@ -571,7 +532,14 @@ class ResolveOperation(BaseOperation):
 
         # Compare pairs and update clusters in real-time
         batch_size = self.config.get("compare_batch_size", auto_batch())
-        self.console.log(f"Using compare batch size: {batch_size}")
+
+        # Log blocking summary
+        total_possible_comparisons = len(input_data) * (len(input_data) - 1) // 2
+        self.console.log(
+            f"Comparing {len(blocked_pairs):,} pairs "
+            f"({len(blocked_pairs)/total_possible_comparisons*100:.1f}% of {total_possible_comparisons:,} total, "
+            f"batch size: {batch_size})"
+        )
         pair_costs = 0
 
         pbar = RichLoopBar(

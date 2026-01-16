@@ -260,8 +260,10 @@ def install_skill(
 
     # Find the skill source - try multiple locations
     # 1. Installed package location (via importlib.resources)
-    # 2. Development location (relative to this file)
+    # 2. Installed package data (via importlib.metadata)
+    # 3. Development location (relative to this file)
     skill_source = None
+    attempted_locations = []
 
     # Try to find via package resources first
     try:
@@ -271,6 +273,7 @@ def install_skill(
         try:
             package_root = Path(pkg_resources.files("docetl")).parent
             potential_source = package_root / ".claude" / "skills" / "docetl"
+            attempted_locations.append(str(potential_source))
             if potential_source.exists():
                 skill_source = potential_source
         except (TypeError, AttributeError):
@@ -278,18 +281,45 @@ def install_skill(
     except ImportError:
         pass
 
+    # Try to find via distribution files (wheel package data)
+    if skill_source is None:
+        try:
+            from importlib import metadata as importlib_metadata
+
+            dist = importlib_metadata.distribution("docetl")
+            metadata_source = dist.locate_file(
+                Path(".claude") / "skills" / "docetl"
+            )
+            attempted_locations.append(str(metadata_source))
+            for file in dist.files or []:
+                if file.as_posix().endswith(".claude/skills/docetl/SKILL.md"):
+                    skill_source = Path(dist.locate_file(file)).parent
+                    break
+        except importlib_metadata.PackageNotFoundError:
+            pass
+        except Exception:
+            pass
+
     # Fallback: try relative to this file (development mode)
     if skill_source is None:
         dev_source = Path(__file__).parent.parent / ".claude" / "skills" / "docetl"
+        attempted_locations.append(str(dev_source))
         if dev_source.exists():
             skill_source = dev_source
 
     if skill_source is None or not skill_source.exists():
+        searched_paths = "\n".join(f"- {path}" for path in attempted_locations)
+        search_details = (
+            f"\n\n[bold]Searched paths:[/bold]\n{searched_paths}"
+            if attempted_locations
+            else ""
+        )
         console.print(
             Panel(
                 "[bold red]Error:[/bold red] Could not find the DocETL skill files.\n\n"
                 "This may happen if the package was not installed correctly.\n"
-                "Try reinstalling: [bold]pip install --force-reinstall docetl[/bold]",
+                "Try reinstalling: [bold]pip install --force-reinstall docetl[/bold]"
+                f"{search_details}",
                 title="[bold red]Skill Not Found[/bold red]",
                 border_style="red",
             )

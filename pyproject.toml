@@ -122,8 +122,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 packages = ["docetl"]
-include = ["docetl/**", "server/**", "README.md", "LICENSE", ".claude/skills/**"]
+include = ["docetl/**", "server/**", "README.md", "LICENSE"]
 exclude = ["website/**/*"]
+
+[tool.hatch.build.targets.wheel]
+# Include non-Python files in the docetl package
+artifacts = ["docetl/_skills/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

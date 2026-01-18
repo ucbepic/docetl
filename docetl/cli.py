@@ -258,33 +258,23 @@ def install_skill(
     """
     import shutil
 
-    # Find the skill source - try multiple locations
-    # 1. Installed package location (via importlib.resources)
-    # 2. Development location (relative to this file)
+    # Find the skill source - try multiple locations in order:
+    # 1. Inside the installed package (docetl/_skills/)
+    # 2. Development location (repo root .claude/skills/docetl/)
     skill_source = None
 
-    # Try to find via package resources first
-    try:
-        import importlib.resources as pkg_resources
+    # Try to find inside the installed package first
+    package_skills = Path(__file__).parent / "_skills"
+    if package_skills.exists() and (package_skills / "SKILL.md").exists():
+        skill_source = package_skills
 
-        # For Python 3.9+, use files()
-        try:
-            package_root = Path(pkg_resources.files("docetl")).parent
-            potential_source = package_root / ".claude" / "skills" / "docetl"
-            if potential_source.exists():
-                skill_source = potential_source
-        except (TypeError, AttributeError):
-            pass
-    except ImportError:
-        pass
-
-    # Fallback: try relative to this file (development mode)
+    # Fallback: try relative to this file (development mode - repo root)
     if skill_source is None:
         dev_source = Path(__file__).parent.parent / ".claude" / "skills" / "docetl"
-        if dev_source.exists():
+        if dev_source.exists() and (dev_source / "SKILL.md").exists():
             skill_source = dev_source
 
-    if skill_source is None or not skill_source.exists():
+    if skill_source is None:
         console.print(
             Panel(
                 "[bold red]Error:[/bold red] Could not find the DocETL skill files.\n\n"

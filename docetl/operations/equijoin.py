@@ -292,6 +292,7 @@ class EquijoinOperation(BaseOperation):
                 precomputed_left_embeddings,
                 precomputed_right_embeddings,
                 optimization_cost,
+                auto_blocking_conditions,
             ) = optimizer.optimize_equijoin(
                 left_data,
                 right_data,
@@ -303,6 +304,12 @@ class EquijoinOperation(BaseOperation):
             self.console.log(
                 f"[green]Using auto-computed blocking threshold: {blocking_threshold}[/green]"
             )
+            # Add auto-generated blocking conditions
+            if auto_blocking_conditions:
+                blocking_conditions = blocking_conditions + auto_blocking_conditions
+                self.console.log(
+                    f"[green]Using {len(auto_blocking_conditions)} auto-generated blocking condition(s)[/green]"
+                )
 
         # Initial blocking using multiprocessing
         num_processes = min(cpu_count(), len(left_data))

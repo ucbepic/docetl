@@ -5,6 +5,7 @@ This module provides functionality for automatically computing embedding-based
 blocking thresholds at runtime when no blocking configuration is provided.
 """
 
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
@@ -13,6 +14,47 @@ from litellm import model_cost
 from rich.console import Console
 
 from docetl.utils import completion_cost, extract_jinja_variables
+
+BLOCKING_RULES_PROMPT = """Given the following sample comparisons between entities, generate a single-line Python statement that acts as a blocking rule for equijoin. This rule will be used in the form: `eval(blocking_rule, {{"left": item1, "right": item2}})`.
+
+Sample comparisons (note: these are just a few examples and may not represent all possible cases):
+{sample_datas}
+
+For context, here is the comparison prompt that will be used for the more expensive, detailed comparison:
+{comparison_prompt}
+
+The left dataset has these fields: {left_fields}
+The right dataset has these fields: {right_fields}
+
+Please generate ONE one-line blocking rule that adheres to the following criteria:
+1. The rule should evaluate to True if the entities are possibly a match and require further comparison.
+2. The rule should evaluate to False ONLY if the entities are definitely not a match.
+3. The rule must be a single Python expression that can be evaluated using the eval() function.
+4. The rule should be much faster to evaluate than the full comparison prompt.
+5. The rule should capture the essence of the comparison prompt but in a simplified manner.
+6. The rule should be general enough to work well on the entire dataset, not just these specific examples.
+7. The rule should handle inconsistent casing by using string methods like .lower() when comparing string values.
+8. The rule should err on the side of inclusivity - it's better to have false positives than false negatives.
+
+Example structure of a one-line blocking rule:
+"(condition1) or (condition2) or (condition3)"
+
+Where conditions could be comparisons like:
+"left['field'].lower() == right['field'].lower()"
+"abs(len(left['text']) - len(right['text'])) <= 5"
+"any(word in left['description'].lower() for word in right['description'].lower().split())"
+
+If there's no clear rule that can be generated based on the given information, return the string "True" to ensure all pairs are compared.
+
+Remember, the primary goal of the blocking rule is to safely reduce the number of comparisons by quickly identifying pairs that are definitely not matches, while keeping all potential matches for further evaluation."""
+
+
+def _safe_eval_condition(condition: str, left: dict, right: dict) -> bool:
+    """Safely evaluate a blocking condition."""
+    try:
+        return bool(eval(condition, {"left": left, "right": right}))
+    except Exception:
+        return True  # If condition fails, don't filter out the pair
 
 
 class RuntimeBlockingOptimizer:
@@ -376,6 +418,189 @@ class RuntimeBlockingOptimizer:
 
         return round(optimal_threshold, 4), achieved_recall
 
+    def generate_blocking_conditions(
+        self,
+        comparisons: list[tuple[int, int, bool]],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
+        model: str | None = None,
+        max_retries: int = 3,
+    ) -> tuple[list[str], float]:
+        """
+        Generate Python blocking conditions from sample comparison results.
+
+        Uses an LLM to analyze patterns in matched vs non-matched pairs and
+        propose blocking conditions. Includes retry mechanism with feedback
+        when rules incorrectly filter out matches.
+
+        Args:
+            comparisons: List of (left_idx, right_idx, is_match) from LLM comparisons.
+            left_data: Left dataset.
+            right_data: Right dataset.
+            model: LLM model to use for condition generation.
+            max_retries: Maximum number of retry attempts if rule fails validation.
+
+        Returns:
+            Tuple of (valid_conditions, cost).
+        """
+        # Separate matches and non-matches
+        matches = [(i, j) for i, j, is_match in comparisons if is_match]
+        non_matches = [(i, j) for i, j, is_match in comparisons if not is_match]
+
+        if not matches:
+            self.console.log(
+                "[yellow]No matches in sample - cannot generate blocking conditions.[/yellow]"
+            )
+            return [], 0.0
+
+        # Build sample data for the prompt (2 true + 2 false, like join_optimizer.py)
+        true_comparisons = [(i, j) for i, j in matches[:2]]
+        false_comparisons = [(i, j) for i, j in non_matches[:2]]
+        sample_datas = [
+            (left_data[i], right_data[j], True) for i, j in true_comparisons
+        ] + [(left_data[i], right_data[j], False) for i, j in false_comparisons]
+
+        # Get field names
+        left_fields = list(left_data[0].keys()) if left_data else []
+        right_fields = list(right_data[0].keys()) if right_data else []
+
+        # Get comparison prompt from config
+        comparison_prompt = self.config.get(
+            "comparison_prompt", "No comparison prompt provided."
+        )
+
+        model = model or self.default_model
+        total_cost = 0.0
+
+        # Build initial prompt
+        prompt = BLOCKING_RULES_PROMPT.format(
+            sample_datas=json.dumps(sample_datas, indent=2, default=str),
+            comparison_prompt=comparison_prompt,
+            left_fields=left_fields,
+            right_fields=right_fields,
+        )
+
+        messages = [{"role": "user", "content": prompt}]
+
+        self.console.log(
+            "[cyan]Generating blocking rule from sample patterns...[/cyan]"
+        )
+
+        for attempt in range(max_retries):
+            # Call LLM to generate rule
+            response = self.runner.api.call_llm(
+                model=model,
+                op_type="equijoin_blocking_gen",
+                messages=messages,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "blocking_rule",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "blocking_rule": {
+                                    "type": "string",
+                                    "description": "One-line Python statement acting as a blocking rule",
+                                }
+                            },
+                            "required": ["blocking_rule"],
+                            "additionalProperties": False,
+                        },
+                        "strict": True,
+                    },
+                },
+            )
+            total_cost += completion_cost(response)
+
+            # Parse response
+            try:
+                content = response.choices[0].message.content
+                parsed = json.loads(content)
+                blocking_rule = parsed.get("blocking_rule", "")
+            except (json.JSONDecodeError, AttributeError) as e:
+                self.console.log(f"[yellow]Failed to parse blocking rule: {e}[/yellow]")
+                continue
+
+            if not blocking_rule or blocking_rule.strip() == "True":
+                self.console.log(
+                    "[yellow]No suitable blocking rule could be found. Proceeding without a blocking rule.[/yellow]"
+                )
+                return [], total_cost
+
+            self.console.log(
+                f"[bold]Generated blocking rule (Attempt {attempt + 1}):[/bold] {blocking_rule}"
+            )
+
+            # Test the rule against all known matches
+            filtered_matches = []
+            for left_idx, right_idx in matches:
+                left_item = left_data[left_idx]
+                right_item = right_data[right_idx]
+                if not _safe_eval_condition(blocking_rule, left_item, right_item):
+                    filtered_matches.append((left_idx, right_idx))
+
+            if not filtered_matches:
+                # Rule passes all matches - success!
+                # Count how many non-matches it filters out (for reporting)
+                filtered_non_matches = sum(
+                    1
+                    for i, j in non_matches
+                    if not _safe_eval_condition(
+                        blocking_rule, left_data[i], right_data[j]
+                    )
+                )
+                filter_rate = (
+                    filtered_non_matches / len(non_matches) * 100 if non_matches else 0
+                )
+
+                self.console.log(
+                    f"[green]Blocking rule looks good! No known matches were filtered out. "
+                    f"Filters {filter_rate:.0f}% of non-matches.[/green]"
+                )
+                return [blocking_rule], total_cost
+
+            # Rule failed - provide feedback and retry
+            self.console.log(
+                f"[yellow]The blocking rule incorrectly filtered out {len(filtered_matches)} known matches.[/yellow]"
+            )
+
+            # Show examples of incorrectly filtered pairs
+            for i, j in filtered_matches[:3]:
+                self.console.log(
+                    f"  [dim]Incorrectly filtered - Left: {json.dumps(left_data[i], default=str)[:100]}...[/dim]"
+                )
+                self.console.log(
+                    f"  [dim]                       Right: {json.dumps(right_data[j], default=str)[:100]}...[/dim]"
+                )
+
+            # Build feedback for retry
+            feedback = f"The previous rule incorrectly filtered out {len(filtered_matches)} known matches. "
+            feedback += "Here are up to 3 examples of incorrectly filtered pairs:\n"
+            for i, j in filtered_matches[:3]:
+                feedback += f"Left: {json.dumps(left_data[i], default=str)}\n"
+                feedback += f"Right: {json.dumps(right_data[j], default=str)}\n"
+                feedback += (
+                    "These pairs are known matches but were filtered out by the rule.\n"
+                )
+            feedback += (
+                "Please generate a new rule that doesn't filter out these matches."
+            )
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": json.dumps({"blocking_rule": blocking_rule}),
+                }
+            )
+            messages.append({"role": "user", "content": feedback})
+
+        self.console.log(
+            f"[yellow]Failed to generate a suitable blocking rule after {max_retries} attempts. "
+            f"Proceeding without a blocking rule.[/yellow]"
+        )
+        return [], total_cost
+
     def optimize_resolve(
         self,
         input_data: list[dict[str, Any]],
@@ -477,7 +702,8 @@ class RuntimeBlockingOptimizer:
         compare_fn: Callable[[dict, dict], tuple[bool, float]],
         left_keys: list[str] | None = None,
         right_keys: list[str] | None = None,
-    ) -> tuple[float, list[list[float]], list[list[float]], float]:
+        generate_conditions: bool = True,
+    ) -> tuple[float, list[list[float]], list[list[float]], float, list[str]]:
         """
         Compute optimal blocking threshold for equijoin operation.
 
@@ -487,9 +713,10 @@ class RuntimeBlockingOptimizer:
             compare_fn: Function to compare two items, returns (is_match, cost).
             left_keys: Keys to use for left dataset embeddings.
             right_keys: Keys to use for right dataset embeddings.
+            generate_conditions: Whether to also generate Python blocking conditions.
 
         Returns:
-            Tuple of (threshold, left_embeddings, right_embeddings, total_cost).
+            Tuple of (threshold, left_embeddings, right_embeddings, total_cost, blocking_conditions).
         """
         from rich.panel import Panel
 
@@ -515,7 +742,7 @@ class RuntimeBlockingOptimizer:
             self.console.log(
                 "[yellow]No pairs to sample. Using default threshold 0.8.[/yellow]"
             )
-            return 0.8, left_embeddings, right_embeddings, embedding_cost
+            return 0.8, left_embeddings, right_embeddings, embedding_cost, []
 
         # Perform comparisons
         comparisons = []
@@ -544,6 +771,14 @@ class RuntimeBlockingOptimizer:
         )
         total_cost = embedding_cost + comparison_cost
 
+        # Generate blocking conditions if requested
+        blocking_conditions = []
+        if generate_conditions:
+            blocking_conditions, condition_cost = self.generate_blocking_conditions(
+                comparisons, left_data, right_data
+            )
+            total_cost += condition_cost
+
         # Print histogram visualization
         self._print_similarity_histogram(similarities, comparisons, threshold)
 
@@ -556,6 +791,7 @@ class RuntimeBlockingOptimizer:
             f"[bold]Sampled:[/bold] {len(sampled_pairs)} pairs → {matches_found} matches ({matches_found/len(sampled_pairs)*100:.1f}%)\n"
             f"[bold]Threshold:[/bold] {threshold:.4f} → {achieved_recall:.1%} recall (target: {self.target_recall:.0%})\n"
             f"[bold]Pairs to compare:[/bold] {pairs_above:,} of {total_pairs:,} ({pairs_above/total_pairs*100:.1f}%)\n"
+            f"[bold]Blocking conditions:[/bold] {len(blocking_conditions)} generated\n"
             f"[bold]Optimization cost:[/bold] ${total_cost:.4f}"
         )
         self.console.log(
@@ -564,4 +800,10 @@ class RuntimeBlockingOptimizer:
             )
         )
 
-        return threshold, left_embeddings, right_embeddings, total_cost
+        return (
+            threshold,
+            left_embeddings,
+            right_embeddings,
+            total_cost,
+            blocking_conditions,
+        )

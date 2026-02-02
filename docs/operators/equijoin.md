@@ -1,6 +1,6 @@
-# Equijoin Operation (Experimental)
+# Equijoin Operation
 
-The Equijoin operation in DocETL is an experimental feature designed for joining two datasets based on flexible, LLM-powered criteria. It leverages many of the same techniques as the [Resolve operation](resolve.md), but applies them to the task of joining datasets rather than deduplicating within a single dataset.
+The Equijoin operation in DocETL is designed for joining two datasets based on flexible, LLM-powered criteria. It leverages many of the same techniques as the [Resolve operation](resolve.md), but applies them to the task of joining datasets rather than deduplicating within a single dataset.
 
 ## Motivation
 
@@ -88,8 +88,11 @@ A full Equijoin step combining both ideas might look like:
     Determine if these entries refer to the same medication.
 ```
 
-#### Auto-generating Rules (Experimental)
-`docetl build pipeline.yaml` can call the **Optimizer** to propose `blocking_keys` and an appropriate `blocking_threshold` based on a sample of your data. This feature is experimental; always review the suggested rules to ensure they do not exclude valid matches.
+#### Automatic Threshold Computation
+
+If you don't specify any blocking configuration (`blocking_threshold`, `blocking_conditions`, or `limit_comparisons`), the Equijoin operation will **automatically compute an optimal blocking threshold at runtime**. It samples pairs from your data, runs LLM comparisons on the sample, and finds a threshold that achieves 95% recall by default. You can adjust this target with the `blocking_target_recall` parameter.
+
+Additionally, `docetl build pipeline.yaml` can call the **Optimizer** to propose `blocking_keys` and an appropriate `blocking_threshold` based on a sample of your data.
 
 ## Parameters
 
@@ -108,6 +111,44 @@ Key differences from Resolve:
 
 - `resolution_prompt` is not used in Equijoin.
 - `blocking_keys` uses a dict with `left` and `right` keys instead of a simple list.
+
+## Output Format
+
+The Equijoin operation outputs a list of dictionaries, where each dictionary is a flattened merge of a matched left and right record.
+
+### Handling Duplicate Keys
+
+When the left and right datasets have fields with the same name, DocETL automatically disambiguates them using `_left` and `_right` suffixes:
+
+- **No key collision**: The original field name is preserved
+- **Key collision**: The left field gets a `_left` suffix, the right field gets a `_right` suffix
+
+**Example:**
+
+Given these matched records:
+
+| Left record | Right record |
+|-------------|--------------|
+| `{"id": 1, "name": "John", "age": 30}` | `{"id": 2, "name": "John Smith", "email": "j@example.com"}` |
+
+The output record would be:
+
+```json
+{
+    "id_left": 1,
+    "name_left": "John",
+    "age": 30,
+    "id_right": 2,
+    "name_right": "John Smith",
+    "email": "j@example.com"
+}
+```
+
+In this example:
+
+- `id` and `name` exist in both records → renamed to `id_left`/`id_right` and `name_left`/`name_right`
+- `age` only exists in the left record → kept as `age`
+- `email` only exists in the right record → kept as `email`
 
 ## Incorporating Into a Pipeline
 

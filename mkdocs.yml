@@ -45,9 +45,10 @@ nav:
           - TopK: operators/topk.md
           - Code: operators/code.md
       - APIs:
-          - Python API Guide: 
+          - Python API Guide:
               - Overview: python/index.md
               - Examples: python/examples.md
+              - API Reference: api-reference/python.md
           - Pandas Integration:
               - Overview: pandas/index.md
               - Operations: pandas/operations.md
@@ -85,10 +86,9 @@ nav:
           - CLI Interface: api-reference/cli.md
           - Operations: api-reference/operations.md
           - Optimizers: api-reference/optimizers.md
-          - Python API: api-reference/python.md
   
   - Tools & Resources:
-      - UI Playground:
+      - DocWrangler:
           - Setup: playground/index.md
           - Tutorial: playground/tutorial.md
       - Community:

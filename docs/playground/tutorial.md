@@ -1,6 +1,6 @@
 # Simple Tutorial: Extracting Funny Quotes from Presidential Debates
 
-In this tutorial, we'll walk through using the DocETL playground to extract funny or memorable quotes from presidential debate transcripts. We'll see how to:
+In this tutorial, we'll walk through using DocWrangler to extract funny or memorable quotes from presidential debate transcripts. We'll see how to:
 
 1. Upload and explore data
 2. Run a basic pipeline with sampling
@@ -16,11 +16,11 @@ In this tutorial, we'll walk through using the DocETL playground to extract funn
 
 First, download the presidential debates dataset from [here](https://raw.githubusercontent.com/ucbepic/docetl/refs/heads/main/example_data/debates/data.json).
 
-Once downloaded, use the left sidebar's upload button to load the data into the playground. The data contains transcripts from various presidential debates.
+Once downloaded, use the left sidebar's upload button to load the data into DocWrangler. The data contains transcripts from various presidential debates.
 
 You can view the data by clicking the "toggle dataset view" button in the top right corner of the screen:
 
-![Dataset View](../../assets/tutorial/dataset-view.png)
+![Dataset View](../assets/tutorial/dataset-view.png)
 
 ## Step 2: Add a Map Operation
 
@@ -28,7 +28,7 @@ The pipeline is set to run on a sample of 5 documents, as indicated by the sampl
 
 We'll add a map operation that processes each debate transcript to extract logical fallacies. Click the "Add Operation" button in the top right corner of the screen, and select "Map" under the LLM section. You can set the operation name to "extract_fallacies", and write a prompt and output schema. 
 
-![Operation Details](../../assets/tutorial/operation-details.png)
+![Operation Details](../assets/tutorial/operation-details.png)
 
 ## Step 3: Run the Pipeline and Check Outputs
 
@@ -37,7 +37,7 @@ Click the "Run" button to execute the pipeline. The outputs panel will show two 
 - **Console**: Displays progress information and any potential errors
 - **Table**: Shows the extracted funny quotes from each document in a table, as well as the other key/value pairs in the document. Here's what the table looks like after running the pipeline:
 
-![Pipeline Outputs](../../assets/tutorial/initial-outputs.png)
+![Pipeline Outputs](../assets/tutorial/initial-outputs.png)
 
 You can resize the rows and columns in the table by clicking and dragging the edges of the table cells, as in the image above. You can also rezise the outputs panel by clicking and dragging the top edge of the panel.
 
@@ -55,15 +55,15 @@ We can modify the prompt to request additional context based on what we observe 
 
 Here's an example of what giving notes might look like:
 
-![Feedback](../../assets/tutorial/add-notes.png)
+![Feedback](../assets/tutorial/add-notes.png)
 
 Once you've added enough notes (3-5 or more), you can click on the "Improve Prompt" button in the top right corner of the operation card. This will invoke the DocWrangler Prompt Improvement Assistant, which will suggest edits to your prompt:
 
-![Prompt Improvement](../../assets/tutorial/prompt-improvement.png)
+![Prompt Improvement](../assets/tutorial/prompt-improvement.png)
 
 Once you're satisfied with the new prompt, click "Save" to update the operation, and then you can rerun the pipeline to see the new outputs.
 
-![Prompt v2](../../assets/tutorial/prompt-v2.png)
+![Prompt v2](../assets/tutorial/prompt-v2.png)
 
 !!! note "Caching Behavior"
 

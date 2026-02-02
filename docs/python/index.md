@@ -76,7 +76,7 @@ This example demonstrates how to create a simple pipeline that processes input d
 
 ## API Reference
 
-For a complete reference of all available classes and their methods, please refer to the [Python API Reference](api-reference/python.md).
+For a complete reference of all available classes and their methods, please refer to the [API Reference](../api-reference/python.md).
 
 The API Reference provides detailed information about each class, including:
 

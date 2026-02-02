@@ -1,20 +1,20 @@
-# Playground
+# DocWrangler
 
-The DocETL Playground is an integrated development environment (IDE) for building and testing document processing pipelines. Built with Next.js and TypeScript, it provides a real-time interface to develop, test and refine your pipelines through a FastAPI backend.
+[DocWrangler](https://arxiv.org/abs/2504.14764) is a playground for prototyping DocETL pipelines. It provides an integrated development environment (IDE) for building and testing document processing pipelines, with a real-time interface to develop, test and refine your pipelines through a FastAPI backend.
 
-## Why a Playground? 🤔
+## Why DocWrangler?
 
-This **interactive playground** streamlines development from prototype to production! **Our (in-progress) user studies show 100% of developers** found building pipelines significantly faster and easier with our playground vs traditional approaches.
+DocWrangler streamlines development from prototype to production. User studies show developers found building pipelines significantly faster and easier with DocWrangler vs traditional approaches.
 
-Building complex LLM pipelines for your data often requires experimentation and iteration. The IDE lets you:
+Building complex LLM pipelines for your data often requires experimentation and iteration. DocWrangler lets you:
 
 - 🚀 Test prompts and see results instantly
 - ✨ Refine operations based on sample outputs  
 - 🔄 Build complex pipelines step-by-step
 
-## Public Playground
+## Public Instance
 
-You can access our hosted playground at [docetl.org/playground](https://docetl.org/playground). You'll need to provide your own LLM API keys to use the service. The chatbot and prompt engineering assistants are powered by OpenAI models, so you'll need to provide an OpenAI API key.
+You can access our hosted DocWrangler at [docetl.org/playground](https://docetl.org/playground). You'll need to provide your own LLM API keys to use the service. The chatbot and prompt engineering assistants are powered by OpenAI models, so you'll need to provide an OpenAI API key.
 
 !!! note "Data Storage Notice"
 
@@ -117,7 +117,7 @@ make install-ui   # Install UI dependencies
 make run-ui-dev
 ```
 
-5. Navigate to http://localhost:3000/playground to access the playground.
+5. Navigate to http://localhost:3000/playground to access DocWrangler.
 
 ### Setting up the AI Assistant
 
@@ -127,7 +127,7 @@ To use the assistant, you need to set your OpenAI API key in the `.env.local` fi
 
 !!! tip "Self-hosting with UI API key management"
 
-    If you want to host your own version of DocETL for your organization while allowing users to set their API keys through the UI, you'll need to set up encryption. Add the following to both `.env` and `website/.env.local`:
+    If you want to host your own version of DocWrangler for your organization while allowing users to set their API keys through the UI, you'll need to set up encryption. Add the following to both `.env` and `website/.env.local`:
     ```bash
     DOCETL_ENCRYPTION_KEY=your_secret_key_here
     ```
@@ -136,4 +136,4 @@ To use the assistant, you need to set your OpenAI API key in the `.env.local` fi
 
 ## Complex Tutorial
 
-See this [YouTube video](https://www.youtube.com/watch?v=IlgueVqtHGo) for a more in depth tutorial on how to use the playground.
+See this [YouTube video](https://www.youtube.com/watch?v=IlgueVqtHGo) for a more in depth tutorial on how to use DocWrangler.

@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import requests
-from jinja2 import Template
+from jinja2 import Environment, Template
 from litellm.utils import ModelResponse
 from pydantic import Field, field_validator, model_validator
 from tqdm import tqdm
@@ -16,6 +16,7 @@ from tqdm import tqdm
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types
+from docetl.operations.utils.validation import rendered_prompt_to_content_parts
 from docetl.operations.utils.api import OutputMode
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
@@ -75,7 +76,11 @@ class MapOperation(BaseOperation):
                     # We'll mark it for later processing
                     return v
                 try:
-                    Template(v)
+                    from docetl.operations.utils.validation import _as_video_filter
+
+                    env = Environment()
+                    env.filters["as_video"] = _as_video_filter
+                    env.parse(v)
                 except Exception as e:
                     raise ValueError(
                         f"Invalid Jinja2 template in 'prompt': {str(e)}"
@@ -336,7 +341,20 @@ Reference anchors:"""
                 and "retrieval_context" not in self.config["prompt"]
                 else rendered
             )
-            messages = [{"role": "user", "content": prompt}]
+
+            # Convert rendered prompt to multimodal content parts if it
+            # contains video placeholders (from the ``| as_video`` filter).
+            content_parts = rendered_prompt_to_content_parts(prompt)
+            if isinstance(content_parts, list):
+                model = self.config.get("model", self.default_model)
+                if "gemini" not in model.lower():
+                    raise ValueError(
+                        f"Video content requires a Gemini model, but got '{model}'. "
+                        f"Please set 'model' to a Gemini model "
+                        f"(e.g. 'gemini/gemini-3.1-flash-lite-preview')."
+                    )
+
+            messages = [{"role": "user", "content": content_parts}]
             if self.config.get("pdf_url_key", None):
                 # Append the pdf to the prompt
                 try:

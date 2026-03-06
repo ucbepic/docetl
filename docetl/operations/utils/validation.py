@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 from asteval import Interpreter
@@ -10,6 +11,57 @@ from rich.prompt import Prompt
 from docetl.utils import has_jinja_syntax
 
 aeval = Interpreter()
+
+# Unique delimiter for video placeholders injected by the as_video filter.
+_VIDEO_DELIM = "<<<DOCETL_VIDEO:"
+_VIDEO_END = ">>>"
+_VIDEO_PATTERN = re.compile(re.escape(_VIDEO_DELIM) + r"(.+?)" + re.escape(_VIDEO_END))
+
+
+def _as_video_filter(value: Any) -> str:
+    """Jinja filter that emits a placeholder for a Video-typed value."""
+    if isinstance(value, dict) and value.get("__docetl_type__") == "Video":
+        return f"{_VIDEO_DELIM}{value['source']}{_VIDEO_END}"
+    raise ValueError(
+        f"as_video filter expects a Video object "
+        f"({{'__docetl_type__': 'Video', 'source': '...'}}), got: {value}"
+    )
+
+
+def rendered_prompt_to_content_parts(rendered: str) -> list[dict[str, Any]] | str:
+    """Convert a rendered prompt string into LiteLLM multimodal content parts.
+
+    If the rendered string contains no video placeholders, returns the string
+    unchanged.  Otherwise returns a list of content dicts suitable for
+    ``messages[0]["content"]``.
+    """
+    if _VIDEO_DELIM not in rendered:
+        return rendered
+
+    parts: list[dict[str, Any]] = []
+    last_end = 0
+    for m in _VIDEO_PATTERN.finditer(rendered):
+        # Text before this video placeholder
+        text_segment = rendered[last_end : m.start()]
+        if text_segment.strip():
+            parts.append({"type": "text", "text": text_segment})
+        video_url = m.group(1)
+        parts.append(
+            {
+                "type": "file",
+                "file": {
+                    "file_id": video_url,
+                    "format": "video/mp4",
+                },
+            }
+        )
+        last_end = m.end()
+    # Trailing text after the last placeholder
+    trailing = rendered[last_end:]
+    if trailing.strip():
+        parts.append({"type": "text", "text": trailing})
+
+    return parts
 
 
 def strict_render(template: Template | str, context: dict[str, Any]) -> str:
@@ -29,6 +81,7 @@ def strict_render(template: Template | str, context: dict[str, Any]) -> str:
     """
     # Create strict environment
     env = Environment(undefined=StrictUndefined)
+    env.filters["as_video"] = _as_video_filter
 
     # Only process string templates for non-Jinja syntax check
     if isinstance(template, str):

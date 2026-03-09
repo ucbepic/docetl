@@ -130,7 +130,7 @@ def get_openai_response(
         user_message = f"""
         I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
         Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operators (specify by the names) in the pipeline the directive should be applied to.
-        Make sure that your cosen directive is in the provided list of rewrite directives.
+        Make sure that your chosen directive is in the provided list of rewrite directives.
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
         - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5 \n

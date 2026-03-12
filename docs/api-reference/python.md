@@ -42,6 +42,7 @@ Pipeline(
 **Methods:**
 
 - `pipeline.run() -> float` — Execute the pipeline. Returns total cost.
+- `pipeline.run_with_stats() -> dict` — Execute the pipeline and return detailed statistics including cost and token usage broken down by model (prompt and completion tokens).
 - `pipeline.optimize(**kwargs) -> Pipeline` — Return an optimized copy of the pipeline.
 
 ---

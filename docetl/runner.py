@@ -118,6 +118,9 @@ class DSLRunner(ConfigWrapper):
             **kwargs,
         )
         self.total_cost = 0
+        self.total_token_usage = defaultdict(
+            lambda: {"prompt_tokens": 0, "completion_tokens": 0}
+        )
         self._initialize_state()
         self._setup_parsing_tools()
         self._setup_retrievers()
@@ -479,9 +482,32 @@ class DSLRunner(ConfigWrapper):
         execution_time = time.time() - start_time
 
         # Print execution summary
+        token_usage_lines = ""
+        if self.total_token_usage:
+            token_usage_lines = "\n[bold]Token Usage:[/bold]\n"
+            total_prompt = 0
+            total_completion = 0
+            for model, usage in sorted(self.total_token_usage.items()):
+                prompt = usage["prompt_tokens"]
+                completion = usage["completion_tokens"]
+                total_prompt += prompt
+                total_completion += completion
+                token_usage_lines += (
+                    f"  {model}: "
+                    f"[cyan]{prompt:,}[/cyan] input, "
+                    f"[cyan]{completion:,}[/cyan] output\n"
+                )
+            if len(self.total_token_usage) > 1:
+                token_usage_lines += (
+                    f"  [bold]Total: "
+                    f"[cyan]{total_prompt:,}[/cyan] input, "
+                    f"[cyan]{total_completion:,}[/cyan] output[/bold]\n"
+                )
+
         summary = (
             f"Cost: [green]${self.total_cost:.2f}[/green]\n"
             f"Time: {execution_time:.2f}s\n"
+            + token_usage_lines
             + (
                 f"Cache: [dim]{self.intermediate_dir}[/dim]\n"
                 if self.intermediate_dir

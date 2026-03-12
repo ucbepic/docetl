@@ -252,6 +252,40 @@ class Pipeline:
         result = runner.load_run_save()
         return result
 
+    def run_with_stats(self, max_threads: int | None = None) -> dict[str, Any]:
+        """
+        Run the pipeline and return detailed execution statistics.
+
+        Args:
+            max_threads (int | None): Maximum number of threads to use for execution.
+
+        Returns:
+            dict[str, Any]: A dictionary containing:
+                - cost (float): The total cost of running the pipeline.
+                - token_usage (dict[str, dict[str, int]]): Token usage broken down
+                  by model, each with "prompt_tokens" and "completion_tokens".
+
+        Example:
+            ```python
+            stats = pipeline.run_with_stats()
+            print(f"Cost: ${stats['cost']:.2f}")
+            for model, usage in stats['token_usage'].items():
+                print(f"{model}: {usage['prompt_tokens']} in, {usage['completion_tokens']} out")
+            ```
+        """
+        config = self._to_dict()
+        runner = DSLRunner(
+            config,
+            base_name=os.path.join(os.getcwd(), self.name),
+            yaml_file_suffix=self.name,
+            max_threads=max_threads,
+        )
+        runner.load_run_save()
+        return {
+            "cost": runner.total_cost,
+            "token_usage": dict(runner.total_token_usage),
+        }
+
     def to_yaml(self, path: str) -> None:
         """
         Convert the Pipeline object to a YAML string and save it to a file.

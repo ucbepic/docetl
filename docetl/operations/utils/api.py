@@ -131,6 +131,37 @@ class APIWrapper(object):
         self.runner_router_cache[operation_model] = router
         return router.completion
 
+    def _track_token_usage(self, model: str, response) -> None:
+        """Extract token usage from a LiteLLM response and accumulate on the runner."""
+        if response and hasattr(response, "usage") and response.usage:
+            usage = response.usage
+            prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+            completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+            self.runner.total_token_usage[model]["prompt_tokens"] += prompt_tokens
+            self.runner.total_token_usage[model][
+                "completion_tokens"
+            ] += completion_tokens
+
+            # Track cached/cache-creation tokens if available
+            cached = 0
+            details = getattr(usage, "prompt_tokens_details", None)
+            if details:
+                cached = getattr(details, "cached_tokens", 0) or 0
+            # Anthropic reports cache reads separately
+            cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+            cached = max(cached, cache_read)
+            if cached:
+                self.runner.total_token_usage[model]["cached_tokens"] = (
+                    self.runner.total_token_usage[model].get("cached_tokens", 0)
+                    + cached
+                )
+            cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+            if cache_creation:
+                self.runner.total_token_usage[model]["cache_creation_tokens"] = (
+                    self.runner.total_token_usage[model].get("cache_creation_tokens", 0)
+                    + cache_creation
+                )
+
     @freezeargs
     def gen_embedding(self, model: str, input: list[str]) -> list[float]:
         """
@@ -189,6 +220,7 @@ class APIWrapper(object):
                     else embedding
                 )
                 result = embedding_fn(model=model, input=input, **extra_kwargs)
+                self._track_token_usage(model, result)
                 # Cache the result
                 c.set(key, result)
 
@@ -301,6 +333,7 @@ class APIWrapper(object):
                         use_structured_output=use_structured_output,
                     )
                     total_cost += completion_cost(response)
+                    self._track_token_usage(model, response)
                 else:
                     response = initial_result
 
@@ -411,6 +444,7 @@ class APIWrapper(object):
                             **extra_kwargs,
                         )
                         total_cost += completion_cost(validator_response)
+                        self._track_token_usage(gleaning_model, validator_response)
 
                         # Parse the validator response
                         suggestion = json.loads(
@@ -458,6 +492,7 @@ class APIWrapper(object):
                         }
 
                         total_cost += completion_cost(response)
+                        self._track_token_usage(model, response)
 
                     validated = True
 
@@ -508,6 +543,7 @@ class APIWrapper(object):
                             use_structured_output=use_structured_output,
                         )
                         total_cost += completion_cost(response)
+                        self._track_token_usage(model, response)
 
                 else:
                     # No validation, so we assume the result is valid

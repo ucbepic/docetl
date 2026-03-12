@@ -142,6 +142,26 @@ class APIWrapper(object):
                 "completion_tokens"
             ] += completion_tokens
 
+            # Track cached/cache-creation tokens if available
+            cached = 0
+            details = getattr(usage, "prompt_tokens_details", None)
+            if details:
+                cached = getattr(details, "cached_tokens", 0) or 0
+            # Anthropic reports cache reads separately
+            cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+            cached = max(cached, cache_read)
+            if cached:
+                self.runner.total_token_usage[model]["cached_tokens"] = (
+                    self.runner.total_token_usage[model].get("cached_tokens", 0)
+                    + cached
+                )
+            cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+            if cache_creation:
+                self.runner.total_token_usage[model]["cache_creation_tokens"] = (
+                    self.runner.total_token_usage[model].get("cache_creation_tokens", 0)
+                    + cache_creation
+                )
+
     @freezeargs
     def gen_embedding(self, model: str, input: list[str]) -> list[float]:
         """

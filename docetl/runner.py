@@ -487,22 +487,25 @@ class DSLRunner(ConfigWrapper):
             token_usage_lines = "\n[bold]Token Usage:[/bold]\n"
             total_prompt = 0
             total_completion = 0
+            total_cached = 0
             for model, usage in sorted(self.total_token_usage.items()):
                 prompt = usage["prompt_tokens"]
                 completion = usage["completion_tokens"]
+                cached = usage.get("cached_tokens", 0)
                 total_prompt += prompt
                 total_completion += completion
-                token_usage_lines += (
-                    f"  {model}: "
-                    f"[cyan]{prompt:,}[/cyan] input, "
-                    f"[cyan]{completion:,}[/cyan] output\n"
-                )
+                total_cached += cached
+                line = f"  {model}: [cyan]{prompt:,}[/cyan] input"
+                if cached:
+                    line += f" ([dim]{cached:,} cached[/dim])"
+                line += f", [cyan]{completion:,}[/cyan] output"
+                token_usage_lines += line + "\n"
             if len(self.total_token_usage) > 1:
-                token_usage_lines += (
-                    f"  [bold]Total: "
-                    f"[cyan]{total_prompt:,}[/cyan] input, "
-                    f"[cyan]{total_completion:,}[/cyan] output[/bold]\n"
-                )
+                total_line = f"  [bold]Total: [cyan]{total_prompt:,}[/cyan] input"
+                if total_cached:
+                    total_line += f" ([dim]{total_cached:,} cached[/dim])"
+                total_line += f", [cyan]{total_completion:,}[/cyan] output[/bold]"
+                token_usage_lines += total_line + "\n"
 
         summary = (
             f"Cost: [green]${self.total_cost:.2f}[/green]\n"

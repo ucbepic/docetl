@@ -797,7 +797,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9.2" },
     { name = "pydub", marker = "extra == 'parsing'", specifier = ">=0.25.1" },
     { name = "pymupdf", marker = "extra == 'parsing'", specifier = ">=1.24.10" },
-    { name = "pyrate-limiter", specifier = ">=3.7.0" },
+    { name = "pyrate-limiter", specifier = ">=3.7.0,<4" },
     { name = "python-docx", marker = "extra == 'parsing'", specifier = ">=1.1.2" },
     { name = "python-levenshtein", specifier = ">=0.21.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },

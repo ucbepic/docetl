@@ -193,6 +193,13 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
             onAddOperation("non-LLM", "web_fetch", "Untitled Web Fetch")
           }
         />
+        <OperationMenuItem
+          name="Web Search"
+          description="Performs a web search for each document using a query field and stores a list of results (title, description, url) in an output field."
+          onClick={() =>
+            onAddOperation("non-LLM", "web_search", "Untitled Web Search")
+          }
+        />
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">
           Code Operations

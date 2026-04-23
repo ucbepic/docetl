@@ -2174,6 +2174,108 @@ export const WebFetchOperationComponent: React.FC<OperationComponentProps> = ({
   );
 };
 
+export const WebSearchOperationComponent: React.FC<OperationComponentProps> = ({
+  operation,
+  onUpdate,
+}) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center space-x-4">
+        <div className="w-1/2">
+          <Label htmlFor="search-engine" className="text-sm font-medium">
+            Search Engine
+          </Label>
+          <Select
+            value={operation.otherKwargs?.search_engine || "brave"}
+            onValueChange={(value) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  search_engine: value,
+                },
+              })
+            }
+          >
+            <SelectTrigger id="search-engine" className="mt-1">
+              <SelectValue placeholder="Select search engine" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="brave">Brave</SelectItem>
+              <SelectItem value="bing">Bing</SelectItem>
+              <SelectItem value="google">Google</SelectItem>
+              <SelectItem value="duckduckgo">DuckDuckGo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-1/2">
+          <Label htmlFor="query-template" className="text-sm font-medium">
+            Query Template (Jinja2)
+          </Label>
+          <Textarea
+            id="query-template"
+            value={operation.otherKwargs?.query_template || ""}
+            onChange={(e) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  query_template: e.target.value,
+                },
+              })
+            }
+            placeholder='e.g. {{ input.topic }} recent news'
+            className="mt-1 font-mono text-sm"
+            rows={2}
+          />
+        </div>
+      </div>
+      <div className="flex items-center space-x-4">
+        <div className="w-1/2">
+          <Label htmlFor="ws-output-field" className="text-sm font-medium">
+            Output Field
+          </Label>
+          <Input
+            id="ws-output-field"
+            value={operation.otherKwargs?.output_field || ""}
+            onChange={(e) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  output_field: e.target.value,
+                },
+              })
+            }
+            placeholder="Field to store results list"
+            className="mt-1"
+          />
+        </div>
+        <div className="w-1/4">
+          <Label htmlFor="max-results" className="text-sm font-medium">
+            Max Results
+          </Label>
+          <Input
+            id="max-results"
+            type="number"
+            value={operation.otherKwargs?.max_results ?? 10}
+            onChange={(e) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  max_results: Number(e.target.value),
+                },
+              })
+            }
+            className="mt-1 w-24"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function createOperationComponent(
   operation: Operation,
   onUpdate: (updatedOperation: Operation) => void,
@@ -2266,6 +2368,15 @@ export default function createOperationComponent(
     case "web_fetch":
       return (
         <WebFetchOperationComponent
+          operation={operation}
+          onUpdate={onUpdate}
+          isSchemaExpanded={isSchemaExpanded}
+          onToggleSchema={onToggleSchema}
+        />
+      );
+    case "web_search":
+      return (
+        <WebSearchOperationComponent
           operation={operation}
           onUpdate={onUpdate}
           isSchemaExpanded={isSchemaExpanded}

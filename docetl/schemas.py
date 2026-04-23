@@ -16,6 +16,7 @@ from .operations import (
     split,
     unnest,
     unnest_columns,
+    web_search,
 )
 
 MapOp = map.MapOperation.schema
@@ -34,6 +35,7 @@ CodeMapOp = code_operations.CodeMapOperation.schema
 CodeReduceOp = code_operations.CodeReduceOperation.schema
 CodeFilterOp = code_operations.CodeFilterOperation.schema
 ExtractOp = extract.ExtractOperation.schema
+WebSearchOp = web_search.WebSearchOperation.schema
 
 OpType = (
     MapOp
@@ -50,6 +52,7 @@ OpType = (
     | CodeReduceOp
     | CodeFilterOp
     | ExtractOp
+    | WebSearchOp
 )
 
 Dataset = dataset.Dataset.schema

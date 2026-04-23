@@ -6,6 +6,7 @@ from typing import Optional
 import requests
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils.playwright import stealth_browser_async
 
 
 def _make_urls_absolute(html: str, base_url: str) -> str:
@@ -64,21 +65,9 @@ def _fetch_with_playwright(url: str, timeout: int) -> tuple[str, bool]:
         download_url = None
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                args=["--disable-blink-features=AutomationControlled"]
+            browser, context, page = await stealth_browser_async(
+                p, accept_downloads=True
             )
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (X11; Linux x86_64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                ),
-                accept_downloads=True,
-            )
-            await context.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            )
-            page = await context.new_page()
 
             # Capture download events before navigating
             download_future: asyncio.Future = asyncio.get_event_loop().create_future()

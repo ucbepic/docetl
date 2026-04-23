@@ -33,13 +33,6 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!data?.path) {
-      return NextResponse.json(
-        { error: "Data is required. Please select a file in the sidebar." },
-        { status: 400 }
-      );
-    }
-
     const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
     const docetl_encryption_key = process.env.DOCETL_ENCRYPTION_KEY || "";
 

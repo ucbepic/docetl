@@ -25,7 +25,8 @@ export type Operation = {
     | "code_map"
     | "code_reduce"
     | "code_filter"
-    | "web_fetch";
+    | "web_fetch"
+    | "web_search";
   name: string;
   prompt?: string;
   output?: { schema: SchemaItem[] };

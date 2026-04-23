@@ -18,12 +18,14 @@ export type Operation = {
     | "rank"
     | "extract"
     | "unnest"
+    | "unnest_columns"
     | "split"
     | "gather"
     | "sample"
     | "code_map"
     | "code_reduce"
-    | "code_filter";
+    | "code_filter"
+    | "web_fetch";
   name: string;
   prompt?: string;
   output?: { schema: SchemaItem[] };

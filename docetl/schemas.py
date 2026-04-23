@@ -15,6 +15,7 @@ from .operations import (
     sample,
     split,
     unnest,
+    unnest_columns,
 )
 
 MapOp = map.MapOperation.schema
@@ -26,6 +27,7 @@ EquijoinOp = equijoin.EquijoinOperation.schema
 SplitOp = split.SplitOperation.schema
 GatherOp = gather.GatherOperation.schema
 UnnestOp = unnest.UnnestOperation.schema
+UnnestColumnsOp = unnest_columns.UnnestColumnsOperation.schema
 ClusterOp = cluster.ClusterOperation.schema
 SampleOp = sample.SampleOperation.schema
 CodeMapOp = code_operations.CodeMapOperation.schema
@@ -43,6 +45,7 @@ OpType = (
     | SplitOp
     | GatherOp
     | UnnestOp
+    | UnnestColumnsOp
     | CodeMapOp
     | CodeReduceOp
     | CodeFilterOp

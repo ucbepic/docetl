@@ -1,6 +1,10 @@
 import importlib.metadata
 from docetl.operations.cluster import ClusterOperation
-from docetl.operations.code_operations import CodeFilterOperation, CodeMapOperation, CodeReduceOperation
+from docetl.operations.code_operations import (
+    CodeFilterOperation,
+    CodeMapOperation,
+    CodeReduceOperation,
+)
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.filter import FilterOperation
 from docetl.operations.gather import GatherOperation
@@ -13,9 +17,11 @@ from docetl.operations.split import SplitOperation
 from docetl.operations.sample import SampleOperation
 from docetl.operations.topk import TopKOperation
 from docetl.operations.unnest import UnnestOperation
+from docetl.operations.unnest_columns import UnnestColumnsOperation
 from docetl.operations.scan import ScanOperation
 from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
+from docetl.operations.web_fetch import WebFetchOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -30,18 +36,21 @@ mapping = {
     "parallel_map": ParallelMapOperation,
     "reduce": ReduceOperation,
     "resolve": ResolveOperation,
-    "rank":  RankOperation,
+    "rank": RankOperation,
     "split": SplitOperation,
     "sample": SampleOperation,
     "topk": TopKOperation,
     "unnest": UnnestOperation,
+    "unnest_columns": UnnestColumnsOperation,
     "scan": ScanOperation,
     "add_uuid": AddUuidOperation,
-    "extract": ExtractOperation
+    "extract": ExtractOperation,
+    "web_fetch": WebFetchOperation,
 }
 
+
 def get_operation(operation_type: str):
-    """Loads a single operation by name""" 
+    """Loads a single operation by name"""
     try:
         entrypoint = importlib.metadata.entry_points(group="docetl.operation")[
             operation_type
@@ -52,11 +61,14 @@ def get_operation(operation_type: str):
             return mapping[operation_type]
         raise KeyError(f"Unrecognized operation {operation_type}")
 
+
 def get_operations():
     """Load all available operations and return them as a dictionary"""
     operations = mapping.copy()
-    operations.update({
-        op.name: op.load()
-        for op in importlib.metadata.entry_points(group="docetl.operation")
-    })
+    operations.update(
+        {
+            op.name: op.load()
+            for op in importlib.metadata.entry_points(group="docetl.operation")
+        }
+    )
     return operations

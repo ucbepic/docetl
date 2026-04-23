@@ -779,6 +779,70 @@ export const UnnestOperationComponent: React.FC<OperationComponentProps> = ({
   );
 };
 
+export const UnnestColumnsOperationComponent: React.FC<
+  OperationComponentProps
+> = ({ operation, onUpdate }) => {
+  const handleUnnestKeyChange = (value: string) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        unnest_key: value,
+      },
+    });
+  };
+
+  const handleKeysChange = (value: string) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        keys: value
+          ? value
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined,
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center space-x-4">
+        <div className="w-1/2">
+          <Label htmlFor="unnest-columns-key" className="text-sm font-medium">
+            Source Column
+          </Label>
+          <Input
+            id="unnest-columns-key"
+            value={operation.otherKwargs?.unnest_key || ""}
+            onChange={(e) => handleUnnestKeyChange(e.target.value)}
+            placeholder="Column containing the dictionary"
+            className="mt-1"
+          />
+        </div>
+        <div className="w-1/2">
+          <Label htmlFor="unnest-columns-keys" className="text-sm font-medium">
+            Keys to expand (comma-separated, leave blank for all)
+          </Label>
+          <Input
+            id="unnest-columns-keys"
+            value={
+              operation.otherKwargs?.keys
+                ? operation.otherKwargs.keys.join(", ")
+                : ""
+            }
+            onChange={(e) => handleKeysChange(e.target.value)}
+            placeholder="key1, key2, ..."
+            className="mt-1"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const GatherOperationComponent: React.FC<OperationComponentProps> = ({
   operation,
   onUpdate,
@@ -1962,6 +2026,154 @@ export const CodeOperationComponent: React.FC<OperationComponentProps> = ({
   );
 };
 
+export const WebFetchOperationComponent: React.FC<OperationComponentProps> = ({
+  operation,
+  onUpdate,
+}) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center space-x-4">
+        <div className="w-1/2">
+          <Label htmlFor="url-field" className="text-sm font-medium">
+            URL Field
+          </Label>
+          <Input
+            id="url-field"
+            value={operation.otherKwargs?.url_field || ""}
+            onChange={(e) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  url_field: e.target.value,
+                },
+              })
+            }
+            placeholder="Field containing URL or list of URLs"
+            className="mt-1"
+          />
+        </div>
+        <div className="w-1/2">
+          <Label htmlFor="output-field" className="text-sm font-medium">
+            Output Field
+          </Label>
+          <Input
+            id="output-field"
+            value={operation.otherKwargs?.output_field || ""}
+            onChange={(e) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  output_field: e.target.value,
+                },
+              })
+            }
+            placeholder="Field to store fetched content"
+            className="mt-1"
+          />
+        </div>
+      </div>
+      <div className="flex items-center space-x-4">
+        <div className="w-1/4">
+          <Label htmlFor="timeout" className="text-sm font-medium">
+            Timeout (s)
+          </Label>
+          <Input
+            id="timeout"
+            type="number"
+            value={operation.otherKwargs?.timeout ?? 10}
+            onChange={(e) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  timeout: Number(e.target.value),
+                },
+              })
+            }
+            className="mt-1 w-24"
+          />
+        </div>
+        <div className="w-1/4">
+          <Label htmlFor="max-workers" className="text-sm font-medium">
+            Max Workers
+          </Label>
+          <Input
+            id="max-workers"
+            type="number"
+            value={operation.otherKwargs?.max_workers ?? 10}
+            onChange={(e) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  max_workers: Number(e.target.value),
+                },
+              })
+            }
+            className="mt-1 w-24"
+          />
+        </div>
+        <div className="flex items-center space-x-2 pt-5">
+          <Checkbox
+            id="use-playwright"
+            checked={operation.otherKwargs?.use_playwright ?? false}
+            onCheckedChange={(checked) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  use_playwright: checked === true,
+                },
+              })
+            }
+          />
+          <Label htmlFor="use-playwright" className="text-sm font-medium cursor-pointer">
+            Use Playwright (JS rendering)
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2 pt-5">
+          <Checkbox
+            id="body-only"
+            checked={operation.otherKwargs?.body_only ?? false}
+            onCheckedChange={(checked) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  body_only: checked === true,
+                },
+              })
+            }
+          />
+          <Label htmlFor="body-only" className="text-sm font-medium cursor-pointer">
+            Body tag only
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2 pt-5">
+          <Checkbox
+            id="convert-to-markdown"
+            checked={operation.otherKwargs?.convert_to_markdown ?? false}
+            onCheckedChange={(checked) =>
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  convert_to_markdown: checked === true,
+                },
+              })
+            }
+          />
+          <Label htmlFor="convert-to-markdown" className="text-sm font-medium cursor-pointer">
+            Convert to Markdown
+          </Label>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function createOperationComponent(
   operation: Operation,
   onUpdate: (updatedOperation: Operation) => void,
@@ -2015,6 +2227,15 @@ export default function createOperationComponent(
           onToggleSchema={onToggleSchema}
         />
       );
+    case "unnest_columns":
+      return (
+        <UnnestColumnsOperationComponent
+          operation={operation}
+          onUpdate={onUpdate}
+          isSchemaExpanded={isSchemaExpanded}
+          onToggleSchema={onToggleSchema}
+        />
+      );
     case "split":
       return (
         <SplitOperationComponent
@@ -2036,6 +2257,15 @@ export default function createOperationComponent(
     case "sample":
       return (
         <SampleOperationComponent
+          operation={operation}
+          onUpdate={onUpdate}
+          isSchemaExpanded={isSchemaExpanded}
+          onToggleSchema={onToggleSchema}
+        />
+      );
+    case "web_fetch":
+      return (
+        <WebFetchOperationComponent
           operation={operation}
           onUpdate={onUpdate}
           isSchemaExpanded={isSchemaExpanded}

@@ -165,6 +165,13 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
           onClick={() => onAddOperation("non-LLM", "unnest", "Untitled Unnest")}
         />
         <OperationMenuItem
+          name="Unnest Columns"
+          description="Expands a dictionary-valued column into multiple columns, one per key."
+          onClick={() =>
+            onAddOperation("non-LLM", "unnest_columns", "Untitled Unnest Columns")
+          }
+        />
+        <OperationMenuItem
           name="Split"
           description="Divides documents into multiple parts based on specified criteria, creating new documents for each part."
           onClick={() => onAddOperation("non-LLM", "split", "Untitled Split")}
@@ -178,6 +185,13 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
           name="Sample"
           description="Randomly selects a subset of documents from your dataset for testing or analysis."
           onClick={() => onAddOperation("non-LLM", "sample", "Untitled Sample")}
+        />
+        <OperationMenuItem
+          name="Web Fetch"
+          description="Fetches URLs from a field in each document and stores the fetched content in an output field. Supports single URLs or lists of URLs, fetched in parallel."
+          onClick={() =>
+            onAddOperation("non-LLM", "web_fetch", "Untitled Web Fetch")
+          }
         />
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">

@@ -310,11 +310,11 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     cost: loadFromLocalStorage(localStorageKeys.COST_KEY, 0),
       defaultModel: loadFromLocalStorage(
         localStorageKeys.DEFAULT_MODEL_KEY,
-        "gpt-5-nano"
+        "vertex_ai/gemini-2.0-flash"
       ),
       optimizerModel: loadFromLocalStorage(
         localStorageKeys.OPTIMIZER_MODEL_KEY,
-        "gpt-5-nano"
+        "vertex_ai/gemini-2.0-flash"
       ),
     autoOptimizeCheck: loadFromLocalStorage(
       localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
@@ -441,8 +441,8 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       sampleSize: mockSampleSize,
       files: mockFiles,
       cost: 0,
-        defaultModel: "gpt-5-nano",
-        optimizerModel: "gpt-5-nano",
+        defaultModel: "vertex_ai/gemini-2.0-flash",
+        optimizerModel: "vertex_ai/gemini-2.0-flash",
       optimizerProgress: null,
       autoOptimizeCheck: false,
       highLevelGoal: "",

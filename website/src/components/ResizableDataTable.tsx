@@ -57,8 +57,8 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { ColumnDialog } from "@/components/ColumnDialog";
-import { SearchableCell } from "@/components/SearchableCell";
 import { PrettyJSON } from "@/components/PrettyJSON";
+import { MarkdownCell } from "@/components/MarkdownCell";
 export type DataType = Record<string, unknown>;
 export type ColumnType<T> = {
   accessorKey: string;
@@ -1005,6 +1005,12 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
     setDialogOpen(true);
   };
 
+  const handleCellClick = (columnId: string, rowIndex: number) => {
+    setActiveColumn(columnId);
+    setCurrentValueIndex(rowIndex);
+    setDialogOpen(true);
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex-none mb-2 flex justify-between items-center">
@@ -1185,24 +1191,18 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                           overflowY: "auto",
                           padding: "0.5rem",
                           fontWeight: "normal",
+                          cursor: "pointer",
                         }}
+                        onClick={() => handleCellClick(cell.column.id, row.index)}
                       >
                         {typeof cell.getValue() === "string" ? (
-                          <SearchableCell
-                            content={cell.getValue() as string}
-                            isResizing={isResizing}
-                          />
+                          isResizing ? (
+                            <div>{cell.getValue() as string}</div>
+                          ) : (
+                            <MarkdownCell content={cell.getValue() as string} />
+                          )
                         ) : typeof cell.getValue() === "object" ? (
-                          <SearchableCell
-                            content={JSON.stringify(cell.getValue(), null, 2)}
-                            isResizing={isResizing}
-                          >
-                            {(searchTerm) =>
-                              searchTerm ? null : (
-                                <PrettyJSON data={cell.getValue()} />
-                              )
-                            }
-                          </SearchableCell>
+                          <PrettyJSON data={cell.getValue()} />
                         ) : (
                           flexRender(
                             cell.column.columnDef.cell,

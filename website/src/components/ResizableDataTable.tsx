@@ -410,6 +410,7 @@ interface ColumnHeaderProps {
   onSort: () => void;
   sortDirection: false | "asc" | "desc";
   onExpand: () => void;
+  collapsed?: boolean;
 }
 
 const ColumnHeader = memo(
@@ -422,7 +423,9 @@ const ColumnHeader = memo(
     onSort,
     sortDirection,
     onExpand,
+    collapsed,
   }: ColumnHeaderProps) => {
+    const [filterOpen, setFilterOpen] = useState(false);
     const histogramData = useMemo(() => {
       if (!stats) return [];
 
@@ -557,18 +560,31 @@ const ColumnHeader = memo(
             >
               <Maximize2 className="h-3 w-3 text-primary" />
             </Button>
+            {collapsed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-6 w-6 p-0 ${filterValue || filterOpen ? "text-primary" : ""}`}
+                onClick={() => setFilterOpen((v) => !v)}
+              >
+                <Search className="h-3 w-3" />
+              </Button>
+            )}
           </div>
           <span className="ml-2">{header}</span>
         </div>
+        {(!collapsed || filterOpen || filterValue) && (
         <div
           className={`${isBold ? "font-bold" : ""} space-y-2 ${
             filterValue ? "bg-primary/5 rounded-md" : ""
           }`}
         >
           <div className="flex items-center h-6">
+            {!collapsed && (
             <div className="flex items-center w-6">
               <Search className="h-3 w-3 text-muted-foreground ml-1.5" />
             </div>
+            )}
             <Input
               placeholder="Filter..."
               value={filterValue}
@@ -579,7 +595,8 @@ const ColumnHeader = memo(
             />
           </div>
         </div>
-        {stats && (
+        )}
+        {!collapsed && stats && (
           <div className="space-y-0.5">
             <div className="flex justify-between text-[10px] text-muted-foreground">
               {stats.isLowCardinality ? (
@@ -821,6 +838,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
     return 0;
   });
 
+  const [headersCollapsed, setHeadersCollapsed] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
   const debouncedSetIsResizing = useMemo(
     () => debounce((value: boolean) => setIsResizing(value), 150),
@@ -1066,7 +1084,11 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                <TableHead style={{ width: "30px", minWidth: "30px" }}>
+                <TableHead
+                  style={{ width: "30px", minWidth: "30px", cursor: "pointer", userSelect: "none" }}
+                  onClick={() => setHeadersCollapsed((v) => !v)}
+                  title={headersCollapsed ? "Expand column headers" : "Collapse column headers"}
+                >
                   #
                 </TableHead>
                 {headerGroup.headers.map((header) => (
@@ -1112,6 +1134,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                         }}
                         sortDirection={header.column.getIsSorted()}
                         onExpand={() => handleColumnExpand(header.column.id)}
+                        collapsed={headersCollapsed}
                       />
                     )}
                     <ColumnResizer header={header} />

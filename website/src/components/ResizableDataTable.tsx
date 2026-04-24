@@ -1006,8 +1006,8 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
   };
 
   return (
-    <div className="w-full overflow-auto">
-      <div className="mb-2 flex justify-between items-center">
+    <div className="w-full h-full flex flex-col">
+      <div className="flex-none mb-2 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1074,14 +1074,15 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
           )}
         </div>
       </div>
-      <div style={{ width: "100%", overflow: "auto" }}>
+      <div style={{ width: "100%", flex: "1 1 0", minHeight: 0 }}>
         <Table
           style={{
             width: table.getTotalSize() + 100,
             minWidth: "100%",
+            height: "100%",
           }}
         >
-          <TableHeader>
+          <TableHeader style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "white" }}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 <TableHead
@@ -1145,8 +1146,9 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
           </TableHeader>
 
           <TableBody>
-            {table.getRowModel().rows.map((row, index) => (
-              <React.Fragment key={row.id}>
+            {table.getRowModel().rows.map((row, index) => {
+              const rows = table.getRowModel().rows;
+              return <React.Fragment key={row.id}>
                 <TableRow>
                   <TableCell
                     style={{
@@ -1211,7 +1213,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                     </TableCell>
                   ))}
                 </TableRow>
-                <RowResizer
+                {index < rows.length - 1 && <RowResizer
                   row={{
                     ...row,
                     getSize: () => rowSizing[index] || startingRowHeight,
@@ -1223,37 +1225,13 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                       });
                     },
                   }}
-                />
-              </React.Fragment>
-            ))}
-          </TableBody>
+                />}
+              </React.Fragment>;
+            })}          </TableBody>
         </Table>
       </div>
 
-      {data.length > 0 && (
-        <div className="flex items-center justify-end space-x-2 py-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-          </Button>
-          <span className="text-sm text-gray-600">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next <ChevronRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      )}
+
 
       {activeColumn && (
         <ColumnDialog

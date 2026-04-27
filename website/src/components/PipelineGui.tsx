@@ -25,6 +25,7 @@ import {
   Plus,
   ChevronRight,
   ChevronLeft,
+  ChevronsUpDown,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import { Label } from "@/components/ui/label";
@@ -269,6 +270,15 @@ const PipelineGUI: React.FC = () => {
     onRequestDecompositionRef,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const handleCardExpandedChange = useCallback((id: string, expanded: boolean) => {
+    setExpandedCards((prev) => ({ ...prev, [id]: expanded }));
+  }, []);
+  const [forceExpandSignal, setForceExpandSignal] = useState<{ value: boolean; version: number } | undefined>(undefined);
+  const handleCollapseExpandAll = useCallback(() => {
+    const anyExpanded = Object.values(expandedCards).some(Boolean);
+    setForceExpandSignal((prev) => ({ value: !anyExpanded, version: (prev?.version ?? 0) + 1 }));
+  }, [expandedCards]);
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
@@ -1259,6 +1269,15 @@ const PipelineGUI: React.FC = () => {
                   </Button>
                 }
               />
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-sm"
+                onClick={handleCollapseExpandAll}
+                title={Object.values(expandedCards).some(Boolean) ? "Collapse all" : "Expand all"}
+              >
+                <ChevronsUpDown size={16} />
+              </Button>
 
               <div className="flex space-x-2 border-l pl-3">
                 <Button
@@ -1316,7 +1335,14 @@ const PipelineGUI: React.FC = () => {
       <div className="flex-1 overflow-y-auto min-h-0 p-2">
         <div className="space-y-2">
           {operations.map((op, index) => (
-            <OperationCard key={op.id} index={index} id={op.id} />
+            <OperationCard
+              key={op.id}
+              index={index}
+              id={op.id}
+              forceExpanded={forceExpandSignal?.value}
+              forceExpandVersion={forceExpandSignal?.version}
+              onExpandedChange={handleCardExpandedChange}
+            />
           ))}
           <AddOperationDropdown
             onAddOperation={handleAddOperation}

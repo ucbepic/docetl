@@ -595,6 +595,7 @@ type Action =
   | { type: "SET_RUN_INDEX"; payload: number }
   | { type: "UPDATE_SETTINGS"; payload: Record<string, string> }
   | { type: "TOGGLE_EXPAND" }
+  | { type: "SET_EXPANDED"; payload: boolean }
   | {
       type: "UPDATE_GLEANINGS";
       payload: { num_rounds: number; validation_prompt: string };
@@ -673,6 +674,8 @@ function operationReducer(state: State, action: Action): State {
         : state;
     case "TOGGLE_EXPAND":
       return { ...state, isExpanded: !state.isExpanded };
+    case "SET_EXPANDED":
+      return { ...state, isExpanded: action.payload };
     case "UPDATE_GLEANINGS":
       return state.operation
         ? {
@@ -702,10 +705,13 @@ const initialState: State = {
 interface Props {
   index: number;
   id?: string;
+  forceExpanded?: boolean;
+  forceExpandVersion?: number;
+  onExpandedChange?: (id: string, expanded: boolean) => void;
 }
 
 // Main component
-export const OperationCard: React.FC<Props> = ({ index, id }) => {
+export const OperationCard: React.FC<Props> = ({ index, id, forceExpanded, forceExpandVersion, onExpandedChange }) => {
   const [state, dispatch] = useReducer(operationReducer, initialState);
   const {
     operation,
@@ -742,6 +748,21 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
   useEffect(() => {
     operationRef.current = operation;
   }, [operation]);
+
+  // Sync with external forceExpanded signal
+  useEffect(() => {
+    if (forceExpanded !== undefined) {
+      dispatch({ type: "SET_EXPANDED", payload: forceExpanded });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceExpandVersion]);
+
+  // Notify parent of expansion changes
+  useEffect(() => {
+    if (id && onExpandedChange) {
+      onExpandedChange(id, isExpanded);
+    }
+  }, [id, isExpanded, onExpandedChange]);
 
   useEffect(() => {
     dispatch({ type: "SET_OPERATION", payload: operations[index] });

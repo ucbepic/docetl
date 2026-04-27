@@ -4,6 +4,9 @@ from datetime import datetime
 from enum import Enum
 
 
+class WorkspaceSaveRequest(BaseModel):
+    content: str
+
 class PipelineRequest(BaseModel):
     yaml_config: str
 

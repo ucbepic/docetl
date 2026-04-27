@@ -8,7 +8,7 @@ import json
 import csv
 from io import StringIO
 from pathlib import Path
-from server.app.models import PipelineConfigRequest
+from server.app.models import PipelineConfigRequest, WorkspaceSaveRequest
 
 router = APIRouter()
 
@@ -273,6 +273,34 @@ async def serve_document(path: str):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to serve file: {str(e)}")
+
+@router.get("/workspace/{workspace_id}")
+async def load_workspace(workspace_id: str):
+    """Load workspace state YAML for a given workspace UUID"""
+    try:
+        workspace_file = get_namespace_dir(workspace_id) / "workspace.yaml"
+        if not workspace_file.exists():
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        with workspace_file.open("r") as f:
+            content = f.read()
+        return {"content": content}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load workspace: {str(e)}")
+
+@router.post("/workspace/{workspace_id}")
+async def save_workspace(workspace_id: str, request: WorkspaceSaveRequest):
+    """Save workspace state YAML for a given workspace UUID"""
+    try:
+        namespace_dir = get_namespace_dir(workspace_id)
+        namespace_dir.mkdir(parents=True, exist_ok=True)
+        workspace_file = namespace_dir / "workspace.yaml"
+        with workspace_file.open("w") as f:
+            f.write(request.content)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save workspace: {str(e)}")
 
 @router.get("/check-file")
 async def check_file(path: str):

@@ -187,6 +187,7 @@ export function generatePipelineConfig(
       delete newOp.id;
       delete newOp.llmType;
       delete newOp.visibility;
+      delete newOp.url_mode;
 
       // Convert numeric strings in otherKwargs to numbers
       Object.entries(newOp).forEach(([key, value]) => {

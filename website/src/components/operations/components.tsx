@@ -2030,28 +2030,67 @@ export const WebFetchOperationComponent: React.FC<OperationComponentProps> = ({
   operation,
   onUpdate,
 }) => {
+  // mode: "field" (default) or "static"
+  const useStaticUrl = operation.otherKwargs?.url_mode === "static";
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-4">
         <div className="w-1/2">
-          <Label htmlFor="url-field" className="text-sm font-medium">
-            URL Field
-          </Label>
-          <Input
-            id="url-field"
-            value={operation.otherKwargs?.url_field || ""}
-            onChange={(e) =>
-              onUpdate({
-                ...operation,
-                otherKwargs: {
-                  ...operation.otherKwargs,
-                  url_field: e.target.value,
-                },
-              })
-            }
-            placeholder="Field containing URL or list of URLs"
-            className="mt-1"
-          />
+          <div className="flex items-center space-x-2 mb-1">
+            <Label className="text-sm font-medium">
+              {useStaticUrl ? "Static URL" : "URL Field"}
+            </Label>
+            <button
+              type="button"
+              className="text-xs text-blue-500 underline cursor-pointer"
+              onClick={() => {
+                onUpdate({
+                  ...operation,
+                  otherKwargs: {
+                    ...operation.otherKwargs,
+                    url_mode: useStaticUrl ? "field" : "static",
+                    url: useStaticUrl ? undefined : (operation.otherKwargs?.url || ""),
+                    url_field: useStaticUrl ? (operation.otherKwargs?.url_field || "") : undefined,
+                  },
+                });
+              }}
+            >
+              Switch to {useStaticUrl ? "URL field" : "static URL"}
+            </button>
+          </div>
+          {useStaticUrl ? (
+            <Input
+              id="url"
+              value={operation.otherKwargs?.url || ""}
+              onChange={(e) =>
+                onUpdate({
+                  ...operation,
+                  otherKwargs: {
+                    ...operation.otherKwargs,
+                    url: e.target.value,
+                  },
+                })
+              }
+              placeholder="https://example.com/data"
+              className="mt-1"
+            />
+          ) : (
+            <Input
+              id="url-field"
+              value={operation.otherKwargs?.url_field || ""}
+              onChange={(e) =>
+                onUpdate({
+                  ...operation,
+                  otherKwargs: {
+                    ...operation.otherKwargs,
+                    url_field: e.target.value,
+                  },
+                })
+              }
+              placeholder="Field containing URL or list of URLs"
+              className="mt-1"
+            />
+          )}
         </div>
         <div className="w-1/2">
           <Label htmlFor="output-field" className="text-sm font-medium">

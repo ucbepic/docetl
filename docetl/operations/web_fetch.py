@@ -123,11 +123,12 @@ def _fetch_with_playwright(url: str, timeout: int) -> tuple[str, bool]:
 
 class WebFetchOperation(BaseOperation):
     """
-    Fetches URLs from a field in each document and stores the fetched content
-    in an output field. Supports both single URL strings and lists of URLs.
-    Fetching is done in parallel using a thread pool.
+    Fetches URLs and stores the fetched content in an output field.
+    The URL can come from a field in each document (url_field) or be a
+    static URL applied to every document (url). Supports both single URL
+    strings and lists of URLs. Fetching is done in parallel using a thread pool.
 
-    Example config:
+    Example config (dynamic URL from field):
         type: web_fetch
         url_field: url          # field containing URL or list of URLs
         output_field: content   # field to store fetched content
@@ -136,11 +137,17 @@ class WebFetchOperation(BaseOperation):
         use_playwright: false   # use Playwright for JS-rendered pages (optional)
         body_only: false        # only keep <body> content (optional, HTML only)
         convert_to_markdown: false  # convert HTML to markdown (optional, HTML only)
+
+    Example config (static URL):
+        type: web_fetch
+        url: https://example.com/data.json   # static URL fetched for every document
+        output_field: content
     """
 
     class schema(BaseOperation.schema):
         type: str = "web_fetch"
-        url_field: str
+        url_field: Optional[str] = None
+        url: Optional[str] = None
         output_field: str
         timeout: Optional[int] = 10
         max_workers: Optional[int] = 10
@@ -149,7 +156,8 @@ class WebFetchOperation(BaseOperation):
         convert_to_markdown: Optional[bool] = False
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
-        url_field = self.config["url_field"]
+        url_field = self.config.get("url_field")
+        static_url = self.config.get("url")
         output_field = self.config["output_field"]
         timeout = self.config.get("timeout", 10)
         max_workers = self.config.get("max_workers", 10)
@@ -160,7 +168,12 @@ class WebFetchOperation(BaseOperation):
         # Collect all (doc_index, url_index, url) triples
         tasks = []
         for doc_idx, doc in enumerate(input_data):
-            value = doc.get(url_field)
+            if static_url is not None:
+                value = static_url
+            elif url_field is not None:
+                value = doc.get(url_field)
+            else:
+                value = None
             if value is None:
                 continue
             if isinstance(value, list):
@@ -217,14 +230,22 @@ class WebFetchOperation(BaseOperation):
             if doc_idx in results:
                 raw = results[doc_idx]
                 if isinstance(raw, dict):
-                    original_urls = doc.get(url_field, [])
+                    if static_url is not None:
+                        original_urls = static_url if isinstance(static_url, list) else [static_url]
+                    else:
+                        original_urls = doc.get(url_field, [])
                     new_doc[output_field] = [
                         raw.get(i, "") for i in range(len(original_urls))
                     ]
                 else:
                     new_doc[output_field] = raw
             else:
-                value = doc.get(url_field)
+                if static_url is not None:
+                    value = static_url
+                elif url_field is not None:
+                    value = doc.get(url_field)
+                else:
+                    value = None
                 new_doc[output_field] = [] if isinstance(value, list) else ""
             output.append(new_doc)
 

@@ -97,12 +97,13 @@ def _to_markdown_from_bytes(data: bytes, content_type: str, url: str) -> str:
         os.unlink(tmp)
 
 
-def _fetch_with_playwright(url: str, timeout: int) -> tuple[str, bool]:
+def _fetch_with_playwright(url: str, timeout: int) -> tuple[str, bool, str]:
     """
     Fetch a single URL using Playwright.
 
-    Returns (content, is_html). If the navigation triggers a file download,
+    Returns (content, is_html, content_type). If the navigation triggers a file download,
     falls back to requests and returns the raw content with is_html=False.
+    For binary content, content is the raw bytes decoded as latin-1.
     """
     from playwright.async_api import async_playwright
 
@@ -155,15 +156,15 @@ def _fetch_with_playwright(url: str, timeout: int) -> tuple[str, bool]:
         # Fall back to requests for the actual binary/non-HTML resource
         response = requests.get(download_url or url, timeout=timeout)
         response.raise_for_status()
-        content_type = response.headers.get("Content-Type", "")
-        is_html = "html" in content_type.lower()
+        raw_content_type = response.headers.get("Content-Type", "").split(";")[0].strip()
+        is_html = "html" in raw_content_type.lower()
         if is_html:
-            return response.text, True
-        return response.content.decode("latin-1"), False
+            return response.text, True, raw_content_type
+        return response.content.decode("latin-1"), False, raw_content_type
 
     # Sniff the playwright-rendered HTML
     is_html = bool(content and content.lstrip().lower().startswith(("<!", "<html")))
-    return content, is_html
+    return content, is_html, "text/html" if is_html else ""
 
 
 class WebFetchOperation(BaseOperation):
@@ -234,10 +235,25 @@ class WebFetchOperation(BaseOperation):
         def fetch(doc_idx, url_idx, url):
             try:
                 if use_playwright:
-                    content, is_html = _fetch_with_playwright(url, timeout)
-                    is_convertible = False
-                    raw_bytes = None
-                    raw_content_type = ""
+                    # HEAD-check first: if content-type is a binary/convertible type,
+                    # playwright won't get the bytes (renders empty HTML), so use requests directly.
+                    try:
+                        head = requests.head(url, timeout=timeout, allow_redirects=True)
+                        head_ct = head.headers.get("Content-Type", "").split(";")[0].strip()
+                    except Exception:
+                        head_ct = ""
+                    if head_ct in _MARKITDOWN_TYPES:
+                        response = requests.get(url, timeout=timeout)
+                        response.raise_for_status()
+                        raw_content_type = response.headers.get("Content-Type", "").split(";")[0].strip()
+                        is_html = False
+                        is_convertible = raw_content_type in _MARKITDOWN_TYPES
+                        raw_bytes = response.content
+                        content = response.content.decode("latin-1")
+                    else:
+                        content, is_html, raw_content_type = _fetch_with_playwright(url, timeout)
+                        is_convertible = raw_content_type in _MARKITDOWN_TYPES
+                        raw_bytes = content.encode("latin-1") if (is_convertible and content is not None) else None
                 else:
                     response = requests.get(url, timeout=timeout)
                     response.raise_for_status()

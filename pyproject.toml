@@ -60,6 +60,7 @@ server = [
   "httpx>=0.27.2",
   "playwright>=1.0.0",
   "markdownify>=0.11.0",
+  "markitdown[all]>=0.1.0",
   "beautifulsoup4>=4.12.0",
 ]
 retrieval = [

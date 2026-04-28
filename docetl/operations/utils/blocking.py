@@ -13,6 +13,7 @@ from litellm import model_cost
 from rich.console import Console
 
 from docetl.utils import completion_cost, extract_jinja_variables
+from docetl.operations.utils.validation import lookup_field
 
 
 class RuntimeBlockingOptimizer:
@@ -82,8 +83,14 @@ class RuntimeBlockingOptimizer:
         model_input_context_length = model_cost.get(embedding_model, {}).get(
             "max_input_tokens", 8192
         )
+        def _safe_lookup(item, key):
+            try:
+                return str(lookup_field(item, key))
+            except Exception:
+                return None
+
         texts = [
-            " ".join(str(item[key]) for key in keys if key in item)[
+            " ".join(filter(None, (_safe_lookup(item, key) for key in keys)))[
                 : model_input_context_length * 3
             ]
             for item in input_data

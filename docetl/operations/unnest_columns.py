@@ -2,6 +2,7 @@ import copy
 from typing import Optional
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils.validation import lookup_field
 
 
 class UnnestColumnsOperation(BaseOperation):
@@ -50,19 +51,22 @@ class UnnestColumnsOperation(BaseOperation):
 
         results = []
         for item in input_data:
-            if unnest_key not in item:
+            try:
+                value = lookup_field(item, unnest_key)
+            except Exception:
                 raise KeyError(
                     f"unnest_columns: key '{unnest_key}' not found in document. "
                     f"Available keys: {list(item.keys())}"
                 )
-            value = item[unnest_key]
             if not isinstance(value, dict):
                 raise TypeError(
                     f"unnest_columns: value at '{unnest_key}' must be a dict, "
                     f"got {type(value).__name__}"
                 )
             new_item = copy.deepcopy(item)
-            del new_item[unnest_key]
+            # Only delete the simple key if it's a plain top-level key
+            if unnest_key in new_item:
+                del new_item[unnest_key]
             expand = keys if keys is not None else value.keys()
             for k in expand:
                 new_item[k] = value.get(k)

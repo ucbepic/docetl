@@ -7,7 +7,7 @@ import requests
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils.playwright import stealth_browser_async
-
+from docetl.operations.utils.validation import lookup_field
 
 def _make_urls_absolute(html: str, base_url: str) -> str:
     """Rewrite all relative URLs in html to absolute using base_url."""
@@ -50,6 +50,51 @@ def _to_markdown(html: str) -> str:
     import markdownify
 
     return markdownify.markdownify(html, heading_style="ATX")
+
+
+# Content-types that markitdown can convert to markdown
+_MARKITDOWN_TYPES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+_CONTENT_TYPE_EXTENSIONS = {
+    "application/pdf": ".pdf",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.ms-excel": ".xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.ms-powerpoint": ".ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+}
+
+
+def _to_markdown_from_bytes(data: bytes, content_type: str, url: str) -> str:
+    """Convert binary document (PDF, DOCX, XLSX, etc.) to markdown via markitdown."""
+    import os
+    import tempfile
+    from urllib.parse import urlparse
+
+    from markitdown import MarkItDown
+
+    # Determine file extension: prefer URL path, fall back to content-type map
+    url_path = urlparse(url).path
+    _, url_ext = os.path.splitext(url_path)
+    ext = url_ext or _CONTENT_TYPE_EXTENSIONS.get(content_type, "")
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+        f.write(data)
+        tmp = f.name
+    try:
+        md = MarkItDown()
+        return md.convert(tmp).text_content
+    finally:
+        os.unlink(tmp)
 
 
 def _fetch_with_playwright(url: str, timeout: int) -> tuple[str, bool]:
@@ -136,7 +181,7 @@ class WebFetchOperation(BaseOperation):
         max_workers: 10         # max parallel fetch threads (optional)
         use_playwright: false   # use Playwright for JS-rendered pages (optional)
         body_only: false        # only keep <body> content (optional, HTML only)
-        convert_to_markdown: false  # convert HTML to markdown (optional, HTML only)
+        convert_to_markdown: false  # convert HTML/PDF/DOCX/XLSX/PPTX to markdown (optional)
 
     Example config (static URL):
         type: web_fetch
@@ -171,7 +216,7 @@ class WebFetchOperation(BaseOperation):
             if static_url is not None:
                 value = static_url
             elif url_field is not None:
-                value = doc.get(url_field)
+                value = lookup_field(doc, url_field)
             else:
                 value = None
             if value is None:
@@ -190,14 +235,21 @@ class WebFetchOperation(BaseOperation):
             try:
                 if use_playwright:
                     content, is_html = _fetch_with_playwright(url, timeout)
+                    is_convertible = False
+                    raw_bytes = None
+                    raw_content_type = ""
                 else:
                     response = requests.get(url, timeout=timeout)
                     response.raise_for_status()
-                    content_type = response.headers.get("Content-Type", "")
-                    is_html = "html" in content_type.lower()
-                    content = (
-                        response.text if is_html else response.content.decode("latin-1")
-                    )
+                    raw_content_type = response.headers.get("Content-Type", "").split(";")[0].strip()
+                    is_html = "html" in raw_content_type
+                    is_convertible = raw_content_type in _MARKITDOWN_TYPES
+                    if is_html:
+                        content = response.text
+                        raw_bytes = None
+                    else:
+                        raw_bytes = response.content
+                        content = response.content.decode("latin-1")
 
                 if is_html:
                     if body_only:
@@ -205,6 +257,8 @@ class WebFetchOperation(BaseOperation):
                     content = _make_urls_absolute(content, url)
                     if convert_to_markdown:
                         content = _to_markdown(content)
+                elif is_convertible and convert_to_markdown and raw_bytes is not None:
+                    content = _to_markdown_from_bytes(raw_bytes, raw_content_type, url)
 
                 return doc_idx, url_idx, content
             except Exception as e:
@@ -233,7 +287,9 @@ class WebFetchOperation(BaseOperation):
                     if static_url is not None:
                         original_urls = static_url if isinstance(static_url, list) else [static_url]
                     else:
-                        original_urls = doc.get(url_field, [])
+                        original_urls = lookup_field(doc, url_field) if url_field is not None else []
+                        if not isinstance(original_urls, list):
+                            original_urls = [original_urls]
                     new_doc[output_field] = [
                         raw.get(i, "") for i in range(len(original_urls))
                     ]
@@ -243,7 +299,7 @@ class WebFetchOperation(BaseOperation):
                 if static_url is not None:
                     value = static_url
                 elif url_field is not None:
-                    value = doc.get(url_field)
+                    value = lookup_field(doc, url_field)
                 else:
                     value = None
                 new_doc[output_field] = [] if isinstance(value, list) else ""

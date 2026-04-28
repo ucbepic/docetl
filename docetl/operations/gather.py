@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import field_validator
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils.validation import lookup_field
 
 
 class GatherOperation(BaseOperation):
@@ -81,7 +82,7 @@ class GatherOperation(BaseOperation):
         # Group chunks by document ID
         grouped_chunks = {}
         for item in input_data:
-            doc_id = item[doc_id_key]
+            doc_id = lookup_field(item, doc_id_key)
             if doc_id not in grouped_chunks:
                 grouped_chunks[doc_id] = []
             grouped_chunks[doc_id].append(item)
@@ -281,7 +282,7 @@ class GatherOperation(BaseOperation):
             return ""
 
         # Find the largest/highest level in the current chunk
-        current_chunk_headers = current_chunk.get(doc_header_key, [])
+        current_chunk_headers = lookup_field(current_chunk, doc_header_key) if doc_header_key else []
 
         # If there are no headers in the current chunk, return an empty string
         if not current_chunk_headers:
@@ -303,7 +304,7 @@ class GatherOperation(BaseOperation):
             highest_level = None
 
         for chunk in chunks:
-            for header_info in chunk.get(doc_header_key, []):
+            for header_info in (lookup_field(chunk, doc_header_key) if doc_header_key else []):
                 try:
                     header = header_info["header"]
                     level = header_info["level"]

@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types
+from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types, lookup_field
 from docetl.operations.utils.api import OutputMode
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
@@ -340,8 +340,8 @@ Reference anchors:"""
             if self.config.get("pdf_url_key", None):
                 # Append the pdf to the prompt
                 try:
-                    pdf_url = item[self.config["pdf_url_key"]]
-                except KeyError:
+                    pdf_url = lookup_field(item, self.config["pdf_url_key"])
+                except Exception:
                     raise ValueError(
                         f"PDF URL key '{self.config['pdf_url_key']}' not found in input data"
                     )
@@ -743,8 +743,8 @@ class ParallelMapOperation(BaseOperation):
             messages = [{"role": "user", "content": prompt}]
             if self.config.get("pdf_url_key", None):
                 try:
-                    pdf_url = item[self.config["pdf_url_key"]]
-                except KeyError:
+                    pdf_url = lookup_field(item, self.config["pdf_url_key"])
+                except Exception:
                     raise ValueError(
                         f"PDF URL key '{self.config['pdf_url_key']}' not found in input data"
                     )

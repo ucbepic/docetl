@@ -28,6 +28,7 @@ from docetl.operations.utils import (
     rich_as_completed,
     strict_render,
     validate_output_types,
+    lookup_field,
 )
 
 # Import OutputMode enum for structured output checks
@@ -266,7 +267,7 @@ class ReduceOperation(BaseOperation):
             def get_group_key(item):
                 key_values = []
                 for key in reduce_keys:
-                    value = item[key]
+                    value = lookup_field(item, key)
                     # Special handling for list-type values
                     if isinstance(value, list):
                         key_values.append(

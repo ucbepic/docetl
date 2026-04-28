@@ -10,7 +10,7 @@ from jinja2 import Template
 from pydantic import Field, field_validator
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render
+from docetl.operations.utils import RichLoopBar, strict_render, lookup_field
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 
@@ -131,7 +131,11 @@ class ExtractOperation(BaseOperation):
             tuple[list[dict[str, Any]], float]: A tuple containing the extraction results and the cost.
         """
         # Get the text content from the document
-        if doc_key not in item or not isinstance(item[doc_key], str):
+        try:
+            text_content = lookup_field(item, doc_key)
+            if not isinstance(text_content, str):
+                raise TypeError("not a string")
+        except Exception:
             if self.config.get("skip_on_error", True):
                 self.console.log(
                     f"[yellow]Warning: Key '{doc_key}' not found or not a string in document. Skipping.[/yellow]"
@@ -141,8 +145,6 @@ class ExtractOperation(BaseOperation):
                 raise ValueError(
                     f"Key '{doc_key}' not found or not a string in document"
                 )
-
-        text_content = item[doc_key]
 
         # Reformat the text with line numbers
         formatted_text = self._reformat_text_with_line_numbers(text_content)
@@ -282,7 +284,11 @@ Do not include explanatory text in your response, only the JSON object.
         import re
 
         # Get the text content from the document
-        if doc_key not in item or not isinstance(item[doc_key], str):
+        try:
+            text_content = lookup_field(item, doc_key)
+            if not isinstance(text_content, str):
+                raise TypeError("not a string")
+        except Exception:
             if self.config.get("skip_on_error", True):
                 self.console.log(
                     f"[yellow]Warning: Key '{doc_key}' not found or not a string in document. Skipping.[/yellow]"
@@ -292,8 +298,6 @@ Do not include explanatory text in your response, only the JSON object.
                 raise ValueError(
                     f"Key '{doc_key}' not found or not a string in document"
                 )
-
-        text_content = item[doc_key]
 
         # Prepare the context for prompt rendering
         retrieval_context = self._maybe_build_retrieval_context({"input": item})
@@ -430,7 +434,11 @@ Return only the JSON object with your patterns, no explanatory text.
 
                 # Process each document key in the item
                 for doc_key in self.config["document_keys"]:
-                    if doc_key not in item or not isinstance(item[doc_key], str):
+                    try:
+                        val = lookup_field(item, doc_key)
+                        if not isinstance(val, str):
+                            raise TypeError("not a string")
+                    except Exception:
                         if self.config.get("skip_on_error", True):
                             self.console.log(
                                 f"[yellow]Warning: Key '{doc_key}' not found or not a string in document. Skipping.[/yellow]"

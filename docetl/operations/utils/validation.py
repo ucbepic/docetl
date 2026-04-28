@@ -12,6 +12,33 @@ from docetl.utils import has_jinja_syntax
 aeval = Interpreter()
 
 
+def lookup_field(doc: dict, path: str) -> Any:
+    """
+    Look up a field in a document using Jinja2 template syntax.
+
+    The path is wrapped in {{ }} and rendered as a Jinja2 template with the
+    document available as the top-level namespace. This means all Jinja2
+    attribute/index access syntax is supported, e.g.:
+      "url"           -> doc["url"]
+      "esg.0.url"     -> doc["esg"][0]["url"]
+      "items[0].href" -> doc["items"][0]["href"]
+
+    Args:
+        doc: The document dict to look up from.
+        path: A Jinja2 expression (without {{ }}) to evaluate against the doc.
+
+    Returns:
+        The value at the given path.
+
+    Raises:
+        UndefinedError: If the path does not exist in the document.
+    """
+    env = Environment(undefined=StrictUndefined)
+    # Use jinja2's expression evaluation to get the actual object (not string)
+    compiled = env.compile_expression(path)
+    return compiled(**doc)
+
+
 def strict_render(template: Template | str, context: dict[str, Any]) -> str:
     """
     Renders a Jinja template with strict undefined checking.

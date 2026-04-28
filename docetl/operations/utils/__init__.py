@@ -20,6 +20,7 @@ from .validation import (
     get_user_input_for_schema,
     strict_render,
     validate_output_types,
+    lookup_field,
 )
 
 __all__ = [
@@ -44,6 +45,5 @@ __all__ = [
     "truncate_messages",
     "strict_render",
     "validate_output_types",
-    "stealth_browser_sync",
-    "stealth_browser_async",
+    "lookup_field",
 ]

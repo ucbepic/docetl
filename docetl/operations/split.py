@@ -5,6 +5,7 @@ import tiktoken
 from pydantic import field_validator, model_validator
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils.validation import lookup_field
 
 
 class SplitOperation(BaseOperation):
@@ -67,10 +68,10 @@ class SplitOperation(BaseOperation):
         cost = 0.0
 
         for item in input_data:
-            if split_key not in item:
+            try:
+                content = lookup_field(item, split_key)
+            except Exception:
                 raise KeyError(f"Split key '{split_key}' not found in item")
-
-            content = item[split_key]
             doc_id = str(uuid.uuid4())
 
             if method == "token_count":

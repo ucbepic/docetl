@@ -7,6 +7,7 @@ We use these in map and reduce operations.
 import json
 
 from docetl.operations.utils import APIWrapper
+from docetl.operations.utils.validation import lookup_field
 from docetl.utils import completion_cost
 
 
@@ -25,10 +26,16 @@ def get_embeddings_for_clustering(
     cost = 0
     batch_size = 1000
 
+    def _safe_lookup(item, key):
+        try:
+            return str(lookup_field(item, key))
+        except Exception:
+            return None
+
     for i in range(0, len(items), batch_size):
         batch = items[i : i + batch_size]
         texts = [
-            " ".join(str(item[key]) for key in embedding_keys if key in item)[:1000]
+            " ".join(filter(None, (_safe_lookup(item, key) for key in embedding_keys)))[:1000]
             for item in batch
         ]
         response = api_wrapper.gen_embedding(embedding_model, json.dumps(texts))
@@ -50,10 +57,16 @@ def get_embeddings_for_clustering_with_st(
     elif torch.cuda.is_available():
         device = "cuda"
 
+    def _safe_lookup_st(item, key):
+        try:
+            return str(lookup_field(item, key))
+        except Exception:
+            return None
+
     model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
     embeddings = model.encode(
         [
-            " ".join(str(item[key]) for key in embedding_keys if key in item)[:10000]
+            " ".join(filter(None, (_safe_lookup_st(item, key) for key in embedding_keys)))[:10000]
             for item in items
         ]
     )

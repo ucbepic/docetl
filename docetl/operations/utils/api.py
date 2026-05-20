@@ -138,9 +138,9 @@ class APIWrapper(object):
             prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
             self.runner.total_token_usage[model]["prompt_tokens"] += prompt_tokens
-            self.runner.total_token_usage[model][
-                "completion_tokens"
-            ] += completion_tokens
+            self.runner.total_token_usage[model]["completion_tokens"] += (
+                completion_tokens
+            )
 
             # Track cached/cache-creation tokens if available
             cached = 0
@@ -464,7 +464,7 @@ class APIWrapper(object):
                         improvement_prompt = f"""Based on the validation feedback:
 
                         ```
-                        {suggestion['improvements']}
+                        {suggestion["improvements"]}
                         ```
 
                         Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
@@ -1157,6 +1157,22 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 return [result]
 
             # For other models, continue with existing behavior
+            if content is None:
+                self.runner.console.log(
+                    f"[bold yellow]Warning:[/bold yellow] LLM returned None content for single-key schema "
+                    f"(key={key!r}, model={response.model!r}, "
+                    f"finish_reason={response.choices[index].finish_reason!r}, "
+                    f"completion_tokens={response.usage.completion_tokens if response.usage else 'unknown'!r}). "
+                    f"Full response: {response!r}"
+                )
+                raise InvalidOutputError(
+                    f"LLM returned None content (completion_tokens=0, finish_reason={response.choices[index].finish_reason!r}) — "
+                    f"model={response.model!r}. Possible silent content policy refusal.",
+                    [{}],
+                    schema,
+                    response.choices,
+                    tools or [],
+                )
             return [{key: content}]
 
         # Parse the response based on the provided tools
@@ -1174,6 +1190,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                                 else tool_call.function.arguments
                             )
                         except json.JSONDecodeError:
+                            self.runner.console.log(
+                                f"[bold yellow]Warning:[/bold yellow] JSONDecodeError parsing tool call arguments "
+                                f"(tool={tool_call.function.name!r}, model={response.model!r}). "
+                                f"Raw arguments: {tool_call.function.arguments!r}"
+                            )
                             return [{}]
                         # Execute the function defined in the tool's code
                         local_scope = {}

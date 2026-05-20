@@ -25,6 +25,7 @@ import {
   Plus,
   ChevronRight,
   ChevronLeft,
+  ChevronsUpDown,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import { Label } from "@/components/ui/label";
@@ -165,6 +166,13 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
           onClick={() => onAddOperation("non-LLM", "unnest", "Untitled Unnest")}
         />
         <OperationMenuItem
+          name="Unnest Columns"
+          description="Expands a dictionary-valued column into multiple columns, one per key."
+          onClick={() =>
+            onAddOperation("non-LLM", "unnest_columns", "Untitled Unnest Columns")
+          }
+        />
+        <OperationMenuItem
           name="Split"
           description="Divides documents into multiple parts based on specified criteria, creating new documents for each part."
           onClick={() => onAddOperation("non-LLM", "split", "Untitled Split")}
@@ -178,6 +186,20 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
           name="Sample"
           description="Randomly selects a subset of documents from your dataset for testing or analysis."
           onClick={() => onAddOperation("non-LLM", "sample", "Untitled Sample")}
+        />
+        <OperationMenuItem
+          name="Web Fetch"
+          description="Fetches URLs from a field in each document and stores the fetched content in an output field. Supports single URLs or lists of URLs, fetched in parallel."
+          onClick={() =>
+            onAddOperation("non-LLM", "web_fetch", "Untitled Web Fetch")
+          }
+        />
+        <OperationMenuItem
+          name="Web Search"
+          description="Performs a web search for each document using a query field and stores a list of results (title, description, url) in an output field."
+          onClick={() =>
+            onAddOperation("non-LLM", "web_search", "Untitled Web Search")
+          }
         />
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">
@@ -248,6 +270,15 @@ const PipelineGUI: React.FC = () => {
     onRequestDecompositionRef,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const handleCardExpandedChange = useCallback((id: string, expanded: boolean) => {
+    setExpandedCards((prev) => ({ ...prev, [id]: expanded }));
+  }, []);
+  const [forceExpandSignal, setForceExpandSignal] = useState<{ value: boolean; version: number } | undefined>(undefined);
+  const handleCollapseExpandAll = useCallback(() => {
+    const anyExpanded = Object.values(expandedCards).some(Boolean);
+    setForceExpandSignal((prev) => ({ value: !anyExpanded, version: (prev?.version ?? 0) + 1 }));
+  }, [expandedCards]);
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
@@ -1238,6 +1269,15 @@ const PipelineGUI: React.FC = () => {
                   </Button>
                 }
               />
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-sm"
+                onClick={handleCollapseExpandAll}
+                title={Object.values(expandedCards).some(Boolean) ? "Collapse all" : "Expand all"}
+              >
+                <ChevronsUpDown size={16} />
+              </Button>
 
               <div className="flex space-x-2 border-l pl-3">
                 <Button
@@ -1295,7 +1335,14 @@ const PipelineGUI: React.FC = () => {
       <div className="flex-1 overflow-y-auto min-h-0 p-2">
         <div className="space-y-2">
           {operations.map((op, index) => (
-            <OperationCard key={op.id} index={index} id={op.id} />
+            <OperationCard
+              key={op.id}
+              index={index}
+              id={op.id}
+              forceExpanded={forceExpandSignal?.value}
+              forceExpandVersion={forceExpandSignal?.version}
+              onExpandedChange={handleCardExpandedChange}
+            />
           ))}
           <AddOperationDropdown
             onAddOperation={handleAddOperation}

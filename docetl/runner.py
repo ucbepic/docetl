@@ -92,7 +92,7 @@ class DSLRunner(ConfigWrapper):
         class Pipeline(BaseModel):
             config: dict[str, Any] | None
             parsing_tools: list[schemas.ParsingTool] | None
-            datasets: dict[str, schemas.Dataset]
+            datasets: dict[str, schemas.Dataset] | None = None
             retrievers: dict[str, Any] | None
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
@@ -181,8 +181,11 @@ class DSLRunner(ConfigWrapper):
 
             if step.get("input"):
                 self._add_scan_operation(step)
-            else:
+            elif step["operations"] and isinstance(step["operations"][0], dict):
                 self._add_equijoin_operation(step)
+            else:
+                # No input specified and not an equijoin: use synthetic empty dataset [{}]
+                self._add_empty_scan_operation(step)
 
             self._add_step_operations(step)
             self._add_step_boundary(step)
@@ -206,6 +209,23 @@ class DSLRunner(ConfigWrapper):
         self.op_container_map[f"{step['name']}/scan_{step['input']}"] = (
             scan_op_container
         )
+        if self.last_op_container:
+            scan_op_container.add_child(self.last_op_container)
+        self.last_op_container = scan_op_container
+
+    def _add_empty_scan_operation(self, step: dict) -> None:
+        """Add a scan operation for a synthetic empty dataset [{}]"""
+        dataset_name = "__empty__"
+        scan_op_container = OpContainer(
+            f"{step['name']}/scan_{dataset_name}",
+            self,
+            {
+                "type": "scan",
+                "dataset_name": dataset_name,
+                "name": f"scan_{dataset_name}",
+            },
+        )
+        self.op_container_map[f"{step['name']}/scan_{dataset_name}"] = scan_op_container
         if self.last_op_container:
             scan_op_container.add_child(self.last_op_container)
         self.last_op_container = scan_op_container
@@ -262,7 +282,13 @@ class DSLRunner(ConfigWrapper):
 
     def _add_step_operations(self, step: dict) -> None:
         """Add operations for a step"""
-        op_start_idx = 1 if not step.get("input") else 0
+        # Skip first op only for equijoin (first op is a dict, not a string)
+        is_equijoin = (
+            step.get("input") is None
+            and step["operations"]
+            and isinstance(step["operations"][0], dict)
+        )
+        op_start_idx = 1 if is_equijoin else 0
 
         for operation_name in step["operations"][op_start_idx:]:
             if not isinstance(operation_name, str):
@@ -529,7 +555,7 @@ class DSLRunner(ConfigWrapper):
         datasets = {}
         self.console.rule("[bold]Loading Datasets[/bold]")
 
-        for name, dataset_config in self.config["datasets"].items():
+        for name, dataset_config in self.config.get("datasets", {}).items():
             if dataset_config["type"] == "file":
                 datasets[name] = Dataset(
                     self,
@@ -565,6 +591,8 @@ class DSLRunner(ConfigWrapper):
             )
             for name, dataset in datasets.items()
         }
+        # Always register a synthetic empty dataset for pipelines without input data
+        self.datasets["__empty__"] = Dataset(self, "memory", [{}])
         self.console.log()
 
     def save(self, data: list[dict]) -> None:

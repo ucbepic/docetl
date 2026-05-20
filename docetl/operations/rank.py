@@ -7,6 +7,7 @@ from pydantic import Field
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import rich_as_completed
 from docetl.operations.utils.progress import RichLoopBar
+from docetl.operations.utils.validation import lookup_field
 from docetl.utils import completion_cost
 
 
@@ -46,8 +47,10 @@ class RankOperation(BaseOperation):
             input_keys = document.keys()
         content_parts = []
         for key in input_keys:
-            if key in document:
-                content_parts.append(f"{key}: {document[key]}")
+            try:
+                content_parts.append(f"{key}: {lookup_field(document, key)}")
+            except Exception:
+                pass
         return "\n".join(content_parts)
 
     def _batch_rank_documents(

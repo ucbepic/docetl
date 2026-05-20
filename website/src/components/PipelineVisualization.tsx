@@ -49,6 +49,7 @@ const opTypeToDocLink = {
   map: "https://ucbepic.github.io/docetl/operators/map/",
   reduce: "https://ucbepic.github.io/docetl/operators/reduce/",
   unnest: "https://ucbepic.github.io/docetl/operators/unnest/",
+  unnest_columns: "https://ucbepic.github.io/docetl/operators/unnest/",
   resolve: "https://ucbepic.github.io/docetl/operators/resolve/",
 };
 

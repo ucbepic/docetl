@@ -1,6 +1,7 @@
 import copy
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils.validation import lookup_field
 
 
 class UnnestOperation(BaseOperation):
@@ -164,23 +165,36 @@ class UnnestOperation(BaseOperation):
                 return nested_results
 
         for item in input_data:
-            if unnest_key not in item:
+            try:
+                unnest_value = lookup_field(item, unnest_key)
+            except Exception:
                 raise KeyError(
                     f"Unnest key '{unnest_key}' not found in item. Other keys are {item.keys()}"
                 )
 
-            results.extend(unnest_recursive(item, unnest_key))
+            # Temporarily put the looked-up value under a stable top-level key for unnest_recursive
+            # If unnest_key is a simple key it's already there; if it's a path, we need to surface it.
+            # We work on a shallow copy with the value exposed at the unnest_key path's leaf.
+            # For path-style keys, rewrite item to expose the value at a synthetic top-level key.
+            _simple_key = unnest_key
+            _item = item
+            if "." in unnest_key or "[" in unnest_key:
+                _simple_key = "__unnest_value__"
+                _item = dict(item)
+                _item[_simple_key] = unnest_value
 
-            if not item[unnest_key] and self.config.get("keep_empty", False):
+            results.extend(unnest_recursive(_item, _simple_key))
+
+            if not unnest_value and self.config.get("keep_empty", False):
                 expand_fields = self.config.get("expand_fields")
-                new_item = copy.deepcopy(item)
-                if isinstance(item[unnest_key], dict):
+                new_item = copy.deepcopy(_item)
+                if isinstance(unnest_value, dict):
                     if expand_fields is None:
-                        expand_fields = item[unnest_key].keys()
+                        expand_fields = unnest_value.keys()
                     for field in expand_fields:
                         new_item[field] = None
                 else:
-                    new_item[unnest_key] = None
+                    new_item[_simple_key] = None
                 results.append(new_item)
 
         # Assert that no keys are missing after the operation

@@ -28,18 +28,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!data) {
-      return NextResponse.json(
-        { error: "Data is required. Please select a file in the sidebar." },
-        { status: 400 }
-      );
-    }
-
     const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
     const { inputPath, outputPath } = generatePipelineConfig(
       namespace,
       default_model,
-      data,
+      data ?? null,
       operations,
       operation_id,
       name,
@@ -55,28 +48,31 @@ export async function POST(request: Request) {
     );
 
     // Check if files exist using FastAPI endpoints
-    const checkInputResponse = await fetch(
-      `${FASTAPI_URL}/fs/check-file?path=${encodeURIComponent(inputPath)}`,
-      {
-        method: "GET",
+    // Skip input check if no data file was provided
+    if (inputPath) {
+      const checkInputResponse = await fetch(
+        `${FASTAPI_URL}/fs/check-file?path=${encodeURIComponent(inputPath)}`,
+        {
+          method: "GET",
+        }
+      );
+
+      if (!checkInputResponse.ok) {
+        console.error(`Failed to check input path: ${inputPath}`);
+        return NextResponse.json(
+          { error: "Failed to check input path" },
+          { status: 500 }
+        );
       }
-    );
 
-    if (!checkInputResponse.ok) {
-      console.error(`Failed to check input path: ${inputPath}`);
-      return NextResponse.json(
-        { error: "Failed to check input path" },
-        { status: 500 }
-      );
-    }
-
-    const inputResult = await checkInputResponse.json();
-    if (!inputResult.exists) {
-      console.error(`Input path does not exist: ${inputPath}`);
-      return NextResponse.json(
-        { error: "Input path does not exist" },
-        { status: 400 }
-      );
+      const inputResult = await checkInputResponse.json();
+      if (!inputResult.exists) {
+        console.error(`Input path does not exist: ${inputPath}`);
+        return NextResponse.json(
+          { error: "Input path does not exist" },
+          { status: 400 }
+        );
+      }
     }
 
     const checkOutputResponse = await fetch(

@@ -57,8 +57,8 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { ColumnDialog } from "@/components/ColumnDialog";
-import { SearchableCell } from "@/components/SearchableCell";
 import { PrettyJSON } from "@/components/PrettyJSON";
+import { MarkdownCell } from "@/components/MarkdownCell";
 export type DataType = Record<string, unknown>;
 export type ColumnType<T> = {
   accessorKey: string;
@@ -410,6 +410,7 @@ interface ColumnHeaderProps {
   onSort: () => void;
   sortDirection: false | "asc" | "desc";
   onExpand: () => void;
+  collapsed?: boolean;
 }
 
 const ColumnHeader = memo(
@@ -422,7 +423,9 @@ const ColumnHeader = memo(
     onSort,
     sortDirection,
     onExpand,
+    collapsed,
   }: ColumnHeaderProps) => {
+    const [filterOpen, setFilterOpen] = useState(false);
     const histogramData = useMemo(() => {
       if (!stats) return [];
 
@@ -557,18 +560,31 @@ const ColumnHeader = memo(
             >
               <Maximize2 className="h-3 w-3 text-primary" />
             </Button>
+            {collapsed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-6 w-6 p-0 ${filterValue || filterOpen ? "text-primary" : ""}`}
+                onClick={() => setFilterOpen((v) => !v)}
+              >
+                <Search className="h-3 w-3" />
+              </Button>
+            )}
           </div>
           <span className="ml-2">{header}</span>
         </div>
+        {(!collapsed || filterOpen || filterValue) && (
         <div
           className={`${isBold ? "font-bold" : ""} space-y-2 ${
             filterValue ? "bg-primary/5 rounded-md" : ""
           }`}
         >
           <div className="flex items-center h-6">
+            {!collapsed && (
             <div className="flex items-center w-6">
               <Search className="h-3 w-3 text-muted-foreground ml-1.5" />
             </div>
+            )}
             <Input
               placeholder="Filter..."
               value={filterValue}
@@ -579,7 +595,8 @@ const ColumnHeader = memo(
             />
           </div>
         </div>
-        {stats && (
+        )}
+        {!collapsed && stats && (
           <div className="space-y-0.5">
             <div className="flex justify-between text-[10px] text-muted-foreground">
               {stats.isLowCardinality ? (
@@ -821,6 +838,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
     return 0;
   });
 
+  const [headersCollapsed, setHeadersCollapsed] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
   const debouncedSetIsResizing = useMemo(
     () => debounce((value: boolean) => setIsResizing(value), 150),
@@ -987,9 +1005,15 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
     setDialogOpen(true);
   };
 
+  const handleCellClick = (columnId: string, rowIndex: number) => {
+    setActiveColumn(columnId);
+    setCurrentValueIndex(rowIndex);
+    setDialogOpen(true);
+  };
+
   return (
-    <div className="w-full overflow-auto">
-      <div className="mb-2 flex justify-between items-center">
+    <div className="w-full h-full flex flex-col">
+      <div className="flex-none mb-2 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1056,17 +1080,22 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
           )}
         </div>
       </div>
-      <div style={{ width: "100%", overflow: "auto" }}>
+      <div style={{ width: "100%", flex: "1 1 0", minHeight: 0 }}>
         <Table
           style={{
             width: table.getTotalSize() + 100,
             minWidth: "100%",
+            height: "100%",
           }}
         >
-          <TableHeader>
+          <TableHeader style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "white" }}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                <TableHead style={{ width: "30px", minWidth: "30px" }}>
+                <TableHead
+                  style={{ width: "30px", minWidth: "30px", cursor: "pointer", userSelect: "none" }}
+                  onClick={() => setHeadersCollapsed((v) => !v)}
+                  title={headersCollapsed ? "Expand column headers" : "Collapse column headers"}
+                >
                   #
                 </TableHead>
                 {headerGroup.headers.map((header) => (
@@ -1112,6 +1141,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                         }}
                         sortDirection={header.column.getIsSorted()}
                         onExpand={() => handleColumnExpand(header.column.id)}
+                        collapsed={headersCollapsed}
                       />
                     )}
                     <ColumnResizer header={header} />
@@ -1122,8 +1152,9 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
           </TableHeader>
 
           <TableBody>
-            {table.getRowModel().rows.map((row, index) => (
-              <React.Fragment key={row.id}>
+            {table.getRowModel().rows.map((row, index) => {
+              const rows = table.getRowModel().rows;
+              return <React.Fragment key={row.id}>
                 <TableRow>
                   <TableCell
                     style={{
@@ -1160,24 +1191,18 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                           overflowY: "auto",
                           padding: "0.5rem",
                           fontWeight: "normal",
+                          cursor: "pointer",
                         }}
+                        onClick={() => handleCellClick(cell.column.id, row.index)}
                       >
                         {typeof cell.getValue() === "string" ? (
-                          <SearchableCell
-                            content={cell.getValue() as string}
-                            isResizing={isResizing}
-                          />
+                          isResizing ? (
+                            <div>{cell.getValue() as string}</div>
+                          ) : (
+                            <MarkdownCell content={cell.getValue() as string} />
+                          )
                         ) : typeof cell.getValue() === "object" ? (
-                          <SearchableCell
-                            content={JSON.stringify(cell.getValue(), null, 2)}
-                            isResizing={isResizing}
-                          >
-                            {(searchTerm) =>
-                              searchTerm ? null : (
-                                <PrettyJSON data={cell.getValue()} />
-                              )
-                            }
-                          </SearchableCell>
+                          <PrettyJSON data={cell.getValue()} />
                         ) : (
                           flexRender(
                             cell.column.columnDef.cell,
@@ -1188,7 +1213,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                     </TableCell>
                   ))}
                 </TableRow>
-                <RowResizer
+                {index < rows.length - 1 && <RowResizer
                   row={{
                     ...row,
                     getSize: () => rowSizing[index] || startingRowHeight,
@@ -1200,37 +1225,13 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
                       });
                     },
                   }}
-                />
-              </React.Fragment>
-            ))}
-          </TableBody>
+                />}
+              </React.Fragment>;
+            })}          </TableBody>
         </Table>
       </div>
 
-      {data.length > 0 && (
-        <div className="flex items-center justify-end space-x-2 py-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-          </Button>
-          <span className="text-sm text-gray-600">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next <ChevronRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      )}
+
 
       {activeColumn && (
         <ColumnDialog

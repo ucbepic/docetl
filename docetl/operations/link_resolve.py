@@ -6,7 +6,7 @@ from rich.prompt import Confirm
 from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render
+from docetl.operations.utils import RichLoopBar, strict_render, lookup_field
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 from .clustering_utils import get_embeddings_for_clustering
@@ -54,13 +54,13 @@ class LinkResolveOperation(BaseOperation):
         # Note: We don't want to use text-embedding-3-small as it has bad performance on short texts...
         embedding_model = self.config.get("embedding_model", "text-embedding-ada-002")
 
-        item_by_id = {item[id_key]: item for item in input_data}
+        item_by_id = {lookup_field(item, id_key): item for item in input_data}
 
-        id_values = set([item[id_key] for item in input_data])
+        id_values = set([lookup_field(item, id_key) for item in input_data])
 
         link_values = set()
         for item in input_data:
-            link_values.update(item[link_key])
+            link_values.update(lookup_field(item, link_key))
 
         to_resolve = list(link_values - id_values)
         id_values = list(id_values)
@@ -141,7 +141,7 @@ class LinkResolveOperation(BaseOperation):
 
         for item in input_data:
             item[link_key] = [
-                self.replacements.get(value, value) for value in item[link_key]
+                self.replacements.get(value, value) for value in lookup_field(item, link_key)
             ]
 
         return input_data, total_cost

@@ -13,8 +13,8 @@ import {
   mockSampleSize,
   mockPipelineName,
 } from "@/mocks/mockData";
-import * as localStorageKeys from "@/app/localStorageKeys";
 import { toast } from "@/hooks/use-toast";
+import yaml from "js-yaml";
 
 interface PipelineState {
   operations: Operation[];
@@ -68,7 +68,7 @@ interface PipelineContextType extends PipelineState {
   setCost: React.Dispatch<React.SetStateAction<number>>;
   setDefaultModel: React.Dispatch<React.SetStateAction<string>>;
   setOptimizerModel: React.Dispatch<React.SetStateAction<string>>;
-  saveProgress: () => void;
+  saveProgress: () => Promise<void>;
   unsavedChanges: boolean;
   clearPipelineState: () => void;
   serializeState: () => Promise<string>;
@@ -95,17 +95,69 @@ const PipelineContext = createContext<PipelineContextType | undefined>(
   undefined
 );
 
-const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
-  if (typeof window !== "undefined") {
-    const storedValue = localStorage.getItem(key);
-    return storedValue ? JSON.parse(storedValue) : defaultValue;
+const defaultState = (namespace: string | null): PipelineState => ({
+  operations: initialOperations,
+  currentFile: null,
+  output: null,
+  terminalOutput: "",
+  optimizerProgress: null,
+  isLoadingOutputs: false,
+  isDecomposing: false,
+  numOpRun: 0,
+  pipelineName: mockPipelineName,
+  sampleSize: mockSampleSize,
+  files: mockFiles,
+  cost: 0,
+  defaultModel: "vertex_ai/gemini-2.0-flash",
+  optimizerModel: "vertex_ai/gemini-2.0-flash",
+  autoOptimizeCheck: false,
+  highLevelGoal: "",
+  systemPrompt: { datasetDescription: null, persona: null },
+  namespace,
+  apiKeys: [],
+  extraPipelineSettings: null,
+});
+
+const PERSISTED_KEYS: (keyof PipelineState)[] = [
+  "operations",
+  "currentFile",
+  "output",
+  "terminalOutput",
+  "isLoadingOutputs",
+  "numOpRun",
+  "pipelineName",
+  "sampleSize",
+  "files",
+  "cost",
+  "defaultModel",
+  "optimizerModel",
+  "autoOptimizeCheck",
+  "highLevelGoal",
+  "systemPrompt",
+  "extraPipelineSettings",
+];
+
+function stateToYaml(state: PipelineState): string {
+  const obj: Record<string, unknown> = {};
+  for (const key of PERSISTED_KEYS) {
+    obj[key] = state[key];
   }
-  return defaultValue;
-};
+  return yaml.dump(obj, { skipInvalid: true });
+}
+
+function yamlToPartialState(content: string): Partial<PipelineState> {
+  const obj = yaml.load(content) as Record<string, unknown>;
+  const partial: Partial<PipelineState> = {};
+  for (const key of PERSISTED_KEYS) {
+    if (key in obj) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (partial as any)[key] = obj[key];
+    }
+  }
+  return partial;
+}
 
 const serializeState = async (state: PipelineState): Promise<string> => {
-  const bookmarks = loadFromLocalStorage(localStorageKeys.BOOKMARKS_KEY, []);
-
   // Get important output samples
   let outputSample = "";
   let currentOperationName = "";
@@ -124,7 +176,6 @@ const serializeState = async (state: PipelineState): Promise<string> => {
       const outputs = JSON.parse(outputContent) || [];
 
       if (outputs.length > 0) {
-        // Get the operation that generated this output
         const operation = state.operations.find(
           (op) => op.id === state.output?.operationId
         );
@@ -132,7 +183,6 @@ const serializeState = async (state: PipelineState): Promise<string> => {
         const importantColumns =
           operation?.output?.schema?.map((item) => item.key) || [];
 
-        // Generate schema information
         if (outputs.length > 0) {
           const firstRow = outputs[0];
           schemaInfo = Object.entries(firstRow)
@@ -147,13 +197,11 @@ const serializeState = async (state: PipelineState): Promise<string> => {
             .join("\n");
         }
 
-        // Take up to 10 samples
         const samples = outputs
           .slice(0, 10)
           .map((row: Record<string, unknown>) => {
             const sampleRow: Record<string, unknown> = {};
 
-            // Helper function to safely stringify values
             const safeStringify = (value: unknown): string => {
               if (value === null) return "null";
               if (value === undefined) return "undefined";
@@ -167,7 +215,6 @@ const serializeState = async (state: PipelineState): Promise<string> => {
               return String(value);
             };
 
-            // Prioritize important columns
             importantColumns.forEach((col) => {
               if (col in row) {
                 const value = safeStringify(row[col]);
@@ -181,10 +228,8 @@ const serializeState = async (state: PipelineState): Promise<string> => {
               }
             });
 
-            // Add other columns in addition to important ones
             Object.keys(row).forEach((key) => {
               if (!(key in sampleRow)) {
-                // Only add if not already added
                 const value = safeStringify(row[key]);
                 if (value.length > 10000) {
                   sampleRow[key] =
@@ -207,7 +252,6 @@ const serializeState = async (state: PipelineState): Promise<string> => {
     }
   }
 
-  // Format operations details
   const operationsDetails = state.operations
     .map((op) => {
       return `
@@ -222,35 +266,6 @@ const serializeState = async (state: PipelineState): Promise<string> => {
     })
     .join("\n");
 
-  // Format bookmarks
-  const bookmarksDetails = bookmarks
-    .map((bookmark: Bookmark) => {
-      return `
-- Color: ${bookmark.color}
-  Notes: ${bookmark.notes
-    .map(
-      (note) => `
-    "${note.note}"${
-        note.metadata?.columnId
-          ? `
-    Column: ${note.metadata.columnId}${
-              note.metadata.rowIndex !== undefined
-                ? `
-    Row: ${note.metadata.rowIndex}`
-                : ""
-            }`
-          : ""
-      }${
-        note.metadata?.operationName
-          ? `
-    Operation: ${note.metadata.operationName}`
-          : ""
-      }`
-    )
-    .join("\n")}`;
-    })
-    .join("\n");
-
   return `Current Pipeline State:
 Pipeline Name: "${state.pipelineName}"
 High-Level Goal: "${state.highLevelGoal || "unspecified"}"
@@ -259,10 +274,6 @@ Input Dataset File: ${
   }
 
 Pipeline operations:${operationsDetails}
-
-My feedback:${
-    bookmarks.length > 0 ? bookmarksDetails : "\nNo feedback added yet"
-  }
 ${
   currentOperationName && outputSample
     ? `
@@ -277,70 +288,18 @@ ${outputSample}`
 }`;
 };
 
-export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [state, setState] = useState<PipelineState>(() => ({
-    operations: loadFromLocalStorage(
-      localStorageKeys.OPERATIONS_KEY,
-      initialOperations
-    ),
-    currentFile: loadFromLocalStorage(localStorageKeys.CURRENT_FILE_KEY, null),
-    output: loadFromLocalStorage(localStorageKeys.OUTPUT_KEY, null),
-    terminalOutput: loadFromLocalStorage(
-      localStorageKeys.TERMINAL_OUTPUT_KEY,
-      ""
-    ),
-    optimizerProgress: null,
-    isLoadingOutputs: loadFromLocalStorage(
-      localStorageKeys.IS_LOADING_OUTPUTS_KEY,
-      false
-    ),
-    isDecomposing: false, // Transient state, not persisted
-    numOpRun: loadFromLocalStorage(localStorageKeys.NUM_OP_RUN_KEY, 0),
-    pipelineName: loadFromLocalStorage(
-      localStorageKeys.PIPELINE_NAME_KEY,
-      mockPipelineName
-    ),
-    sampleSize: loadFromLocalStorage(
-      localStorageKeys.SAMPLE_SIZE_KEY,
-      mockSampleSize
-    ),
-    files: loadFromLocalStorage(localStorageKeys.FILES_KEY, mockFiles),
-    cost: loadFromLocalStorage(localStorageKeys.COST_KEY, 0),
-      defaultModel: loadFromLocalStorage(
-        localStorageKeys.DEFAULT_MODEL_KEY,
-        "gpt-5-nano"
-      ),
-      optimizerModel: loadFromLocalStorage(
-        localStorageKeys.OPTIMIZER_MODEL_KEY,
-        "gpt-5-nano"
-      ),
-    autoOptimizeCheck: loadFromLocalStorage(
-      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
-      false
-    ),
-    highLevelGoal: loadFromLocalStorage(
-      localStorageKeys.HIGH_LEVEL_GOAL_KEY,
-      ""
-    ),
-    systemPrompt: loadFromLocalStorage(localStorageKeys.SYSTEM_PROMPT_KEY, {
-      datasetDescription: null,
-      persona: null,
-    }),
-    namespace: loadFromLocalStorage(localStorageKeys.NAMESPACE_KEY, null),
-    apiKeys: [],
-    extraPipelineSettings: loadFromLocalStorage(
-      localStorageKeys.EXTRA_PIPELINE_SETTINGS_KEY,
-      null
-    ),
-  }));
-
+export const PipelineProvider: React.FC<{
+  children: React.ReactNode;
+  workspaceId: string;
+}> = ({ children, workspaceId }) => {
+  const [state, setState] = useState<PipelineState>(() =>
+    defaultState(workspaceId)
+  );
   const [unsavedChanges, setUnsavedChanges] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const stateRef = useRef(state);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Ref for triggering decomposition from OperationCard (using ref to avoid infinite loops)
   const onRequestDecompositionRef = useRef<
     ((operationId: string, operationName: string) => void) | null
   >(null);
@@ -353,106 +312,53 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsMounted(true);
   }, []);
 
-  const saveProgress = useCallback(() => {
-    localStorage.setItem(
-      localStorageKeys.OPERATIONS_KEY,
-      JSON.stringify(stateRef.current.operations)
-    );
-    localStorage.setItem(
-      localStorageKeys.CURRENT_FILE_KEY,
-      JSON.stringify(stateRef.current.currentFile)
-    );
-    localStorage.setItem(
-      localStorageKeys.OUTPUT_KEY,
-      JSON.stringify(stateRef.current.output)
-    );
-    localStorage.setItem(
-      localStorageKeys.TERMINAL_OUTPUT_KEY,
-      JSON.stringify(stateRef.current.terminalOutput)
-    );
-    localStorage.setItem(
-      localStorageKeys.IS_LOADING_OUTPUTS_KEY,
-      JSON.stringify(stateRef.current.isLoadingOutputs)
-    );
-    localStorage.setItem(
-      localStorageKeys.NUM_OP_RUN_KEY,
-      JSON.stringify(stateRef.current.numOpRun)
-    );
-    localStorage.setItem(
-      localStorageKeys.PIPELINE_NAME_KEY,
-      JSON.stringify(stateRef.current.pipelineName)
-    );
-    localStorage.setItem(
-      localStorageKeys.SAMPLE_SIZE_KEY,
-      JSON.stringify(stateRef.current.sampleSize)
-    );
-    localStorage.setItem(
-      localStorageKeys.FILES_KEY,
-      JSON.stringify(stateRef.current.files)
-    );
-    localStorage.setItem(
-      localStorageKeys.COST_KEY,
-      JSON.stringify(stateRef.current.cost)
-    );
-    localStorage.setItem(
-      localStorageKeys.DEFAULT_MODEL_KEY,
-      JSON.stringify(stateRef.current.defaultModel)
-    );
-    localStorage.setItem(
-      localStorageKeys.OPTIMIZER_MODEL_KEY,
-      JSON.stringify(stateRef.current.optimizerModel)
-    );
-    localStorage.setItem(
-      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
-      JSON.stringify(stateRef.current.autoOptimizeCheck)
-    );
-    localStorage.setItem(
-      localStorageKeys.HIGH_LEVEL_GOAL_KEY,
-      JSON.stringify(stateRef.current.highLevelGoal)
-    );
-    localStorage.setItem(
-      localStorageKeys.SYSTEM_PROMPT_KEY,
-      JSON.stringify(stateRef.current.systemPrompt)
-    );
-    localStorage.setItem(
-      localStorageKeys.NAMESPACE_KEY,
-      JSON.stringify(stateRef.current.namespace)
-    );
-    localStorage.setItem(
-      localStorageKeys.EXTRA_PIPELINE_SETTINGS_KEY,
-      JSON.stringify(stateRef.current.extraPipelineSettings)
-    );
-    setUnsavedChanges(false);
-  }, []);
+  // Load workspace from server on mount
+  useEffect(() => {
+    if (!workspaceId) return;
+    fetch(`/api/workspace?id=${workspaceId}`)
+      .then(async (res) => {
+        if (res.status === 404) {
+          setIsLoaded(true);
+          return;
+        }
+        if (!res.ok) throw new Error("Failed to load workspace");
+        const data = await res.json();
+        if (data.exists && data.content) {
+          const partial = yamlToPartialState(data.content);
+          setState((prev) => ({ ...prev, ...partial, namespace: workspaceId }));
+        }
+        setIsLoaded(true);
+      })
+      .catch((err) => {
+        console.error("Error loading workspace:", err);
+        setIsLoaded(true);
+      });
+  }, [workspaceId]);
+
+  const saveProgress = useCallback(async () => {
+    const content = stateToYaml({ ...stateRef.current, namespace: workspaceId });
+    try {
+      const res = await fetch(`/api/workspace?id=${workspaceId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error("Failed to save workspace");
+      setUnsavedChanges(false);
+    } catch (err) {
+      console.error("Error saving workspace:", err);
+      toast({
+        title: "Error Saving",
+        description: "Could not save workspace to server.",
+        variant: "destructive",
+      });
+    }
+  }, [workspaceId]);
 
   const clearPipelineState = useCallback(() => {
-    Object.values(localStorageKeys).forEach((key) => {
-      localStorage.removeItem(key);
-    });
-    setState({
-      operations: initialOperations,
-      currentFile: null,
-      output: null,
-      terminalOutput: "",
-      isLoadingOutputs: false,
-      isDecomposing: false,
-      numOpRun: 0,
-      pipelineName: mockPipelineName,
-      sampleSize: mockSampleSize,
-      files: mockFiles,
-      cost: 0,
-        defaultModel: "gpt-5-nano",
-        optimizerModel: "gpt-5-nano",
-      optimizerProgress: null,
-      autoOptimizeCheck: false,
-      highLevelGoal: "",
-      systemPrompt: { datasetDescription: null, persona: null },
-      namespace: null,
-      apiKeys: stateRef.current.apiKeys,
-      extraPipelineSettings: null,
-    });
+    setState(defaultState(workspaceId));
     setUnsavedChanges(false);
-  }, []);
+  }, [workspaceId]);
 
   const setStateAndUpdate = useCallback(
     <K extends keyof PipelineState>(
@@ -469,24 +375,15 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
               )
             : value;
         if (newValue !== prevState[key]) {
-          if (key === "namespace") {
-            clearPipelineState();
-            localStorage.setItem(
-              localStorageKeys.NAMESPACE_KEY,
-              JSON.stringify(newValue)
-            );
-            return { ...prevState, [key]: newValue };
-          } else {
-            if (key !== "apiKeys") {
-              setUnsavedChanges(true);
-            }
-            return { ...prevState, [key]: newValue };
+          if (key !== "apiKeys") {
+            setUnsavedChanges(true);
           }
+          return { ...prevState, [key]: newValue };
         }
         return prevState;
       });
     },
-    [clearPipelineState]
+    []
   );
 
   useEffect(() => {
@@ -608,6 +505,8 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ),
     onRequestDecompositionRef,
   };
+
+  if (!isLoaded) return null;
 
   return (
     <PipelineContext.Provider value={contextValue}>

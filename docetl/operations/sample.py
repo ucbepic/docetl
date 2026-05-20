@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 from docetl.operations.base import BaseOperation
 from docetl.operations.clustering_utils import get_embeddings_for_clustering
 from docetl.operations.utils import strict_render
+from docetl.operations.utils.validation import lookup_field
 
 
 class SampleOperation(BaseOperation):
@@ -241,9 +242,9 @@ class SampleOperation(BaseOperation):
         """Get the stratification value(s) for an item."""
         stratify_key = self.config.get("stratify_key")
         if isinstance(stratify_key, str):
-            return item[stratify_key]
+            return lookup_field(item, stratify_key)
         else:  # list of keys
-            return tuple(item[key] for key in stratify_key)
+            return tuple(lookup_field(item, key) for key in stratify_key)
 
     def _sample_with_stratification(
         self, input_data: list[dict], method: str

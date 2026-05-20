@@ -1,6 +1,8 @@
 import json
 import math
+import os
 import re
+import sys
 from enum import Enum
 from typing import Any, Callable
 
@@ -131,6 +133,13 @@ def prompt_user_for_non_jinja_confirmation(
     )
     console.print("  • For reduce operations: 'Here are the documents: {{ inputs }}'")
     console.print()
+
+    # Skip interactive prompt when running with a frontend or non-interactive stdin
+    if os.environ.get("USE_FRONTEND") == "true" or not sys.stdin.isatty():
+        console.print(
+            "[dim]Non-interactive mode: proceeding with document insertion[/dim]"
+        )
+        return True
 
     try:
         return Confirm.ask(

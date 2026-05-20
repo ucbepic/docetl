@@ -107,7 +107,7 @@ function sanitizeForYaml(obj: unknown, path: string = ""): unknown {
 export function generatePipelineConfig(
   namespace: string,
   default_model: string,
-  data: { path: string },
+  data: { path: string } | null,
   operations: Operation[],
   operation_id: string,
   name: string,
@@ -125,13 +125,15 @@ export function generatePipelineConfig(
   optimizerModel: string = "gpt-4o",
   extraPipelineSettings: Record<string, unknown> | null = null
 ) {
-  const datasets = {
-    input: {
-      type: "file",
-      path: data.path,
-      source: "local",
-    },
-  };
+  const datasets = data?.path
+    ? {
+        input: {
+          type: "file",
+          path: data.path,
+          source: "local",
+        },
+      }
+    : {};
 
   // Augment the first operation with sample if sampleSize is not null
   if (operations.length > 0 && sample_size !== null) {
@@ -185,6 +187,7 @@ export function generatePipelineConfig(
       delete newOp.id;
       delete newOp.llmType;
       delete newOp.visibility;
+      delete newOp.url_mode;
 
       // Convert numeric strings in otherKwargs to numbers
       Object.entries(newOp).forEach(([key, value]) => {
@@ -312,7 +315,7 @@ export function generatePipelineConfig(
       steps: [
         {
           name: "data_processing",
-          input: Object.keys(datasets)[0],
+          ...(Object.keys(datasets).length > 0 && { input: Object.keys(datasets)[0] }),
           operations: operationsToRun.map((op) => op.name),
         },
       ],
@@ -382,8 +385,8 @@ export function generatePipelineConfig(
     const opName = operationsToRun[prevOpIndex].name;
     inputPath = path.join(inputBase, "data_processing", opName + ".json");
   } else {
-    // If there are no previous operations, use the dataset path
-    inputPath = data.path;
+    // If there are no previous operations, use the dataset path (or empty string if no data)
+    inputPath = data?.path ?? "";
   }
 
   const outputBase = pipelineConfig.pipeline.output.intermediate_dir;

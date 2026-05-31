@@ -1,6 +1,24 @@
 # Design: Interactive Progress Visualization (Issue #487)
 
-Status: **Proposal / for review** — no implementation yet.
+Status: **Implemented** on branch `claude/youthful-cannon-IeDLN`.
+
+Implemented:
+- Phase 0 — telemetry foundation (`docetl/progress/`): thread-safe
+  `ProgressTracker` + `RunState`/`OpState`, generic `RichLoopBar` tick hook
+  (per-document progress for every op with no per-op edits), `op_start`/`op_done`
+  emission in `containers.py` incl. cost + per-op token deltas, and cached
+  operations surfaced as done (with inspectable outputs).
+- Phase 1 — terminal TUI (`docetl/tui/app.py`, Textual): three-pane dashboard,
+  paged dot grid + heatmap at scale, doc detail (output + prompt). Enabled via
+  `pipeline.interactive_ui` / `--tui`, TTY-gated. `textual` is an optional `[tui]`
+  extra.
+- Phase 3 — web view: server streams `RunState` as `state` websocket messages
+  (`server/app/routes/pipeline.py`); `website/src/components/PipelineProgress.tsx`
+  renders the matching 3-pane view as a "Progress" tab in the output panel.
+
+Not yet done: true per-document provenance edges (split/reduce/equijoin lineage)
+— current grids use reliable per-op counts with synthesized cell status, which is
+accurate for fill/triage but does not yet expose cross-op lineage. See §3.2.
 
 ## 1. Goal
 

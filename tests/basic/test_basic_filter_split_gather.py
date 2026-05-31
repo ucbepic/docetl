@@ -240,6 +240,9 @@ def right_data():
     ]
 
 
+# The match decision is made by a live LLM comparison, which occasionally
+# misses a true match; retry a couple of times before failing the run.
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 def test_equijoin_operation(
     equijoin_config, default_model, max_threads, left_data, right_data, runner
 ):

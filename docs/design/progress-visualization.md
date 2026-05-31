@@ -149,10 +149,28 @@ New optional dependency: **`textual`** (Rich's sibling library). Plain Rich
 `Live`+`Layout` cannot do real arrow-key/mouse navigation; Textual is the right
 tool and integrates with the existing Rich renderables.
 
-- Entry: `docetl run f.yaml --tui` (auto-enabled when stdout is a TTY; `--no-tui`
-  forces today's plain logging; non-TTY / CI always falls back). The runner runs in
-  a worker thread (mirrors the server's `asyncio.to_thread(runner.load_run_save)`
-  at `pipeline.py:396`); events flow to the UI via a thread-safe queue.
+- **Enabled from the YAML config** — the natural switch for a declarative tool, and
+  it keeps a run reproducible:
+
+  ```yaml
+  pipeline:
+    interactive_ui: true   # launch the full-screen TUI for this run
+    steps: [...]
+    output: {...}
+  ```
+
+  The runner reads it via `self.config["pipeline"].get("interactive_ui", False)`
+  (sits alongside existing flags like `bypass_cache`). A CLI override
+  (`docetl run f.yaml --tui / --no-tui`) takes precedence when given, for quick
+  one-off toggling.
+- **TTY gating**: the TUI only activates when stdout is an interactive terminal.
+  If `interactive_ui: true` but we're in a non-TTY / CI / piped context, we log a
+  one-line notice and fall back to today's plain output (a full-screen TUI can't
+  render without a terminal). The web run path ignores this flag entirely — it uses
+  the structured event channel (§5) regardless.
+- The runner runs in a worker thread (mirrors the server's
+  `asyncio.to_thread(runner.load_run_save)` at `pipeline.py:396`); events flow to
+  the UI via a thread-safe queue.
 
 ### 4.1 Layout (three panes, like `/workflows`)
 
@@ -225,7 +243,10 @@ tool and integrates with the existing Rich renderables.
 - `docetl/operations/map.py` / `filter.py` / `reduce.py` / `resolve.py` /
   `equijoin.py` — emit per-doc/per-group `DocDone` with id, cost, tokens, latency,
   error; populate lineage edges. (map/filter first; others coarser.)
-- `docetl/cli.py` — `--tui/--no-tui` flag on `run`; launch TUI around the runner.
+- `docetl/cli.py` — read `pipeline.interactive_ui` from the config; optional
+  `--tui/--no-tui` override; launch the TUI (TTY-gated) around the runner.
+- `docetl/base_schemas.py` — add `interactive_ui: bool = False` to `PipelineSpec`
+  (`base_schemas.py:128`) so the YAML key validates.
 - `docetl/console.py` — no behavior change; TUI uses its own Textual render path.
 - `server/app/routes/pipeline.py` — add structured-event channel to
   `websocket_run_pipeline`; new doc-fetch endpoint.

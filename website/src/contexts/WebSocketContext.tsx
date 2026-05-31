@@ -8,7 +8,7 @@ import React, {
 
 // Define message types
 interface WebSocketMessage {
-  type: "output" | "result" | "error" | "optimizer_progress";
+  type: "output" | "result" | "error" | "optimizer_progress" | "state";
   data?: any;
   message?: string;
   status?: string;

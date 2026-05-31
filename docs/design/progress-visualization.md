@@ -12,9 +12,10 @@ Implemented:
   paged dot grid + heatmap at scale, doc detail (output + prompt). Enabled via
   `pipeline.interactive_ui` / `--tui`, TTY-gated. `textual` is an optional `[tui]`
   extra.
-- Phase 3 — web view: server streams `RunState` as `state` websocket messages
-  (`server/app/routes/pipeline.py`); `website/src/components/PipelineProgress.tsx`
-  renders the matching 3-pane view as a "Progress" tab in the output panel.
+Phase 3 (web view) is intentionally **not** implemented: the web Playground is
+left unchanged. The foundation is surface-agnostic (`RunState.to_dict()` exists),
+so a web view can be added later without touching the runner or operations, but
+this branch ships only the terminal TUI.
 
 Not yet done: true per-document provenance edges (split/reduce/equijoin lineage)
 — current grids use reliable per-op counts with synthesized cell status, which is

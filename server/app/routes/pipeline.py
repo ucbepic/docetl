@@ -392,10 +392,6 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
         if config.get("clear_intermediate", False):
             runner.clear_intermediate()
 
-        # Enable structured progress tracking so we can stream a RunState to the
-        # web UI's progress view (in addition to the raw console output).
-        tracker = runner.enable_progress_tracking()
-
         async def run_pipeline():
             return await asyncio.to_thread(runner.load_run_save)
 
@@ -404,9 +400,6 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
         while not pipeline_task.done():
             console_output = runner.console.file.getvalue()
             await websocket.send_json({"type": "output", "data": console_output})
-            await websocket.send_json(
-                {"type": "state", "data": tracker.snapshot().to_dict(sample_outputs=25)}
-            )
 
             # Check for incoming messages from the user
             try:
@@ -444,11 +437,6 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
         if console_output:
             await websocket.send_json({"type": "output", "data": console_output})
 
-        # Final progress state (marks the run finished in the UI).
-        await websocket.send_json(
-            {"type": "state", "data": tracker.snapshot().to_dict(sample_outputs=25)}
-        )
-
         # Sleep for a short duration to ensure all output is captured
         await asyncio.sleep(3)
 
@@ -474,7 +462,6 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
         await websocket.send_json({"type": "error", "data": str(e), "traceback": error_traceback})
     finally:
         if runner is not None:
-            runner.disable_progress_tracking()
             runner.reset_env()
         await websocket.close()
 

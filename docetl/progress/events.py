@@ -109,19 +109,12 @@ class RunState:
     def done_ops(self) -> int:
         return sum(1 for op in self.ops if op.status == "done")
 
-    def to_dict(self, sample_outputs: int = 0) -> dict[str, Any]:
-        """Serialize for the web UI.
-
-        ``sample_outputs`` optionally includes up to N output documents per
-        operation (for the detail pane). Kept small so the payload stays light
-        even for runs with tens of thousands of documents.
-        """
+    def to_dict(self) -> dict[str, Any]:
         return {
             "run_id": self.run_id,
             "finished": self.finished,
             "elapsed": self.elapsed,
             "total_cost": self.total_cost,
-            "concurrency": self.concurrency,
             "ops": [
                 {
                     "step": op.step,
@@ -136,11 +129,6 @@ class RunState:
                     "cost": op.cost,
                     "tokens": op.tokens,
                     "elapsed": op.elapsed,
-                    **(
-                        {"samples": op.outputs[:sample_outputs]}
-                        if sample_outputs
-                        else {}
-                    ),
                 }
                 for op in self.ops
             ],

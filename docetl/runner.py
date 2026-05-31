@@ -515,28 +515,6 @@ class DSLRunner(ConfigWrapper):
                 ops.append((step_name, f"{step_name}/{op_name}", op_type, model))
         return ops
 
-    def enable_progress_tracking(self):
-        """Enable structured progress tracking without launching the TUI.
-
-        Used by surfaces other than the terminal (e.g. the web server), which
-        stream the resulting :class:`RunState` to their own UI. Returns the
-        tracker so the caller can read ``tracker.snapshot()`` on a timer.
-        """
-        from docetl.progress.tracker import ProgressTracker, set_active_tracker
-
-        tracker = ProgressTracker(concurrency=min(self.max_threads or 1, 64))
-        self.progress_tracker = tracker
-        set_active_tracker(tracker)
-        tracker.pipeline_start(self.list_pipeline_operations())
-        return tracker
-
-    def disable_progress_tracking(self) -> None:
-        """Tear down tracking enabled via :meth:`enable_progress_tracking`."""
-        from docetl.progress.tracker import set_active_tracker
-
-        set_active_tracker(None)
-        self.progress_tracker = None
-
     def _should_use_tui(self) -> bool:
         """Decide whether to launch the interactive TUI for this run.
 

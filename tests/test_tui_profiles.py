@@ -73,8 +73,18 @@ def test_split_provenance_reads_as_chunk_n_of_m_without_uuid():
     line = prof.provenance(op, op.outputs[1])
     assert line == "chunk 2 of 3"
     assert "be59-uuid" not in line  # the raw parent id is never shown
-    # split's internal chunk-bookkeeping keys are hidden from the field list.
-    assert prof.consumed_keys(op.outputs[1]) == {"split_x_id", "split_x_chunk_num"}
+    # split's chunk-bookkeeping keys AND the redundant full source field (the
+    # split_key, here "content", copied onto every chunk) are hidden; the
+    # "<split_key>_chunk" field that supersedes it stays.
+    doc = {
+        "content": "the entire source document repeated on every chunk",
+        "content_chunk": "just this chunk",
+        "split_x_id": "be59-uuid",
+        "split_x_chunk_num": 2,
+    }
+    consumed = prof.consumed_keys(doc)
+    assert consumed == {"content", "split_x_id", "split_x_chunk_num"}
+    assert "content_chunk" not in consumed
 
 
 def test_filter_summary_reports_dropped():

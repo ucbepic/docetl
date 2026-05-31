@@ -70,7 +70,17 @@ def _split_consumed(doc: dict) -> set[str]:
     chunk_key = _split_chunk_key(doc)
     if chunk_key is None:
         return set()
-    return {chunk_key, chunk_key[: -len("_chunk_num")] + "_id"}
+    prefix = chunk_key[: -len("_chunk_num")]
+    consumed = {chunk_key, prefix + "_id"}
+    # Hide the original (full) split_key field — it's the entire source document
+    # copied onto every chunk, and the ``<split_key>_chunk`` field supersedes it.
+    for k in doc:
+        if k.endswith("_chunk") and not k.endswith("_chunk_num"):
+            split_key = k[: -len("_chunk")]
+            if split_key in doc:
+                consumed.add(split_key)
+            break
+    return consumed
 
 
 # -- filter: the dropped count the default rendering can't derive ------------

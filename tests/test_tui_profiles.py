@@ -55,27 +55,26 @@ def test_units_per_operator_type():
 
 def test_reduce_provenance_reports_source_count():
     prof = get_profile("reduce")
-    doc = {"summary": "x", "_counts_prereduce_my_reduce": 7}
-    lines = prof.provenance(doc)
-    assert lines and "merged 7 source documents" in str(lines[0])
-    # a group of one is singular and never crashes on missing metadata.
-    assert "1 source document" in str(prof.provenance({"_counts_prereduce_r": 1})[0])
-    assert prof.provenance({"no": "meta"}) == []
+    op = OpState("s", "s/r", "reduce")
+    assert prof.provenance(op, {"_counts_prereduce_r": 7}) == "combined from 7 input documents"
+    # a group of one is singular; missing metadata yields no line (not a crash).
+    assert prof.provenance(op, {"_counts_prereduce_r": 1}) == "combined from 1 input document"
+    assert prof.provenance(op, {"no": "meta"}) is None
 
 
-def test_split_provenance_pairs_chunk_and_parent_by_prefix():
+def test_split_provenance_reads_as_chunk_n_of_m_without_uuid():
     prof = get_profile("split")
-    # An unrelated *_id field must not be mistaken for the parent: only the id
-    # sharing the chunk_num's prefix counts.
-    doc = {
-        "content_chunk": "...",
-        "customer_id": "should-not-appear",
-        "split_x_id": "abcd1234efgh",
-        "split_x_chunk_num": 3,
-    }
-    line = str(prof.provenance(doc)[0])
-    assert "chunk 3" in line and "abcd1234" in line
-    assert "should-not-appear" not in line
+    op = OpState("s", "s/split", "split")
+    op.outputs = [
+        {"split_x_id": "be59-uuid", "split_x_chunk_num": 1},
+        {"split_x_id": "be59-uuid", "split_x_chunk_num": 2},
+        {"split_x_id": "be59-uuid", "split_x_chunk_num": 3},
+    ]
+    line = prof.provenance(op, op.outputs[1])
+    assert line == "chunk 2 of 3"
+    assert "be59-uuid" not in line  # the raw parent id is never shown
+    # split's internal chunk-bookkeeping keys are hidden from the field list.
+    assert prof.consumed_keys(op.outputs[1]) == {"split_x_id", "split_x_chunk_num"}
 
 
 def test_filter_summary_reports_dropped():

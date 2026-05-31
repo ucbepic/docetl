@@ -1,10 +1,18 @@
 """Operator-specific presentation for the progress TUI.
 
-The dashboard renders every operation through a *default* profile (status,
-output JSON, prompt). Specific operator types layer extra context on top via a
-small registry: the progress *unit* word (what the live denominator counts) and
-a per-document *provenance* line derived from metadata the operators already
-emit — no global document-id system required.
+The dashboard renders every operation through a *default* profile (status +
+output fields + prompt). Specific operator types layer extra context on top via
+a small registry:
+
+- ``unit`` / ``doc_unit`` — the nouns for the live work-unit counter and for
+  finished output documents (docs / groups / comparisons / chunks …).
+- ``provenance`` — a short human-readable line about where a document came from,
+  derived from metadata the operators already emit (no global document-id
+  system): reduce's ``_counts_prereduce_*`` source counts, split's
+  ``<name>_chunk_num`` / ``<name>_id``.
+- ``consumed_keys`` — internal metadata keys the profile turns into provenance,
+  so the detail pane hides them from the raw field list.
+- ``summary`` — extra operation-level rows (e.g. filter's dropped count).
 
 Everything falls back to :data:`_DEFAULT`, so an unknown/new operator still
 renders correctly; a profile only overrides the parts it cares about.
@@ -22,58 +30,51 @@ from docetl.progress.events import OpState
 
 @dataclass(frozen=True)
 class OpProfile:
-    """How one operator type is presented in the progress view.
-
-    ``unit`` / ``doc_unit`` are the nouns shown for the live work-unit counter
-    and for finished output documents respectively. ``provenance`` and
-    ``summary`` are optional hooks returning extra ``Text`` lines for the
-    per-document detail and the operation-level summary; both default to "no
-    extra lines" so the default rendering is used as-is.
-    """
-
     unit: str = "docs"
     doc_unit: str = "docs"
-    provenance: Callable[[dict], list[Text]] | None = None
+    provenance: Callable[[OpState, dict], str | None] | None = None
+    consumed_keys: Callable[[dict], set[str]] | None = None
     summary: Callable[[OpState], list[Text]] | None = None
 
 
-# -- shared provenance helpers ------------------------------------------------
-def _section(label: str, value: str) -> Text:
-    """A titled detail section: an underlined header over a grey value line."""
-    t = Text(f"\n{label}\n", style="bold underline")
-    t.append(value, style="grey70")
-    return t
-
-
-def _reduce_provenance(doc: dict) -> list[Text]:
-    # reduce writes ``_counts_prereduce_<name>`` = number of source docs merged.
+# -- reduce: how many input documents were combined into this group ----------
+def _reduce_provenance(op: OpState, doc: dict) -> str | None:
     for k, v in doc.items():
         if k.startswith("_counts_prereduce_") and isinstance(v, (int, float)):
             n = int(v)
-            return [_section(
-                "provenance", f"merged {n} source document{'' if n == 1 else 's'}"
-            )]
-    return []
+            return f"combined from {n} input document{'' if n == 1 else 's'}"
+    return None
 
 
-def _split_provenance(doc: dict) -> list[Text]:
-    # split writes ``<name>_chunk_num`` and ``<name>_id`` (the parent doc id);
-    # pair them by their shared ``<name>`` prefix so an unrelated ``*_id`` field
-    # can't be mistaken for the parent.
-    for k, chunk in doc.items():
-        if not k.endswith("_chunk_num"):
-            continue
-        parent = doc.get(k[: -len("_chunk_num")] + "_id")
-        value = f"chunk {chunk}"
-        if isinstance(parent, str):
-            value += f" of parent {parent[:8]}"
-        return [_section("provenance", value)]
-    return []
+# -- split: which chunk of its source document this is -----------------------
+def _split_chunk_key(doc: dict) -> str | None:
+    for k in doc:
+        if k.endswith("_chunk_num"):
+            return k
+    return None
 
 
+def _split_provenance(op: OpState, doc: dict) -> str | None:
+    chunk_key = _split_chunk_key(doc)
+    if chunk_key is None:
+        return None
+    chunk = doc[chunk_key]
+    parent_key = chunk_key[: -len("_chunk_num")] + "_id"
+    parent = doc.get(parent_key)
+    # Count this parent's chunks so the user sees "chunk 2 of 5", not a raw uuid.
+    total = sum(1 for d in op.outputs if d.get(parent_key) == parent) if parent else 0
+    return f"chunk {chunk} of {total}" if total else f"chunk {chunk}"
+
+
+def _split_consumed(doc: dict) -> set[str]:
+    chunk_key = _split_chunk_key(doc)
+    if chunk_key is None:
+        return set()
+    return {chunk_key, chunk_key[: -len("_chunk_num")] + "_id"}
+
+
+# -- filter: the dropped count the default rendering can't derive ------------
 def _filter_summary(op: OpState) -> list[Text]:
-    # The generic "output: N kept docs" line carries the kept count; add the
-    # complementary dropped count that the default rendering can't derive.
     if op.total is None or op.out_count is None:
         return []
     dropped = max(0, op.total - op.out_count)
@@ -90,7 +91,9 @@ _PROFILES: dict[str, OpProfile] = {
     "reduce": OpProfile(unit="groups", doc_unit="groups", provenance=_reduce_provenance),
     "resolve": OpProfile(unit="comparisons", doc_unit="records"),
     "equijoin": OpProfile(unit="comparisons", doc_unit="pairs"),
-    "split": OpProfile(doc_unit="chunks", provenance=_split_provenance),
+    "split": OpProfile(
+        doc_unit="chunks", provenance=_split_provenance, consumed_keys=_split_consumed
+    ),
     "gather": OpProfile(doc_unit="chunks"),
 }
 

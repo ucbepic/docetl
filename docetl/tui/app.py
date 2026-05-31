@@ -50,7 +50,7 @@ class DocetlTUI(App):
 
     CSS = """
     Screen { background: $surface; }
-    #ops { width: 36; border: round $primary; padding: 0 1; }
+    #ops { width: 40; border: round $primary; padding: 0 1; }
     #middle { border: round $primary; padding: 0 1; }
     #detail { width: 52; border: round $accent; padding: 0 1; }
     #grid_title { height: 1; color: $text-muted; }
@@ -76,10 +76,10 @@ class DocetlTUI(App):
         self.result_cost: float | None = None
         self.error: BaseException | None = None
         self._worker: threading.Thread | None = None
-        # Cache of serialized doc bodies, keyed by (op name, index). Outputs are
+        # Cache of extracted doc views, keyed by (op name, index). Outputs are
         # immutable once captured at op_done, so the detail pane re-renders the
-        # selected cell ~7x/s without re-running json.dumps each frame.
-        self._doc_json: dict[tuple[str, int], str] = {}
+        # selected cell ~7x/s without re-extracting/truncating fields each frame.
+        self._doc_view_cache: dict[tuple[str, int], tuple] = {}
 
     # -- composition -----------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -180,10 +180,10 @@ class DocetlTUI(App):
     def _render_ops(self, state: RunState) -> Panel:
         head = Text()
         head.append("DocETL pipeline\n", style="bold")
-        head.append(
-            f"{state.done_ops}/{len(state.ops)} ops · ", style="grey70"
-        )
-        head.append(f"${state.total_cost:.2f} · ", style="green")
+        head.append(f"{state.done_ops}/{len(state.ops)} ops", style="grey70")
+        head.append("   ")
+        head.append(_fmt_cost(state.total_cost), style="green")
+        head.append("   ")
         head.append(f"{_fmt_dur(state.elapsed)}\n", style="grey70")
         if self.error is not None:
             head.append("✗ failed\n", style="bold red")
@@ -199,29 +199,36 @@ class DocetlTUI(App):
             selected = i == self.sel_op
             glyph = _OP_GLYPH[op.status]
             gstyle = _STATUS_STYLE[op.status]
+            # Line 1: status glyph + op label. The selection bar lives here only,
+            # so it reads as a clean highlighted row rather than a ragged block.
             line = Text()
             line.append(f" {glyph} ", style=gstyle)
-            label = f"{op.op_type}:{op.name.split('/')[-1]}"
-            line.append(_trunc(label, 22), style="bold" if selected else "")
-            # progress / counts
-            if op.total:
-                pct = int(100 * op.completed / op.total)
-                line.append(f"  {op.completed}/{op.total} ", style="grey70")
-                if op.status == "running":
-                    line.append(f"{pct}%", style="yellow")
-            if op.errors:
-                line.append(f"  !{op.errors}", style="red")
+            line.append(_trunc(f"{op.op_type}:{op.name.split('/')[-1]}", 30),
+                        style="bold" if selected else "")
             if selected:
                 line.stylize("reverse")
             body.append_text(line)
             body.append("\n")
-            # second line: cost / tokens / time for finished or running ops
-            if op.status in ("done", "running") and (op.cost or op.tokens):
-                sub = Text("     ")
-                sub.append(f"${op.cost:.3f}", style="green")
-                if op.tokens:
-                    sub.append(f" · {_fmt_k(op.tokens)} tok", style="grey50")
-                sub.append(f" · {_fmt_dur(op.elapsed)}", style="grey50")
+            # Line 2: compact, dot-separated stats — only the parts that apply,
+            # short enough to never wrap the 36-wide panel.
+            frags: list[Text] = []
+            if op.total:
+                f = Text(f"{op.completed}/{op.total}", style="grey70")
+                if op.status == "running":
+                    f.append(f" {int(100 * op.completed / op.total)}%", style="yellow")
+                frags.append(f)
+            if op.cost:
+                frags.append(Text(_fmt_cost(op.cost), style="green"))
+            if op.status in ("done", "running") and op.elapsed >= 1:
+                frags.append(Text(_fmt_dur(op.elapsed), style="grey54"))
+            if op.errors:
+                frags.append(Text(f"!{op.errors}", style="red"))
+            if frags:
+                sub = Text("    ")
+                for j, f in enumerate(frags):
+                    if j:
+                        sub.append("   ")
+                    sub.append_text(f)
                 body.append_text(sub)
                 body.append("\n")
 
@@ -236,15 +243,18 @@ class DocetlTUI(App):
         t = Text()
         t.append(f"{op.op_type}:{op.name.split('/')[-1]}", style="bold")
         if op.status == "done" and op.out_count is not None:
-            t.append(f"  {op.out_count:,} {prof.doc_unit}", style="grey70")
+            t.append("   ")
+            t.append(f"{op.out_count:,} {prof.doc_unit}", style="grey70")
         elif op.total:
-            t.append(f"  {op.completed:,}/{op.total:,} {prof.unit}", style="grey70")
-        t.append(f"  ·  {op.status}", style=_STATUS_STYLE[op.status])
+            t.append("   ")
+            t.append(f"{op.completed:,}/{op.total:,} {prof.unit}", style="grey70")
+        t.append("   ")
+        t.append(op.status, style=_STATUS_STYLE[op.status])
         if self._mode == "heatmap":
-            t.append("  ·  heatmap (each cell = bucket)", style="magenta")
+            t.append("     heatmap (each cell = a bucket of docs)", style="magenta")
         elif self._mode == "paged":
             t.append(
-                f"  ·  page {self.page + 1}/{self._page_count} [PgDn]", style="grey50"
+                f"     page {self.page + 1}/{self._page_count} [PgDn]", style="grey50"
             )
         return t
 
@@ -372,42 +382,68 @@ class DocetlTUI(App):
         if not op.outputs or idx >= len(op.outputs):
             st = op.cell_status(idx, op_runband(op))
             return Group(
-                Text(f"status: {st}\n", style=_STATUS_STYLE.get(st, "grey42")),
+                _kv("status", st, value_style=_STATUS_STYLE.get(st, "grey42")),
                 Text(
-                    "Output not yet available.\n"
-                    "(captured when the operation finishes;"
-                    " large runs keep a sample of the first 2,000 docs.)",
-                    style="dim",
+                    "\nOutput not yet available — captured when the operation\n"
+                    "finishes (large runs keep a sample of the first 2,000 docs).",
+                    style="grey50",
                 ),
             )
-        doc = op.outputs[idx]
-        obs_key = f"_observability_{op.name.split('/')[-1]}"
-        prompt = None
-        display = {k: v for k, v in doc.items() if not k.startswith("_observability_")}
-        if obs_key in doc and isinstance(doc[obs_key], dict):
-            prompt = doc[obs_key].get("prompt")
 
-        cache_key = (op.name, idx)
-        body = self._doc_json.get(cache_key)
-        if body is None:
-            body = _trunc(json.dumps(display, indent=2, default=str), 1400)
-            self._doc_json[cache_key] = body
+        doc = op.outputs[idx]
+        prof = get_profile(op.op_type)
+        rows, prompt, provenance = self._doc_view(op, prof, idx, doc)
 
         out = Text()
-        out.append("status: done\n\n", style="green")
-        out.append("output\n", style="bold underline")
-        out.append(body + "\n")
+        out.append_text(_kv("status", "done", value_style="green"))
+        out.append("\n")
+        for key, value in rows:
+            # short scalars read best inline; long / multi-line values get their
+            # own indented block so nothing wraps awkwardly against the label.
+            if len(value) <= 36 and "\n" not in value:
+                out.append_text(_kv(key, value))
+            else:
+                out.append(f"{key}\n", style="bold #7dcfff")
+                for line in value.splitlines() or [""]:
+                    out.append(f"  {line}\n", style="grey85")
         parts = [out]
-        # Operator-specific provenance (reduce source counts, split chunk/parent).
-        prof = get_profile(op.op_type)
-        if prof.provenance is not None:
-            parts.extend(prof.provenance(doc))
+        if provenance:
+            parts.append(_section("provenance", provenance))
         if prompt:
-            p = Text()
-            p.append("\nprompt\n", style="bold underline")
-            p.append(_trunc(str(prompt), 1000), style="grey70")
-            parts.append(p)
+            parts.append(_section("prompt", _trunc(prompt, 1000), style="grey70"))
         return Group(*parts)
+
+    def _doc_view(self, op, prof, idx, doc):
+        """Build (display rows, prompt, provenance) for one document, cached.
+
+        Outputs are immutable after ``op_done``, so the per-cell field extraction
+        (which truncates long values) is computed once rather than every frame.
+        """
+        cache_key = (op.name, idx)
+        cached = self._doc_view_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        name = op.name.split("/")[-1]
+        obs = doc.get(f"_observability_{name}")
+        prompt = None
+        if isinstance(obs, dict):
+            prompt = obs.get("prompt")
+            if prompt is None and isinstance(obs.get("prompts"), list) and obs["prompts"]:
+                prompt = obs["prompts"][0]
+
+        consumed = prof.consumed_keys(doc) if prof.consumed_keys else set()
+        rows = []
+        for k, v in doc.items():
+            if k.startswith("_") or k in consumed:
+                continue  # internal bookkeeping / surfaced as provenance instead
+            value = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str)
+            rows.append((k, _trunc(str(value), 280)))
+
+        provenance = prof.provenance(op, doc) if prof.provenance else None
+        result = (rows, prompt, provenance)
+        self._doc_view_cache[cache_key] = result
+        return result
 
 
 def op_runband(op: OpState) -> int:
@@ -419,6 +455,31 @@ def _trunc(s: str, n: int) -> str:
     return s if len(s) <= n else s[:n] + " …"
 
 
+def _kv(key: str, value: str, value_style: str = "grey85") -> Text:
+    """One ``key: value`` row — a muted label and its value, no JSON braces."""
+    t = Text()
+    t.append(f"{key}: ", style="bold #7dcfff")
+    t.append(f"{value}\n", style=value_style)
+    return t
+
+
+def _section(label: str, value: str, style: str = "grey70") -> Text:
+    """A titled block: a bold header line over its (un-bolded) value."""
+    t = Text()
+    t.append(f"\n{label}\n", style="bold")
+    t.append(value, style=style)
+    return t
+
+
+def _fmt_cost(c: float) -> str:
+    """Compact cost: avoids the misleading ``$0.000`` for sub-cent runs."""
+    if c <= 0:
+        return "$0"
+    if c < 0.01:
+        return "<$0.01"
+    return f"${c:.2f}"
+
+
 def _fmt_dur(secs: float) -> str:
     secs = int(secs)
     if secs < 60:
@@ -428,14 +489,6 @@ def _fmt_dur(secs: float) -> str:
         return f"{m}m {s}s"
     h, m = divmod(m, 60)
     return f"{h}h {m}m"
-
-
-def _fmt_k(n: int) -> str:
-    if n < 1000:
-        return str(n)
-    if n < 1_000_000:
-        return f"{n / 1000:.1f}k"
-    return f"{n / 1_000_000:.1f}M"
 
 
 def _heat_style(frac: float, has_error: bool) -> str:

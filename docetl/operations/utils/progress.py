@@ -62,6 +62,13 @@ class RichLoopBar:
     def update(self, n: int = 1) -> None:
         if self.tqdm:
             self.tqdm.update(n)
+        # Feed the interactive progress tracker, if one is active for this run.
+        # This is a no-op (and near-zero cost) outside of TUI runs.
+        from docetl.progress.tracker import active_tracker
+
+        tracker = active_tracker()
+        if tracker is not None:
+            tracker.tick(n)
 
 
 def rich_as_completed(

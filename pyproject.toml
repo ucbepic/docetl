@@ -66,6 +66,9 @@ server = [
 retrieval = [
   "lancedb>=0.7.0",
 ]
+tui = [
+  "textual>=8.2.7",
+]
 
 [project.scripts]
 docetl = "docetl.cli:app"

@@ -121,6 +121,12 @@ class DSLRunner(ConfigWrapper):
         self.total_token_usage = defaultdict(
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
         )
+        # Interactive progress TUI state. ``progress_tracker`` is only set while
+        # an interactive run is active; ``_force_tui`` lets the CLI override the
+        # YAML ``pipeline.interactive_ui`` flag (True/False), None = use config.
+        self.progress_tracker = None
+        self._force_tui: bool | None = None
+        self._tui_active = False
         self._initialize_state()
         self._setup_parsing_tools()
         self._setup_retrievers()
@@ -488,10 +494,71 @@ class DSLRunner(ConfigWrapper):
                 return operation_config
         raise ValueError(f"Operation '{op_name}' not found in configuration.")
 
+    def list_pipeline_operations(self) -> list[tuple[str, str, str, str | None]]:
+        """Return ``(step, full_name, op_type, model)`` for each real operation
+        in pipeline order, excluding scans and step boundaries.
+
+        Used to pre-populate the interactive progress view so all operations are
+        visible (as ``queued``) before execution begins.
+        """
+        op_map = {op["name"]: op for op in self.config.get("operations", [])}
+        ops: list[tuple[str, str, str, str | None]] = []
+        for step in self.config["pipeline"]["steps"]:
+            step_name = step["name"]
+            for entry in step["operations"]:
+                op_name = entry if isinstance(entry, str) else list(entry.keys())[0]
+                op_cfg = op_map.get(op_name, {})
+                op_type = op_cfg.get("type", "?")
+                if op_type in ("scan", "step_boundary"):
+                    continue
+                model = op_cfg.get("model", self.default_model)
+                ops.append((step_name, f"{step_name}/{op_name}", op_type, model))
+        return ops
+
+    def _should_use_tui(self) -> bool:
+        """Decide whether to launch the interactive TUI for this run.
+
+        CLI ``--tui/--no-tui`` (``_force_tui``) takes precedence over the YAML
+        ``pipeline.interactive_ui`` flag. The TUI requires an interactive
+        terminal; otherwise we fall back to plain logging.
+        """
+        import sys
+
+        if self._tui_active:
+            return False
+        want = self._force_tui
+        if want is None:
+            want = bool(self.config.get("pipeline", {}).get("interactive_ui", False))
+        if not want:
+            return False
+        if not (sys.stdout.isatty() and sys.stdin.isatty()):
+            self.console.log(
+                "[yellow]interactive_ui requested but stdout is not a TTY; "
+                "falling back to standard output.[/yellow]"
+            )
+            return False
+        return True
+
     def load_run_save(self) -> float:
         """
         Execute the entire pipeline defined in the configuration.
         """
+        # Route to the interactive TUI if requested and supported. The TUI runs
+        # this same method again on a worker thread with ``_tui_active`` set, so
+        # the actual execution path below is shared.
+        if self._should_use_tui():
+            try:
+                from docetl.tui.app import run_with_tui
+            except ImportError:
+                self.console.log(
+                    "[yellow]interactive_ui is enabled but the 'textual' package "
+                    "is not installed. Install it with `pip install docetl[tui]` "
+                    "to use the interactive progress view. Falling back to "
+                    "standard output.[/yellow]"
+                )
+            else:
+                return run_with_tui(self)
+
         output_path = self.get_output_path(require=True)
 
         # Print the query plan
@@ -545,6 +612,9 @@ class DSLRunner(ConfigWrapper):
             + f"Output: [dim]{output_path}[/dim]"
         )
         self.console.log(Panel(summary, title="Execution Summary"))
+
+        if self.progress_tracker is not None:
+            self.progress_tracker.pipeline_done()
 
         return self.total_cost
 

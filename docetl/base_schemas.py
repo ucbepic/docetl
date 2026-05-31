@@ -129,5 +129,5 @@ class PipelineSpec(BaseModel):
     steps: list[PipelineStep]
     output: PipelineOutput
     # When true (and stdout is a TTY), launch the full-screen interactive
-    # progress TUI for this run. See docs/design/progress-visualization.md.
+    # progress view for this run (requires the optional ``tui`` extra).
     interactive_ui: bool = False

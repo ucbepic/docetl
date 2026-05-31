@@ -206,12 +206,6 @@ def run(
     max_threads: int | None = typer.Option(
         None, help="Maximum number of threads to use for running operations"
     ),
-    tui: bool | None = typer.Option(
-        None,
-        "--tui/--no-tui",
-        help="Force on/off the interactive progress TUI, overriding the "
-        "pipeline.interactive_ui flag in the config.",
-    ),
 ):
     """
     Run the configuration specified in the YAML file.
@@ -219,7 +213,6 @@ def run(
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
         max_threads (int | None): Maximum number of threads to use for running operations.
-        tui (bool | None): Override the config's interactive_ui flag.
     """
     # Get the current working directory (where the user called the command)
     cwd = os.getcwd()
@@ -230,8 +223,6 @@ def run(
         load_dotenv(env_file)
 
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
-    if tui is not None:
-        runner._force_tui = tui
     runner.load_run_save()
 
 

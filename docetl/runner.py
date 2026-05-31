@@ -122,10 +122,9 @@ class DSLRunner(ConfigWrapper):
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
         )
         # Interactive progress TUI state. ``progress_tracker`` is only set while
-        # an interactive run is active; ``_force_tui`` lets the CLI override the
-        # YAML ``pipeline.interactive_ui`` flag (True/False), None = use config.
+        # an interactive run is active; the TUI is enabled by the YAML
+        # ``pipeline.interactive_ui`` flag.
         self.progress_tracker = None
-        self._force_tui: bool | None = None
         self._tui_active = False
         self._initialize_state()
         self._setup_parsing_tools()
@@ -518,18 +517,14 @@ class DSLRunner(ConfigWrapper):
     def _should_use_tui(self) -> bool:
         """Decide whether to launch the interactive TUI for this run.
 
-        CLI ``--tui/--no-tui`` (``_force_tui``) takes precedence over the YAML
-        ``pipeline.interactive_ui`` flag. The TUI requires an interactive
-        terminal; otherwise we fall back to plain logging.
+        Enabled by the YAML ``pipeline.interactive_ui`` flag. The TUI requires
+        an interactive terminal; otherwise we fall back to plain logging.
         """
         import sys
 
         if self._tui_active:
             return False
-        want = self._force_tui
-        if want is None:
-            want = bool(self.config.get("pipeline", {}).get("interactive_ui", False))
-        if not want:
+        if not self.config.get("pipeline", {}).get("interactive_ui", False):
             return False
         if not (sys.stdout.isatty() and sys.stdin.isatty()):
             self.console.log(

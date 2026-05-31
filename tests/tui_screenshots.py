@@ -1,93 +1,112 @@
-"""Generate screenshots of the progress TUI against synthetic run state.
+"""Capture screenshots of the interactive progress view (issue #487).
 
-Run: uv run python tests/tui_screenshots.py
-Outputs SVGs under /tmp/docetl_tui/.
+Two kinds of shot:
+
+- Real runs: drive the actual ``DSLRunner`` over the demo pipelines in
+  ``tui_demo/`` with real ``gpt-4.1-nano`` calls (no stubbed model), for
+  map/filter, reduce, split, and resolve. A full set costs well under a cent.
+- One synthetic large run (40k documents) to show the zoomed-out heatmap grid,
+  which would be wasteful to produce with real calls.
+
+Needs ``OPENAI_API_KEY`` and network access for the real runs. Writes SVG and
+PNG files to ``/tmp/docetl_tui/``.
+
+Run: ``uv run python tests/tui_screenshots.py``
 """
 
 import asyncio
 import os
-import random
+import time
 
-from docetl.progress.tracker import ProgressTracker
+import cairosvg
+
 from docetl.progress.events import OpState
-from docetl.tui.app import DocetlTUI
+from docetl.progress.tracker import ProgressTracker, set_active_tracker
+from docetl.runner import DSLRunner
+from docetl.tui.app import DocetlTUI, _QuietConsole
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+DEMO = os.path.join(HERE, "tui_demo")
 OUT = "/tmp/docetl_tui"
 os.makedirs(OUT, exist_ok=True)
 SIZE = (160, 44)
 
 
-def _outputs(op_name: str, n: int, with_prompt: bool) -> list[dict]:
-    docs = []
-    topics = ["billing dispute", "shipping delay", "refund request", "praise",
-              "bug report", "feature request", "account access", "cancellation"]
-    for i in range(n):
-        d = {
-            "id": f"doc_{i}",
-            "title": f"Customer ticket #{1000 + i}",
-            "category": random.choice(topics),
-            "sentiment": random.choice(["positive", "neutral", "negative"]),
-            "summary": f"The customer wrote in about a {random.choice(topics)} "
-                       f"and the agent resolved it after {random.randint(1, 5)} replies.",
-            "priority": random.choice(["low", "medium", "high"]),
-        }
-        if with_prompt:
-            d[f"_observability_{op_name.split('/')[-1]}"] = {
-                "prompt": f"Analyze the following support ticket and extract the "
-                          f"category, sentiment, and a one-line summary.\n\n"
-                          f"Ticket: Customer ticket #{1000 + i} ...",
-            }
-        docs.append(d)
-    return docs
+async def _capture(app: DocetlTUI, pilot, name: str, *, sel_op: int, cursor: int = 0):
+    """Point the view at one operation/document and save SVG + PNG."""
+    app.sel_op = sel_op
+    app.focus_pane = "grid"
+    app.cursor = cursor
+    app.page = 0
+    app.render_all()
+    await pilot.pause(0.2)  # let Textual paint before grabbing the frame
+    svg = os.path.join(OUT, name + ".svg")
+    app.save_screenshot(svg)
+    cairosvg.svg2png(url=svg, write_to=os.path.join(OUT, name + ".png"), output_width=1600)
 
 
-def make_midrun_tracker() -> ProgressTracker:
-    """A multi-operator run, mid-flight, moderate doc counts (cells/paged grid)."""
-    t = ProgressTracker(concurrency=16)
-    ops = [
-        OpState("analyze", "analyze/classify_tickets", "map", "gpt-4o-mini"),
-        OpState("analyze", "analyze/extract_entities", "map", "gpt-4o-mini"),
-        OpState("analyze", "analyze/urgent_only", "filter", "gpt-4o-mini"),
-        OpState("summarize", "summarize/resolve_customers", "resolve", "gpt-4o-mini"),
-        OpState("summarize", "summarize/per_customer_report", "reduce", "gpt-4o"),
-    ]
-    # op 0 done
-    ops[0].status = "done"; ops[0].total = 1200; ops[0].completed = 1200
-    ops[0].out_count = 1200; ops[0].cost = 0.84; ops[0].prompt_tokens = 940_000
-    ops[0].completion_tokens = 120_000; ops[0].start_t = 0; ops[0].end_t = 47
-    ops[0].outputs = _outputs(ops[0].name, 1200, with_prompt=True)
-    # op 1 running
-    ops[1].status = "running"; ops[1].total = 1200; ops[1].completed = 742
-    ops[1].errors = 6; ops[1].cost = 0.51; ops[1].prompt_tokens = 580_000
-    ops[1].completion_tokens = 71_000
-    import time
-    ops[1].start_t = time.time() - 31
-    ops[1].outputs = _outputs(ops[1].name, 742, with_prompt=True)
-    # rest queued
-    ops[2].total = 1200
-    t.state.ops = ops
-    t.state._by_name = {o.name: o for o in ops}
-    t.state.started = True
-    t.state.start_t = time.time() - 78
-    t.state.total_cost = sum(o.cost for o in ops)
-    return t
+# -- real runs ---------------------------------------------------------------
+def _setup(yaml_name: str, max_threads: int):
+    runner = DSLRunner.from_yaml(os.path.join(DEMO, yaml_name), max_threads=max_threads)
+    runner.config["bypass_cache"] = True  # force real calls so progress streams
+    tracker = ProgressTracker(concurrency=min(runner.max_threads or 1, 64))
+    runner.progress_tracker = tracker
+    runner._tui_active = True
+    set_active_tracker(tracker)
+    tracker.pipeline_start(runner.list_pipeline_operations())
+    runner.console = _QuietConsole()
+    return tracker, DocetlTUI(tracker, runner=runner)
 
 
-def make_scale_tracker() -> ProgressTracker:
-    """A large run that triggers the heatmap grid (tens of thousands of docs)."""
+async def _wait_finished(tracker, pilot, limit=360):
+    for _ in range(limit):
+        if tracker.snapshot().finished:
+            return
+        await pilot.pause(0.5)
+
+
+async def shoot_done(yaml_name, name, *, sel_op, cursor=0, max_threads=4):
+    tracker, app = _setup(yaml_name, max_threads)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_finished(tracker, pilot)
+        await _capture(app, pilot, name, sel_op=sel_op, cursor=cursor)
+    set_active_tracker(None)
+    print(name, "cost $%.4f" % (app.result_cost or 0), "error:", app.error)
+
+
+async def shoot_midrun(yaml_name, name, *, target_op, min_done, max_threads=2):
+    """Capture while ``target_op`` is partway through (shows its live unit)."""
+    tracker, app = _setup(yaml_name, max_threads)
+    async with app.run_test(size=SIZE) as pilot:
+        deadline = time.time() + 120
+        while time.time() < deadline and not tracker.snapshot().finished:
+            ops = tracker.snapshot().ops
+            op = ops[target_op] if target_op < len(ops) else None
+            if op and op.status == "running" and op.completed >= min_done:
+                break
+            await pilot.pause(0.1)
+        await _capture(app, pilot, name, sel_op=target_op, cursor=0)
+        await _wait_finished(tracker, pilot)
+    set_active_tracker(None)
+    print(name, "cost $%.4f" % (app.result_cost or 0), "error:", app.error)
+
+
+# -- synthetic large run (heatmap) -------------------------------------------
+def _scale_tracker() -> ProgressTracker:
+    """A 40k-document run that triggers the zoomed-out heatmap grid."""
     t = ProgressTracker(concurrency=32)
     ops = [
-        OpState("extract", "extract/parse_docs", "map", "gpt-4o-mini"),
-        OpState("extract", "extract/classify", "map", "gpt-4o-mini"),
-        OpState("dedupe", "dedupe/resolve", "resolve", "gpt-4o-mini"),
+        OpState("extract", "extract/parse_docs", "map", "gpt-4.1-nano"),
+        OpState("extract", "extract/classify", "map", "gpt-4.1-nano"),
+        OpState("dedupe", "dedupe/resolve", "resolve", "gpt-4.1-nano"),
     ]
-    ops[0].status = "done"; ops[0].total = 40000; ops[0].completed = 40000
-    ops[0].out_count = 40000; ops[0].cost = 12.40; ops[0].prompt_tokens = 28_000_000
-    ops[0].completion_tokens = 3_100_000; ops[0].start_t = 0; ops[0].end_t = 612
-    ops[1].status = "running"; ops[1].total = 40000; ops[1].completed = 21850
-    ops[1].errors = 140; ops[1].cost = 6.7; ops[1].prompt_tokens = 15_000_000
-    ops[1].completion_tokens = 1_700_000
-    import time
+    ops[0].status = "done"
+    ops[0].total = ops[0].completed = ops[0].out_count = 40000
+    ops[0].cost = 1.24
+    ops[0].start_t, ops[0].end_t = 0, 612
+    ops[1].status = "running"
+    ops[1].total, ops[1].completed, ops[1].errors = 40000, 21850, 140
+    ops[1].cost = 0.67
     ops[1].start_t = time.time() - 300
     ops[2].total = 40000
     t.state.ops = ops
@@ -98,32 +117,29 @@ def make_scale_tracker() -> ProgressTracker:
     return t
 
 
-async def shoot(tracker, name, keys):
-    app = DocetlTUI(tracker, runner=None)
+async def shoot_heatmap(name):
+    app = DocetlTUI(_scale_tracker(), runner=None)
     async with app.run_test(size=SIZE) as pilot:
         await pilot.pause(0.3)
-        for k in keys:
-            await pilot.press(k)
-            await pilot.pause()
-        app.render_all()
-        await pilot.pause(0.05)
-        app.save_screenshot(os.path.join(OUT, name))
-    print("wrote", os.path.join(OUT, name))
+        await pilot.press("down")  # select the running op
+        await _capture(app, pilot, name, sel_op=1, cursor=0)
+    print(name)
 
 
 async def main():
-    random.seed(7)
-    # 1. mid-run, operations pane focused (overview)
-    await shoot(make_midrun_tracker(), "01_overview.svg", [])
-    # 2. mid-run, select the running op + enter grid
-    await shoot(make_midrun_tracker(), "02_grid_running.svg",
-                ["down", "tab"])
-    # 3. mid-run, inspect a completed document (op 0 -> grid -> move cursor)
-    await shoot(make_midrun_tracker(), "03_doc_detail.svg",
-                ["tab", "right", "right", "right", "down", "down"])
-    # 4. scale: heatmap grid on the running op
-    await shoot(make_scale_tracker(), "04_heatmap.svg",
-                ["down", "tab"])
+    os.chdir(DEMO)  # so the pipelines' relative dataset paths resolve
+    # map -> map -> filter: live mid-run, then completed with a real document.
+    await shoot_midrun("pipeline.yaml", "tui-real-midrun", target_op=0, min_done=5)
+    await shoot_done("pipeline.yaml", "tui-real-complete", sel_op=0, cursor=19)
+    # reduce: the "groups" unit + per-group provenance.
+    await shoot_done("reduce_pipeline.yaml", "tui-reduce-groups", sel_op=1, cursor=0)
+    # split: the "chunks" unit + chunk/parent provenance.
+    await shoot_done("split_pipeline.yaml", "tui-split-chunks", sel_op=0, cursor=1)
+    # resolve: the "comparisons" unit, captured mid-run.
+    await shoot_midrun("resolve_pipeline.yaml", "tui-resolve-comparisons",
+                       target_op=0, min_done=2, max_threads=1)
+    # synthetic scale: the heatmap grid for tens of thousands of documents.
+    await shoot_heatmap("tui-scale-heatmap")
 
 
 if __name__ == "__main__":

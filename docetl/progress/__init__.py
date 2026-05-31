@@ -8,7 +8,7 @@ terminal TUI (:mod:`docetl.tui`), and in the future the web UI.
 
 The design intentionally decouples *progress signal* from *console text*: the
 old path only had aggregate ``tqdm`` counts, which cannot drive a per-document
-view. See ``docs/design/progress-visualization.md``.
+view.
 """
 
 from .events import DocStatus, OpState, OpStatus, RunState

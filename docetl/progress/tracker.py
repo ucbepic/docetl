@@ -78,6 +78,25 @@ class ProgressTracker:
             self._current = op
         self._notify()
 
+    def set_phase(self, total: int | None) -> None:
+        """Reset the current op's progress to a fresh phase of ``total`` units.
+
+        ``RichLoopBar`` calls this when a progress bar starts so the denominator
+        matches what is actually being ticked — documents for map/filter, groups
+        for reduce, comparisons for resolve/equijoin — rather than the raw
+        input-doc count guessed in ``containers.py``. Multi-phase ops (e.g.
+        resolve: embed, then compare) call it once per phase; the bar reflects
+        the current phase, which is the more useful live signal.
+        """
+        with self._lock:
+            op = self._current
+            if op is None:
+                return
+            op.total = total
+            op.completed = 0
+            op.errors = 0
+        self._notify()
+
     def tick(self, n: int = 1) -> None:
         """Advance the current operation by ``n`` completed documents."""
         with self._lock:

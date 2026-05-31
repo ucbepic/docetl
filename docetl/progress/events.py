@@ -56,6 +56,22 @@ class OpState:
     def tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
 
+    @property
+    def grid_count(self) -> int:
+        """Number of cells the document grid should render.
+
+        While the op runs we show one cell per *work unit* — whatever
+        ``RichLoopBar`` is ticking (documents for map, groups for reduce,
+        comparisons for resolve/equijoin) — so the fill animates against the
+        real denominator. Once finished we switch to one cell per *output
+        document* so every cell is an inspectable result, even when the output
+        count differs from the work-unit count (e.g. split fans 1 doc into many
+        chunks; resolve collapses many comparisons into a few clusters).
+        """
+        if self.status == "done" and self.out_count is not None:
+            return self.out_count
+        return self.total or 0
+
     def cell_status(self, index: int, running_band: int) -> DocStatus:
         """Synthesize a per-document status for the dot grid.
 
@@ -65,10 +81,14 @@ class OpState:
         an accurate fill ratio and a lively "working edge" without requiring
         every operation to emit per-document identity.
         """
-        if self.total is None:
-            return "queued"
         if index < self.errors:
             return "error"
+        if self.status == "done":
+            # A finished op's grid is keyed on output docs (see ``grid_count``);
+            # they are all complete regardless of the work-unit counter.
+            return "done"
+        if self.total is None:
+            return "queued"
         if index < self.completed:
             return "done"
         if self.status == "running" and index < self.completed + running_band:

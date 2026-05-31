@@ -12,14 +12,28 @@ Implemented:
   paged dot grid + heatmap at scale, doc detail (output + prompt). Enabled via
   `pipeline.interactive_ui` / `--tui`, TTY-gated. `textual` is an optional `[tui]`
   extra.
+- Phase 2 — operator coverage (`docetl/tui/profiles.py`): the progress
+  denominator now reflects what each operator actually ticks — documents for
+  map/filter, **groups** for reduce, **comparisons** for resolve/equijoin —
+  because `RichLoopBar` reports its real unit count via `tracker.set_phase`
+  (`docetl/operations/utils/progress.py`). An operator-profile registry gives
+  each op type a unit word and an optional per-document **provenance** line read
+  from metadata the operators already emit (reduce's `_counts_prereduce_*`
+  source counts; split's `<name>_chunk_num`/`<name>_id`), with a default profile
+  so unknown ops still render. The doc grid shows one cell per work unit while
+  running and switches to one cell per output document once finished
+  (`OpState.grid_count`), so fan-out (split) and fan-in (resolve/reduce) ops are
+  both inspectable.
 Phase 3 (web view) is intentionally **not** implemented: the web Playground is
 left unchanged. The foundation is surface-agnostic (`RunState.to_dict()` exists),
 so a web view can be added later without touching the runner or operations, but
 this branch ships only the terminal TUI.
 
-Not yet done: true per-document provenance edges (split/reduce/equijoin lineage)
-— current grids use reliable per-op counts with synthesized cell status, which is
-accurate for fill/triage but does not yet expose cross-op lineage. See §3.2.
+Not done (deliberately deferred): a global per-document `__docetl_id` threaded
+through scan → every op → save for true cross-op lineage edges (§3.2). That is
+invasive (touches the runner, `save()`, and every operator). Phase 2 instead
+surfaces the provenance the operators already record, which covers the common
+reduce/split cases without that risk.
 
 ## 1. Goal
 
@@ -276,21 +290,28 @@ tool and integrates with the existing Rich renderables.
 
 ## 7. Phasing
 
-1. **Phase 0 — Foundation**: events, tracker, `__docetl_id` + provenance, emit from
-   map/filter. Unit-tested, no UI. Lowest risk; unblocks everything.
-2. **Phase 1 — Terminal TUI**: Textual app + 3 panes + scaling modes.
-3. **Phase 2 — Coarse-op coverage**: reduce/resolve/equijoin/split lineage.
-4. **Phase 3 — Web parity**: event channel + React grid + doc endpoint.
+1. **Phase 0 — Foundation** ✅: events, tracker, emit from map/filter.
+   Unit-tested, no UI.
+2. **Phase 1 — Terminal TUI** ✅: Textual app + 3 panes + scaling modes.
+3. **Phase 2 — Coarse-op coverage** ✅: correct per-unit progress
+   (groups/comparisons/chunks) + operator-specific detail/provenance via the
+   profile registry. Global cross-op `__docetl_id` lineage deferred (see above).
+4. **Phase 3 — Web parity**: event channel + React grid + doc endpoint. Not done.
 
 ## 8. Testing
 
-Status: **done** (except provenance, which is unimplemented — see below).
+Status: **done** for the implemented phases (0–2).
 
 - Unit — `tests/test_progress_tracker.py`: tracker lifecycle, tick capping,
   cell-status synthesis, the `RichLoopBar` active-tracker hook, `to_dict`
   serialization, and **thread-safety** (no lost updates under 12 concurrent
   tick/error threads; a reader snapshotting concurrently never sees the count go
   backwards). Run with `uv run pytest tests/test_progress_tracker.py`.
+- Unit — `tests/test_tui_profiles.py`: `OpState.grid_count` (work units while
+  running → output docs when done, incl. split fan-out), done-state
+  `cell_status`, and the operator-profile registry (per-type units, reduce
+  source-count provenance, split chunk/parent provenance paired by prefix,
+  filter dropped-count summary, default fallback for unknown ops).
 - Integration — `tests/test_tui_integration.py`: runs a real two-op (map +
   filter) pipeline through `DSLRunner` with **real `gpt-4.1-nano` calls** and
   asserts the tracker reconciles with the runner (per-op counts, `out_count`,
@@ -299,9 +320,14 @@ Status: **done** (except provenance, which is unimplemented — see below).
 - Real screenshots — `tests/tui_real_run.py`: drives the actual `DSLRunner` over
   `tests/tui_demo/` (20 support tickets, map → map → filter) inside the live
   Textual app with **real `gpt-4.1-nano` calls** (no stubbed LLM), capturing the
-  screen mid-run, while inspecting a document, and at completion. The captured
-  frames live in `docs/design/screenshots/tui-real-*.png`. Total run cost ≈
-  $0.002. Run with `uv run python tests/tui_real_run.py`.
+  screen mid-run, while inspecting a document, and at completion. Frames:
+  `docs/design/screenshots/tui-real-*.png`. Run cost ≈ $0.002.
+- Operator screenshots — `tests/tui_operator_screenshots.py`: runs the
+  `reduce_pipeline` / `split_pipeline` / `resolve_pipeline` demos (also in
+  `tests/tui_demo/`) with real nano calls and captures the operator coverage:
+  the **groups** unit + per-group provenance (`tui-reduce-groups.png`), the
+  **chunks** unit + chunk/parent provenance (`tui-split-chunks.png`), and the
+  **comparisons** unit captured mid-run (`tui-resolve-comparisons.png`).
 - Scale screenshots — `tests/tui_screenshots.py`: drives the real TUI rendering
   code against *synthetic* run state to exercise the paged/heatmap modes at 40k
   docs (running 40k real LLM calls would be needlessly expensive). Output:
@@ -310,8 +336,6 @@ Status: **done** (except provenance, which is unimplemented — see below).
 > Note: the OpenAI API is reachable from this environment with the configured
 > `OPENAI_API_KEY`; the earlier "host is blocked by the network policy" claim was
 > incorrect, so the screenshot/integration runs use genuine `gpt-4.1-nano` calls.
-> Provenance-edge tests (`split`/`reduce`/`equijoin` lineage) are intentionally
-> absent because that lineage is not yet implemented (see §3.2).
 
 ## 9. Risks & open questions
 

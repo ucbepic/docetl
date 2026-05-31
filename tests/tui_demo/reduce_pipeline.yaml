@@ -1,0 +1,50 @@
+# map -> reduce demo: classify each ticket into a fixed category, then reduce
+# (group by category) to summarize the common themes per category.
+# gpt-4.1-nano everywhere to keep cost minimal.
+datasets:
+  tickets:
+    type: file
+    path: tickets.json
+
+default_model: gpt-4.1-nano
+
+operations:
+  - name: classify_tickets
+    type: map
+    prompt: |
+      Classify this support ticket into exactly one category from this list:
+      billing, shipping, account, technical, feedback, other.
+
+      Ticket: "{{ input.text }}"
+    output:
+      schema:
+        category: "string"
+
+  - name: summarize_by_category
+    type: reduce
+    reduce_key: category
+    enable_observability: true
+    prompt: |
+      You are summarizing all support tickets in the "{{ inputs[0].category }}"
+      category. Here are the tickets:
+      {% for t in inputs %}
+      - {{ t.text }}
+      {% endfor %}
+
+      Write a one-sentence summary of the common themes, and count how many
+      tickets are in this category.
+    output:
+      schema:
+        theme_summary: "string"
+        ticket_count: "integer"
+
+pipeline:
+  steps:
+    - name: triage
+      input: tickets
+      operations:
+        - classify_tickets
+        - summarize_by_category
+  output:
+    type: file
+    path: reduce_output.json

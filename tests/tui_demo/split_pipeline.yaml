@@ -1,0 +1,42 @@
+# split -> map demo: split a quarterly report into paragraph chunks, then map
+# over each chunk to extract a topic + one-line summary. Exercises the "chunks"
+# progress unit and chunk/parent provenance. split itself makes no LLM calls.
+datasets:
+  reports:
+    type: file
+    path: report.json
+
+default_model: gpt-4.1-nano
+
+operations:
+  - name: split_report
+    type: split
+    split_key: content
+    method: delimiter
+    method_kwargs:
+      delimiter: "\n\n"
+      num_splits_to_group: 1
+
+  - name: summarize_chunk
+    type: map
+    enable_observability: true
+    prompt: |
+      Extract the main topic and a one-line summary of this section of a
+      quarterly report:
+
+      "{{ input.content_chunk }}"
+    output:
+      schema:
+        topic: "string"
+        summary: "string"
+
+pipeline:
+  steps:
+    - name: analyze
+      input: reports
+      operations:
+        - split_report
+        - summarize_chunk
+  output:
+    type: file
+    path: split_output.json

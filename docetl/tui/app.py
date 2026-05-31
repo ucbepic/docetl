@@ -29,6 +29,7 @@ from textual.widgets import Static
 
 from docetl.progress.events import OpState, RunState
 from docetl.progress.tracker import ProgressTracker, set_active_tracker
+from docetl.tui.profiles import get_profile
 
 if TYPE_CHECKING:
     from docetl.runner import DSLRunner
@@ -75,6 +76,10 @@ class DocetlTUI(App):
         self.result_cost: float | None = None
         self.error: BaseException | None = None
         self._worker: threading.Thread | None = None
+        # Cache of serialized doc bodies, keyed by (op name, index). Outputs are
+        # immutable once captured at op_done, so the detail pane re-renders the
+        # selected cell ~7x/s without re-running json.dumps each frame.
+        self._doc_json: dict[tuple[str, int], str] = {}
 
     # -- composition -----------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -227,10 +232,13 @@ class DocetlTUI(App):
         op = self._selected_op()
         if op is None:
             return Text("")
+        prof = get_profile(op.op_type)
         t = Text()
         t.append(f"{op.op_type}:{op.name.split('/')[-1]}", style="bold")
-        if op.total:
-            t.append(f"  {op.completed:,}/{op.total:,}", style="grey70")
+        if op.status == "done" and op.out_count is not None:
+            t.append(f"  {op.out_count:,} {prof.doc_unit}", style="grey70")
+        elif op.total:
+            t.append(f"  {op.completed:,}/{op.total:,} {prof.unit}", style="grey70")
         t.append(f"  ·  {op.status}", style=_STATUS_STYLE[op.status])
         if self._mode == "heatmap":
             t.append("  ·  heatmap (each cell = bucket)", style="magenta")
@@ -242,7 +250,7 @@ class DocetlTUI(App):
 
     def _render_grid(self, state: RunState) -> Text:
         op = self._selected_op()
-        if op is None or not op.total:
+        if op is None or not op.grid_count:
             self._page_cells = 0
             return Text("(no documents yet)", style="grey42")
 
@@ -251,7 +259,7 @@ class DocetlTUI(App):
         height = max(4, size.height)
         cols = max(1, width // 2)
         capacity = cols * height
-        total = op.total
+        total = op.grid_count
         self._cols = cols
         self._capacity = capacity
 
@@ -321,22 +329,30 @@ class DocetlTUI(App):
             body.append(f"step:    {op.step}\n", style="grey70")
             body.append(f"model:   {op.model}\n", style="grey70")
             body.append(f"status:  {op.status}\n", style=_STATUS_STYLE[op.status])
+            prof = get_profile(op.op_type)
             if op.total:
-                body.append(f"docs:    {op.completed:,}/{op.total:,}\n", style="grey70")
+                body.append(
+                    f"{prof.unit}:  {op.completed:,}/{op.total:,}\n", style="grey70"
+                )
             if op.out_count is not None:
-                body.append(f"output:  {op.out_count:,} docs\n", style="grey70")
+                body.append(
+                    f"output:  {op.out_count:,} {prof.doc_unit}\n", style="grey70"
+                )
             body.append(f"errors:  {op.errors}\n", style="red" if op.errors else "grey70")
             body.append(f"cost:    ${op.cost:.4f}\n", style="green")
             body.append(f"tokens:  {op.tokens:,}\n", style="grey70")
             body.append(f"elapsed: {_fmt_dur(op.elapsed)}\n", style="grey70")
+            if prof.summary is not None:
+                for line in prof.summary(op):
+                    body.append_text(line)
             body.append("\nTab → grid, then ↑↓←→ to inspect documents.", style="dim")
             return Panel(body, title="Operation", border_style="magenta")
 
         # Document-level detail under the grid cursor.
         if self._mode == "heatmap":
-            bucket = math.ceil(op.total / self._capacity)
+            bucket = math.ceil(op.grid_count / self._capacity)
             lo = self.cursor * bucket
-            hi = min(op.total, lo + bucket)
+            hi = min(op.grid_count, lo + bucket)
             body = Text()
             body.append(f"Bucket {self.cursor}\n\n", style="bold")
             body.append(f"docs {lo:,}–{hi - 1:,} ({hi - lo} docs)\n", style="grey70")
@@ -351,7 +367,7 @@ class DocetlTUI(App):
         )
 
     def _render_doc(self, op: OpState, idx: int) -> Group:
-        if idx >= (op.total or 0):
+        if idx >= op.grid_count:
             return Group(Text("(no document)", style="grey42"))
         if not op.outputs or idx >= len(op.outputs):
             st = op.cell_status(idx, op_runband(op))
@@ -371,11 +387,21 @@ class DocetlTUI(App):
         if obs_key in doc and isinstance(doc[obs_key], dict):
             prompt = doc[obs_key].get("prompt")
 
+        cache_key = (op.name, idx)
+        body = self._doc_json.get(cache_key)
+        if body is None:
+            body = _trunc(json.dumps(display, indent=2, default=str), 1400)
+            self._doc_json[cache_key] = body
+
         out = Text()
         out.append("status: done\n\n", style="green")
         out.append("output\n", style="bold underline")
-        out.append(_trunc(json.dumps(display, indent=2, default=str), 1400) + "\n")
+        out.append(body + "\n")
         parts = [out]
+        # Operator-specific provenance (reduce source counts, split chunk/parent).
+        prof = get_profile(op.op_type)
+        if prof.provenance is not None:
+            parts.extend(prof.provenance(doc))
         if prompt:
             p = Text()
             p.append("\nprompt\n", style="bold underline")

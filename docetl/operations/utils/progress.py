@@ -37,6 +37,21 @@ class RichLoopBar:
         except TypeError:
             return None
 
+    def _sync_tracker_phase(self) -> None:
+        """Tell the interactive tracker how many units this bar will tick.
+
+        A no-op outside TUI runs. This makes the progress denominator reflect
+        what is actually iterated (e.g. groups for reduce, comparisons for
+        resolve) rather than the raw input-doc count.
+        """
+        if self.total is None:
+            return
+        from docetl.progress.tracker import active_tracker
+
+        tracker = active_tracker()
+        if tracker is not None:
+            tracker.set_phase(self.total)
+
     def __iter__(self) -> Iterable:
         self.tqdm = tqdm(
             self.iterable,
@@ -44,6 +59,7 @@ class RichLoopBar:
             desc=self.description,
             file=self.console.file,
         )
+        self._sync_tracker_phase()
         for item in self.tqdm:
             yield item
 
@@ -54,6 +70,7 @@ class RichLoopBar:
             leave=self.leave,
             file=self.console.file,
         )
+        self._sync_tracker_phase()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:

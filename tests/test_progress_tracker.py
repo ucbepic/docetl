@@ -1,5 +1,7 @@
 """Unit tests for the progress telemetry foundation (issue #487)."""
 
+import threading
+
 from docetl.progress.events import OpState, RunState
 from docetl.progress.tracker import (
     ProgressTracker,
@@ -99,3 +101,60 @@ def test_runstate_to_dict():
     assert d["run_id"] == "abc"
     assert d["ops"][0]["name"] == "s/op"
     assert d["ops"][0]["status"] == "queued"
+
+
+def test_concurrent_ticks_have_no_lost_updates():
+    """Documents complete on many worker threads at once; the tracker must
+    count every tick and error exactly once (no lost updates under the lock)."""
+    t = ProgressTracker(concurrency=32)
+    total = 8 * 500 + 4 * 500  # ticks + errors, kept under one op
+    t.op_start("op", "map", None, total=total)
+
+    barrier = threading.Barrier(12)
+
+    def do_ticks():
+        barrier.wait()
+        for _ in range(500):
+            t.tick()
+
+    def do_errors():
+        barrier.wait()
+        for _ in range(500):
+            t.doc_error()
+
+    threads = [threading.Thread(target=do_ticks) for _ in range(8)]
+    threads += [threading.Thread(target=do_errors) for _ in range(4)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    op = t.snapshot().get("op")
+    assert op.completed == 8 * 500
+    assert op.errors == 4 * 500
+
+
+def test_concurrent_emit_and_snapshot_is_stable():
+    """A UI snapshotting on a timer while ops emit must never raise and must
+    observe a monotonically non-decreasing completed count."""
+    t = ProgressTracker(concurrency=8)
+    t.op_start("op", "map", None, total=2000)
+    stop = threading.Event()
+    seen = []
+
+    def reader():
+        last = 0
+        while not stop.is_set():
+            c = t.snapshot().get("op").completed
+            assert c >= last  # never goes backwards
+            last = c
+            seen.append(c)
+
+    r = threading.Thread(target=reader)
+    r.start()
+    for _ in range(2000):
+        t.tick()
+    stop.set()
+    r.join()
+    assert t.snapshot().get("op").completed == 2000
+    assert seen  # the reader actually ran

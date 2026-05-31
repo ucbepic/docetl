@@ -1,0 +1,63 @@
+# Real demo pipeline for the interactive progress TUI (issue #487).
+# Uses gpt-4.1-nano for every operation to keep cost minimal.
+datasets:
+  tickets:
+    type: file
+    path: tickets.json
+
+default_model: gpt-4.1-nano
+
+operations:
+  - name: classify_tickets
+    type: map
+    enable_observability: true
+    prompt: |
+      You are triaging a customer support ticket.
+
+      Ticket: "{{ input.text }}"
+
+      Classify it. Choose the single best category, the customer's sentiment,
+      and a priority level.
+    output:
+      schema:
+        category: "string"
+        sentiment: "string"
+        priority: "string"
+
+  - name: draft_reply
+    type: map
+    enable_observability: true
+    prompt: |
+      Write a short, empathetic one-paragraph reply to this customer support
+      ticket. Be concrete about the next step.
+
+      Ticket: "{{ input.text }}"
+      Category: {{ input.category }}
+      Priority: {{ input.priority }}
+    output:
+      schema:
+        reply: "string"
+
+  - name: urgent_only
+    type: filter
+    prompt: |
+      Should this ticket be escalated to the on-call team right now? Escalate
+      only genuinely high-priority, time-sensitive, or security-related issues.
+
+      Ticket: "{{ input.text }}"
+      Priority: {{ input.priority }}
+    output:
+      schema:
+        keep: "boolean"
+
+pipeline:
+  steps:
+    - name: triage
+      input: tickets
+      operations:
+        - classify_tickets
+        - draft_reply
+        - urgent_only
+  output:
+    type: file
+    path: triage_output.json

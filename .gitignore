@@ -80,3 +80,8 @@ node_modules/*
 
 reaction_index/
 *experiments/reasoning/othersystems/biodex/.chroma-biodex/
+
+# Progress-visualization TUI (issue #487): committed demo fixtures + real screenshots
+!tests/tui_demo/pipeline.yaml
+!tests/tui_demo/tickets.json
+!docs/design/screenshots/*.png

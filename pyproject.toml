@@ -122,6 +122,9 @@ dev = [
   "pytest-xdist>=3.6.1",
   "types-pyyaml>=6.0.12.20250516",
   "types-requests>=2.32.4.20250611",
+  # Used by tests/tui_real_run.py and tests/tui_screenshots.py to export the
+  # Textual SVG screenshots to PNG.
+  "cairosvg>=2.7.0",
 ]
 
 [build-system]

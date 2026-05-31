@@ -284,13 +284,34 @@ tool and integrates with the existing Rich renderables.
 
 ## 8. Testing
 
-- Unit: tracker thread-safety under concurrent emits; provenance edges for
-  split/filter/reduce/equijoin.
-- Integration: run a small real pipeline (OpenAI keys available) — e.g. a map over
-  ~20 docs — and snapshot the event stream; assert counts/costs reconcile with
-  `total_cost`.
-- Manual: drive the TUI via the `run`/`verify` skill; screenshot at small and
-  synthetic-large (40k stub docs) scale to validate the scaling modes.
+Status: **done** (except provenance, which is unimplemented — see below).
+
+- Unit — `tests/test_progress_tracker.py`: tracker lifecycle, tick capping,
+  cell-status synthesis, the `RichLoopBar` active-tracker hook, `to_dict`
+  serialization, and **thread-safety** (no lost updates under 12 concurrent
+  tick/error threads; a reader snapshotting concurrently never sees the count go
+  backwards). Run with `uv run pytest tests/test_progress_tracker.py`.
+- Integration — `tests/test_tui_integration.py`: runs a real two-op (map +
+  filter) pipeline through `DSLRunner` with **real `gpt-4.1-nano` calls** and
+  asserts the tracker reconciles with the runner (per-op counts, `out_count`,
+  and `state.total_cost == runner.total_cost`). Skipped automatically when
+  `OPENAI_API_KEY` is unset.
+- Real screenshots — `tests/tui_real_run.py`: drives the actual `DSLRunner` over
+  `tests/tui_demo/` (20 support tickets, map → map → filter) inside the live
+  Textual app with **real `gpt-4.1-nano` calls** (no stubbed LLM), capturing the
+  screen mid-run, while inspecting a document, and at completion. The captured
+  frames live in `docs/design/screenshots/tui-real-*.png`. Total run cost ≈
+  $0.002. Run with `uv run python tests/tui_real_run.py`.
+- Scale screenshots — `tests/tui_screenshots.py`: drives the real TUI rendering
+  code against *synthetic* run state to exercise the paged/heatmap modes at 40k
+  docs (running 40k real LLM calls would be needlessly expensive). Output:
+  `docs/design/screenshots/tui-scale-heatmap.png`.
+
+> Note: the OpenAI API is reachable from this environment with the configured
+> `OPENAI_API_KEY`; the earlier "host is blocked by the network policy" claim was
+> incorrect, so the screenshot/integration runs use genuine `gpt-4.1-nano` calls.
+> Provenance-edge tests (`split`/`reduce`/`equijoin` lineage) are intentionally
+> absent because that lineage is not yet implemented (see §3.2).
 
 ## 9. Risks & open questions
 

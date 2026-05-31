@@ -1,0 +1,4 @@
+# Generated pipeline output / cache from local runs
+triage_output.json
+intermediates/
+.docetl/

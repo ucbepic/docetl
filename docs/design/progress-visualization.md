@@ -4,8 +4,14 @@ Status: **Proposal / for review** — no implementation yet.
 
 ## 1. Goal
 
-Replace today's scrolling wall of log text with a full-screen, interactive
-progress view for a pipeline run — inspired by Claude Code's `/workflows` screen:
+Add a full-screen, interactive progress view for a pipeline run — inspired by
+Claude Code's `/workflows` screen.
+
+Today's output is functional but **coarse**: a query plan, an in-place `tqdm`
+progress bar per operation (counts only — `n/total`), `✓` log lines, and a summary
+panel; the web UI re-renders that same console buffer as ANSI text. It works, but
+it gives no per-document visibility and no way to browse a doc's input, output,
+prompt, or provenance. The goal is a richer, browsable view:
 
 - A left panel listing pipeline **steps → operations** with live status, progress
   counts, cost, tokens, and elapsed time.
@@ -44,8 +50,9 @@ We target **both** surfaces: an interactive terminal TUI and the existing web UI
    wires it; `rank` uses a throwaway `_docetl_id`. The runner keeps no
    input→output lineage.
 
-The dot-grid cannot be bolted onto the text stream. The linchpin is a structured
-telemetry layer that both UIs consume. **Foundation first.**
+The dot-grid cannot be bolted onto the current output, because there is no
+per-document signal to drive it — only aggregate `n/total` counts. The linchpin is
+a structured telemetry layer that both UIs consume. **Foundation first.**
 
 ## 3. Architecture
 

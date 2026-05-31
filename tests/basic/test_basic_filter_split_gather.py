@@ -216,7 +216,7 @@ def equijoin_config():
         "name": "user_data_join",
         "type": "equijoin",
         "blocking_keys": {"left": ["id"], "right": ["user_id"]},
-        "comparison_prompt": "Compare the following two entries and determine if they are the same id: Left: {{ left.id }} Right: {{ right.user_id }}",
+        "comparison_prompt": "Do these two records refer to the same user? Answer true if and only if the two id numbers are exactly equal, and false otherwise. Left id: {{ left.id }}. Right id: {{ right.user_id }}.",
         "embedding_model": "text-embedding-3-small",
         "comparison_model": "gpt-4o-mini",
     }

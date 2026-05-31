@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import AnsiRenderer from "./AnsiRenderer";
+import { PipelineProgress } from "./PipelineProgress";
 import clsx from "clsx";
 import {
   BarChart,
@@ -503,9 +504,12 @@ export const Output = memo(() => {
     );
   }, [operation]);
 
-  // Effect for tab changes - switch to console when loading or decomposing
+  // Effect for tab changes - show live progress while a run is in flight,
+  // the console while decomposing, and the table once results are ready.
   useEffect(() => {
-    if (isLoadingOutputs || isDecomposing) {
+    if (isLoadingOutputs) {
+      setActiveTab("progress");
+    } else if (isDecomposing) {
       setActiveTab("console");
     } else {
       setActiveTab("table");
@@ -688,6 +692,14 @@ export const Output = memo(() => {
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="table">Table</TabsTrigger>
+                <TabsTrigger value="progress" className="flex items-center">
+                  Progress
+                  {readyState === WebSocket.OPEN && (
+                    <span className="ml-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </span>
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="visualize" disabled={!isResolveOrReduce}>
                   Visualize Input Distribution
                 </TabsTrigger>
@@ -795,6 +807,12 @@ export const Output = memo(() => {
             className="h-full data-[state=active]:flex flex-col"
           >
             <ConsoleContent />
+          </TabsContent>
+          <TabsContent
+            value="progress"
+            className="h-full data-[state=active]:flex flex-col"
+          >
+            <PipelineProgress />
           </TabsContent>
           <TabsContent
             value="visualize"

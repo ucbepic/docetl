@@ -21,7 +21,6 @@ import threading
 from typing import TYPE_CHECKING
 
 from rich.console import Group
-from rich.panel import Panel
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -54,6 +53,7 @@ class DocetlTUI(App):
     #ops { width: 40; border: round $primary; padding: 0 1; }
     #middle { border: round $primary; padding: 0 1; }
     #detail { width: 52; border: round $accent; padding: 0 1; }
+    #ops, #middle, #detail { border-title-align: center; border-title-color: $text-muted; }
     #grid_title { height: 1; color: $text-muted; }
     #grid { height: 1fr; }
     """
@@ -170,15 +170,28 @@ class DocetlTUI(App):
     def render_all(self) -> None:
         state = self.tracker.snapshot()
         try:
-            self.query_one("#ops", Static).update(self._render_ops(state))
+            ops = self.query_one("#ops", Static)
+            ops.update(self._render_ops(state))
+            ops.border_title = "Operations" + (" ◀" if self.focus_pane == "ops" else "")
+
+            op = self._selected_op()
+            middle = self.query_one("#middle")
+            middle.border_title = (
+                (f"{op.op_type}:{op.name.split('/')[-1]}" if op else "Documents")
+                + (" ◀" if self.focus_pane == "grid" else "")
+            )
             self.query_one("#grid_title", Static).update(self._render_grid_title(state))
             self.query_one("#grid", Static).update(self._render_grid(state))
-            self.query_one("#detail", Static).update(self._render_detail(state))
+
+            detail = self.query_one("#detail", Static)
+            title, body = self._render_detail(state)
+            detail.update(body)
+            detail.border_title = title
         except Exception:
             # Widgets may not be mounted on the very first tick.
             pass
 
-    def _render_ops(self, state: RunState) -> Panel:
+    def _render_ops(self, state: RunState) -> Group:
         head = Text()
         head.append("DocETL pipeline\n", style="bold")
         head.append(f"{state.done_ops}/{len(state.ops)} ops", style="grey70")
@@ -233,8 +246,7 @@ class DocetlTUI(App):
                 body.append_text(sub)
                 body.append("\n")
 
-        title = "Operations" + (" ◀" if self.focus_pane == "ops" else "")
-        return Panel(Group(head, body), title=title, border_style="cyan")
+        return Group(head, body)
 
     def _render_grid_title(self, state: RunState) -> Text:
         op = self._selected_op()
@@ -242,12 +254,9 @@ class DocetlTUI(App):
             return Text("")
         prof = get_profile(op.op_type)
         t = Text()
-        t.append(f"{op.op_type}:{op.name.split('/')[-1]}", style="bold")
         if op.status == "done" and op.out_count is not None:
-            t.append("   ")
             t.append(f"{op.out_count:,} {prof.doc_unit}", style="grey70")
         elif op.total:
-            t.append("   ")
             t.append(f"{op.completed:,}/{op.total:,} {prof.unit}", style="grey70")
         t.append("   ")
         t.append(op.status, style=_STATUS_STYLE[op.status])
@@ -328,15 +337,14 @@ class DocetlTUI(App):
                 out.append("\n")
         return out
 
-    def _render_detail(self, state: RunState) -> Panel:
+    def _render_detail(self, state: RunState) -> tuple[str, Group | Text]:
         op = self._selected_op()
         if op is None:
-            return Panel(Text(""), title="Detail", border_style="magenta")
+            return "Detail", Text("")
 
         if self.focus_pane != "grid":
             # Operation-level summary.
             body = Text()
-            body.append(f"{op.op_type}:{op.name.split('/')[-1]}\n\n", style="bold")
             body.append(f"step:    {op.step}\n", style="grey70")
             body.append(f"model:   {op.model}\n", style="grey70")
             body.append(f"status:  {op.status}\n", style=_STATUS_STYLE[op.status])
@@ -357,7 +365,7 @@ class DocetlTUI(App):
                 for line in prof.summary(op):
                     body.append_text(line)
             body.append("\nTab → grid, then ↑↓←→ to inspect documents.", style="dim")
-            return Panel(body, title="Operation", border_style="magenta")
+            return "Operation", body
 
         # Document-level detail under the grid cursor.
         if self._mode == "heatmap":
@@ -365,17 +373,14 @@ class DocetlTUI(App):
             lo = self.cursor * bucket
             hi = min(op.grid_count, lo + bucket)
             body = Text()
-            body.append(f"Bucket {self.cursor}\n\n", style="bold")
             body.append(f"docs {lo:,}–{hi - 1:,} ({hi - lo} docs)\n", style="grey70")
             done = max(0, min(hi - lo, op.completed - lo))
             body.append(f"{done}/{hi - lo} complete\n", style="green")
             body.append("\n(zoom not available in heatmap mode)", style="dim")
-            return Panel(body, title="Detail", border_style="magenta")
+            return f"Bucket {self.cursor}", body
 
         abs_idx = self.page * self._capacity + self.cursor
-        return Panel(
-            self._render_doc(op, abs_idx), title=f"Document #{abs_idx}", border_style="magenta"
-        )
+        return f"Document #{abs_idx}", self._render_doc(op, abs_idx)
 
     def _render_doc(self, op: OpState, idx: int) -> Group:
         if idx >= op.grid_count:

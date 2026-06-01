@@ -81,6 +81,20 @@ def test_set_phase_resets_to_the_real_unit_count():
     assert op.total == 5 and op.completed == 0
 
 
+def test_add_outputs_streams_documents_during_run():
+    # Finished docs are appended to the current op's sample as they complete,
+    # so the detail pane can show them before the whole op finishes.
+    t = ProgressTracker()
+    t.op_start("op", "map", None, total=5)
+    t.add_outputs([{"x": 1}])
+    t.add_outputs([{"x": 2}, {"x": 3}])
+    op = t.snapshot().get("op")
+    assert [d["x"] for d in op.outputs] == [1, 2, 3]
+    op.sample_cap = 3  # never grows past the cap
+    t.add_outputs([{"x": 4}])
+    assert len(op.outputs) == 3
+
+
 def test_active_tracker_hook():
     t = ProgressTracker()
     set_active_tracker(t)

@@ -108,6 +108,21 @@ class ProgressTracker:
                 op.completed = op.total
         self._notify()
 
+    def add_outputs(self, items: list[dict]) -> None:
+        """Append finished documents to the current op's output sample as they
+        complete, so the detail pane can show them mid-run instead of only once
+        the whole operation finishes. Capped at ``sample_cap``."""
+        if not items:
+            return
+        with self._lock:
+            op = self._current
+            if op is None:
+                return
+            room = op.sample_cap - len(op.outputs)
+            if room > 0:
+                op.outputs.extend(items[:room])
+        self._notify()
+
     def doc_error(self, n: int = 1) -> None:
         with self._lock:
             if self._current is not None:

@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 
 # Status -> (glyph, rich color)
 _DOT = "●"
+_EMPTY = "○"  # not-yet-done cell: an outline circle the same size as a filled one
 _STATUS_STYLE = {
     "done": "green",
     "running": "yellow",
@@ -300,7 +301,7 @@ class DocetlTUI(App):
                 err = max(0, min(n, op.errors - lo))
                 frac = done / n if n else 0
                 style = _heat_style(frac, err > 0)
-                glyph = _DOT if frac > 0 else "·"
+                glyph = _DOT if frac > 0 else _EMPTY
                 if cell == self.cursor and self.focus_pane == "grid":
                     out.append(glyph, style=style + " reverse")
                 else:
@@ -317,7 +318,7 @@ class DocetlTUI(App):
         for i, idx in enumerate(range(start, end)):
             st = op.cell_status(idx, running_band)
             style = _STATUS_STYLE[st]
-            glyph = _DOT if st != "queued" else "·"
+            glyph = _DOT if st != "queued" else _EMPTY
             if i == self.cursor and self.focus_pane == "grid":
                 out.append(glyph, style=style + " reverse")
             else:

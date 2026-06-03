@@ -85,4 +85,5 @@ reaction_index/
 !tests/tui_demo/*.yaml
 !tests/tui_demo/*.json
 tests/tui_demo/*_output.json
-!.github/screenshots/*.png
+!docs/assets/progress-view/*.png
+!docs/assets/progress-view/*.mp4

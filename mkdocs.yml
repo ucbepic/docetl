@@ -27,6 +27,8 @@ nav:
           - Optimization: concepts/optimization.md
       - Retrieval:
           - Retrievers: retrievers.md
+      - Running Pipelines:
+          - Interactive Progress View: execution/interactive-progress.md
       - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md

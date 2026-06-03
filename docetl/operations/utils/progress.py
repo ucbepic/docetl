@@ -37,53 +37,53 @@ class RichLoopBar:
         except TypeError:
             return None
 
-    def _sync_tracker_phase(self) -> None:
-        """Tell the interactive tracker how many units this bar will tick.
-
-        A no-op outside TUI runs. This makes the progress denominator reflect
-        what is actually iterated (e.g. groups for reduce, comparisons for
-        resolve) rather than the raw input-doc count.
-        """
-        if self.total is None:
-            return
+    def _active_tracker(self):
         from docetl.progress.tracker import active_tracker
 
-        tracker = active_tracker()
-        if tracker is not None:
-            tracker.set_phase(self.total)
+        return active_tracker()
 
     def __iter__(self) -> Iterable:
+        tracker = self._active_tracker()
+        if tracker is not None:
+            # Interactive TUI run: it draws its own progress, so skip tqdm
+            # entirely (tqdm's terminal/lock setup conflicts with Textual).
+            tracker.set_phase(self.total)
+            self.tqdm = None
+            yield from self.iterable
+            return
         self.tqdm = tqdm(
             self.iterable,
             total=self.total,
             desc=self.description,
             file=self.console.file,
         )
-        self._sync_tracker_phase()
         for item in self.tqdm:
             yield item
 
     def __enter__(self) -> "RichLoopBar":
+        tracker = self._active_tracker()
+        if tracker is not None:
+            tracker.set_phase(self.total)
+            self.tqdm = None
+            return self
         self.tqdm = tqdm(
             total=self.total,
             desc=self.description,
             leave=self.leave,
             file=self.console.file,
         )
-        self._sync_tracker_phase()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.tqdm.close()
+        if self.tqdm is not None:
+            self.tqdm.close()
 
     def update(self, n: int = 1) -> None:
-        if self.tqdm:
+        if self.tqdm is not None:
             self.tqdm.update(n)
         # Feed the interactive progress tracker, if one is active for this run.
         # This is a no-op (and near-zero cost) outside of TUI runs.
-        from docetl.progress.tracker import active_tracker
-
-        tracker = active_tracker()
+        tracker = self._active_tracker()
         if tracker is not None:
             tracker.tick(n)
 

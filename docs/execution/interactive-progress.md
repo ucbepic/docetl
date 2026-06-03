@@ -23,11 +23,14 @@ First install the optional `tui` extra (it pulls in the
 pip install "docetl[tui]"
 ```
 
-Then add `interactive_ui: true` to the `pipeline` section of your config:
+Then add `interactive_ui: true` at the top level of your config (next to
+`default_model`):
 
 ```yaml
+default_model: gpt-4.1-nano
+interactive_ui: true
+
 pipeline:
-  interactive_ui: true
   steps:
     - name: themes
       input: reviews

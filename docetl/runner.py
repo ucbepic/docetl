@@ -96,6 +96,9 @@ class DSLRunner(ConfigWrapper):
             retrievers: dict[str, Any] | None
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
+            # When true (and stdout is a TTY), launch the full-screen interactive
+            # progress view for this run (requires the optional ``tui`` extra).
+            interactive_ui: bool = False
 
         return Pipeline
 
@@ -122,8 +125,8 @@ class DSLRunner(ConfigWrapper):
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
         )
         # Interactive progress TUI state. ``progress_tracker`` is only set while
-        # an interactive run is active; the TUI is enabled by the YAML
-        # ``pipeline.interactive_ui`` flag.
+        # an interactive run is active; the TUI is enabled by the top-level
+        # ``interactive_ui`` flag in the config.
         self.progress_tracker = None
         self._tui_active = False
         self._initialize_state()
@@ -517,14 +520,15 @@ class DSLRunner(ConfigWrapper):
     def _should_use_tui(self) -> bool:
         """Decide whether to launch the interactive TUI for this run.
 
-        Enabled by the YAML ``pipeline.interactive_ui`` flag. The TUI requires
-        an interactive terminal; otherwise we fall back to plain logging.
+        Enabled by the top-level ``interactive_ui`` flag in the config (alongside
+        ``default_model``). The TUI requires an interactive terminal; otherwise
+        we fall back to plain logging.
         """
         import sys
 
         if self._tui_active:
             return False
-        if not self.config.get("pipeline", {}).get("interactive_ui", False):
+        if not self.config.get("interactive_ui", False):
             return False
         if not (sys.stdout.isatty() and sys.stdin.isatty()):
             self.console.log(

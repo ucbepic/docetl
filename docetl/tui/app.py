@@ -201,6 +201,11 @@ class DocetlTUI(App):
         head.append(f"{_fmt_dur(state.elapsed)}\n", style="grey70")
         if self.error is not None:
             head.append("✗ failed\n", style="bold red")
+            head.append(
+                _trunc(f"{type(self.error).__name__}: {self.error}", 240) + "\n",
+                style="red",
+            )
+            head.append("press q to quit and see the full traceback\n", style="dim")
         elif state.finished:
             head.append("✓ complete\n", style="bold green")
 
@@ -513,6 +518,17 @@ def run_with_tui(runner: "DSLRunner") -> float:
     Returns the total pipeline cost. Console output from the runner is silenced
     during the TUI so it doesn't corrupt the full-screen display.
     """
+    # tqdm lazily builds a *multiprocessing* write-lock on first use, which
+    # spawns a helper process; under Textual's control of the terminal that
+    # fork_exec fails ("bad value(s) in fds_to_keep") and kills the run. Pin
+    # tqdm to a plain thread lock so any progress bar created while the
+    # pipeline runs in the worker thread is safe.
+    import threading
+
+    from tqdm import tqdm as _tqdm
+
+    _tqdm.set_lock(threading.RLock())
+
     tracker = ProgressTracker(concurrency=min(runner.max_threads or 1, 64))
     runner.progress_tracker = tracker
     runner._tui_active = True

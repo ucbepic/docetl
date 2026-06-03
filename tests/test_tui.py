@@ -112,6 +112,33 @@ def test_active_tracker_hook():
     assert active_tracker() is None
 
 
+def test_should_use_tui_reads_top_level_flag(monkeypatch):
+    # interactive_ui lives at the top level of the config (next to
+    # default_model), not under `pipeline`.
+    import sys
+
+    from docetl.runner import DSLRunner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
+
+    runner = DSLRunner(
+        {
+            "default_model": "gpt-4o-mini",
+            "operations": [],
+            "pipeline": {"steps": [], "output": {"path": "/tmp/x.json"}},
+        },
+        max_threads=2,
+    )
+    assert runner._should_use_tui() is False  # absent -> off
+    runner.config["interactive_ui"] = True
+    assert runner._should_use_tui() is True  # top level -> on
+    # the old nested location is ignored
+    runner.config["interactive_ui"] = False
+    runner.config["pipeline"]["interactive_ui"] = True
+    assert runner._should_use_tui() is False
+
+
 def test_runstate_to_dict():
     s = RunState(run_id="abc")
     s.register(OpState("s", "s/op", "map", "m"))

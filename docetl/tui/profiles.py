@@ -32,6 +32,11 @@ from docetl.progress.events import OpState
 class OpProfile:
     unit: str = "docs"
     doc_unit: str = "docs"
+    # While running, does the progress count map 1:1 to documents? True for
+    # map/filter/reduce/split (docs/groups/chunks). False for resolve/equijoin,
+    # which count *comparisons* — there the document grid can't be drawn until
+    # the operation finishes, so we show a "?" instead of a misleading grid.
+    grid_is_docs: bool = True
     provenance: Callable[[OpState, dict], str | None] | None = None
     consumed_keys: Callable[[dict], set[str]] | None = None
     summary: Callable[[OpState], list[Text]] | None = None
@@ -99,8 +104,8 @@ _DEFAULT = OpProfile()
 _PROFILES: dict[str, OpProfile] = {
     "filter": OpProfile(doc_unit="kept docs", summary=_filter_summary),
     "reduce": OpProfile(unit="groups", doc_unit="groups", provenance=_reduce_provenance),
-    "resolve": OpProfile(unit="comparisons", doc_unit="records"),
-    "equijoin": OpProfile(unit="comparisons", doc_unit="pairs"),
+    "resolve": OpProfile(unit="comparisons", doc_unit="records", grid_is_docs=False),
+    "equijoin": OpProfile(unit="comparisons", doc_unit="pairs", grid_is_docs=False),
     "split": OpProfile(
         doc_unit="chunks", provenance=_split_provenance, consumed_keys=_split_consumed
     ),

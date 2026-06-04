@@ -208,6 +208,7 @@ class DocetlTUI(App):
             head.append("press q to quit and see the full traceback\n", style="dim")
         elif state.finished:
             head.append("✓ complete\n", style="bold green")
+            head.append("press q to exit\n", style="bold yellow")
 
         body = Text()
         last_step = None
@@ -263,6 +264,8 @@ class DocetlTUI(App):
             t.append(f"{op.out_count:,} {prof.doc_unit}", style="grey70")
         elif op.total:
             t.append(f"{op.completed:,}/{op.total:,} {prof.unit}", style="grey70")
+        else:
+            t.append("? docs", style="grey62")  # count not known yet
         t.append("   ")
         t.append(op.status, style=_STATUS_STYLE[op.status])
         if self._mode == "heatmap":
@@ -274,10 +277,31 @@ class DocetlTUI(App):
         return t
 
     def _render_grid(self, state: RunState) -> Text:
+        # Reset paging state first so a no-grid op can't leave a stale
+        # "page 1/3" in the title from a previously-selected operation.
+        self._mode, self._page_count, self._page_cells = "cells", 1, 0
         op = self._selected_op()
-        if op is None or not op.grid_count:
-            self._page_cells = 0
-            return Text("(no documents yet)", style="grey42")
+        if op is None:
+            return Text("")
+
+        # Only draw the per-document grid when we actually know a document count:
+        # the op has finished (we have its outputs), or its live progress counts
+        # documents. Otherwise show a "?" rather than an empty or misleading grid.
+        prof = get_profile(op.op_type)
+        if not self._grid_shows_docs(op):
+            out = Text()
+            out.append("?\n\n", style="bold yellow")
+            if op.status == "done":
+                out.append("no documents", style="grey42")
+            elif not prof.grid_is_docs:
+                out.append(
+                    f"document count not known yet — {op.op_type} reports progress\n"
+                    f"as {prof.unit}; documents appear once it finishes",
+                    style="grey54",
+                )
+            else:
+                out.append("document count not known yet", style="grey54")
+            return out
 
         size = self.query_one("#grid", Static).size
         width = max(10, size.width)
@@ -342,12 +366,21 @@ class DocetlTUI(App):
                 out.append("\n")
         return out
 
+    def _grid_shows_docs(self, op: OpState) -> bool:
+        """Whether the document grid can be drawn for this op: it has finished
+        (so we have outputs) or its live progress counts documents."""
+        return bool(op.grid_count) and (
+            op.status == "done" or get_profile(op.op_type).grid_is_docs
+        )
+
     def _render_detail(self, state: RunState) -> tuple[str, Group | Text]:
         op = self._selected_op()
         if op is None:
             return "Detail", Text("")
 
-        if self.focus_pane != "grid":
+        # Show the operation summary when the ops pane is focused, or when there
+        # are no enumerable documents to inspect (the grid is a "?").
+        if self.focus_pane != "grid" or not self._grid_shows_docs(op):
             # Operation-level summary.
             body = Text()
             body.append(f"step:    {op.step}\n", style="grey70")
@@ -553,7 +586,20 @@ def run_with_tui(runner: "DSLRunner") -> float:
 
     if app.error is not None:
         raise app.error
-    return app.result_cost or 0.0
+
+    # Back in the normal terminal: print a short summary of the finished run.
+    from rich.panel import Panel
+
+    cost = app.result_cost or 0.0
+    try:
+        out_path = runner.get_output_path(require=False)
+    except Exception:
+        out_path = None
+    summary = f"Cost: [green]${cost:.4f}[/green]"
+    if out_path:
+        summary += f"\nOutput: [dim]{out_path}[/dim]"
+    saved_console.log(Panel(summary, title="Run complete"))
+    return cost
 
 
 class _QuietConsole:

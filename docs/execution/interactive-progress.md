@@ -97,7 +97,9 @@ is (for example, "chunk 2 of 5"):
 
 ![Split showing chunks](../assets/progress-view/tui-split-chunks.png)
 
-**Resolve** and **equijoin** count comparisons as they are made:
+**Resolve** and **equijoin** count comparisons as they are made. Their output
+documents aren't known until the operation finishes, so while it runs the header
+counts comparisons and the grid shows a `?`:
 
 ![Resolve showing comparisons](../assets/progress-view/tui-resolve-comparisons.png)
 

@@ -9,10 +9,7 @@ When using the Python API, `pipeline.optimize()` returns a `MOARResult` object w
 ### MOARResult
 
 ```python
-result = pipeline.optimize(
-    eval_fn="evaluate.py",
-    metric_key="score",
-)
+result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
 
 result.best()      # OptimizedPipeline with highest accuracy on the frontier
 result.cheapest()  # OptimizedPipeline with lowest cost on the frontier
@@ -60,7 +57,7 @@ best.pipeline           # DSLRunner instance
 
 ```python
 # Choose based on your priorities
-result = pipeline.optimize(eval_fn="evaluate.py", metric_key="score")
+result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
 
 # Highest accuracy
 best = result.best()

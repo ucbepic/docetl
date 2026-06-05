@@ -215,9 +215,11 @@ class Pipeline:
         **MOAR parameters** (``method="moar"``):
 
         Args:
-            eval_fn: Evaluation function ``(results_file_path: str) -> dict``
-                or path to a Python file with a ``@docetl.register_eval``
-                decorated function. **Required** for MOAR.
+            eval_fn: A callable that scores pipeline output. Accepts
+                ``(results_path) -> dict`` (1-arg) or
+                ``(dataset_path, results_path) -> dict`` (2-arg).
+                Also accepts a file path to a ``@register_eval``-decorated
+                function. **Required** for MOAR.
             metric_key: Key to extract from the eval function's return dict.
                 **Required** for MOAR.
             models: Model names to search over. ``None`` = auto-detect from
@@ -241,10 +243,13 @@ class Pipeline:
         Examples::
 
             # MOAR optimization (recommended)
-            result = pipeline.optimize(
-                eval_fn=lambda path: {"score": compute_score(path)},
-                metric_key="score",
-            )
+            def my_eval(results_path):
+                import json
+                with open(results_path) as f:
+                    results = json.load(f)
+                return {"score": sum(1 for r in results if r["correct"])}
+
+            result = pipeline.optimize(eval_fn=my_eval, metric_key="score")
 
             # Each frontier point is a runnable pipeline
             best = result.best()
@@ -261,8 +266,8 @@ class Pipeline:
             if eval_fn is None:
                 raise ValueError(
                     "eval_fn is required for MOAR optimization. "
-                    "Pass a callable (results_file_path: str) -> dict, "
-                    "or a path to a file with a @docetl.register_eval function."
+                    "Pass a callable, e.g.: "
+                    "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
                 )
             if metric_key is None:
                 raise ValueError(

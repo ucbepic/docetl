@@ -30,10 +30,7 @@ When optimizing pipelines, you trade off cost and accuracy. MOAR explores many d
 3. **Run optimization** — Call `pipeline.optimize()` with your eval function:
 
     ```python
-    result = pipeline.optimize(
-        eval_fn="evaluate.py",
-        metric_key="score",
-    )
+    result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
     ```
 
     Or via CLI: `docetl build pipeline.yaml`

@@ -50,8 +50,14 @@ Pipeline(
 The single entry point for pipeline optimization. MOAR is the default (and recommended) method.
 
 ```python
+def my_eval(results_path):
+    import json
+    with open(results_path) as f:
+        results = json.load(f)
+    return {"score": sum(1 for r in results if r.get("correct"))}
+
 result = pipeline.optimize(
-    eval_fn="evaluate.py",           # Required — path or callable
+    eval_fn=my_eval,                 # Required — a callable
     metric_key="score",              # Required — key in eval results dict
     models=None,                     # Auto-detect from API keys
     agent_model=None,                # Auto-select best available
@@ -64,7 +70,7 @@ result = pipeline.optimize(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `eval_fn` | `str \| Callable` | *required* | Path to `@register_eval` file, or a callable `(path) -> dict` |
+| `eval_fn` | `Callable` | *required* | A function `(results_path) -> dict` or `(dataset_path, results_path) -> dict`. Also accepts a file path string for CLI compatibility. |
 | `metric_key` | `str` | *required* | Key in evaluation results to optimize |
 | `models` | `list[str] \| None` | `None` | LiteLLM model names. Auto-detected from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AZURE_API_KEY`. |
 | `agent_model` | `str \| None` | `None` | Model for directive instantiation. Auto-selected. |
@@ -89,7 +95,7 @@ Returned by `pipeline.optimize()`. Provides access to the Pareto frontier of opt
 | `to_df()` | `pandas.DataFrame` | DataFrame of all explored plans |
 
 ```python
-result = pipeline.optimize(eval_fn="evaluate.py", metric_key="score")
+result = pipeline.optimize(eval_fn=my_eval, metric_key="score")
 
 best = result.best()
 best.run()  # Execute the best pipeline

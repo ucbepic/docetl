@@ -69,10 +69,7 @@ No `--optimizer` flag needed -- MOAR is the default.
 #### Python API (Recommended)
 
 ```python
-result = pipeline.optimize(
-    eval_fn="evaluate.py",
-    metric_key="score",
-)
+result = pipeline.optimize(eval_fn=my_eval_function, metric_key="score")
 best = result.best()
 best.run()
 ```

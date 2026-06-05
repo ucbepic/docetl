@@ -7,8 +7,14 @@ Complete reference for all MOAR configuration options, covering both the Python 
 When calling `pipeline.optimize()`, MOAR is the default method:
 
 ```python
+def my_eval(results_path):
+    import json
+    with open(results_path) as f:
+        results = json.load(f)
+    return {"score": sum(1 for r in results if r.get("correct"))}
+
 result = pipeline.optimize(
-    eval_fn="evaluate.py",        # Required
+    eval_fn=my_eval,              # Required — a callable
     metric_key="score",           # Required
     models=None,                  # Optional — auto-detected from API keys
     agent_model=None,             # Optional — auto-selected best available
@@ -23,7 +29,7 @@ result = pipeline.optimize(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `eval_fn` | `str \| Callable` | Path to Python file containing `@register_eval` decorated function, or a callable |
+| `eval_fn` | `Callable` | A function that scores pipeline output. 1-arg: `(results_path) -> dict`. 2-arg: `(dataset_path, results_path) -> dict` (dataset path is curried automatically). Also accepts a file path string for CLI compatibility. |
 | `metric_key` | `str` | Key in evaluation results dictionary to use as accuracy metric |
 
 ### Optional Parameters

@@ -61,60 +61,78 @@ Start with a standard DocETL pipeline. You can define it in Python or YAML.
 !!! note "Standard Pipeline"
     Your pipeline doesn't need any special configuration for MOAR. Just create a normal DocETL pipeline.
 
-## Step 2: Create an Evaluation Function
+## Step 2: Write an Evaluation Function
 
-Create a Python file with an evaluation function. This function will be called for each pipeline configuration that MOAR explores.
+Write a Python function that scores pipeline output. MOAR calls this function for each pipeline configuration it explores.
 
 !!! info "How Evaluation Works"
-    - Your function receives the pipeline output and the original dataset
-    - You compute evaluation metrics by comparing the output to the dataset
+    - Your function receives the path to the pipeline's output JSON file
+    - You load the results file and compute evaluation metrics
     - You return a dictionary of metrics
     - MOAR uses one specific key from this dictionary (specified by `metric_key`) as the accuracy metric to optimize
 
-```python
-# evaluate_medications.py
-import json
-from typing import Any, Dict
-from docetl.utils_evaluation import register_eval
+=== "Python API"
 
-@register_eval
-def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str, Any]:
-    """
-    Evaluate pipeline output against the original dataset.
-    """
-    # Load pipeline output
-    with open(results_file_path, 'r') as f:
-        output = json.load(f)
-    
-    # Load original dataset for comparison
-    with open(dataset_file_path, 'r') as f:
-        dataset = json.load(f)
-    
-    # Compute your evaluation metrics
-    correct_count = 0
-    total_count = len(output)
-    
-    for idx, result in enumerate(output):
-        original_text = result.get("src", "").lower()
-        extracted_items = result.get("medication", [])
-        
-        for item in extracted_items:
-            if item.lower() in original_text:
-                correct_count += 1
-    
-    return {
-        "medication_extraction_score": correct_count,
-        "total_extracted": total_count,
-        "precision": correct_count / total_count if total_count > 0 else 0.0,
-    }
-```
+    Just define a regular Python function:
 
-!!! warning "Important Requirements"
-    - The function must be decorated with `@register_eval`
-    - It must take exactly two arguments: `dataset_file_path` and `results_file_path`
-    - It must return a dictionary with numeric metrics
-    - The `metric_key` must match one of the keys in this dictionary
-    - Only one function per file can be decorated with `@register_eval`
+    ```python
+    import json
+
+    def evaluate(results_path):
+        with open(results_path) as f:
+            output = json.load(f)
+
+        correct_count = 0
+        for result in output:
+            original_text = result.get("src", "").lower()
+            for item in result.get("medication", []):
+                if item.lower() in original_text:
+                    correct_count += 1
+
+        return {
+            "medication_extraction_score": correct_count,
+            "total_extracted": len(output),
+        }
+    ```
+
+    If you need access to the original dataset, use a two-argument signature — the dataset path is passed automatically:
+
+    ```python
+    def evaluate(dataset_path, results_path):
+        with open(results_path) as f:
+            output = json.load(f)
+        with open(dataset_path) as f:
+            dataset = json.load(f)
+        # compare output to dataset...
+        return {"medication_extraction_score": computed_score}
+    ```
+
+=== "CLI (file-based)"
+
+    For CLI usage, create a Python file with a `@register_eval` decorated function:
+
+    ```python
+    # evaluate_medications.py
+    import json
+    from docetl.utils_evaluation import register_eval
+
+    @register_eval
+    def evaluate_results(dataset_file_path: str, results_file_path: str) -> dict:
+        with open(results_file_path) as f:
+            output = json.load(f)
+
+        correct_count = 0
+        for result in output:
+            original_text = result.get("src", "").lower()
+            for item in result.get("medication", []):
+                if item.lower() in original_text:
+                    correct_count += 1
+
+        return {
+            "medication_extraction_score": correct_count,
+            "total_extracted": len(output),
+        }
+    ```
 
 For more details on evaluation functions, see the [Evaluation Functions guide](evaluation.md).
 
@@ -122,21 +140,12 @@ For more details on evaluation functions, see the [Evaluation Functions guide](e
 
 === "Python API (recommended)"
 
-    `pipeline.optimize()` is the single entry point. Only `eval_fn` and `metric_key` are required -- everything else has smart defaults.
+    `pipeline.optimize()` is the single entry point. Pass your evaluation function and the metric key — everything else has smart defaults.
 
     ```python
     result = pipeline.optimize(
-        eval_fn="evaluate_medications.py",
+        eval_fn=evaluate,
         metric_key="medication_extraction_score",
-    )
-    ```
-
-    You can also pass a callable directly:
-
-    ```python
-    result = pipeline.optimize(
-        eval_fn=lambda path: {"score": compute_score(path)},
-        metric_key="score",
     )
     ```
 
@@ -144,7 +153,7 @@ For more details on evaluation functions, see the [Evaluation Functions guide](e
 
     ```python
     result = pipeline.optimize(
-        eval_fn="evaluate_medications.py",
+        eval_fn=evaluate,
         metric_key="medication_extraction_score",
         models=None,              # auto-detect from API keys
         agent_model=None,         # auto-select best available

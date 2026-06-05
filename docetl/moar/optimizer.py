@@ -13,10 +13,12 @@ Usage::
         output=PipelineOutput(type="file", path="output.json"),
     )
 
-    result = pipeline.optimize(
-        eval_fn=lambda results_path: {"score": compute_score(results_path)},
-        metric_key="score",
-    )
+    def my_eval(results_path):
+        with open(results_path) as f:
+            results = json.load(f)
+        return {"score": sum(1 for r in results if r["correct"])}
+
+    result = pipeline.optimize(eval_fn=my_eval, metric_key="score")
 
     # Each point on the frontier is a runnable pipeline
     best = result.best()
@@ -145,10 +147,11 @@ class MOAROptimizer:
         pipeline: A ``Pipeline`` object, a path to a YAML pipeline file (str or
             Path), or a raw config dict. When a ``Pipeline`` is given, it is
             serialized to a temporary YAML file automatically.
-        eval_fn: Evaluation function with signature
-            ``(results_file_path: str) -> dict[str, Any]``.
-            Alternatively, a path to a Python file containing a function
-            decorated with ``@docetl.register_eval``.
+        eval_fn: A callable that scores pipeline output. Two signatures are
+            supported: ``(results_path: str) -> dict`` (1-arg) or
+            ``(dataset_path: str, results_path: str) -> dict`` (2-arg, the
+            dataset path is curried automatically). Also accepts a file
+            path to a ``@register_eval``-decorated function (for CLI use).
         metric_key: Key to extract from the eval function's return dict.
         models: List of model names to search over. If ``None``, auto-detects
             from environment API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY,
@@ -266,8 +269,34 @@ class MOAROptimizer:
         eval_fn: Union[Callable, str, Path],
         dataset_path: Optional[Union[str, Path]],
     ) -> Callable[[str], Dict[str, Any]]:
-        """Accept a callable directly or load from a file path."""
+        """Normalize eval_fn to internal signature ``(results_path) -> dict``.
+
+        Accepts:
+        - A callable with 1 param: ``(results_path) -> dict`` — used as-is.
+        - A callable with 2 params: ``(dataset_path, results_path) -> dict``
+          — dataset_path is curried in automatically.
+        - A file path (str/Path) to a Python file with a ``@register_eval``
+          decorated function (legacy / CLI usage).
+        """
         if callable(eval_fn):
+            import inspect
+
+            sig = inspect.signature(eval_fn)
+            params = [
+                p
+                for p in sig.parameters.values()
+                if p.default is inspect.Parameter.empty
+            ]
+            if len(params) >= 2:
+                ds_path = str(Path(dataset_path).resolve()) if dataset_path else ""
+                if not ds_path:
+                    ds_path, _ = self._infer_dataset_info()
+                captured_ds_path = ds_path
+
+                def _wrapped(results_file_path: str) -> Dict[str, Any]:
+                    return eval_fn(captured_ds_path, results_file_path)
+
+                return _wrapped
             return eval_fn
 
         from docetl.utils_evaluation import load_custom_evaluate_func

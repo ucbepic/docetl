@@ -7,6 +7,9 @@ Use `pipeline.optimize()` to find cost-accuracy trade-offs for your pipeline. MO
 ```python
 from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
 
+import json
+from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+
 pipeline = Pipeline(
     name="medication_extraction",
     datasets={"transcripts": Dataset(type="file", path="medical_transcripts.json")},
@@ -23,9 +26,20 @@ pipeline = Pipeline(
     default_model="gpt-4o-mini",
 )
 
+# Define your evaluation function
+def evaluate(results_path):
+    with open(results_path) as f:
+        output = json.load(f)
+    correct = sum(
+        1 for r in output
+        for med in r.get("medication", [])
+        if med.lower() in r.get("src", "").lower()
+    )
+    return {"medication_extraction_score": correct}
+
 # Optimize — models auto-detected from API keys
 result = pipeline.optimize(
-    eval_fn="evaluate_medications.py",
+    eval_fn=evaluate,
     metric_key="medication_extraction_score",
 )
 
@@ -41,19 +55,12 @@ print(df)
 
 ## Evaluation Function
 
-Create a Python file with a function decorated with `@register_eval`:
+Pass any callable that reads the results file and returns a dict of metrics:
 
 ```python
-# evaluate_medications.py
-import json
-from docetl.utils_evaluation import register_eval
-
-@register_eval
-def evaluate_results(dataset_file_path: str, results_file_path: str) -> dict:
-    with open(results_file_path, 'r') as f:
+def evaluate(results_path):
+    with open(results_path) as f:
         output = json.load(f)
-    with open(dataset_file_path, 'r') as f:
-        dataset = json.load(f)
 
     correct = sum(
         1 for r in output
@@ -61,16 +68,24 @@ def evaluate_results(dataset_file_path: str, results_file_path: str) -> dict:
         if med.lower() in r.get("src", "").lower()
     )
     return {"medication_extraction_score": correct}
+
+result = pipeline.optimize(eval_fn=evaluate, metric_key="medication_extraction_score")
 ```
 
-Or pass a callable directly:
+If you need access to the original dataset, use a two-argument signature — the dataset path is passed automatically:
 
 ```python
-result = pipeline.optimize(
-    eval_fn=lambda path: {"score": my_scoring_function(path)},
-    metric_key="score",
-)
+def evaluate(dataset_path, results_path):
+    with open(results_path) as f:
+        output = json.load(f)
+    with open(dataset_path) as f:
+        dataset = json.load(f)
+    # compare output to dataset...
+    return {"score": computed_score}
 ```
+
+!!! tip "File paths for CLI"
+    The CLI still uses file-based evaluation via `@register_eval`. See the [Evaluation Functions guide](moar/evaluation.md) for that workflow.
 
 ## Configuration Options
 
@@ -78,7 +93,7 @@ All parameters beyond `eval_fn` and `metric_key` are optional:
 
 ```python
 result = pipeline.optimize(
-    eval_fn="evaluate.py",
+    eval_fn=evaluate,                    # Your evaluation function
     metric_key="score",
     models=["gpt-4o", "gpt-4o-mini"],   # Override auto-detection
     agent_model="gpt-4o",                # Override auto-selection
@@ -100,7 +115,7 @@ See the [Configuration Reference](moar/configuration.md) for details.
 ## Working with Results
 
 ```python
-result = pipeline.optimize(eval_fn="evaluate.py", metric_key="score")
+result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
 
 # Best accuracy on the frontier
 best = result.best()

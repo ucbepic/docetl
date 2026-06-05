@@ -20,182 +20,146 @@ def build(
     yaml_file: Path = typer.Argument(
         ..., help="Path to the YAML file containing the pipeline configuration"
     ),
-    optimizer: str = typer.Option(
-        "moar",
-        "--optimizer",
-        "-o",
-        help="Optimizer to use: 'moar' (default) or 'v1' (deprecated)",
-    ),
     max_threads: int | None = typer.Option(
         None, help="Maximum number of threads to use for running operations"
     ),
-    resume: bool = typer.Option(
-        False, help="Resume optimization from a previous build that may have failed"
-    ),
-    save_path: Path = typer.Option(
-        None, help="Path to save the optimized pipeline configuration"
-    ),
 ):
     """
-    Build and optimize the configuration specified in the YAML file.
-    Any arguments passed here will override the values in the YAML file.
+    Optimize a pipeline using MOAR (Multi-Objective Agentic Rewrites).
+
+    Requires an optimizer_config section in the YAML with at least:
+      - evaluation_file: path to a Python file with a @docetl.register_eval function
+      - metric_key: key to extract from evaluation results
+
+    Models are auto-detected from API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY,
+    GEMINI_API_KEY, AZURE_API_KEY) unless available_models is set explicitly.
 
     Args:
-        yaml_file (Path): Path to the YAML file containing the pipeline configuration.
-        optimizer (str): Optimizer to use - 'moar' or 'v1' (required).
-        max_threads (int | None): Maximum number of threads to use for running operations.
-        resume (bool): Whether to resume optimization from a previous run. Defaults to False.
-        save_path (Path): Path to save the optimized pipeline configuration.
+        yaml_file (Path): Path to the YAML pipeline file.
+        max_threads (int | None): Maximum number of threads for operations.
     """
-    # Get the current working directory (where the user called the command)
     cwd = os.getcwd()
 
-    # Load .env file from the current working directory
     env_file = os.path.join(cwd, ".env")
     if os.path.exists(env_file):
         load_dotenv(env_file)
 
-    # Validate optimizer choice
-    if optimizer not in ["moar", "v1"]:
-        typer.echo(
-            f"Error: optimizer must be 'moar' or 'v1', got '{optimizer}'", err=True
-        )
-        raise typer.Exit(1)
-
-    # Load YAML to check for optimizer_config
     import yaml as yaml_lib
 
     with open(yaml_file, "r") as f:
         config = yaml_lib.safe_load(f)
 
-    if optimizer == "moar":
-        optimizer_config = config.get("optimizer_config", {})
-        if not optimizer_config:
-            example_yaml = """optimizer_config:
-  type: moar
-  save_dir: ./moar_results
-  available_models:
-    - gpt-5
-    - gpt-4o
-  evaluation_file: workloads/medical/evaluate_medications.py
-  metric_key: medication_extraction_score
-  max_iterations: 40
-  model: gpt-5"""
+    optimizer_config = config.get("optimizer_config", {})
+    if not optimizer_config:
+        example_yaml = """optimizer_config:
+  evaluation_file: evaluate.py
+  metric_key: score
+  save_dir: ./moar_results       # optional, defaults to temp dir
+  max_iterations: 20              # optional, defaults to 20
+  # available_models:             # optional, auto-detected from API keys
+  #   - gpt-4.1
+  #   - anthropic/claude-sonnet-4-6"""
 
-            error_panel = Panel(
-                f"[bold red]Error:[/bold red] optimizer_config section is required in YAML for MOAR optimizer.\n\n"
-                f"[bold]Example:[/bold]\n"
-                f"[dim]{example_yaml}[/dim]\n\n"
-                f"[yellow]Note:[/yellow] dataset_name is inferred from the 'datasets' section. "
-                f"dataset_path can optionally be specified in optimizer_config, otherwise it's inferred from the 'datasets' section.",
-                title="[bold red]Missing optimizer_config[/bold red]",
-                border_style="red",
-            )
-            console.print(error_panel)
-            raise typer.Exit(1)
-
-        if optimizer_config.get("type") != "moar":
-            error_panel = Panel(
-                f"[bold red]Error:[/bold red] optimizer_config.type must be 'moar', got '[yellow]{optimizer_config.get('type')}[/yellow]'",
-                title="[bold red]Invalid optimizer type[/bold red]",
-                border_style="red",
-            )
-            console.print(error_panel)
-            raise typer.Exit(1)
-
-        # Validate required fields in optimizer_config
-        required_fields = {
-            "save_dir": "Output directory for MOAR results",
-            "available_models": "List of model names to use",
-            "evaluation_file": "Path to evaluation function file",
-            "metric_key": "Key to extract from evaluation results",
-            "max_iterations": "Number of MOARSearch iterations",
-            "model": "LLM model name for directive instantiation",
-        }
-
-        missing_fields = [
-            field for field in required_fields if not optimizer_config.get(field)
-        ]
-        if missing_fields:
-            # Create a table for required fields
-            fields_table = Table(
-                show_header=True, header_style="bold cyan", box=None, padding=(0, 2)
-            )
-            fields_table.add_column("Field", style="yellow")
-            fields_table.add_column("Description", style="dim")
-
-            for field, desc in required_fields.items():
-                style = "bold red" if field in missing_fields else "dim"
-                fields_table.add_row(f"[{style}]{field}[/{style}]", desc)
-
-            # Create example YAML
-            example_yaml = """optimizer_config:
-  type: moar
-  save_dir: ./moar_results
-  available_models:
-    - gpt-5
-    - gpt-4o
-  evaluation_file: workloads/medical/evaluate_medications.py
-  metric_key: medication_extraction_score
-  max_iterations: 40
-  model: gpt-5"""
-
-            missing_list = ", ".join(
-                [f"[bold red]{f}[/bold red]" for f in missing_fields]
-            )
-
-            # Build error content with table rendered separately
-            from rich.console import Group
-
-            error_group = Group(
-                f"[bold red]Missing required fields:[/bold red] {missing_list}\n",
-                "[bold]Required fields:[/bold]",
-                fields_table,
-                f"\n[bold]Example:[/bold]\n[dim]{example_yaml}[/dim]\n",
-                "[yellow]Note:[/yellow] dataset_name is inferred from the 'datasets' section. "
-                "dataset_path can optionally be specified in optimizer_config, otherwise it's inferred from the 'datasets' section.",
-            )
-
-            error_panel = Panel(
-                error_group,
-                title="[bold red]Missing Required Fields[/bold red]",
-                border_style="red",
-            )
-            console.print(error_panel)
-            raise typer.Exit(1)
-
-        # Run MOAR optimization
-        from docetl.moar.cli_helpers import run_moar_optimization
-
-        try:
-            results = run_moar_optimization(
-                yaml_path=str(yaml_file),
-                optimizer_config=optimizer_config,
-            )
-            typer.echo("\n✅ MOAR optimization completed successfully!")
-            typer.echo(f"   Results saved to: {optimizer_config.get('save_dir')}")
-            if results.get("evaluation_file"):
-                typer.echo(f"   Evaluation: {results['evaluation_file']}")
-        except Exception as e:
-            typer.echo(f"Error running MOAR optimization: {e}", err=True)
-            raise typer.Exit(1)
-
-    else:  # v1 optimizer (deprecated)
-        console.print(
-            Panel(
-                "[bold yellow]Warning:[/bold yellow] The V1 optimizer is deprecated. "
-                "Please use MOAR optimizer instead: [bold]docetl build pipeline.yaml --optimizer moar[/bold]",
-                title="[bold yellow]Deprecated Optimizer[/bold yellow]",
-                border_style="yellow",
-            )
+        error_panel = Panel(
+            f"[bold red]Error:[/bold red] optimizer_config section is required in YAML.\n\n"
+            f"[bold]Example:[/bold]\n"
+            f"[dim]{example_yaml}[/dim]",
+            title="[bold red]Missing optimizer_config[/bold red]",
+            border_style="red",
         )
-        runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
-        runner.optimize(
-            save=True,
-            return_pipeline=False,
-            resume=resume,
-            save_path=save_path,
+        console.print(error_panel)
+        raise typer.Exit(1)
+
+    required_fields = {
+        "evaluation_file": "Path to evaluation function file",
+        "metric_key": "Key to extract from evaluation results",
+    }
+
+    missing_fields = [
+        field for field in required_fields if not optimizer_config.get(field)
+    ]
+    if missing_fields:
+        fields_table = Table(
+            show_header=True, header_style="bold cyan", box=None, padding=(0, 2)
         )
+        fields_table.add_column("Field", style="yellow")
+        fields_table.add_column("Description", style="dim")
+
+        for field, desc in required_fields.items():
+            style = "bold red" if field in missing_fields else "dim"
+            fields_table.add_row(f"[{style}]{field}[/{style}]", desc)
+
+        missing_list = ", ".join(
+            [f"[bold red]{f}[/bold red]" for f in missing_fields]
+        )
+
+        from rich.console import Group
+
+        error_group = Group(
+            f"[bold red]Missing required fields:[/bold red] {missing_list}\n",
+            "[bold]Required fields:[/bold]",
+            fields_table,
+        )
+
+        error_panel = Panel(
+            error_group,
+            title="[bold red]Missing Required Fields[/bold red]",
+            border_style="red",
+        )
+        console.print(error_panel)
+        raise typer.Exit(1)
+
+    from docetl.moar.optimizer import MOAROptimizer
+    from docetl.utils_evaluation import load_custom_evaluate_func
+
+    try:
+        # Resolve dataset path for wrapping the eval function
+        dataset_path = optimizer_config.get("dataset_path")
+        if not dataset_path:
+            ds = config.get("datasets", {})
+            if ds:
+                _, ds_cfg = next(iter(ds.items()))
+                dataset_path = ds_cfg.get("path", "")
+
+        eval_fn = load_custom_evaluate_func(
+            optimizer_config["evaluation_file"],
+            dataset_path or "",
+        )
+
+        opt = MOAROptimizer(
+            pipeline=str(yaml_file),
+            eval_fn=eval_fn,
+            metric_key=optimizer_config["metric_key"],
+            models=optimizer_config.get("available_models"),
+            agent_model=optimizer_config.get("rewrite_agent_model")
+            or optimizer_config.get("model"),
+            max_iterations=optimizer_config.get("max_iterations", 20),
+            save_dir=optimizer_config.get("save_dir"),
+            exploration_weight=optimizer_config.get("exploration_weight", 1.414),
+            dataset_path=optimizer_config.get("dataset_path"),
+        )
+        result = opt.optimize()
+
+        typer.echo("\n✅ MOAR optimization completed successfully!")
+        typer.echo(f"   Frontier: {len(result.frontier)} pipelines")
+        best = result.best()
+        if best:
+            typer.echo(f"   Best accuracy: {best.accuracy:.4f} (cost: ${best.cost:.4f})")
+        cheapest = result.cheapest()
+        if cheapest and cheapest is not best:
+            typer.echo(f"   Cheapest: ${cheapest.cost:.4f} (accuracy: {cheapest.accuracy:.4f})")
+        if result.save_dir:
+            typer.echo(f"\n   Optimized pipelines saved to: {result.save_dir}/")
+            for p in result.frontier:
+                tag = ""
+                if best and p is best:
+                    tag = " (best accuracy)"
+                elif cheapest and p is cheapest:
+                    tag = " (cheapest)"
+                typer.echo(f"     - {Path(p.yaml_path).name}{tag}")
+    except Exception as e:
+        typer.echo(f"Error running MOAR optimization: {e}", err=True)
+        raise typer.Exit(1)
 
 
 @app.command()

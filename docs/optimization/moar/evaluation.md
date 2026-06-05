@@ -4,64 +4,90 @@ How to write evaluation functions for MOAR optimization.
 
 ## How Evaluation Functions Work
 
-Your evaluation function receives the pipeline output and computes metrics by comparing it to the original dataset. MOAR uses one specific metric from your returned dictionary (specified by `metric_key`) to optimize for accuracy.
-
-!!! info "Function Signature"
-    Your function must have exactly this signature:
-    ```python
-    def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str, Any]:
-    ```
+Your evaluation function reads the pipeline output and computes metrics. MOAR uses one specific metric from your returned dictionary (specified by `metric_key`) to optimize for accuracy.
 
 ### What You Receive
 
-- **`results_file_path`**: Path to JSON file containing your pipeline's output
-- **`dataset_file_path`**: Path to JSON file containing the original dataset
+- **`results_path`**: Path to JSON file containing your pipeline's output
+- Optionally, **`dataset_path`**: Path to JSON file containing the original dataset (if you use a 2-argument signature)
 
 ### What You Return
 
-A dictionary with numeric metrics. The key specified in `optimizer_config.metric_key` will be used as the accuracy metric for optimization.
+A dictionary with numeric metrics. The key specified by `metric_key` will be used as the accuracy metric for optimization.
 
 !!! tip "Using Original Input Data"
     Pipeline output includes the original input data. For example, if your dataset has a `src` attribute, it will be available in the output. You can use this directly for comparison without loading the dataset file separately.
 
-## Basic Example
+## Python API (Recommended)
+
+Pass any callable directly to `pipeline.optimize()`:
 
 ```python
 import json
-from typing import Any, Dict
-from docetl.utils_evaluation import register_eval
 
-@register_eval
-def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str, Any]:
-    # Load pipeline output
-    with open(results_file_path, 'r') as f:
+def evaluate(results_path):
+    with open(results_path) as f:
         output = json.load(f)
     
     total_correct = 0
     for result in output:
-        # For example, if your dataset has a 'src' attribute, it's available in the output
         original_text = result.get("src", "").lower()
-        # Replace "your_extraction_key" with the actual key from your pipeline output
-        extracted_items = result.get("your_extraction_key", [])
-        
-        # Check if extracted items appear in original text
-        for item in extracted_items:
+        for item in result.get("your_extraction_key", []):
             if str(item).lower() in original_text:
                 total_correct += 1
     
     return {
-        "extraction_score": total_correct,  # This key is used if metric_key="extraction_score"
+        "extraction_score": total_correct,
+        "total_extracted": sum(len(r.get("your_extraction_key", [])) for r in output),
+    }
+
+result = pipeline.optimize(eval_fn=evaluate, metric_key="extraction_score")
+```
+
+If you need access to the original dataset, use a two-argument signature — the dataset path is passed automatically:
+
+```python
+def evaluate(dataset_path, results_path):
+    with open(results_path) as f:
+        output = json.load(f)
+    with open(dataset_path) as f:
+        dataset = json.load(f)
+    # compare output to dataset...
+    return {"score": computed_score}
+```
+
+## CLI (File-Based)
+
+For CLI usage, create a Python file with a `@register_eval` decorated function:
+
+```python
+# evaluate.py
+import json
+from docetl.utils_evaluation import register_eval
+
+@register_eval
+def evaluate_results(dataset_file_path: str, results_file_path: str) -> dict:
+    with open(results_file_path) as f:
+        output = json.load(f)
+    
+    total_correct = 0
+    for result in output:
+        original_text = result.get("src", "").lower()
+        for item in result.get("your_extraction_key", []):
+            if str(item).lower() in original_text:
+                total_correct += 1
+    
+    return {
+        "extraction_score": total_correct,
         "total_extracted": sum(len(r.get("your_extraction_key", [])) for r in output),
     }
 ```
 
-## Requirements
-
-!!! warning "Critical Requirements"
-    - The function must be decorated with `@docetl.register_eval`
+!!! warning "CLI Requirements"
+    - The function must be decorated with `@register_eval`
     - It must take exactly two arguments: `dataset_file_path` and `results_file_path`
     - It must return a dictionary with numeric metrics
-    - The `metric_key` in your `optimizer_config` must match one of the keys in this dictionary
+    - The `metric_key` must match one of the keys in this dictionary
     - Only one function per file can be decorated with `@register_eval`
 
 ## Performance Considerations
@@ -75,67 +101,49 @@ def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str
 
 ## Common Evaluation Patterns
 
-### Pattern 1: Extraction Verification with Recall
+### Pattern 1: Extraction Verification
 
-Check if extracted items appear in the document text and compute recall:
+Check if extracted items appear in the document text:
 
 ```python
-@register_eval
-def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str, Any]:
-    with open(results_file_path, 'r') as f:
+def evaluate(results_path):
+    with open(results_path) as f:
         output = json.load(f)
     
-    # For example, if your dataset has a 'src' attribute, it's available in the output
     total_correct = 0
     total_extracted = 0
-    total_expected = 0
     
     for result in output:
-        # Replace "src" with the actual key from your dataset
         original_text = result.get("src", "").lower()
-        extracted_items = result.get("your_extraction_key", [])  # Replace with your key
-        
-        # Count correct extractions (items that appear in text)
-        for item in extracted_items:
+        for item in result.get("your_extraction_key", []):
             total_extracted += 1
             if str(item).lower() in original_text:
                 total_correct += 1
-        
-        # Count expected items (if you have ground truth)
-        # total_expected += len(expected_items)
     
     precision = total_correct / total_extracted if total_extracted > 0 else 0.0
-    recall = total_correct / total_expected if total_expected > 0 else 0.0
     
     return {
-        "extraction_score": total_correct,  # Use this as metric_key
+        "extraction_score": total_correct,
         "precision": precision,
-        "recall": recall,
     }
 ```
 
 ### Pattern 2: Comparing Against Ground Truth
 
-Load ground truth from the dataset file and compare:
+Use a two-argument signature to access the dataset:
 
 ```python
-@register_eval
-def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str, Any]:
-    with open(results_file_path, 'r') as f:
+def evaluate(dataset_path, results_path):
+    with open(results_path) as f:
         predictions = json.load(f)
-    
-    with open(dataset_file_path, 'r') as f:
+    with open(dataset_path) as f:
         ground_truth = json.load(f)
     
-    # Compare predictions with ground truth
-    # Adjust keys based on your data structure
-    correct = 0
+    correct = sum(
+        1 for pred, truth in zip(predictions, ground_truth)
+        if pred.get("predicted_label") == truth.get("true_label")
+    )
     total = len(predictions)
-    
-    for pred, truth in zip(predictions, ground_truth):
-        # Example: compare classification labels
-        if pred.get("predicted_label") == truth.get("true_label"):
-            correct += 1
     
     return {
         "accuracy": correct / total if total > 0 else 0.0,
@@ -144,39 +152,27 @@ def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str
     }
 ```
 
-### Pattern 3: External Evaluation (File or API)
+### Pattern 3: Using a Closure
 
-Load additional data or call an API for evaluation:
+Capture external state (ground truth, config, etc.) via a closure:
 
 ```python
-import requests
-from pathlib import Path
-
-@register_eval
-def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str, Any]:
-    with open(results_file_path, 'r') as f:
-        output = json.load(f)
-    
-    # Option A: Load ground truth from a separate file
-    ground_truth_path = Path(dataset_file_path).parent / "ground_truth.json"
-    with open(ground_truth_path, 'r') as f:
+def make_eval(ground_truth_path):
+    with open(ground_truth_path) as f:
         ground_truth = json.load(f)
-    
-    # Option B: Call an API for evaluation
-    # response = requests.post("https://api.example.com/evaluate", json=output)
-    # api_score = response.json()["score"]
-    
-    # Evaluate using ground truth
-    scores = []
-    for result, truth in zip(output, ground_truth):
-        # Your evaluation logic here
-        score = compute_score(result, truth)
-        scores.append(score)
-    
-    return {
-        "average_score": sum(scores) / len(scores) if scores else 0.0,
-        "scores": scores,
-    }
+
+    def evaluate(results_path):
+        with open(results_path) as f:
+            output = json.load(f)
+        scores = [compute_score(r, t) for r, t in zip(output, ground_truth)]
+        return {"average_score": sum(scores) / len(scores) if scores else 0.0}
+
+    return evaluate
+
+result = pipeline.optimize(
+    eval_fn=make_eval("ground_truth.json"),
+    metric_key="average_score",
+)
 ```
 
 ## Testing Your Function
@@ -185,7 +181,7 @@ def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str
     Test your evaluation function independently before running MOAR:
     
     ```python
-    result = evaluate_results("dataset.json", "results.json")
+    result = evaluate("results.json")
     print(result)  # Check that your metric_key is present
     ```
 

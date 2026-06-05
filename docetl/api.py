@@ -190,47 +190,137 @@ class Pipeline:
 
     def optimize(
         self,
+        method: str = "moar",
+        # MOAR parameters (used when method="moar")
+        eval_fn: Any = None,
+        metric_key: str | None = None,
+        models: list[str] | None = None,
+        agent_model: str | None = None,
+        max_iterations: int = 20,
+        save_dir: str | None = None,
+        exploration_weight: float = 1.414,
+        dataset_path: str | None = None,
+        # V1 parameters (used when method="v1")
         max_threads: int | None = None,
         resume: bool = False,
         save_path: str | None = None,
-    ) -> "Pipeline":
+    ) -> "MOARResult | Pipeline":
         """
-        Optimize the pipeline using the Optimizer.
+        Optimize the pipeline.
 
         Args:
-            max_threads (int | None): Maximum number of threads to use for optimization.
-            model (str): The model to use for optimization. Defaults to "gpt-4o".
-            resume (bool): Whether to resume optimization from a previous state. Defaults to False.
-            timeout (int): Timeout for optimization in seconds. Defaults to 60.
+            method: ``"moar"`` (default) for multi-objective agentic rewrite
+                optimization, or ``"v1"`` for the legacy single-pass optimizer.
+
+        **MOAR parameters** (``method="moar"``):
+
+        Args:
+            eval_fn: A callable that scores pipeline output. Accepts
+                ``(results_path) -> dict`` (1-arg) or
+                ``(dataset_path, results_path) -> dict`` (2-arg).
+                Also accepts a file path to a ``@register_eval``-decorated
+                function. **Required** for MOAR.
+            metric_key: Key to extract from the eval function's return dict.
+                **Required** for MOAR.
+            models: Model names to search over. ``None`` = auto-detect from
+                environment API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.).
+            agent_model: Model for the rewrite agent. ``None`` = auto-select.
+            max_iterations: MCTS iterations (default 20).
+            save_dir: Output directory. ``None`` = temp directory.
+            exploration_weight: UCB exploration constant (default sqrt(2)).
+            dataset_path: Explicit dataset path override.
+
+        **V1 parameters** (``method="v1"``):
+
+        Args:
+            max_threads: Maximum threads for optimization.
+            resume: Resume from a previous optimization state.
+            save_path: Path to save the optimized pipeline.
 
         Returns:
-            Pipeline: An optimized version of the pipeline.
-        """
-        config = self._to_dict()
-        runner = DSLRunner(
-            config,
-            base_name=os.path.join(os.getcwd(), self.name),
-            yaml_file_suffix=self.name,
-            max_threads=max_threads,
-        )
-        optimized_config, _ = runner.optimize(
-            resume=resume,
-            return_pipeline=False,
-            save_path=save_path,
-        )
+            ``MOARResult`` when ``method="moar"``, ``Pipeline`` when ``method="v1"``.
 
-        updated_pipeline = Pipeline(
-            name=self.name,
-            datasets=self.datasets,
-            operations=self.operations,
-            steps=self.steps,
-            output=self.output,
-            default_model=self.default_model,
-            parsing_tools=self.parsing_tools,
-            optimizer_config=self.optimizer_config,
-        )
-        updated_pipeline._update_from_dict(optimized_config)
-        return updated_pipeline
+        Examples::
+
+            # MOAR optimization (recommended)
+            def my_eval(results_path):
+                import json
+                with open(results_path) as f:
+                    results = json.load(f)
+                return {"score": sum(1 for r in results if r["correct"])}
+
+            result = pipeline.optimize(eval_fn=my_eval, metric_key="score")
+
+            # Each frontier point is a runnable pipeline
+            best = result.best()
+            best.run()
+
+            # Inspect all explored plans as a DataFrame
+            df = result.to_df()
+
+            # V1 optimization (legacy)
+            optimized = pipeline.optimize(method="v1")
+            optimized.run()
+        """
+        if method == "moar":
+            if eval_fn is None:
+                raise ValueError(
+                    "eval_fn is required for MOAR optimization. "
+                    "Pass a callable, e.g.: "
+                    "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
+                )
+            if metric_key is None:
+                raise ValueError(
+                    "metric_key is required for MOAR optimization. "
+                    "This is the key in your eval function's return dict to optimize."
+                )
+
+            from docetl.moar.optimizer import MOAROptimizer
+
+            optimizer = MOAROptimizer(
+                pipeline=self,
+                eval_fn=eval_fn,
+                metric_key=metric_key,
+                models=models,
+                agent_model=agent_model,
+                max_iterations=max_iterations,
+                save_dir=save_dir,
+                exploration_weight=exploration_weight,
+                dataset_path=dataset_path,
+            )
+            return optimizer.optimize()
+
+        elif method == "v1":
+            config = self._to_dict()
+            runner = DSLRunner(
+                config,
+                base_name=os.path.join(os.getcwd(), self.name),
+                yaml_file_suffix=self.name,
+                max_threads=max_threads,
+            )
+            optimized_config, _ = runner.optimize(
+                resume=resume,
+                return_pipeline=False,
+                save_path=save_path,
+            )
+
+            updated_pipeline = Pipeline(
+                name=self.name,
+                datasets=self.datasets,
+                operations=self.operations,
+                steps=self.steps,
+                output=self.output,
+                default_model=self.default_model,
+                parsing_tools=self.parsing_tools,
+                optimizer_config=self.optimizer_config,
+            )
+            updated_pipeline._update_from_dict(optimized_config)
+            return updated_pipeline
+
+        else:
+            raise ValueError(
+                f"Unknown optimization method {method!r}. Use 'moar' or 'v1'."
+            )
 
     def run(self, max_threads: int | None = None) -> float:
         """

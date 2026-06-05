@@ -2,150 +2,223 @@
 
 This guide walks you through running your first MOAR optimization step by step.
 
-## Step 1: Create Your Pipeline YAML
+## Step 1: Create Your Pipeline
 
-Start with a standard DocETL pipeline YAML file:
+Start with a standard DocETL pipeline. You can define it in Python or YAML.
 
-```yaml
-datasets:
-  transcripts:
-    path: data/transcripts.json
-    type: file
+=== "Python"
 
-default_model: gpt-4o-mini
+    ```python
+    from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
 
-operations:
-  - name: extract_medications
-    type: map
-    output:
-      schema:
-        medication: list[str]
-    prompt: |
-      Extract all medications mentioned in: {{ input.src }}
+    pipeline = Pipeline(
+        name="medication_extraction",
+        datasets={"transcripts": Dataset(type="file", path="data/transcripts.json")},
+        operations=[
+            MapOp(
+                name="extract_medications",
+                type="map",
+                output={"schema": {"medication": "list[str]"}},
+                prompt="Extract all medications mentioned in: {{ input.src }}",
+            ),
+        ],
+        steps=[PipelineStep(name="extraction", input="transcripts", operations=["extract_medications"])],
+        output=PipelineOutput(type="file", path="results.json"),
+        default_model="gpt-4o-mini",
+    )
+    ```
 
-pipeline:
-  steps:
-    - name: medication_extraction
-      input: transcripts
-      operations:
-        - extract_medications
-  output:
-    type: file
-    path: results.json
-```
+=== "YAML"
+
+    ```yaml
+    datasets:
+      transcripts:
+        path: data/transcripts.json
+        type: file
+
+    default_model: gpt-4o-mini
+
+    operations:
+      - name: extract_medications
+        type: map
+        output:
+          schema:
+            medication: list[str]
+        prompt: |
+          Extract all medications mentioned in: {{ input.src }}
+
+    pipeline:
+      steps:
+        - name: medication_extraction
+          input: transcripts
+          operations:
+            - extract_medications
+      output:
+        type: file
+        path: results.json
+    ```
 
 !!! note "Standard Pipeline"
     Your pipeline doesn't need any special configuration for MOAR. Just create a normal DocETL pipeline.
 
-## Step 2: Create an Evaluation Function
+## Step 2: Write an Evaluation Function
 
-Create a Python file with an evaluation function. This function will be called for each pipeline configuration that MOAR explores.
+Write a Python function that scores pipeline output. MOAR calls this function for each pipeline configuration it explores.
 
 !!! info "How Evaluation Works"
-    - Your function receives the pipeline output and the original dataset
-    - You compute evaluation metrics by comparing the output to the dataset
+    - Your function receives the path to the pipeline's output JSON file
+    - You load the results file and compute evaluation metrics
     - You return a dictionary of metrics
     - MOAR uses one specific key from this dictionary (specified by `metric_key`) as the accuracy metric to optimize
 
-```python
-# evaluate_medications.py
-import json
-from typing import Any, Dict
-from docetl.utils_evaluation import register_eval
+=== "Python API"
 
-@register_eval
-def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str, Any]:
-    """
-    Evaluate pipeline output against the original dataset.
-    """
-    # Load pipeline output
-    with open(results_file_path, 'r') as f:
-        output = json.load(f)
-    
-    # Load original dataset for comparison
-    with open(dataset_file_path, 'r') as f:
-        dataset = json.load(f)
-    
-    # Compute your evaluation metrics
-    correct_count = 0
-    total_count = len(output)
-    
-    for idx, result in enumerate(output):
-        # Compare result with original data
-        # For example, if your dataset has a 'src' attribute, it's available in the output
-        original_text = result.get("src", "").lower()
-        extracted_items = result.get("medication", [])
-        
-        # Check if extracted items appear in original text
-        for item in extracted_items:
-            if item.lower() in original_text:
-                correct_count += 1
-    
-    # Return dictionary of metrics
-    return {
-        "medication_extraction_score": correct_count,  # This key will be used if metric_key matches
-        "total_extracted": total_count,
-        "precision": correct_count / total_count if total_count > 0 else 0.0,
-    }
-```
+    Just define a regular Python function:
 
-!!! warning "Important Requirements"
-    - The function must be decorated with `@docetl.register_eval`
-    - It must take exactly two arguments: `dataset_file_path` and `results_file_path`
-    - It must return a dictionary with numeric metrics
-    - The `metric_key` in your `optimizer_config` must match one of the keys in this dictionary
-    - Only one function per file can be decorated with `@register_eval`
+    ```python
+    import json
+
+    def evaluate(results_path):
+        with open(results_path) as f:
+            output = json.load(f)
+
+        correct_count = 0
+        for result in output:
+            original_text = result.get("src", "").lower()
+            for item in result.get("medication", []):
+                if item.lower() in original_text:
+                    correct_count += 1
+
+        return {
+            "medication_extraction_score": correct_count,
+            "total_extracted": len(output),
+        }
+    ```
+
+    If you need access to the original dataset, use a two-argument signature — the dataset path is passed automatically:
+
+    ```python
+    def evaluate(dataset_path, results_path):
+        with open(results_path) as f:
+            output = json.load(f)
+        with open(dataset_path) as f:
+            dataset = json.load(f)
+        # compare output to dataset...
+        return {"medication_extraction_score": computed_score}
+    ```
+
+=== "CLI (file-based)"
+
+    For CLI usage, create a Python file with a `@register_eval` decorated function:
+
+    ```python
+    # evaluate_medications.py
+    import json
+    from docetl.utils_evaluation import register_eval
+
+    @register_eval
+    def evaluate_results(dataset_file_path: str, results_file_path: str) -> dict:
+        with open(results_file_path) as f:
+            output = json.load(f)
+
+        correct_count = 0
+        for result in output:
+            original_text = result.get("src", "").lower()
+            for item in result.get("medication", []):
+                if item.lower() in original_text:
+                    correct_count += 1
+
+        return {
+            "medication_extraction_score": correct_count,
+            "total_extracted": len(output),
+        }
+    ```
 
 For more details on evaluation functions, see the [Evaluation Functions guide](evaluation.md).
 
-## Step 3: Configure the Optimizer
+## Step 3: Run Optimization
 
-Add an `optimizer_config` section to your YAML. The `metric_key` specifies which key from your evaluation function's return dictionary will be used as the accuracy metric for optimization:
+=== "Python API (recommended)"
 
-```yaml
-optimizer_config:
-  type: moar
-  save_dir: results/moar_optimization
-  available_models:  # LiteLLM model names - ensure API keys are set in your environment
-    - gpt-4o-mini
-    - gpt-4o
-    - gpt-5.1-mini
-    - gpt-5.1
-  evaluation_file: evaluate_medications.py
-  metric_key: medication_extraction_score  # This must match a key in your evaluation function's return dictionary
-  max_iterations: 40
-  rewrite_agent_model: gpt-5.1
-  dataset_path: data/transcripts_sample.json  # Optional: use sample/hold-out dataset
-```
+    `pipeline.optimize()` is the single entry point. Pass your evaluation function and the metric key — everything else has smart defaults.
 
-!!! tip "Using Sample Datasets"
-    Use `dataset_path` to specify a sample or hold-out dataset for optimization. This prevents optimizing on your test set. The main pipeline will still use the full dataset from the `datasets` section.
+    ```python
+    result = pipeline.optimize(
+        eval_fn=evaluate,
+        metric_key="medication_extraction_score",
+    )
+    ```
 
-For complete configuration details, see the [Configuration Reference](configuration.md).
+    All optional parameters:
 
-## Step 4: Run the Optimizer
+    ```python
+    result = pipeline.optimize(
+        eval_fn=evaluate,
+        metric_key="medication_extraction_score",
+        models=None,              # auto-detect from API keys
+        agent_model=None,         # auto-select best available
+        max_iterations=20,        # search budget
+        save_dir=None,            # defaults to temp dir
+        exploration_weight=1.414, # UCB exploration constant
+    )
+    ```
 
-Run MOAR optimization using the CLI:
+    !!! tip "Auto-Detection"
+        Models are auto-detected from your environment API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AZURE_API_KEY`). The agent model is auto-selected as the best available model. No need to specify these unless you want to override the defaults.
 
-```bash
-docetl build pipeline.yaml --optimizer moar
-```
+=== "CLI"
 
-!!! success "What Happens Next"
-    MOAR will:
-    1. Explore different pipeline configurations
-    2. Evaluate each configuration using your evaluation function
-    3. Build a cost-accuracy frontier of optimal solutions
-    4. Save results to your `save_dir`
+    Add an `optimizer_config` to your YAML. Only `evaluation_file` and `metric_key` are required:
 
-## Step 5: Review Results
+    ```yaml
+    optimizer_config:
+      evaluation_file: evaluate_medications.py
+      metric_key: medication_extraction_score
+    ```
 
-After optimization completes, check your `save_dir` for:
+    Then run:
 
-- **`experiment_summary.json`** - High-level summary of the run
-- **`pareto_frontier.json`** - List of optimal solutions
-- **`evaluation_metrics.json`** - Detailed evaluation results
-- **`pipeline_*.yaml`** - Optimized pipeline configurations
+    ```bash
+    docetl build pipeline.yaml
+    ```
+
+    MOAR is the default optimizer -- no flag needed.
+
+## Step 4: Review Results
+
+=== "Python API"
+
+    `optimize()` returns a `MOARResult` object. Results are runnable pipelines, not just data points:
+
+    ```python
+    # Get the best pipeline by accuracy
+    best = result.best()       # Returns an OptimizedPipeline
+    print(f"Accuracy: {best.accuracy}, Cost: ${best.cost:.4f}")
+    best.run()                 # Execute the optimized pipeline
+
+    # Get the cheapest pipeline on the frontier
+    cheap = result.cheapest()  # Returns an OptimizedPipeline
+    cheap.run()
+
+    # View all frontier solutions
+    for plan in result.frontier:
+        print(f"Accuracy: {plan.accuracy}, Cost: ${plan.cost:.4f}, On frontier: {plan.on_frontier}")
+
+    # Get a DataFrame of all explored plans
+    df = result.to_df()
+    print(df)
+    ```
+
+    Each `OptimizedPipeline` has `.pipeline` (DSLRunner), `.cost`, `.accuracy`, `.yaml_path`, `.on_frontier`, and `.run()`.
+
+=== "CLI"
+
+    After optimization completes, check your `save_dir` for:
+
+    - **`experiment_summary.json`** — High-level summary of the run
+    - **`pareto_frontier.json`** — List of optimal solutions
+    - **`evaluation_metrics.json`** — Detailed evaluation results
+    - **`pipeline_*.yaml`** — Optimized pipeline configurations
 
 For details on interpreting results, see [Understanding Results](results.md).
 
@@ -154,4 +227,3 @@ For details on interpreting results, see [Understanding Results](results.md).
 - Learn about [configuration options](configuration.md)
 - See [complete examples](examples.md)
 - Read [troubleshooting tips](troubleshooting.md)
-

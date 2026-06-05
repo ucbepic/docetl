@@ -25,10 +25,24 @@ When optimizing pipelines, you trade off cost and accuracy. MOAR explores many d
 
 ## Basic Workflow
 
-1. **Create your pipeline YAML** - Define your DocETL pipeline
-2. **Write an evaluation function** - Create a Python function to measure accuracy
-3. **Configure MOAR** - Set up `optimizer_config` in your YAML
-4. **Run optimization** - Execute `docetl build pipeline.yaml --optimizer moar`
-5. **Review results** - Choose from the cost-accuracy frontier
+1. **Create your pipeline** — Define your DocETL pipeline in Python or YAML
+2. **Write an evaluation function** — Create a Python function to measure accuracy
+3. **Run optimization** — Call `pipeline.optimize()` with your eval function:
+
+    ```python
+    result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
+    ```
+
+    Or via CLI: `docetl build pipeline.yaml`
+
+4. **Review results** — Choose from the cost-accuracy frontier:
+
+    ```python
+    best = result.best()   # Highest accuracy
+    best.run()             # Execute it
+
+    cheap = result.cheapest()  # Lowest cost
+    df = result.to_df()        # All explored plans
+    ```
 
 Ready to get started? Head to the [Getting Started guide](moar/getting-started.md).

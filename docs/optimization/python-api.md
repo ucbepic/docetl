@@ -1,87 +1,136 @@
 # Optimizing Pipelines with the Python API
 
-You may have your pipelines defined in Python instead of YAML and want to optimize them. Here's an example of how to use the Python API to define, optimize, and run a document processing pipeline similar to the medical transcripts example we saw earlier.
+Use `pipeline.optimize()` to find cost-accuracy trade-offs for your pipeline. MOAR explores different configurations (models, validation steps, operation rewrites) and returns a frontier of optimized pipelines.
+
+## Quick Example
 
 ```python
-from docetl.api import Pipeline, Dataset, MapOp, UnnestOp, ResolveOp, ReduceOp, PipelineStep, PipelineOutput
+from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
 
-# Define datasets
-datasets = {
-    "transcripts": Dataset(type="file", path="medical_transcripts.json"),
-}
+import json
+from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
 
-# Define operations
-operations = [
-    MapOp(
-        name="extract_medications",
-        type="map",
-        optimize=True,  # This operation will be optimized
-        output={"schema": {"medication": "list[str]"}},
-        prompt="Analyze the transcript: {{ input.src }}\nList all medications mentioned.",
-    ),
-    UnnestOp(
-        name="unnest_medications",
-        type="unnest",
-        unnest_key="medication"
-    ),
-    ResolveOp(
-        name="resolve_medications",
-        type="resolve",
-        blocking_keys=["medication"],
-        optimize=True,  # This operation will be optimized
-        output={"schema": {"medication": "str"}},
-        comparison_prompt="Compare medications:\n1: {{ input1.medication }}\n2: {{ input2.medication }}\nAre these the same or closely related?",
-        resolution_prompt="Standardize the name for:\n{% for entry in inputs %}\n- {{ entry.medication }}\n{% endfor %}"
-    ),
-    ReduceOp(
-        name="summarize_prescriptions",
-        type="reduce",
-        reduce_key=["medication"],
-        output={"schema": {"side_effects": "str", "uses": "str"}},
-        prompt="Summarize side effects and uses of {{ reduce_key }} from:\n{% for value in inputs %}\nTranscript {{ loop.index }}: {{ value.src }}\n{% endfor %}",
-        optimize=True,  # This operation will be optimized
-    )
-]
-
-# Define pipeline steps
-steps = [
-    PipelineStep(name="medical_info_extraction", input="transcripts", operations=["extract_medications", "unnest_medications", "resolve_medications", "summarize_prescriptions"])
-]
-
-# Define pipeline output
-output = PipelineOutput(type="file", path="medication_summaries.json")
-
-# Create the pipeline
 pipeline = Pipeline(
-    name="medical_transcripts_pipeline",
-    datasets=datasets,
-    operations=operations,
-    steps=steps,
-    output=output,
+    name="medication_extraction",
+    datasets={"transcripts": Dataset(type="file", path="medical_transcripts.json")},
+    operations=[
+        MapOp(
+            name="extract_medications",
+            type="map",
+            output={"schema": {"medication": "list[str]"}},
+            prompt="Analyze the transcript: {{ input.src }}\nList all medications mentioned.",
+        ),
+    ],
+    steps=[PipelineStep(name="extraction", input="transcripts", operations=["extract_medications"])],
+    output=PipelineOutput(type="file", path="medication_summaries.json"),
     default_model="gpt-4o-mini",
-    system_prompt={
-        "dataset_description": "a collection of medical conversation transcripts",
-        "persona": "a healthcare analyst extracting and summarizing medication information",
-    }
 )
 
-# Optimize the pipeline
-optimized_pipeline = pipeline.optimize(model="gpt-4o-mini")
+# Define your evaluation function
+def evaluate(results_path):
+    with open(results_path) as f:
+        output = json.load(f)
+    correct = sum(
+        1 for r in output
+        for med in r.get("medication", [])
+        if med.lower() in r.get("src", "").lower()
+    )
+    return {"medication_extraction_score": correct}
 
-# Run the optimized pipeline
-result = optimized_pipeline.run()
+# Optimize — models auto-detected from API keys
+result = pipeline.optimize(
+    eval_fn=evaluate,
+    metric_key="medication_extraction_score",
+)
 
-print(f"Pipeline execution completed. Total cost: ${result:.2f}")
+# Run the best pipeline
+best = result.best()
+print(f"Best accuracy: {best.accuracy}, cost: ${best.cost:.4f}")
+best.run()
+
+# Or inspect all options as a DataFrame
+df = result.to_df()
+print(df)
 ```
 
-This example demonstrates how to create a pipeline that processes medical transcripts, extracts medication information, resolves similar medications, and summarizes prescription details.
+## Evaluation Function
 
-!!! note "Optimization"
+Pass any callable that reads the results file and returns a dict of metrics:
 
-    Notice that some operations have `optimize=True` set. DocETL will only optimize operations with this flag set to `True`. In this example, the `extract_medications`, `resolve_medications`, and `summarize_prescriptions` operations will be optimized.
+```python
+def evaluate(results_path):
+    with open(results_path) as f:
+        output = json.load(f)
 
-!!! tip "Optimization Model"
+    correct = sum(
+        1 for r in output
+        for med in r.get("medication", [])
+        if med.lower() in r.get("src", "").lower()
+    )
+    return {"medication_extraction_score": correct}
 
-    We use `pipeline.optimize(model="gpt-4o-mini")` to optimize the pipeline using the GPT-4o-mini model for the agents. This allows you to specify which model to use for optimization, which can be particularly useful when you want to balance between performance and cost.
+result = pipeline.optimize(eval_fn=evaluate, metric_key="medication_extraction_score")
+```
 
-The pipeline is optimized before execution to improve performance and accuracy. By setting `optimize=True` for specific operations, you have fine-grained control over which parts of your pipeline undergo optimization.
+If you need access to the original dataset, use a two-argument signature — the dataset path is passed automatically:
+
+```python
+def evaluate(dataset_path, results_path):
+    with open(results_path) as f:
+        output = json.load(f)
+    with open(dataset_path) as f:
+        dataset = json.load(f)
+    # compare output to dataset...
+    return {"score": computed_score}
+```
+
+!!! tip "File paths for CLI"
+    The CLI still uses file-based evaluation via `@register_eval`. See the [Evaluation Functions guide](moar/evaluation.md) for that workflow.
+
+## Configuration Options
+
+All parameters beyond `eval_fn` and `metric_key` are optional:
+
+```python
+result = pipeline.optimize(
+    eval_fn=evaluate,                    # Your evaluation function
+    metric_key="score",
+    models=["gpt-4o", "gpt-4o-mini"],   # Override auto-detection
+    agent_model="gpt-4o",                # Override auto-selection
+    max_iterations=40,                   # Default: 20
+    save_dir="./moar_results",           # Default: temp dir
+    exploration_weight=1.414,            # UCB constant
+    method="moar",                       # Default; use "v1" for legacy
+)
+```
+
+!!! tip "Legacy V1 Optimizer"
+    To use the legacy V1 optimizer instead of MOAR, pass `method="v1"`:
+    ```python
+    optimized_pipeline = pipeline.optimize(method="v1")
+    ```
+
+See the [Configuration Reference](moar/configuration.md) for details.
+
+## Working with Results
+
+```python
+result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
+
+# Best accuracy on the frontier
+best = result.best()
+best.run()
+
+# Cheapest option on the frontier
+cheap = result.cheapest()
+cheap.run()
+
+# Browse the full frontier
+for plan in result.frontier:
+    print(f"Cost: ${plan.cost:.4f}, Accuracy: {plan.accuracy:.4f}")
+
+# Analyze as a DataFrame
+df = result.to_df()
+```
+
+See [Understanding Results](moar/results.md) for more details.

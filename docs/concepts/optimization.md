@@ -56,31 +56,36 @@ The DocETL optimizer operates using the following mechanism:
 
 ### Using the Optimizer
 
-DocETL provides two optimizer options:
+MOAR is the default (and only) optimizer. Run it via CLI or Python API:
 
-#### MOAR Optimizer (Recommended)
-
-The MOAR optimizer uses Monte Carlo Tree Search to find Pareto-optimal solutions balancing accuracy and cost:
+#### CLI
 
 ```bash
-docetl build your_pipeline.yaml --optimizer moar
+docetl build your_pipeline.yaml
+```
+
+No `--optimizer` flag needed -- MOAR is the default.
+
+#### Python API (Recommended)
+
+```python
+result = pipeline.optimize(eval_fn=my_eval_function, metric_key="score")
+best = result.best()
+best.run()
 ```
 
 See the [MOAR Optimizer Guide](../optimization/moar.md) for detailed instructions.
 
-#### V1 Optimizer (Deprecated)
+#### Legacy V1 Optimizer
 
 !!! warning "Deprecated"
     The V1 optimizer is deprecated and no longer recommended. Use MOAR instead.
 
-The V1 optimizer uses a greedy approach with validation. It's still available for backward compatibility:
+The V1 optimizer is still available for backward compatibility via `method="v1"` in the Python API:
 
-```bash
-docetl build your_pipeline.yaml --optimizer v1
+```python
+optimized_pipeline = pipeline.optimize(method="v1")
 ```
-
-!!! warning "Not Recommended"
-    The V1 optimizer should not be used for new projects. Use MOAR instead.
 
 <!-- ### Automatic Entity Resolution
 

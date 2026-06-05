@@ -6,6 +6,8 @@ import litellm
 from docetl.runner import DSLRunner
 from docetl.optimizer import Optimizer
 from docetl.apis.pd_accessors import SemanticAccessor
+from docetl.moar.optimizer import MOARResult, OptimizedPipeline
+from docetl.utils_evaluation import register_eval
 
 # Drop unsupported params for models like gpt-5 that don't support temperature=0
 litellm.drop_params = True
@@ -13,4 +15,11 @@ litellm.drop_params = True
 # TODO: Remove after https://github.com/BerriAI/litellm/issues/7560 is fixed
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._config")
 
-__all__ = ["DSLRunner", "Optimizer", "SemanticAccessor"]
+__all__ = [
+    "DSLRunner",
+    "Optimizer",
+    "SemanticAccessor",
+    "MOARResult",
+    "OptimizedPipeline",
+    "register_eval",
+]

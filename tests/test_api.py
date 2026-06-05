@@ -251,6 +251,7 @@ def test_pipeline_optimization(
     )
 
     optimized_pipeline = pipeline.optimize(
+        method="v1",
         max_threads=64
     )
 

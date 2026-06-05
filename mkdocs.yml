@@ -25,6 +25,7 @@ nav:
           - Output Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
           - Optimization: concepts/optimization.md
+          - Model Cascades: concepts/cascades.md
       - Retrieval:
           - Retrievers: retrievers.md
       - Running Pipelines:

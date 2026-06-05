@@ -1,6 +1,8 @@
 # Model Cascades for DocETL operators
 
-Status: design + milestone 1 (core engine) landed
+Status: complete — all 5 milestones landed (engine, proxy logprob path, filter
+/ map(enum) / resolve / equijoin wiring, caching + cost reporting + user docs at
+`docs/concepts/cascades.md`)
 Owner: (you)
 Branch: `claude/zen-maxwell-OPO34`
 

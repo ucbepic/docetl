@@ -8,6 +8,6 @@ Plan: `docs/design/model-cascade.md`  ·  Branch: `claude/zen-maxwell-OPO34`
 | 2 | `classify_with_logprob` in `api.py` + logprob tests | ✅ done |
 | 3 | Filter vertical slice end-to-end (`filter.py` cascade branch + tests) | ✅ done |
 | 4 | Generalize to map(enum), resolve, equijoin (shared `CascadeMixin`) | ✅ done |
-| 5 | Caching, cost/escalation reporting, docs | ⬜ next |
+| 5 | Caching (shared DocETL cache), cost/escalation reporting, docs | ✅ done — feature complete |
 
 <!-- Keep this table in sync as milestones land; the UserPromptSubmit hook surfaces it each turn. -->

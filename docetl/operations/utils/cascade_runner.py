@@ -13,9 +13,13 @@ is operator-dependent (filter->recall, map->accuracy, resolve/equijoin->
 precision) and is passed in at call time.
 """
 
+import hashlib
+import json
 from typing import Any, Callable, Optional
 
 from pydantic import BaseModel, Field, model_validator
+
+from docetl.operations.utils.cache import cache
 
 _GUARANTEES = ("accuracy", "precision", "recall")
 
@@ -64,6 +68,54 @@ class CascadeMixin:
             return cfg.model_dump()
         return cfg
 
+    def _cascade_cache_key(
+        self,
+        items: list,
+        proxy_labels: list,
+        guarantee: str,
+        positive_label: Any,
+        negative_label: Any,
+    ) -> str:
+        """Stable key over op identity + config + dataset signature.
+
+        Calibration (threshold learning) and labeling are deterministic given
+        the same operation config and items, so an identical re-run can reuse
+        the cached result without re-paying the proxy/oracle calls.
+        """
+        material = {
+            "v": 1,
+            "name": self.config.get("name"),
+            "cascade": self._cascade_cfg(),
+            "guarantee": guarantee,
+            "labels": [str(x) for x in proxy_labels],
+            "positive": str(positive_label),
+            "negative": str(negative_label),
+            "prompt": self.config.get("prompt"),
+            "comparison_prompt": self.config.get("comparison_prompt"),
+            "model": self.config.get("model"),
+            "comparison_model": self.config.get("comparison_model"),
+            "output": self.config.get("output"),
+            "items": items,
+        }
+        blob = json.dumps(material, sort_keys=True, default=str)
+        return "cascade:" + hashlib.sha256(blob.encode()).hexdigest()
+
+    def _report_cascade(
+        self, op_label: str, stats, cost: float, cached_hit: bool
+    ) -> None:
+        """Log a cost/escalation summary and stash stats for programmatic use."""
+        self.cascade_stats = stats
+        served_by_proxy = stats.n_items - stats.oracle_calls
+        tag = " [dim](cached)[/dim]" if cached_hit else ""
+        self.console.log(
+            f"[bold green]Cascade {op_label} "
+            f"'{self.config.get('name', '?')}'[/bold green]{tag}: {stats.n_items} "
+            f"items | proxy {stats.proxy_calls} + oracle {stats.oracle_calls} "
+            f"(escalation {stats.escalation_rate:.0%}; {served_by_proxy} served by "
+            f"proxy) | guarantee={stats.guarantee} target={stats.target} "
+            f"delta={stats.delta} | cost=${cost:.4f}"
+        )
+
     def _run_categorical_cascade(
         self,
         *,
@@ -78,7 +130,9 @@ class CascadeMixin:
     ) -> "tuple[Any, float]":
         """Run the engine over ``items`` and return ``(CascadeResult, cost)``.
 
-        Args:
+        Caches the result (keyed on op identity + config + dataset signature)
+        so identical re-runs skip calibration/labeling. Honors the operation's
+        ``bypass_cache``. Args:
             items: opaque items the adapters understand (records or pairs).
             render_messages: item -> chat messages for the proxy.
             proxy_labels: candidate labels rendered as the proxy's menu.
@@ -92,9 +146,23 @@ class CascadeMixin:
         from docetl.operations.utils.cascade import CascadeSpec, CategoricalCascade
 
         cfg = self._cascade_cfg()
+        guarantee = cfg.get("guarantee") or default_guarantee
+
+        bypass = self.config.get("bypass_cache", getattr(self, "bypass_cache", False))
+        key = self._cascade_cache_key(
+            items, proxy_labels, guarantee, positive_label, negative_label
+        )
+        if not bypass:
+            with cache as c:
+                cached = c.get(key)
+            if cached is not None:
+                result, total_cost = cached
+                self._report_cascade(op_label, result.stats, total_cost, True)
+                return result, total_cost
+
         spec = CascadeSpec(
             proxy_model=cfg["proxy_model"],
-            guarantee=cfg.get("guarantee") or default_guarantee,
+            guarantee=guarantee,
             target=cfg["target"],
             delta=cfg.get("delta", 0.05),
             label_budget=cfg.get("label_budget", 400),
@@ -117,13 +185,8 @@ class CascadeMixin:
             return lbl
 
         result = CategoricalCascade(spec, proxy_predict, _oracle).run(items)
+        self._report_cascade(op_label, result.stats, cost["total"], False)
 
-        s = result.stats
-        self.console.log(
-            f"[bold green]Cascade {op_label} "
-            f"'{self.config.get('name', '?')}'[/bold green]: {s.n_items} items, "
-            f"{s.oracle_calls} oracle / {s.proxy_calls} proxy calls (escalation "
-            f"{s.escalation_rate:.0%}); guarantee={s.guarantee} target={s.target}, "
-            f"delta={s.delta}"
-        )
+        with cache as c:
+            c.set(key, (result, cost["total"]))
         return result, cost["total"]

@@ -5,8 +5,8 @@ Plan: `docs/design/model-cascade.md`  ·  Branch: `claude/zen-maxwell-OPO34`
 | # | Milestone | Status |
 |---|-----------|--------|
 | 1 | Core engine + statistical tests (`cascade.py`, `test_cascade_core.py`) | ✅ done (pushed) |
-| 2 | `classify_with_logprob` in `api.py` + logprob tests | ⬜ next |
-| 3 | Filter vertical slice end-to-end | ⬜ |
+| 2 | `classify_with_logprob` in `api.py` + logprob tests | ✅ done |
+| 3 | Filter vertical slice end-to-end | ⬜ next |
 | 4 | Generalize to map(enum), resolve, equijoin | ⬜ |
 | 5 | Caching, cost/escalation reporting, docs | ⬜ |
 

@@ -2,6 +2,7 @@ import ast
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -960,6 +961,174 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 raise e
 
         return response
+
+    def classify_with_logprob(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        labels: list[Any],
+        *,
+        system_prompt: str | None = None,
+        top_logprobs: int | None = None,
+        litellm_completion_kwargs: dict[str, Any] = {},
+    ) -> "tuple[Any, float]":
+        """
+        Single-token categorical classification with a calibrated confidence.
+
+        This is the cheap **proxy** path for model cascades (see
+        ``docetl/operations/utils/cascade.py``). It renders ``labels`` as a
+        single-token numeric menu (``1 = <label0>`` ...), asks the model to
+        answer with just the menu number, requests token logprobs, and maps
+        the answer token's probability back to a label.
+
+        Rendering the labels as digits means booleans and enums both decode to
+        a single token regardless of the label text, so one logprob lookup
+        yields the answer. The returned probability is the softmax of the
+        chosen label over the menu tokens present in ``top_logprobs`` and lies
+        in ``[0, 1]`` -- it is the confidence the cascade engine thresholds on.
+
+        Unlike the structured/tool paths, this uses ``litellm.completion``
+        directly (no router fallback): proxies are intentionally a single cheap
+        model.
+
+        Args:
+            model: The (cheap) proxy model name.
+            messages: The rendered prompt messages (without the menu/answer
+                instruction, which this method appends).
+            labels: Candidate labels, at most 9 (single-token menu).
+            system_prompt: Optional system message; a generic classifier
+                prompt is used if omitted.
+            top_logprobs: Number of alternatives to request at the answer
+                position; defaults to a value sized to the label set.
+            litellm_completion_kwargs: Extra kwargs forwarded to ``completion``.
+
+        Returns:
+            ``(label, prob)`` -- the predicted label and its confidence.
+
+        Raises:
+            ValueError: if ``labels`` is empty or has more than 9 entries, or
+                the provider does not return usable logprobs for the answer.
+        """
+        if not labels:
+            raise ValueError("classify_with_logprob requires a non-empty label set")
+        # Digits 1..9 are a single token in common tokenizers; beyond that we
+        # cannot guarantee single-token decoding, which the logprob mapping
+        # relies on.
+        if len(labels) > 9:
+            raise ValueError(
+                "classify_with_logprob supports at most 9 labels (single-token "
+                f"menu); got {len(labels)}. Split the task or use the oracle path."
+            )
+
+        token_to_label = {str(i + 1): label for i, label in enumerate(labels)}
+        menu = "\n".join(f"{i + 1} = {label}" for i, label in enumerate(labels))
+        instruction = (
+            "Answer with ONLY the single number of the best option below -- no "
+            "words, no punctuation, just the digit.\n\n" + menu
+        )
+        sys_msg = system_prompt or (
+            "You are a precise classifier. Read the input and choose the single "
+            "best option from the menu."
+        )
+        call_messages = (
+            [{"role": "system", "content": sys_msg}]
+            + list(messages)
+            + [{"role": "user", "content": instruction}]
+        )
+
+        k = (
+            top_logprobs
+            if top_logprobs is not None
+            else min(max(len(labels) + 4, 10), 20)
+        )
+
+        extra = dict(litellm_completion_kwargs)
+        extra.setdefault("temperature", 0)
+        if "gpt-5" in model:
+            extra.pop("temperature", None)
+        if self.default_lm_api_base and "api_base" not in extra:
+            extra["api_base"] = self.default_lm_api_base
+
+        self.runner.blocking_acquire("llm_call", weight=1)
+        if self.runner.is_cancelled:
+            raise asyncio.CancelledError("Operation was cancelled")
+
+        try:
+            response = completion(
+                model=model,
+                messages=call_messages,
+                logprobs=True,
+                top_logprobs=k,
+                max_tokens=1,
+                **extra,
+            )
+        except Exception as e:
+            # Mirror the helpful provider-prefix hint used elsewhere.
+            if model not in BASIC_MODELS and "/" not in model:
+                raise ValueError(
+                    "Note: You may also need to prefix your model name with the "
+                    "provider, e.g. 'openai/gpt-4o-mini' or "
+                    "'gemini/gemini-1.5-flash' to conform to LiteLLM API "
+                    f"standards. Original error: {e}"
+                )
+            raise
+
+        return self._parse_logprob_response(response, token_to_label)
+
+    @staticmethod
+    def _parse_logprob_response(
+        response: Any, token_to_label: dict[str, Any]
+    ) -> "tuple[Any, float]":
+        """
+        Map a logprobs completion response to ``(label, prob)``.
+
+        Pure (no I/O): looks at the alternatives for the first generated token,
+        keeps those that match a menu digit, softmax-normalizes their logprobs,
+        and returns the argmax label with its probability. Kept separate from
+        the network call so it can be unit-tested with synthetic responses.
+        """
+        try:
+            content_lp = response.choices[0].logprobs.content
+        except (AttributeError, IndexError, TypeError):
+            content_lp = None
+        if not content_lp:
+            raise ValueError(
+                "Model did not return token logprobs; the cascade proxy path "
+                "requires a provider/model that supports `logprobs`."
+            )
+
+        first = content_lp[0]
+        # Alternatives at the first generated position; fall back to the chosen
+        # token alone if the provider omits top_logprobs.
+        alts = getattr(first, "top_logprobs", None) or [first]
+
+        logp_by_label: dict[Any, float] = {}
+        for alt in alts:
+            tok = (getattr(alt, "token", "") or "").strip()
+            if tok not in token_to_label:
+                continue
+            lp = getattr(alt, "logprob", None)
+            if lp is None:
+                continue
+            label = token_to_label[tok]
+            # If a digit appears more than once, keep its highest logprob.
+            if label not in logp_by_label or lp > logp_by_label[label]:
+                logp_by_label[label] = lp
+
+        if not logp_by_label:
+            raise ValueError(
+                "Proxy answer did not match any menu option; got token "
+                f"{getattr(first, 'token', None)!r}."
+            )
+
+        present_labels = list(logp_by_label)
+        logps = [logp_by_label[lbl] for lbl in present_labels]
+        m = max(logps)
+        exps = [math.exp(lp - m) for lp in logps]
+        total = sum(exps)
+        probs = [e / total for e in exps]
+        best = max(range(len(present_labels)), key=lambda i: probs[i])
+        return present_labels[best], probs[best]
 
     def parse_llm_response(
         self,

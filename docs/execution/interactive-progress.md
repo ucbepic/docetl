@@ -5,14 +5,8 @@ pipeline runs. It lets you watch each document complete, see cost and timing per
 operation, and click into any finished document to inspect its output, the
 prompt that produced it, and where it came from.
 
-<video controls muted loop playsinline width="100%">
-  <source src="../assets/progress-view/docetl-progress.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-<p style="text-align:center"><em>A real run: 1,000 product reviews →
-extract a theme for each → merge similar themes → summarize per theme
-(all on a small, cheap model).</em></p>
+![The progress view: steps and operations on the left, a grid of documents in
+the middle, and the selected document's detail on the right](../assets/progress-view/tui-real-complete.png)
 
 ## Turning it on
 
@@ -54,8 +48,6 @@ a CI job, or anywhere the output is piped, DocETL automatically falls back to it
 normal log output, so the flag is safe to leave on.
 
 ## What you see
-
-![The progress view at the end of a run](../assets/progress-view/tui-real-complete.png)
 
 There are three panels:
 

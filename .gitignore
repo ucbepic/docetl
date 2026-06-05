@@ -86,4 +86,3 @@ reaction_index/
 !tests/tui_demo/*.json
 tests/tui_demo/*_output.json
 !docs/assets/progress-view/*.png
-!docs/assets/progress-view/*.mp4

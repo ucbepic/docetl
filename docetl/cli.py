@@ -141,14 +141,22 @@ def build(
         result = opt.optimize()
 
         typer.echo("\n✅ MOAR optimization completed successfully!")
-        if result.save_dir:
-            typer.echo(f"   Results saved to: {result.save_dir}")
+        typer.echo(f"   Frontier: {len(result.frontier)} pipelines")
         best = result.best()
         if best:
-            typer.echo(
-                f"   Frontier: {len(result.frontier)} points, "
-                f"best accuracy: {best.accuracy:.4f}"
-            )
+            typer.echo(f"   Best accuracy: {best.accuracy:.4f} (cost: ${best.cost:.4f})")
+        cheapest = result.cheapest()
+        if cheapest and cheapest is not best:
+            typer.echo(f"   Cheapest: ${cheapest.cost:.4f} (accuracy: {cheapest.accuracy:.4f})")
+        if result.save_dir:
+            typer.echo(f"\n   Optimized pipelines saved to: {result.save_dir}/")
+            for p in result.frontier:
+                tag = ""
+                if best and p is best:
+                    tag = " (best accuracy)"
+                elif cheapest and p is cheapest:
+                    tag = " (cheapest)"
+                typer.echo(f"     - {Path(p.yaml_path).name}{tag}")
     except Exception as e:
         typer.echo(f"Error running MOAR optimization: {e}", err=True)
         raise typer.Exit(1)

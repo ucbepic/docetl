@@ -25,7 +25,7 @@ from .MOARSearch import MOARSearch  # noqa: E402
 from .Node import Node  # noqa: E402
 from .ParetoFrontier import ParetoFrontier  # noqa: E402
 from .models import detect_available_models, default_agent_model  # noqa: E402
-from .optimizer import MOAROptimizer, MOARResult, FrontierPoint  # noqa: E402
+from .optimizer import MOAROptimizer, MOARResult, OptimizedPipeline  # noqa: E402
 
 __all__ = [
     "MOARSearch",
@@ -34,7 +34,7 @@ __all__ = [
     "AVAILABLE_MODELS",
     "MOAROptimizer",
     "MOARResult",
-    "FrontierPoint",
+    "OptimizedPipeline",
     "detect_available_models",
     "default_agent_model",
 ]

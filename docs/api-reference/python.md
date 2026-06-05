@@ -43,7 +43,74 @@ Pipeline(
 
 - `pipeline.run() -> float` — Execute the pipeline. Returns total cost.
 - `pipeline.run_with_stats() -> dict` — Execute the pipeline and return detailed statistics including cost and token usage broken down by model (prompt and completion tokens).
-- `pipeline.optimize(**kwargs) -> Pipeline` — Return an optimized copy of the pipeline.
+- `pipeline.optimize(**kwargs) -> MOARResult` — Run MOAR optimization and return results. See below.
+
+### pipeline.optimize()
+
+The single entry point for pipeline optimization. MOAR is the default (and recommended) method.
+
+```python
+result = pipeline.optimize(
+    eval_fn="evaluate.py",           # Required — path or callable
+    metric_key="score",              # Required — key in eval results dict
+    models=None,                     # Auto-detect from API keys
+    agent_model=None,                # Auto-select best available
+    max_iterations=20,               # Max search iterations
+    save_dir=None,                   # Defaults to temp dir
+    exploration_weight=1.414,        # UCB exploration constant
+    method="moar",                   # "moar" (default) or "v1" (legacy)
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `eval_fn` | `str \| Callable` | *required* | Path to `@register_eval` file, or a callable `(path) -> dict` |
+| `metric_key` | `str` | *required* | Key in evaluation results to optimize |
+| `models` | `list[str] \| None` | `None` | LiteLLM model names. Auto-detected from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AZURE_API_KEY`. |
+| `agent_model` | `str \| None` | `None` | Model for directive instantiation. Auto-selected. |
+| `max_iterations` | `int` | `20` | Maximum search iterations |
+| `save_dir` | `str \| None` | `None` | Results directory (temp dir if omitted) |
+| `exploration_weight` | `float` | `1.414` | UCB exploration constant |
+| `method` | `str` | `"moar"` | `"moar"` or `"v1"` (legacy) |
+
+**Returns:** `MOARResult`
+
+---
+
+## MOARResult
+
+Returned by `pipeline.optimize()`. Provides access to the Pareto frontier of optimized pipelines.
+
+| Method / Property | Return Type | Description |
+|-------------------|-------------|-------------|
+| `best()` | `OptimizedPipeline` | Highest-accuracy solution on the frontier |
+| `cheapest()` | `OptimizedPipeline` | Lowest-cost solution on the frontier |
+| `frontier` | `list[OptimizedPipeline]` | All Pareto-optimal solutions |
+| `to_df()` | `pandas.DataFrame` | DataFrame of all explored plans |
+
+```python
+result = pipeline.optimize(eval_fn="evaluate.py", metric_key="score")
+
+best = result.best()
+best.run()  # Execute the best pipeline
+
+df = result.to_df()  # Analyze all explored configurations
+```
+
+---
+
+## OptimizedPipeline
+
+A single optimized pipeline configuration, returned from `MOARResult`.
+
+| Property / Method | Type | Description |
+|-------------------|------|-------------|
+| `pipeline` | `DSLRunner` | The underlying pipeline runner |
+| `cost` | `float` | Estimated cost per run |
+| `accuracy` | `float` | Evaluation metric score |
+| `yaml_path` | `str` | Path to the optimized YAML file |
+| `on_frontier` | `bool` | Whether this plan is Pareto-optimal |
+| `run()` | `float` | Execute the pipeline; returns cost |
 
 ---
 

@@ -9,6 +9,48 @@ This example extracts medications from medical transcripts and evaluates extract
 !!! note "Metric Key"
     The `metric_key` in the `optimizer_config` section specifies which key from your evaluation function's return dictionary will be used as the accuracy metric. In this example, `metric_key: medication_extraction_score` means MOAR will optimize using the `medication_extraction_score` value returned by the evaluation function.
 
+### Python API
+
+```python
+from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+
+pipeline = Pipeline(
+    name="medication_extraction",
+    datasets={"transcripts": Dataset(type="file", path="workloads/medical/raw.json")},
+    operations=[
+        MapOp(
+            name="extract_medications",
+            type="map",
+            output={"schema": {"medication": "list[str]"}},
+            prompt=(
+                "Analyze the following transcript of a conversation between a doctor and a patient:\n"
+                "{{ input.src }}\n"
+                "Extract and list all medications mentioned in the transcript.\n"
+                "If no medications are mentioned, return an empty list."
+            ),
+        ),
+    ],
+    steps=[PipelineStep(name="medication_extraction", input="transcripts", operations=["extract_medications"])],
+    output=PipelineOutput(type="file", path="workloads/medical/extracted_medications_results.json"),
+    default_model="gpt-4o-mini",
+)
+
+# Optimize — only eval_fn and metric_key are required
+result = pipeline.optimize(
+    eval_fn="workloads/medical/evaluate_medications.py",
+    metric_key="medication_extraction_score",
+)
+
+# Run the best pipeline
+best = result.best()
+print(f"Accuracy: {best.accuracy}, Cost: ${best.cost:.4f}")
+best.run()
+
+# Or explore the full frontier
+for plan in result.frontier:
+    print(f"Cost: ${plan.cost:.4f}, Accuracy: {plan.accuracy}")
+```
+
 ### pipeline.yaml
 
 ```yaml
@@ -21,7 +63,6 @@ default_model: gpt-4o-mini
 bypass_cache: true
 
 optimizer_config:
-  type: moar
   dataset_path: workloads/medical/raw_sample.json  # Use sample for faster optimization
   save_dir: workloads/medical/moar_results
   available_models:  # LiteLLM model names - ensure API keys are set in your environment
@@ -110,10 +151,10 @@ def evaluate_results(dataset_file_path: str, results_file_path: str) -> Dict[str
     }
 ```
 
-### Running the Optimization
+### Running the Optimization via CLI
 
 ```bash
-docetl build workloads/medical/pipeline_medication_extraction.yaml --optimizer moar
+docetl build workloads/medical/pipeline_medication_extraction.yaml
 ```
 
 !!! tip "Using Sample Datasets"
@@ -127,7 +168,8 @@ docetl build workloads/medical/pipeline_medication_extraction.yaml --optimizer m
     - Returns multiple metrics, with `medication_extraction_score` as the primary one
 
 !!! info "Configuration"
+    - Only `evaluation_file` and `metric_key` are required in the YAML `optimizer_config`
+    - `available_models` is optional -- auto-detected from API keys if omitted
     - Uses a sample dataset for optimization (`dataset_path`)
-    - Includes multiple models in `available_models` to explore trade-offs
     - Sets `max_iterations` to 40 for a good balance of exploration and time
 

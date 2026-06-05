@@ -204,7 +204,7 @@ class Pipeline:
         max_threads: int | None = None,
         resume: bool = False,
         save_path: str | None = None,
-    ) -> "Pipeline | MOARResult":
+    ) -> "MOARResult | Pipeline":
         """
         Optimize the pipeline.
 
@@ -245,7 +245,13 @@ class Pipeline:
                 eval_fn=lambda path: {"score": compute_score(path)},
                 metric_key="score",
             )
-            print(result.best())
+
+            # Each frontier point is a runnable pipeline
+            best = result.best()
+            best.run()
+
+            # Inspect all explored plans as a DataFrame
+            df = result.to_df()
 
             # V1 optimization (legacy)
             optimized = pipeline.optimize(method="v1")

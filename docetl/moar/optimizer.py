@@ -1,19 +1,7 @@
 """
 Simplified Python API for MOAR optimization.
 
-Usage with a YAML file::
-
-    from docetl.moar import MOAROptimizer
-
-    optimizer = MOAROptimizer(
-        pipeline="pipeline.yaml",
-        eval_fn=lambda results_path: {"score": compute_score(results_path)},
-        metric_key="score",
-    )
-    results = optimizer.optimize()
-    print(results.best())
-
-Usage with the Pipeline Python API::
+Usage::
 
     from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
 
@@ -25,12 +13,17 @@ Usage with the Pipeline Python API::
         output=PipelineOutput(type="file", path="output.json"),
     )
 
-    optimizer = MOAROptimizer(
-        pipeline=pipeline,
+    result = pipeline.optimize(
         eval_fn=lambda results_path: {"score": compute_score(results_path)},
         metric_key="score",
     )
-    results = optimizer.optimize()
+
+    # Each point on the frontier is a runnable pipeline
+    best = result.best()
+    best.pipeline.run()
+
+    # Inspect the frontier as a DataFrame
+    result.to_df()
 """
 
 from __future__ import annotations
@@ -50,71 +43,95 @@ from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES
 from docetl.utils_dataset import get_dataset_stats
 
 if TYPE_CHECKING:
+    import pandas as pd
     from docetl.api import Pipeline
 
 
 @dataclass
-class FrontierPoint:
-    """A single point on the Pareto frontier."""
+class OptimizedPipeline:
+    """A single optimized pipeline from the MOAR search.
 
-    yaml_path: str
+    Attributes:
+        pipeline: A runnable ``DSLRunner`` instance. Call ``pipeline.load_run_save()``
+            to execute, or use it as input for further processing.
+        cost: Dollar cost of running this pipeline on the sample dataset.
+        accuracy: Evaluation metric score for this pipeline.
+        yaml_path: Path to the YAML file on disk.
+        on_frontier: Whether this point is on the Pareto frontier.
+    """
+
+    pipeline: Any  # DSLRunner — avoid import at module level
     cost: float
     accuracy: float
-    node_id: int
+    yaml_path: str
     on_frontier: bool = True
 
+    def run(self) -> float:
+        """Execute this optimized pipeline. Returns the total cost."""
+        return self.pipeline.load_run_save()
+
     def __repr__(self) -> str:
+        status = "frontier" if self.on_frontier else "dominated"
         return (
-            f"FrontierPoint(cost={self.cost:.4f}, accuracy={self.accuracy:.4f}, "
-            f"yaml={self.yaml_path!r})"
+            f"OptimizedPipeline(cost=${self.cost:.4f}, accuracy={self.accuracy:.4f}, "
+            f"{status})"
         )
 
 
 @dataclass
 class MOARResult:
-    """Results returned by MOAROptimizer.optimize()."""
+    """Results from ``pipeline.optimize()``.
 
-    frontier: List[FrontierPoint] = field(default_factory=list)
-    all_plans: List[FrontierPoint] = field(default_factory=list)
+    Access optimized pipelines via ``best()``, ``cheapest()``, ``frontier``,
+    or inspect all explored plans with ``to_df()``.
+    """
+
+    frontier: List[OptimizedPipeline] = field(default_factory=list)
+    all_plans: List[OptimizedPipeline] = field(default_factory=list)
     total_search_cost: float = 0.0
     iterations: int = 0
     duration_seconds: float = 0.0
     save_dir: Optional[str] = None
 
-    def best(self) -> Optional[FrontierPoint]:
-        """Return the highest-accuracy point on the frontier."""
-        frontier = [p for p in self.frontier if p.on_frontier]
-        if not frontier:
+    def best(self) -> Optional[OptimizedPipeline]:
+        """Return the highest-accuracy pipeline on the frontier."""
+        if not self.frontier:
             return None
-        return max(frontier, key=lambda p: p.accuracy)
+        return max(self.frontier, key=lambda p: p.accuracy)
 
-    def cheapest(self) -> Optional[FrontierPoint]:
-        """Return the lowest-cost point on the frontier."""
-        frontier = [p for p in self.frontier if p.on_frontier]
-        if not frontier:
+    def cheapest(self) -> Optional[OptimizedPipeline]:
+        """Return the lowest-cost pipeline on the frontier."""
+        if not self.frontier:
             return None
-        return min(frontier, key=lambda p: p.cost)
+        return min(self.frontier, key=lambda p: p.cost)
 
-    def summary(self) -> str:
-        """Return a human-readable summary table."""
-        lines = [
-            f"MOAR Optimization Results ({self.iterations} iterations, "
-            f"{self.duration_seconds:.1f}s, ${self.total_search_cost:.2f} search cost)",
-            f"{'─' * 70}",
-            f"  {'#':<4} {'Cost':>10} {'Accuracy':>10} {'Frontier':>10}   YAML Path",
-            f"  {'─'*4} {'─'*10} {'─'*10} {'─'*10}   {'─'*30}",
-        ]
-        for i, p in enumerate(
-            sorted(self.all_plans, key=lambda x: x.accuracy, reverse=True), 1
-        ):
-            marker = "  *" if p.on_frontier else ""
-            lines.append(
-                f"  {i:<4} ${p.cost:>9.4f} {p.accuracy:>10.4f} {marker:>10}   {p.yaml_path}"
+    def to_df(self) -> "pd.DataFrame":
+        """Return all explored plans as a pandas DataFrame."""
+        import pandas as pd
+
+        rows = []
+        for p in sorted(self.all_plans, key=lambda x: x.accuracy, reverse=True):
+            rows.append(
+                {
+                    "cost": p.cost,
+                    "accuracy": p.accuracy,
+                    "on_frontier": p.on_frontier,
+                    "yaml_path": p.yaml_path,
+                }
             )
-        lines.append(f"\n  Frontier points marked with *")
+        df = pd.DataFrame(rows)
         if self.save_dir:
-            lines.append(f"  Full results saved to: {self.save_dir}")
-        return "\n".join(lines)
+            DOCETL_CONSOLE.log(f"[dim]All pipelines saved to: {self.save_dir}[/dim]")
+        return df
+
+    def __repr__(self) -> str:
+        best = self.best()
+        best_str = f", best accuracy={best.accuracy:.4f}" if best else ""
+        return (
+            f"MOARResult({len(self.frontier)} frontier points, "
+            f"{len(self.all_plans)} total{best_str}, "
+            f"save_dir={self.save_dir!r})"
+        )
 
 
 class MOAROptimizer:
@@ -364,6 +381,8 @@ class MOAROptimizer:
 
     def _build_result(self, moar: Any, duration: float) -> MOARResult:
         """Extract results from MOARSearch into a MOARResult."""
+        from docetl.runner import DSLRunner
+
         frontier_set = set(moar.pareto_frontier.frontier_plans)
 
         all_plans = []
@@ -371,11 +390,12 @@ class MOAROptimizer:
         for node in moar.pareto_frontier.plans:
             accuracy = moar.pareto_frontier.plans_accuracy.get(node, 0.0)
             on_frontier = node in frontier_set
-            point = FrontierPoint(
+            runner = DSLRunner.from_yaml(node.yaml_file_path)
+            point = OptimizedPipeline(
+                pipeline=runner,
                 yaml_path=node.yaml_file_path,
                 cost=node.cost,
                 accuracy=accuracy,
-                node_id=node.get_id(),
                 on_frontier=on_frontier,
             )
             all_plans.append(point)
@@ -426,7 +446,6 @@ class MOAROptimizer:
             pareto_file = self._save_dir / "pareto_frontier.json"
             pareto_data = [
                 {
-                    "node_id": p.node_id,
                     "yaml_path": p.yaml_path,
                     "cost": p.cost,
                     "accuracy": p.accuracy,

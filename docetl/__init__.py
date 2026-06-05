@@ -6,7 +6,7 @@ import litellm
 from docetl.runner import DSLRunner
 from docetl.optimizer import Optimizer
 from docetl.apis.pd_accessors import SemanticAccessor
-from docetl.moar.optimizer import MOARResult, FrontierPoint
+from docetl.moar.optimizer import MOARResult, OptimizedPipeline
 from docetl.utils_evaluation import register_eval
 
 # Drop unsupported params for models like gpt-5 that don't support temperature=0
@@ -20,6 +20,6 @@ __all__ = [
     "Optimizer",
     "SemanticAccessor",
     "MOARResult",
-    "FrontierPoint",
+    "OptimizedPipeline",
     "register_eval",
 ]

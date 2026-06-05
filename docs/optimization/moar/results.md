@@ -2,16 +2,94 @@
 
 What MOAR outputs and how to interpret the results.
 
-## Output Files
+## Python API Results
 
-After running MOAR optimization, you'll find several files in your `save_dir`:
+When using the Python API, `pipeline.optimize()` returns a `MOARResult` object with methods to access optimized pipelines.
 
-- **`experiment_summary.json`** - High-level summary
-- **`pareto_frontier.json`** - Optimal solutions
-- **`evaluation_metrics.json`** - Detailed evaluation results
-- **`pipeline_*.yaml`** - Optimized pipeline configurations
+### MOARResult
 
-## experiment_summary.json
+```python
+result = pipeline.optimize(
+    eval_fn="evaluate.py",
+    metric_key="score",
+)
+
+result.best()      # OptimizedPipeline with highest accuracy on the frontier
+result.cheapest()  # OptimizedPipeline with lowest cost on the frontier
+result.frontier    # list[OptimizedPipeline] — all Pareto-optimal solutions
+result.to_df()     # pandas DataFrame of all explored plans
+```
+
+| Method / Property | Return Type | Description |
+|-------------------|-------------|-------------|
+| `best()` | `OptimizedPipeline` | The frontier solution with the highest accuracy |
+| `cheapest()` | `OptimizedPipeline` | The frontier solution with the lowest cost |
+| `frontier` | `list[OptimizedPipeline]` | All Pareto-optimal solutions, sorted by cost |
+| `to_df()` | `pandas.DataFrame` | DataFrame of all explored plans with cost, accuracy, and metadata |
+
+### OptimizedPipeline
+
+Each result on the frontier is an `OptimizedPipeline` that you can inspect and run directly:
+
+```python
+best = result.best()
+
+# Inspect
+print(best.cost)        # Estimated cost per run
+print(best.accuracy)    # Evaluation metric score
+print(best.yaml_path)   # Path to the optimized YAML file
+print(best.on_frontier) # True if on the Pareto frontier
+
+# Run
+best.run()              # Execute the optimized pipeline
+
+# Access the underlying DSLRunner
+best.pipeline           # DSLRunner instance
+```
+
+| Property / Method | Type | Description |
+|-------------------|------|-------------|
+| `pipeline` | `DSLRunner` | The underlying pipeline runner |
+| `cost` | `float` | Estimated cost per run |
+| `accuracy` | `float` | Evaluation metric score |
+| `yaml_path` | `str` | Path to the optimized YAML configuration |
+| `on_frontier` | `bool` | Whether this plan is on the Pareto frontier |
+| `run()` | `float` | Execute the pipeline; returns execution cost |
+
+### Working with Results
+
+```python
+# Choose based on your priorities
+result = pipeline.optimize(eval_fn="evaluate.py", metric_key="score")
+
+# Highest accuracy
+best = result.best()
+print(f"Best accuracy: {best.accuracy}, cost: ${best.cost:.4f}")
+best.run()
+
+# Lowest cost
+cheap = result.cheapest()
+print(f"Cheapest cost: ${cheap.cost:.4f}, accuracy: {cheap.accuracy}")
+
+# Explore the full frontier
+for plan in result.frontier:
+    print(f"Cost: ${plan.cost:.4f}, Accuracy: {plan.accuracy}")
+
+# Analyze all explored configurations as a DataFrame
+df = result.to_df()
+print(df[["cost", "accuracy", "on_frontier"]].sort_values("accuracy", ascending=False))
+```
+
+## CLI Output Files
+
+After running `docetl build pipeline.yaml`, you'll find several files in your `save_dir`:
+
+- **`experiment_summary.json`** — High-level summary
+- **`pareto_frontier.json`** — Optimal solutions
+- **`evaluation_metrics.json`** — Detailed evaluation results
+- **`pipeline_*.yaml`** — Optimized pipeline configurations
+
+### experiment_summary.json
 
 High-level summary of the optimization run:
 
@@ -37,7 +115,7 @@ High-level summary of the optimization run:
     - `total_nodes_explored`: Total configurations tested
     - `total_search_cost`: Total cost of the optimization search
 
-## pareto_frontier.json
+### pareto_frontier.json
 
 List of Pareto-optimal solutions (the cost-accuracy frontier):
 
@@ -67,11 +145,11 @@ List of Pareto-optimal solutions (the cost-accuracy frontier):
 
 Each solution includes a `yaml_path` pointing to the optimized pipeline configuration.
 
-## evaluation_metrics.json
+### evaluation_metrics.json
 
 Detailed evaluation results for all explored configurations. This file contains comprehensive metrics for every pipeline configuration tested during optimization.
 
-## Pipeline Configurations
+### Pipeline Configurations
 
 Each solution on the Pareto frontier has a corresponding YAML file (e.g., `pipeline_5.yaml`) containing the optimized pipeline configuration. You can:
 
@@ -83,11 +161,9 @@ Each solution on the Pareto frontier has a corresponding YAML file (e.g., `pipel
 
 After reviewing the results:
 
-1. **Review the Pareto frontier** - See available options
-2. **Choose a solution** - Based on your accuracy/cost priorities
-3. **Test the chosen pipeline** - Run it on your full dataset
-4. **Integrate into production** - Use the optimized configuration
+1. **Choose a solution** — Use `result.best()` / `result.cheapest()` in Python, or review `pareto_frontier.json` from the CLI
+2. **Run the chosen pipeline** — Call `.run()` on the `OptimizedPipeline`, or run the YAML with `docetl run`
+3. **Integrate into production** — Use the optimized configuration
 
 !!! success "Success"
     You now have multiple optimized pipeline options to choose from, each representing a different point on the cost-accuracy trade-off curve.
-

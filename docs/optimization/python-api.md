@@ -85,8 +85,15 @@ result = pipeline.optimize(
     max_iterations=40,                   # Default: 20
     save_dir="./moar_results",           # Default: temp dir
     exploration_weight=1.414,            # UCB constant
+    method="moar",                       # Default; use "v1" for legacy
 )
 ```
+
+!!! tip "Legacy V1 Optimizer"
+    To use the legacy V1 optimizer instead of MOAR, pass `method="v1"`:
+    ```python
+    optimized_pipeline = pipeline.optimize(method="v1")
+    ```
 
 See the [Configuration Reference](moar/configuration.md) for details.
 

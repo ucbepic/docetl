@@ -2,12 +2,13 @@
 The `EquijoinOperation` class is a subclass of `BaseOperation` that performs an equijoin operation on two datasets. It uses a combination of blocking techniques and LLM-based comparisons to efficiently join the datasets.
 """
 
+import asyncio
 import json
 import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from litellm import model_cost
@@ -18,6 +19,7 @@ from rich.prompt import Confirm
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
+from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.operations.utils.progress import RichLoopBar
 from docetl.utils import (
     completion_cost,
@@ -58,7 +60,7 @@ def process_left_item(
     ]
 
 
-class EquijoinOperation(BaseOperation):
+class EquijoinOperation(BaseOperation, CascadeMixin):
     class schema(BaseOperation.schema):
         type: str = "equijoin"
         comparison_prompt: str
@@ -68,6 +70,7 @@ class EquijoinOperation(BaseOperation):
         blocking_conditions: list[str] | None = None
         limits: dict[str, int] | None = None
         comparison_model: str | None = None
+        cascade: Optional[CascadeConfig] = None
         optimize: bool | None = None
         embedding_model: str | None = None
         embedding_batch_size: int | None = None
@@ -180,6 +183,53 @@ class EquijoinOperation(BaseOperation):
             self.console.log(f"[red]Error parsing LLM response: {e}[/red]")
             return False, cost
         return output["is_match"], cost
+
+    def _cascade_match_pairs(
+        self, pair_items: list
+    ) -> "tuple[list[bool], float]":
+        """Decide ``is_match`` for each candidate pair via the model cascade.
+
+        ``pair_items`` is the list of ``(left, right)`` dict tuples (in
+        ``blocked_pairs`` order). Returns per-pair match decisions and total
+        cost. Proxy is a single-token logprob compare; oracle is the existing
+        :meth:`compare_pair`. Default guarantee is ``precision``.
+        """
+        if not pair_items:
+            return [], 0.0
+
+        comparison_prompt = self.config["comparison_prompt"]
+        oracle_model = self.config.get("comparison_model", self.default_model)
+
+        def render_messages(pair: tuple) -> list[dict[str, str]]:
+            left_item, right_item = pair
+            rendered = strict_render(
+                comparison_prompt, {"left": left_item, "right": right_item}
+            )
+            return [{"role": "user", "content": rendered}]
+
+        def oracle_predict(pair: tuple) -> tuple[bool, float]:
+            if self.runner.is_cancelled:
+                raise asyncio.CancelledError("Operation was cancelled")
+            left_item, right_item = pair
+            is_match_label, cost = self.compare_pair(
+                comparison_prompt,
+                oracle_model,
+                left_item,
+                right_item,
+                self.config.get("timeout", 120),
+                self.config.get("max_retries_per_timeout", 2),
+            )
+            return bool(is_match_label), cost
+
+        result, cost = self._run_categorical_cascade(
+            items=pair_items,
+            render_messages=render_messages,
+            proxy_labels=[True, False],
+            oracle_predict=oracle_predict,
+            default_guarantee="precision",
+            op_label="equijoin",
+        )
+        return [bool(lbl) for lbl in result.labels], cost
 
     def execute(
         self, left_data: list[dict], right_data: list[dict]
@@ -524,6 +574,35 @@ class EquijoinOperation(BaseOperation):
 
         if self.status:
             self.status.stop()
+
+        if self.config.get("cascade"):
+            # Run the cascade over the candidate pairs (already (left, right)
+            # dict tuples): proxy on all, oracle on a calibrated subset
+            # (precision guarantee by default). Emit joins for matched pairs,
+            # then empty the work list so the per-pair loop below no-ops.
+            labels, comparison_costs = self._cascade_match_pairs(blocked_pairs)
+            for (left_item, right_item), is_match_label in zip(blocked_pairs, labels):
+                if not is_match_label:
+                    continue
+                left_key_hash = get_hashable_key(left_item)
+                right_key_hash = get_hashable_key(right_item)
+                if (
+                    left_match_counts[left_key_hash] >= left_limit
+                    or right_match_counts[right_key_hash] >= right_limit
+                ):
+                    continue
+                joined_item = {}
+                for key, value in left_item.items():
+                    joined_item[f"{key}_left" if key in right_item else key] = value
+                for key, value in right_item.items():
+                    joined_item[f"{key}_right" if key in left_item else key] = value
+                if self.runner.api.validate_output(
+                    self.config, joined_item, self.console
+                ):
+                    results.append(joined_item)
+                    left_match_counts[left_key_hash] += 1
+                    right_match_counts[right_key_hash] += 1
+            blocked_pairs = []
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             future_to_pair = {

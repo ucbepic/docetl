@@ -69,7 +69,9 @@ def make_data(n=60, every=3):
 # ---------------------------------------------------------------------------
 def test_cascade_config_defaults():
     c = CascadeConfig(proxy_model="gpt-4o-mini", target=0.9)
-    assert c.guarantee == "recall"
+    # guarantee defaults to None so each operator applies its own default
+    # (filter -> recall) at run time.
+    assert c.guarantee is None
     assert c.delta == 0.05
     assert c.label_budget == 400
 

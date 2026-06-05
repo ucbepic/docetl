@@ -2,9 +2,10 @@
 The `ResolveOperation` class is a subclass of `BaseOperation` that performs a resolution operation on a dataset. It uses a combination of blocking techniques and LLM-based comparisons to efficiently identify and resolve duplicate or related entries within the dataset.
 """
 
+import asyncio
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
+from typing import Any, Optional
 
 import jinja2
 from jinja2 import Template
@@ -14,6 +15,7 @@ from pydantic import Field, ValidationInfo, field_validator, model_validator
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render, lookup_field
 from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
+from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.utils import (
     completion_cost,
     extract_jinja_variables,
@@ -29,7 +31,7 @@ def find_cluster(item, cluster_map):
     return item
 
 
-class ResolveOperation(BaseOperation):
+class ResolveOperation(BaseOperation, CascadeMixin):
     class schema(BaseOperation.schema):
         type: str = "resolve"
         comparison_prompt: str
@@ -38,6 +40,7 @@ class ResolveOperation(BaseOperation):
         embedding_model: str | None = None
         resolution_model: str | None = None
         comparison_model: str | None = None
+        cascade: Optional[CascadeConfig] = None
         blocking_keys: list[str] | None = None
         blocking_threshold: float | None = Field(None, ge=0, le=1)
         blocking_target_recall: float | None = Field(None, ge=0, le=1)
@@ -218,6 +221,56 @@ class ResolveOperation(BaseOperation):
         )[0]
 
         return output["is_match"], response.total_cost, prompt
+
+    def _cascade_match_pairs(
+        self, pair_items: list, blocking_keys: list[str] | None = None
+    ) -> "tuple[list[bool], float]":
+        """Decide ``is_match`` for each candidate pair via the model cascade.
+
+        ``pair_items`` is a list of ``(item1, item2)`` dict tuples (in
+        ``blocked_pairs`` order). Returns the per-pair match decisions and the
+        total cost. Proxy is a single-token logprob compare; oracle is the
+        existing :meth:`compare_pair`. Default guarantee is ``precision``
+        (don't over-merge).
+        """
+        if not pair_items:
+            return [], 0.0
+
+        comparison_prompt = self.config["comparison_prompt"]
+        oracle_model = self.config.get("comparison_model", self.default_model)
+        bkeys = blocking_keys or []
+
+        def render_messages(pair: tuple) -> list[dict[str, str]]:
+            item1, item2 = pair
+            rendered = strict_render(
+                comparison_prompt, {"input1": item1, "input2": item2}
+            )
+            return [{"role": "user", "content": rendered}]
+
+        def oracle_predict(pair: tuple) -> tuple[bool, float]:
+            if self.runner.is_cancelled:
+                raise asyncio.CancelledError("Operation was cancelled")
+            item1, item2 = pair
+            is_match, cost, _prompt = self.compare_pair(
+                comparison_prompt,
+                oracle_model,
+                item1,
+                item2,
+                bkeys,
+                timeout_seconds=self.config.get("timeout", 120),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+            )
+            return bool(is_match), cost
+
+        result, cost = self._run_categorical_cascade(
+            items=pair_items,
+            render_messages=render_messages,
+            proxy_labels=[True, False],
+            oracle_predict=oracle_predict,
+            default_guarantee="precision",
+            op_label="resolve",
+        )
+        return [bool(lbl) for lbl in result.labels], cost
 
     def syntax_check(self) -> None:
         context = {"_from_df_accessors": self.runner._from_df_accessors}
@@ -555,6 +608,20 @@ class ResolveOperation(BaseOperation):
             f"batch size: {batch_size})"
         )
         pair_costs = 0
+
+        if self.config.get("cascade"):
+            # Replace "oracle-compare every candidate pair" with the cascade:
+            # proxy on all pairs, oracle on a calibrated subset (precision
+            # guarantee by default). Merge matched pairs into the union-find,
+            # then empty the work list so the per-batch loop below no-ops.
+            pair_items = [
+                (input_data[i], input_data[j]) for (i, j) in blocked_pairs
+            ]
+            labels, pair_costs = self._cascade_match_pairs(pair_items, blocking_keys)
+            for (i, j), is_match in zip(blocked_pairs, labels):
+                if is_match:
+                    merge_clusters(i, j)
+            blocked_pairs = []
 
         pbar = RichLoopBar(
             range(0, len(blocked_pairs), batch_size),

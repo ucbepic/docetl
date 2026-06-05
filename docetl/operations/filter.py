@@ -1,40 +1,18 @@
 """The `FilterOperation` class is a subclass of `BaseOperation` that implements a filtering operation on input data using a language model."""
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 from litellm.utils import ModelResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import model_validator
 
 from docetl.operations.map import MapOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.api import OutputMode
 
-
-class CascadeConfig(BaseModel):
-    """Opt-in model-cascade configuration for a filter operation.
-
-    Runs a cheap ``proxy_model`` on every record, learns a confidence
-    threshold on a small oracle-labeled sample, trusts the proxy above it and
-    escalates the rest to the operation's ``model`` (the oracle) -- preserving
-    the chosen statistical ``guarantee`` w.p. ``1 - delta``. See
-    ``docs/design/model-cascade.md``.
-    """
-
-    proxy_model: str
-    guarantee: str = "recall"  # filter's natural default: don't drop relevant docs
-    target: float = Field(..., gt=0, le=1)
-    delta: float = Field(0.05, gt=0, lt=1)
-    label_budget: int = Field(400, gt=0)
-
-    @model_validator(mode="after")
-    def _check_guarantee(self):
-        if self.guarantee not in ("accuracy", "precision", "recall"):
-            raise ValueError(
-                "cascade.guarantee must be 'accuracy', 'precision', or "
-                f"'recall'; got '{self.guarantee}'"
-            )
-        return self
+# Re-exported for backwards compatibility; the canonical definition now lives in
+# cascade_runner so all operators share one config.
+from docetl.operations.utils.cascade_runner import CascadeConfig  # noqa: F401
 
 
 class FilterOperation(MapOperation):
@@ -42,7 +20,6 @@ class FilterOperation(MapOperation):
         type: str = "filter"
         prompt: str
         output: dict[str, Any]
-        cascade: Optional[CascadeConfig] = None
 
         @model_validator(mode="after")
         def validate_filter_output_schema(self):
@@ -114,14 +91,6 @@ class FilterOperation(MapOperation):
         finally:
             self._filter_is_build = previous_state
 
-    def _cascade_config(self) -> dict[str, Any]:
-        """Return the cascade block as a plain dict (it may arrive as a dict or
-        a validated ``CascadeConfig``)."""
-        cfg = self.config["cascade"]
-        if isinstance(cfg, BaseModel):
-            return cfg.model_dump()
-        return cfg
-
     def _execute_cascade(
         self, input_data: list[dict]
     ) -> tuple[list[dict], float]:
@@ -129,55 +98,31 @@ class FilterOperation(MapOperation):
 
         Builds two thin adapters over the operation's prompt -- a cheap proxy
         (single-token logprob classification) and the existing full-quality
-        oracle call -- and hands them to :class:`CategoricalCascade`. Records
-        the engine labels positive are kept, in input order.
+        oracle call -- and hands them to the shared cascade runner. Records the
+        engine labels positive (kept) are returned in input order. Default
+        guarantee is ``recall`` (don't drop relevant docs).
         """
-        # Imported lazily so the cascade engine (numpy) is only required when a
-        # cascade is actually configured.
-        from docetl.operations.utils.cascade import CascadeSpec, CategoricalCascade
-
         if not input_data:
             return [], 0.0
 
-        cfg = self._cascade_config()
-        spec = CascadeSpec(
-            proxy_model=cfg["proxy_model"],
-            guarantee=cfg.get("guarantee", "recall"),
-            target=cfg["target"],
-            delta=cfg.get("delta", 0.05),
-            label_budget=cfg.get("label_budget", 400),
-            positive_label=True,
-            negative_label=False,
-        )
-
         oracle_model = self.config.get("model", self.default_model)
-        proxy_model = cfg["proxy_model"]
         schema = self.config["output"]["schema"]
         structured_mode = (
             self.config.get("output", {}).get("mode")
             == OutputMode.STRUCTURED_OUTPUT.value
         )
-        # Mutable accumulator; the engine drives the adapters sequentially.
-        cost = {"total": 0.0}
 
-        def _messages(item: dict) -> list[dict[str, str]]:
+        def render_messages(item: dict) -> list[dict[str, str]]:
             rendered = strict_render(self.config["prompt"], {"input": item})
             return [{"role": "user", "content": rendered}]
 
-        def proxy_predict(item: dict) -> tuple[bool, float]:
-            label, prob, c = self.runner.api._classify_with_logprob_with_cost(
-                proxy_model, _messages(item), [True, False]
-            )
-            cost["total"] += c
-            return bool(label), prob
-
-        def oracle_predict(item: dict) -> bool:
+        def oracle_predict(item: dict) -> tuple[bool, float]:
             if self.runner.is_cancelled:
                 raise asyncio.CancelledError("Operation was cancelled")
             llm_result = self.runner.api.call_llm(
                 oracle_model,
                 "filter",
-                _messages(item),
+                render_messages(item),
                 schema,
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
@@ -187,7 +132,6 @@ class FilterOperation(MapOperation):
                 ),
                 op_config=self.config,
             )
-            cost["total"] += llm_result.total_cost
             response = llm_result.response
             if isinstance(response, ModelResponse):
                 parsed = self.runner.api.parse_llm_response(
@@ -195,22 +139,18 @@ class FilterOperation(MapOperation):
                 )[0]
             else:
                 parsed = response
-            return bool(parsed.get(self._filter_key))
+            return bool(parsed.get(self._filter_key)), llm_result.total_cost
 
-        result = CategoricalCascade(spec, proxy_predict, oracle_predict).run(
-            input_data
+        result, cost = self._run_categorical_cascade(
+            items=input_data,
+            render_messages=render_messages,
+            proxy_labels=[True, False],
+            oracle_predict=oracle_predict,
+            default_guarantee="recall",
+            op_label="filter",
         )
 
         kept = [
             item for item, label in zip(input_data, result.labels) if bool(label)
         ]
-
-        stats = result.stats
-        self.console.log(
-            f"[bold green]Cascade filter '{self.config['name']}'[/bold green]: "
-            f"{stats.n_items} items, {stats.oracle_calls} oracle / "
-            f"{stats.proxy_calls} proxy calls (escalation "
-            f"{stats.escalation_rate:.0%}); guarantee={stats.guarantee} "
-            f"target={stats.target}, delta={stats.delta} -> kept {len(kept)}"
-        )
-        return kept, cost["total"]
+        return kept, cost

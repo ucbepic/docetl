@@ -232,6 +232,61 @@ class Pipeline:
         updated_pipeline._update_from_dict(optimized_config)
         return updated_pipeline
 
+    def optimize_moar(
+        self,
+        eval_fn: Any,
+        metric_key: str,
+        models: list[str] | None = None,
+        agent_model: str | None = None,
+        max_iterations: int = 20,
+        save_dir: str | None = None,
+        exploration_weight: float = 1.414,
+        dataset_path: str | None = None,
+    ) -> "MOARResult":
+        """
+        Optimize the pipeline using MOAR (Multi-Objective Agentic Rewrites).
+
+        Auto-detects available models from environment API keys when *models*
+        is not provided.
+
+        Args:
+            eval_fn: Evaluation function ``(results_file_path: str) -> dict``
+                or path to a Python file with a ``@docetl.register_eval``
+                decorated function.
+            metric_key: Key to extract from the eval function's return dict.
+            models: Model names to search over. ``None`` = auto-detect.
+            agent_model: Model for the rewrite agent. ``None`` = auto-select.
+            max_iterations: MCTS iterations (default 20).
+            save_dir: Output directory. ``None`` = temp directory.
+            exploration_weight: UCB exploration constant.
+            dataset_path: Explicit dataset path override.
+
+        Returns:
+            MOARResult with the Pareto frontier of optimized pipelines.
+
+        Example::
+
+            result = pipeline.optimize_moar(
+                eval_fn=lambda path: {"score": compute_score(path)},
+                metric_key="score",
+            )
+            print(result.best())
+        """
+        from docetl.moar.optimizer import MOAROptimizer
+
+        optimizer = MOAROptimizer(
+            pipeline=self,
+            eval_fn=eval_fn,
+            metric_key=metric_key,
+            models=models,
+            agent_model=agent_model,
+            max_iterations=max_iterations,
+            save_dir=save_dir,
+            exploration_weight=exploration_weight,
+            dataset_path=dataset_path,
+        )
+        return optimizer.optimize()
+
     def run(self, max_threads: int | None = None) -> float:
         """
         Run the pipeline using the DSLRunner.

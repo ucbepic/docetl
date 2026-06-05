@@ -1,7 +1,7 @@
 """
 Simplified Python API for MOAR optimization.
 
-Usage::
+Usage with a YAML file::
 
     from docetl.moar import MOAROptimizer
 
@@ -12,6 +12,25 @@ Usage::
     )
     results = optimizer.optimize()
     print(results.best())
+
+Usage with the Pipeline Python API::
+
+    from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+
+    pipeline = Pipeline(
+        name="my_pipeline",
+        datasets={"input": Dataset(type="file", path="data.json")},
+        operations=[MapOp(name="extract", type="map", prompt="...")],
+        steps=[PipelineStep(name="step1", input="input", operations=["extract"])],
+        output=PipelineOutput(type="file", path="output.json"),
+    )
+
+    optimizer = MOAROptimizer(
+        pipeline=pipeline,
+        eval_fn=lambda results_path: {"score": compute_score(results_path)},
+        metric_key="score",
+    )
+    results = optimizer.optimize()
 """
 
 from __future__ import annotations
@@ -21,7 +40,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import yaml
 
@@ -29,6 +48,9 @@ from docetl.console import DOCETL_CONSOLE
 from docetl.moar.models import default_agent_model, detect_available_models
 from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES
 from docetl.utils_dataset import get_dataset_stats
+
+if TYPE_CHECKING:
+    from docetl.api import Pipeline
 
 
 @dataclass
@@ -103,7 +125,9 @@ class MOAROptimizer:
     models from environment API keys.
 
     Args:
-        pipeline: Path to the YAML pipeline file.
+        pipeline: A ``Pipeline`` object, a path to a YAML pipeline file (str or
+            Path), or a raw config dict. When a ``Pipeline`` is given, it is
+            serialized to a temporary YAML file automatically.
         eval_fn: Evaluation function with signature
             ``(results_file_path: str) -> dict[str, Any]``.
             Alternatively, a path to a Python file containing a function
@@ -118,14 +142,32 @@ class MOAROptimizer:
         save_dir: Directory for output files. If ``None``, uses a temp directory.
         exploration_weight: UCB exploration constant (default sqrt(2)).
         dataset_path: Explicit path to the sample dataset JSON. If ``None``,
-            inferred from the pipeline YAML's ``datasets`` section.
+            inferred from the pipeline's ``datasets`` section.
         dataset_name: Name of the dataset. If ``None``, inferred from the
-            pipeline YAML's ``datasets`` section.
+            pipeline's ``datasets`` section.
 
-    Example::
+    Examples::
 
+        # From a YAML file
         optimizer = MOAROptimizer(
             pipeline="pipeline.yaml",
+            eval_fn=lambda p: {"score": my_score(p)},
+            metric_key="score",
+        )
+        results = optimizer.optimize()
+
+        # From a Pipeline object
+        from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+
+        pipeline = Pipeline(
+            name="my_pipeline",
+            datasets={"input": Dataset(type="file", path="data.json")},
+            operations=[MapOp(name="extract", type="map", prompt="Extract entities")],
+            steps=[PipelineStep(name="step1", input="input", operations=["extract"])],
+            output=PipelineOutput(type="file", path="output.json"),
+        )
+        optimizer = MOAROptimizer(
+            pipeline=pipeline,
             eval_fn=lambda p: {"score": my_score(p)},
             metric_key="score",
         )
@@ -135,7 +177,7 @@ class MOAROptimizer:
 
     def __init__(
         self,
-        pipeline: Union[str, Path],
+        pipeline: Union["Pipeline", str, Path, Dict[str, Any]],
         eval_fn: Union[Callable[[str], Dict[str, Any]], str, Path],
         metric_key: str,
         models: Optional[List[str]] = None,
@@ -146,7 +188,7 @@ class MOAROptimizer:
         dataset_path: Optional[Union[str, Path]] = None,
         dataset_name: Optional[str] = None,
     ):
-        self.pipeline_path = str(Path(pipeline).resolve())
+        self.pipeline_path = self._resolve_pipeline(pipeline, save_dir)
         self.metric_key = metric_key
         self.max_iterations = max_iterations
         self.exploration_weight = exploration_weight
@@ -176,6 +218,31 @@ class MOAROptimizer:
         self._dataset_path, self._dataset_name = self._resolve_dataset(
             dataset_path, dataset_name
         )
+
+    def _resolve_pipeline(
+        self,
+        pipeline: Union["Pipeline", str, Path, Dict[str, Any]],
+        save_dir: Optional[Union[str, Path]],
+    ) -> str:
+        """Convert pipeline input to a resolved YAML file path."""
+        from docetl.api import Pipeline as PipelineClass
+
+        if isinstance(pipeline, PipelineClass):
+            target_dir = Path(save_dir).resolve() if save_dir else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            target_dir.mkdir(parents=True, exist_ok=True)
+            yaml_path = target_dir / f"{pipeline.name}.yaml"
+            pipeline.to_yaml(str(yaml_path))
+            return str(yaml_path)
+
+        if isinstance(pipeline, dict):
+            target_dir = Path(save_dir).resolve() if save_dir else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            target_dir.mkdir(parents=True, exist_ok=True)
+            yaml_path = target_dir / "pipeline.yaml"
+            with open(yaml_path, "w") as f:
+                yaml.dump(pipeline, f, default_flow_style=False, sort_keys=False)
+            return str(yaml_path)
+
+        return str(Path(pipeline).resolve())
 
     def _resolve_eval_fn(
         self,

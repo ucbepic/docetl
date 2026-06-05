@@ -975,35 +975,51 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         """
         Single-token categorical classification with a calibrated confidence.
 
-        This is the cheap **proxy** path for model cascades (see
-        ``docetl/operations/utils/cascade.py``). It renders ``labels`` as a
-        single-token numeric menu (``1 = <label0>`` ...), asks the model to
-        answer with just the menu number, requests token logprobs, and maps
-        the answer token's probability back to a label.
+        Thin wrapper over :meth:`_classify_with_logprob_with_cost` that drops the
+        cost component; see that method for the full contract. Returns
+        ``(label, prob)`` -- the predicted label and its confidence in
+        ``[0, 1]`` -- and is the cheap **proxy** path for model cascades (see
+        ``docetl/operations/utils/cascade.py``).
+        """
+        label, prob, _cost = self._classify_with_logprob_with_cost(
+            model,
+            messages,
+            labels,
+            system_prompt=system_prompt,
+            top_logprobs=top_logprobs,
+            litellm_completion_kwargs=litellm_completion_kwargs,
+        )
+        return label, prob
+
+    def _classify_with_logprob_with_cost(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        labels: list[Any],
+        *,
+        system_prompt: str | None = None,
+        top_logprobs: int | None = None,
+        litellm_completion_kwargs: dict[str, Any] = {},
+    ) -> "tuple[Any, float, float]":
+        """
+        Like :meth:`classify_with_logprob` but also returns the call's cost.
+
+        Renders ``labels`` as a single-token numeric menu (``1 = <label0>``
+        ...), asks the model to answer with just the menu number, requests
+        token logprobs, and maps the answer token's probability back to a
+        label. Cascade adapters use the returned cost for accounting; the
+        public wrapper drops it.
 
         Rendering the labels as digits means booleans and enums both decode to
         a single token regardless of the label text, so one logprob lookup
         yields the answer. The returned probability is the softmax of the
         chosen label over the menu tokens present in ``top_logprobs`` and lies
-        in ``[0, 1]`` -- it is the confidence the cascade engine thresholds on.
-
-        Unlike the structured/tool paths, this uses ``litellm.completion``
-        directly (no router fallback): proxies are intentionally a single cheap
-        model.
-
-        Args:
-            model: The (cheap) proxy model name.
-            messages: The rendered prompt messages (without the menu/answer
-                instruction, which this method appends).
-            labels: Candidate labels, at most 9 (single-token menu).
-            system_prompt: Optional system message; a generic classifier
-                prompt is used if omitted.
-            top_logprobs: Number of alternatives to request at the answer
-                position; defaults to a value sized to the label set.
-            litellm_completion_kwargs: Extra kwargs forwarded to ``completion``.
+        in ``[0, 1]``. Unlike the structured/tool paths, this uses
+        ``litellm.completion`` directly (no router fallback): proxies are
+        intentionally a single cheap model.
 
         Returns:
-            ``(label, prob)`` -- the predicted label and its confidence.
+            ``(label, prob, cost)``.
 
         Raises:
             ValueError: if ``labels`` is empty or has more than 9 entries, or
@@ -1073,7 +1089,12 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 )
             raise
 
-        return self._parse_logprob_response(response, token_to_label)
+        try:
+            cost = completion_cost(response)
+        except Exception:
+            cost = 0.0
+        label, prob = self._parse_logprob_response(response, token_to_label)
+        return label, prob, cost
 
     @staticmethod
     def _parse_logprob_response(

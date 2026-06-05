@@ -42,6 +42,87 @@ Add an opt-in `cascade:` block to a supported operator. The operator's existing
     label_budget: 300            # max oracle calls spent learning the threshold
 ```
 
+## Complete example — run it end to end
+
+A cascade is just a `cascade:` block on an operator in your normal pipeline YAML;
+you run it the same way you run any DocETL pipeline. Here is a full, minimal
+pipeline that filters documents for relevance with a cascade:
+
+```yaml
+# pipeline.yaml
+datasets:
+  documents:
+    type: file
+    path: documents.json          # a JSON list of objects, each with a "text" field
+
+default_model: gpt-4o             # the oracle (high-quality) model
+
+operations:
+  - name: is_relevant
+    type: filter
+    prompt: |
+      Is the following document about climate policy? Answer true or false.
+      {{ input.text }}
+    output:
+      schema:
+        keep: "bool"
+    cascade:
+      proxy_model: gpt-4o-mini    # the cheap model
+      guarantee: recall           # don't drop relevant docs (filter's default)
+      target: 0.95                # keep >= 95% of the truly-relevant docs
+      delta: 0.05                 # guarantee holds with probability 0.95
+      label_budget: 300           # at most 300 oracle calls to learn the threshold
+
+pipeline:
+  steps:
+    - name: relevance
+      input: documents
+      operations:
+        - is_relevant
+  output:
+    type: file
+    path: relevant_documents.json
+```
+
+Run it from the command line:
+
+```bash
+docetl run pipeline.yaml
+```
+
+While the filter runs, the cascade prints a one-line summary of what it did:
+
+```text
+Cascade filter 'is_relevant': 1000 items | proxy 1000 + oracle 137
+(escalation 14%; 863 served by proxy) | guarantee=recall target=0.95
+delta=0.05 | cost=$0.42
+```
+
+Read that as: all 1000 documents were classified by the cheap proxy; the engine
+spent 137 oracle calls learning/verifying the threshold and escalating the
+uncertain cases (a 14% escalation rate), while 863 documents were decided by the
+proxy alone — at a recall guarantee of 0.95. Without the cascade, the same step
+would have made 1000 oracle calls.
+
+Re-running the identical pipeline reuses the cached result (no new model calls):
+
+```text
+Cascade filter 'is_relevant' (cached): 1000 items | proxy 1000 + oracle 137
+(escalation 14%; 863 served by proxy) | guarantee=recall target=0.95
+delta=0.05 | cost=$0.42
+```
+
+### Python API
+
+The same config works through the Python API:
+
+```python
+from docetl import DSLRunner
+
+runner = DSLRunner.from_yaml("pipeline.yaml")
+runner.load_run_save()
+```
+
 ### Config knobs
 
 | Knob | Meaning | Default |

@@ -356,7 +356,15 @@ class MOAROptimizer:
         Returns:
             MOARResult with the Pareto frontier and all explored plans.
         """
+        import os
+
         from docetl.moar import MOARSearch
+
+        if os.environ.get("USE_FRONTEND") == "true":
+            DOCETL_CONSOLE.log(
+                "[bold yellow]Warning: MOAR optimization runs in CLI mode. "
+                "The interactive frontend/TUI is not used during optimization.[/bold yellow]"
+            )
 
         DOCETL_CONSOLE.log("[bold blue]MOAROptimizer: loading dataset...[/bold blue]")
         with open(self._dataset_path, "r") as f:

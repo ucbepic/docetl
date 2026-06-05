@@ -98,13 +98,17 @@ Cascade filter 'is_relevant': 1000 items | proxy 1000 + oracle 137
 delta=0.05 | cost=$0.42
 ```
 
-Read that as: all 1000 documents were classified by the cheap proxy; the engine
-spent 137 oracle calls learning/verifying the threshold and escalating the
-uncertain cases (a 14% escalation rate), while 863 documents were decided by the
-proxy alone — at a recall guarantee of 0.95. Without the cascade, the same step
-would have made 1000 oracle calls.
+How to read this: all 1000 documents were classified by the cheap proxy. The
+oracle was called on 137 of them — that single count covers everything the
+expensive model touched: the sample it labeled to learn the threshold **and**
+any escalated cases (the same pool, deduplicated). The other 863 documents were
+decided by the proxy alone. So `137 (oracle) + 863 (proxy) = 1000`, versus 1000
+oracle calls without the cascade. `label_budget: 300` is a ceiling on those
+oracle calls — here only 137 were needed. (Quality is measured against the
+oracle's answers, treated as ground truth.)
 
-Re-running the identical pipeline reuses the cached result (no new model calls):
+Re-running the identical pipeline reuses the cached result and makes no new
+model calls — the line below replays the originally-recorded cost:
 
 ```text
 Cascade filter 'is_relevant' (cached): 1000 items | proxy 1000 + oracle 137
@@ -150,6 +154,12 @@ Pick the guarantee that matches the operator's intent:
 
 If you omit `guarantee`, each operator applies its natural default:
 **filter → recall**, **map → accuracy**, **resolve / equijoin → precision**.
+
+If the oracle sample is too small to certify the `target` at the chosen `delta`,
+the engine errs toward the guarantee — escalating more items to the oracle (or
+keeping more items) — rather than silently violating it. That costs more oracle
+calls, so give `label_budget` enough room for a meaningful sample on small
+datasets.
 
 ## Per-operator examples
 

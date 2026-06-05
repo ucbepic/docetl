@@ -88,6 +88,21 @@ def test_cascade_config_requires_target_in_range():
         CascadeConfig(proxy_model="m")  # missing target
 
 
+def test_filter_cascade_with_pdf_or_retriever_rejected():
+    # Filter inherits the guard from MapOperation.schema.
+    for bad in ("pdf_url_key", "retriever"):
+        cfg = {
+            "name": "f",
+            "type": "filter",
+            "prompt": "{{ input.x }}?",
+            "output": {"schema": {"keep": "bool"}},
+            bad: "something",
+            "cascade": {"proxy_model": "gpt-4o-mini", "target": 0.9},
+        }
+        with pytest.raises(ValueError, match=bad):
+            FilterOperation.schema.model_validate(cfg)
+
+
 # ---------------------------------------------------------------------------
 # Cascade execution
 # ---------------------------------------------------------------------------

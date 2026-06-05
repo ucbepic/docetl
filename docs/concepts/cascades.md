@@ -147,4 +147,7 @@ The same numbers are available programmatically on the operation instance as
   free-text map outputs are not guaranteeable and should not set `cascade`.
 - The proxy renders the operator's prompt with `{{ input }}` (or
   `{{ input1/input2 }}`, `{{ left/right }}`); retrieval-context and PDF inputs
-  are not yet wired into the proxy path.
+  are not yet wired into the cascade path. Combining `cascade` with
+  `pdf_url_key` or a `retriever` is **rejected at config validation** (rather
+  than silently dropping that context) — remove the `cascade` block or those
+  inputs.

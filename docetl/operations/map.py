@@ -123,6 +123,28 @@ class MapOperation(BaseOperation, CascadeMixin):
 
             return self
 
+        @model_validator(mode="after")
+        def validate_cascade_inputs(self):
+            # The cascade proxy/oracle adapters render text only; they do not
+            # yet pass PDF documents or retrieved context to the model, so
+            # combining cascade with those inputs would silently degrade the
+            # prompt. Fail loudly until that path is wired in.
+            if self.cascade is not None:
+                bad = [
+                    name
+                    for name in ("pdf_url_key", "retriever")
+                    if getattr(self, name, None)
+                ]
+                if bad:
+                    raise ValueError(
+                        "cascade cannot yet be combined with "
+                        + " or ".join(bad)
+                        + " (the proxy/oracle would not receive the PDF or "
+                        "retrieved context). Remove the cascade block or these "
+                        "inputs."
+                    )
+            return self
+
     def __init__(
         self,
         *args,

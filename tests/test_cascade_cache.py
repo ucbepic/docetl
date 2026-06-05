@@ -3,16 +3,13 @@
 An identical re-run (same op config + same data) should reuse the cached result
 and make zero new proxy/oracle calls; ``bypass_cache`` forces recomputation.
 ``cascade_stats`` is exposed on the operation for programmatic reporting. The
-shared module-level ``cache`` is monkeypatched to an in-memory fake so tests
-don't touch the real on-disk cache.
+cascade cache is isolated to an in-memory fake by the autouse ``cascade_cache``
+fixture (see conftest.py), so tests don't touch the real on-disk cache.
 """
 
 import re
 from types import SimpleNamespace
 
-import pytest
-
-import docetl.operations.utils.cascade_runner as cascade_runner
 from docetl.operations.filter import FilterOperation
 
 
@@ -37,25 +34,6 @@ class FakeAPI:
         )
 
 
-class FakeCache:
-    """Minimal stand-in for the diskcache ``cache`` (context-manager + get/set)."""
-
-    def __init__(self):
-        self.store = {}
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def get(self, k):
-        return self.store.get(k)
-
-    def set(self, k, v):
-        self.store[k] = v
-
-
 def make_filter(bypass_cache=False):
     api = FakeAPI()
     runner = SimpleNamespace(config={}, api=api, is_cancelled=False)
@@ -75,20 +53,13 @@ def make_data(n=40):
     return [{"id": i, "text": f"d{i}", "gt": (i % 3 == 0)} for i in range(n)]
 
 
-@pytest.fixture
-def fake_cache(monkeypatch):
-    fc = FakeCache()
-    monkeypatch.setattr(cascade_runner, "cache", fc)
-    return fc
-
-
-def test_identical_rerun_hits_cache(fake_cache):
+def test_identical_rerun_hits_cache(cascade_cache):
     data = make_data()
 
     op1, api1 = make_filter()
     kept1, cost1 = op1.execute(data)
     assert api1.proxy_calls > 0 and api1.oracle_calls > 0  # first run does work
-    assert len(fake_cache.store) == 1  # result was cached
+    assert len(cascade_cache.store) == 1  # result was cached
 
     # A fresh op with the same config + data must hit the cache: no new calls.
     op2, api2 = make_filter()
@@ -100,7 +71,7 @@ def test_identical_rerun_hits_cache(fake_cache):
     assert op2.cascade_stats.n_items == len(data)
 
 
-def test_bypass_cache_recomputes(fake_cache):
+def test_bypass_cache_recomputes(cascade_cache):
     data = make_data()
     op1, _ = make_filter()
     op1.execute(data)
@@ -111,17 +82,17 @@ def test_bypass_cache_recomputes(fake_cache):
     assert api2.proxy_calls > 0
 
 
-def test_different_data_misses_cache(fake_cache):
+def test_different_data_misses_cache(cascade_cache):
     op1, _ = make_filter()
     op1.execute(make_data(40))
 
     op2, api2 = make_filter()
     op2.execute(make_data(30))  # different dataset -> different key -> recompute
     assert api2.proxy_calls > 0
-    assert len(fake_cache.store) == 2
+    assert len(cascade_cache.store) == 2
 
 
-def test_cascade_stats_exposed(fake_cache):
+def test_cascade_stats_exposed(cascade_cache):
     op, _ = make_filter()
     op.execute(make_data())
     s = op.cascade_stats

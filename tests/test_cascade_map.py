@@ -105,3 +105,33 @@ def test_map_cascade_rejects_multi_key_output():
     )
     with pytest.raises(ValueError, match="exactly one output key"):
         op.execute(make_data(4))
+
+
+def test_cascade_with_pdf_url_key_rejected_at_validation():
+    # Combining cascade with pdf_url_key would silently drop the PDF; the
+    # config validator must reject it.
+    with pytest.raises(ValueError, match="pdf_url_key"):
+        MapOperation.schema.model_validate(
+            {
+                "name": "m",
+                "type": "map",
+                "prompt": "{{ input.x }}",
+                "output": {"schema": {"cat": "enum[a, b]"}},
+                "pdf_url_key": "doc_url",
+                "cascade": {"proxy_model": "gpt-4o-mini", "target": 0.9},
+            }
+        )
+
+
+def test_cascade_with_retriever_rejected_at_validation():
+    with pytest.raises(ValueError, match="retriever"):
+        MapOperation.schema.model_validate(
+            {
+                "name": "m",
+                "type": "map",
+                "prompt": "{{ input.x }}",
+                "output": {"schema": {"cat": "enum[a, b]"}},
+                "retriever": "my_retriever",
+                "cascade": {"proxy_model": "gpt-4o-mini", "target": 0.9},
+            }
+        )

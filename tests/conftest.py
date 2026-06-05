@@ -3,6 +3,45 @@ from docetl.operations.map import MapOperation
 from docetl.config_wrapper import ConfigWrapper
 from docetl.runner import DSLRunner
 
+import docetl.operations.utils.cascade_runner as cascade_runner
+
+
+# =============================================================================
+# MODEL-CASCADE CACHE ISOLATION
+# =============================================================================
+
+class _MemCache:
+    """In-memory stand-in for the diskcache ``cache`` (context-manager + get/set)."""
+
+    def __init__(self):
+        self.store = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get(self, k):
+        return self.store.get(k)
+
+    def set(self, k, v):
+        self.store[k] = v
+
+
+@pytest.fixture(autouse=True)
+def cascade_cache(monkeypatch):
+    """Isolate the model-cascade cache for every test.
+
+    The cascade reuses the shared on-disk DocETL cache; without isolation,
+    results leak across runs (a cache hit makes zero proxy/oracle calls,
+    breaking call-count assertions). Each test gets a fresh in-memory cache.
+    Tests that need to inspect it can request this fixture by name.
+    """
+    mem = _MemCache()
+    monkeypatch.setattr(cascade_runner, "cache", mem, raising=False)
+    return mem
+
 # =============================================================================
 # BASIC TEST CONFIGURATION FIXTURES (SHARED ACROSS MULTIPLE TEST FILES)
 # =============================================================================

@@ -154,3 +154,22 @@ dataset signature) so re-runs don't re-pay the labeling cost.
 The statistical procedures (betting confidence sequences, without-replacement
 sampling, and the accuracy/precision/recall threshold search) are ports of the
 methods in BARGAIN (UC Berkeley EPIC lab). Reimplemented here, not vendored.
+
+### Dependency decision: vendor the statistical core
+
+We deliberately do **not** take a runtime dependency on the `bargain` package:
+
+- It is **not published on PyPI** (0.1.1, MIT) — the only way to depend on it
+  is a git pin to a research repo with no release cadence, which is fragile
+  for a core runtime feature.
+- It ships `openai` + `pandas` as hard deps and its `Proxy`/`Oracle` model is
+  OpenAI-logprob-specific; DocETL goes through litellm, so we need our own
+  proxy/oracle adapters regardless.
+- The reused math is ~120 lines of pure numpy and is mathematically frozen;
+  MIT permits a verbatim, attributed port, and the coverage tests
+  (`tests/test_cascade_core.py`) guard against regressions.
+
+Trade-off accepted: we own correctness of the port and will not auto-receive
+upstream fixes. The `proxy_predict`/`oracle_predict` callable seam keeps the
+door open to an *optional* `bargain` backend later without changing operators.
+

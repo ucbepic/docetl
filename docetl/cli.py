@@ -164,18 +164,53 @@ def build(
             console.print(error_panel)
             raise typer.Exit(1)
 
-        # Run MOAR optimization
-        from docetl.moar.cli_helpers import run_moar_optimization
+        # Run MOAR optimization via MOAROptimizer
+        from docetl.moar.optimizer import MOAROptimizer
+        from docetl.utils_evaluation import load_custom_evaluate_func
 
         try:
-            results = run_moar_optimization(
-                yaml_path=str(yaml_file),
-                optimizer_config=optimizer_config,
+            save_dir = optimizer_config.get("save_dir")
+
+            # Resolve eval function from file
+            # We need dataset_path to wrap the eval function
+            dataset_path = optimizer_config.get("dataset_path")
+            if not dataset_path:
+                import yaml as yaml_lib2
+
+                with open(yaml_file, "r") as f2:
+                    cfg = yaml_lib2.safe_load(f2)
+                ds = cfg.get("datasets", {})
+                if ds:
+                    _, ds_cfg = next(iter(ds.items()))
+                    dataset_path = ds_cfg.get("path", "")
+
+            eval_fn = load_custom_evaluate_func(
+                optimizer_config["evaluation_file"],
+                dataset_path or "",
             )
+
+            opt = MOAROptimizer(
+                pipeline=str(yaml_file),
+                eval_fn=eval_fn,
+                metric_key=optimizer_config["metric_key"],
+                models=optimizer_config.get("available_models"),
+                agent_model=optimizer_config.get("rewrite_agent_model")
+                or optimizer_config.get("model"),
+                max_iterations=optimizer_config["max_iterations"],
+                save_dir=save_dir,
+                exploration_weight=optimizer_config.get("exploration_weight", 1.414),
+                dataset_path=optimizer_config.get("dataset_path"),
+            )
+            result = opt.optimize()
+
             typer.echo("\n✅ MOAR optimization completed successfully!")
-            typer.echo(f"   Results saved to: {optimizer_config.get('save_dir')}")
-            if results.get("evaluation_file"):
-                typer.echo(f"   Evaluation: {results['evaluation_file']}")
+            typer.echo(f"   Results saved to: {save_dir}")
+            typer.echo(
+                f"   Frontier: {len(result.frontier)} points, "
+                f"best accuracy: {result.best().accuracy:.4f}"
+                if result.best()
+                else ""
+            )
         except Exception as e:
             typer.echo(f"Error running MOAR optimization: {e}", err=True)
             raise typer.Exit(1)

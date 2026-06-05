@@ -472,6 +472,27 @@ class OpContainer:
             )
             if attempted_input_data is not None:
                 curr_logs += f"[green]✓[/green] Using cached {self.name}\n"
+                # Surface cached operations in the interactive view as done, so
+                # they don't appear stuck at "queued". Outputs remain inspectable.
+                tracker = getattr(self.runner, "progress_tracker", None)
+                if tracker is not None and self.config.get("type") not in (
+                    "scan",
+                    "step_boundary",
+                ):
+                    n = len(attempted_input_data)
+                    tracker.op_start(
+                        self.name,
+                        self.config.get("type", "?"),
+                        self.config.get("model", self.runner.default_model),
+                        n,
+                    )
+                    tracker.op_done(
+                        self.name,
+                        cost=0.0,
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        outputs=attempted_input_data,
+                    )
                 return attempted_input_data, 0, curr_logs
 
         # If there's a selectivity estimate, we need to take a sample of size sample_size_needed / selectivity
@@ -520,6 +541,32 @@ class OpContainer:
         if input_data and "sample" in self.config and not is_build:
             input_data = input_data[: self.config["sample"]]
 
+        # Notify the interactive progress tracker that this operation is starting.
+        # Scans and step boundaries are infrastructure and are not surfaced; we
+        # also skip optimizer "build" runs to avoid cluttering the live view.
+        tracker = getattr(self.runner, "progress_tracker", None)
+        track_this_op = (
+            tracker is not None
+            and not is_build
+            and self.config.get("type") not in ("scan", "step_boundary")
+        )
+        if track_this_op:
+
+            def _token_totals():
+                p = sum(u["prompt_tokens"] for u in self.runner.total_token_usage.values())
+                c = sum(
+                    u["completion_tokens"] for u in self.runner.total_token_usage.values()
+                )
+                return p, c
+
+            tokens_before = _token_totals()
+            tracker.op_start(
+                self.name,
+                self.config.get("type", "?"),
+                self.config.get("model", self.runner.default_model),
+                input_len,
+            )
+
         # Execute the operation
         with self.runner.console.status(f"Running {self.name}") as status:
             self.runner.status = status
@@ -534,6 +581,16 @@ class OpContainer:
             # Track costs and log execution
             this_op_cost = self.runner.total_cost - cost_before_execution
             cost += this_op_cost
+
+            if track_this_op:
+                tokens_after = _token_totals()
+                tracker.op_done(
+                    self.name,
+                    cost=this_op_cost,
+                    prompt_tokens=tokens_after[0] - tokens_before[0],
+                    completion_tokens=tokens_after[1] - tokens_before[1],
+                    outputs=output_data,
+                )
 
             build_indicator = "[yellow](build)[/yellow] " if is_build else ""
             curr_logs += f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${this_op_cost:.2f}[/green])\n"

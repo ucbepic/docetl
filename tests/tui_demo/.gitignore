@@ -1,0 +1,4 @@
+# Generated pipeline output / cache from local runs
+*_output.json
+intermediates/
+.docetl/

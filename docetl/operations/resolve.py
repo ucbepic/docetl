@@ -276,7 +276,15 @@ class ResolveOperation(BaseOperation):
         precomputed_embeddings = None
 
         # Auto-compute blocking threshold if no blocking configuration is provided
-        if not blocking_threshold and not blocking_conditions and not limit_comparisons:
+        if (
+            not blocking_threshold
+            and not blocking_conditions
+            and not limit_comparisons
+            and len(input_data) > 10
+        ):
+            # Only auto-compute a blocking threshold at scale. For small inputs
+            # the sample is too tiny to estimate a reliable threshold, so we fall
+            # through and compare all pairs (cheap and deterministic).
             # Get target recall from operation config (default 0.95)
             target_recall = self.config.get("blocking_target_recall", 0.95)
             self.console.log(

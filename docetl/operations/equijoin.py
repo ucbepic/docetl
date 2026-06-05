@@ -256,6 +256,22 @@ class EquijoinOperation(BaseOperation):
         precomputed_left_embeddings = None
         precomputed_right_embeddings = None
 
+        # Small joins: comparing every pair is cheap and reliable, whereas
+        # auto-blocking estimates a similarity threshold from a tiny random
+        # sample and can pick an unstable value that drops true matches. Skip
+        # blocking and compare all pairs.
+        if (
+            not blocking_threshold
+            and not blocking_conditions
+            and not limit_comparisons
+            and len(left_data) * len(right_data) <= 100
+        ):
+            blocking_conditions = ["True"]
+            self.console.log(
+                f"[yellow]Small join ({len(left_data) * len(right_data)} pairs); "
+                "comparing all pairs without blocking.[/yellow]"
+            )
+
         # Auto-compute blocking threshold if no blocking configuration is provided
         if not blocking_threshold and not blocking_conditions and not limit_comparisons:
             # Get target recall from operation config (default 0.95)

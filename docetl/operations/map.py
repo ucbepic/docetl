@@ -17,6 +17,7 @@ from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types, lookup_field
 from docetl.operations.utils.api import OutputMode
+from docetl.progress.tracker import active_tracker
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 
@@ -593,6 +594,7 @@ Reference anchors:"""
                         result_list, item_cost = future.result()
                         total_cost += item_cost
 
+                        batch_done: list[dict] = []
                         if result_list:
                             if "drop_keys" in self.config:
                                 result_list = [
@@ -615,12 +617,20 @@ Reference anchors:"""
                                 )
                                 if processed_result is not None:
                                     results.append(processed_result)
+                                    batch_done.append(processed_result)
 
                                 if limit_value is not None and counts_towards_limit:
                                     limit_counter += 1
                                     if limit_counter >= limit_value:
                                         limit_reached = True
                                         break
+
+                        # Stream just-finished docs to the interactive view so the
+                        # detail pane shows them live (no-op outside a TUI run).
+                        if batch_done:
+                            _tracker = active_tracker()
+                            if _tracker is not None:
+                                _tracker.add_outputs(batch_done)
 
                         pbar.update()
 

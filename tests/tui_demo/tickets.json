@@ -1,0 +1,22 @@
+[
+  {"id": "T-1001", "text": "I was charged twice for my March subscription. Please refund the duplicate charge immediately, this is the second time it has happened and I am furious."},
+  {"id": "T-1002", "text": "Hi team, just wanted to say the new dashboard is fantastic. Loading times are way faster. Keep up the great work!"},
+  {"id": "T-1003", "text": "My package was supposed to arrive on Monday but the tracking has not updated in four days. Where is my order #88231?"},
+  {"id": "T-1004", "text": "I can't log into my account. It keeps saying my password is wrong even after I reset it three times. I need access today for a client demo."},
+  {"id": "T-1005", "text": "Could you add a dark mode to the mobile app? My eyes hurt using it at night. Not urgent but would be lovely."},
+  {"id": "T-1006", "text": "The export-to-CSV button throws a 500 error every time I click it on the reports page. This is blocking my month-end close."},
+  {"id": "T-1007", "text": "Please cancel my subscription effective immediately. I no longer need the service and do not want to be billed next month."},
+  {"id": "T-1008", "text": "How do I invite teammates to my workspace? I looked through the settings but can't find the option anywhere."},
+  {"id": "T-1009", "text": "Your support agent Maria was incredibly helpful yesterday. She resolved my billing issue in minutes. Give her a raise!"},
+  {"id": "T-1010", "text": "The invoice you sent has the wrong company name on it. We need it corrected for our accounting before we can pay. Fairly urgent."},
+  {"id": "T-1011", "text": "App crashes on startup on my Pixel 8 after the latest update. Completely unusable now. Please fix ASAP."},
+  {"id": "T-1012", "text": "Is there a student discount available? I'm a grad student and the pro plan is a bit steep for me right now."},
+  {"id": "T-1013", "text": "I returned the defective item two weeks ago and still have not received my refund of $149. Getting frustrated with the wait."},
+  {"id": "T-1014", "text": "Just a heads up, the link in your onboarding email points to a 404 page. Minor issue but you may want to fix it."},
+  {"id": "T-1015", "text": "URGENT: our entire team is locked out of the production account and we have a launch in two hours. Please help right now."},
+  {"id": "T-1016", "text": "Loving the API so far. One request: could you bump the rate limit for the /search endpoint? We keep hitting 429s."},
+  {"id": "T-1017", "text": "The shipping cost at checkout was different from what was advertised. I was quoted free shipping but charged $12."},
+  {"id": "T-1018", "text": "Thank you for the quick turnaround on my last ticket. Everything is working perfectly now."},
+  {"id": "T-1019", "text": "I think there is a security issue: I can see another user's order details when I navigate to /orders/0. This seems serious."},
+  {"id": "T-1020", "text": "Can you explain the difference between the Team and Business plans? The pricing page is a little confusing to me."}
+]

@@ -1,0 +1,45 @@
+# resolve demo: deduplicate customer records whose names are variants of the
+# same person. Exercises the "comparisons" progress unit. Comparison and
+# resolution use gpt-4.1-nano; blocking uses a cheap small embedding model.
+datasets:
+  customers:
+    type: file
+    path: customers.json
+
+default_model: gpt-4.1-nano
+
+operations:
+  - name: dedupe_customers
+    type: resolve
+    blocking_keys:
+      - name
+    blocking_threshold: 0.0
+    embedding_model: text-embedding-3-small
+    comparison_model: gpt-4.1-nano
+    resolution_model: gpt-4.1-nano
+    comparison_prompt: |
+      Do these two customer records refer to the same person? Decide mostly on
+      the name (nicknames and initials count as the same person).
+      Person 1: {{ input1.name }} <{{ input1.email }}>
+      Person 2: {{ input2.name }} <{{ input2.email }}>
+      Return true if they are the same person, false otherwise.
+    resolution_prompt: |
+      These records refer to the same person. Pick one canonical full name and
+      one canonical email:
+      {% for r in inputs %}
+      - {{ r.name }} <{{ r.email }}>
+      {% endfor %}
+    output:
+      schema:
+        name: "string"
+        email: "string"
+
+pipeline:
+  steps:
+    - name: dedupe
+      input: customers
+      operations:
+        - dedupe_customers
+  output:
+    type: file
+    path: resolve_output.json

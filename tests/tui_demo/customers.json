@@ -1,0 +1,12 @@
+[
+  {"name": "Robert Smith", "email": "rsmith@example.com"},
+  {"name": "Bob Smith", "email": "bob.smith@example.com"},
+  {"name": "Bobby Smith", "email": "bsmith@gmail.com"},
+  {"name": "Alice Johnson", "email": "alice.j@example.com"},
+  {"name": "Alice M. Johnson", "email": "ajohnson@work.com"},
+  {"name": "Charlie Brown", "email": "charlie@example.com"},
+  {"name": "Chuck Brown", "email": "cbrown@example.com"},
+  {"name": "Diana Prince", "email": "diana@example.com"},
+  {"name": "Edward Norton", "email": "ed.norton@example.com"},
+  {"name": "Ed Norton", "email": "enorton@example.com"}
+]

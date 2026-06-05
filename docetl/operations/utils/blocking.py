@@ -356,7 +356,10 @@ class RuntimeBlockingOptimizer:
         true_labels = np.array([comp[2] for comp in comparisons])
         sim_dict = {(i, j): sim for i, j, sim in similarities}
         sim_scores = np.array([sim_dict.get((i, j), 0.0) for i, j, _ in comparisons])
-        thresholds = np.linspace(0, 1, 100)
+        # Exclude a threshold of exactly 1.0: the cosine similarity of a true
+        # match is rarely exactly 1.0 in floating point, so a 1.0 threshold would
+        # drop real matches even when the sample reported full recall.
+        thresholds = np.linspace(0, 1, 100)[:-1]
         recalls = []
         for threshold in thresholds:
             predictions = sim_scores >= threshold

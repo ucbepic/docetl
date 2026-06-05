@@ -66,6 +66,9 @@ server = [
 retrieval = [
   "lancedb>=0.7.0",
 ]
+tui = [
+  "textual>=8.2.7",
+]
 
 [project.scripts]
 docetl = "docetl.cli:app"
@@ -117,8 +120,13 @@ dev = [
   "mkdocs-glightbox>=0.4.0",
   "pytest-sugar>=1.0.0",
   "pytest-xdist>=3.6.1",
+  # Lets tests whose result depends on a live LLM be marked @pytest.mark.flaky
+  # so a nondeterministic miss is retried rather than failing the whole run.
+  "pytest-rerunfailures>=14.0",
   "types-pyyaml>=6.0.12.20250516",
   "types-requests>=2.32.4.20250611",
+  # Used by tests/tui_screenshots.py to export the Textual SVG screenshots to PNG.
+  "cairosvg>=2.7.0",
 ]
 
 [build-system]

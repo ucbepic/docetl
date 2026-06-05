@@ -80,3 +80,9 @@ node_modules/*
 
 reaction_index/
 *experiments/reasoning/othersystems/biodex/.chroma-biodex/
+
+# Progress view (issue #487): committed demo fixtures + screenshots
+!tests/tui_demo/*.yaml
+!tests/tui_demo/*.json
+tests/tui_demo/*_output.json
+!docs/assets/progress-view/*.png

@@ -216,6 +216,10 @@ def equijoin_config():
         "name": "user_data_join",
         "type": "equijoin",
         "blocking_keys": {"left": ["id"], "right": ["user_id"]},
+        # Deterministic blocking on the join key. Without this, equijoin
+        # auto-computes an embedding similarity threshold from a random sample,
+        # which occasionally drops a true-match pair and makes this test flaky.
+        "blocking_conditions": ["left['id'] == right['user_id']"],
         "comparison_prompt": "Do these two records refer to the same user? Answer true if and only if the two id numbers are exactly equal, and false otherwise. Left id: {{ left.id }}. Right id: {{ right.user_id }}.",
         "embedding_model": "text-embedding-3-small",
         "comparison_model": "gpt-4o-mini",

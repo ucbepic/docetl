@@ -571,7 +571,17 @@ def _render_cascade_info(info: dict) -> Text:
         f"{info['proxy_calls']:,} scored  ${proxy_cost:.4f}\n",
         style="cyan",
     )
-    if is_calibrated:
+    if info["guarantee"] == "precision+recall" and info.get("gap_verified", 0) > 0:
+        cal = info.get("calibration_calls", info["oracle_calls"])
+        gap = info.get("gap_verified", 0)
+        budget = info.get("label_budget", "?")
+        t.append(
+            f"  oracle  {info['oracle_model']}  "
+            f"{cal} cal + {gap} gap = {info['oracle_calls']:,}  "
+            f"(budget {budget})  ${oracle_cost:.4f}\n",
+            style="cyan",
+        )
+    elif is_calibrated:
         budget = info.get("label_budget", "?")
         t.append(
             f"  oracle  {info['oracle_model']}  "

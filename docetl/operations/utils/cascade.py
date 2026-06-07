@@ -152,6 +152,8 @@ class CascadeStats:
     delta: float
     label_budget: int = 0
     threshold: float | None = None
+    calibration_calls: int = 0
+    gap_verified: int = 0
 
 
 @dataclass
@@ -491,9 +493,10 @@ class CategoricalCascade:
         proxy.preds_dict.update(recall_proxy.preds_dict)
         proxy.preds_dict.update(prec_proxy.preds_dict)
 
+        calibration_calls = total_oracle - len(gap)
         stats = CascadeStats(
             n_items=len(items),
-            proxy_calls=prec_proxy.n_calls(),
+            proxy_calls=prec_proxy.n_calls() + recall_proxy.n_calls(),
             oracle_calls=total_oracle,
             escalation_rate=total_oracle / len(items) if items else 0.0,
             guarantee="precision+recall",
@@ -501,6 +504,8 @@ class CategoricalCascade:
             delta=spec.delta,
             label_budget=spec.label_budget,
             threshold=p_threshold,
+            calibration_calls=calibration_calls,
+            gap_verified=len(gap),
         )
         return CascadeResult(
             labels=result_labels,

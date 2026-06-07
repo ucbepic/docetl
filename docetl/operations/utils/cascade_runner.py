@@ -129,11 +129,11 @@ class _CascadeProgress:
 
     def _start_proxy(self) -> None:
         label = f"proxy ({self.proxy_model})"
-        n = self.n_items * 2 if self.guarantee == "precision+recall" else self.n_items
-        self._begin_phase(n, label)
+        self._begin_phase(self.n_items, label)
 
     def tick_proxy(self) -> None:
-        self._tick()
+        if not self._oracle_started:
+            self._tick()
 
     def _oracle_total(self) -> int:
         """Upper bound on oracle calls for the live progress denominator."""
@@ -276,6 +276,8 @@ class CascadeMixin:
                 "threshold": stats.threshold,
                 "score_hist": score_hist,
                 "cached": cached_hit,
+                "calibration_calls": stats.calibration_calls,
+                "gap_verified": stats.gap_verified,
             })
 
         name = self.config.get("name", "?")
@@ -290,7 +292,14 @@ class CascadeMixin:
             f"           [dim]proxy[/dim]     [cyan]{proxy_model}[/cyan] "
             f"· {stats.proxy_calls} scored · [green]${proxy_cost:.4f}[/green]"
         )
-        if is_calibrated:
+        if stats.guarantee == "precision+recall" and stats.gap_verified > 0:
+            lines.append(
+                f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
+                f"· {stats.calibration_calls} calibration + {stats.gap_verified} "
+                f"gap-verified = {stats.oracle_calls} total "
+                f"(budget {stats.label_budget}) · [green]${oracle_cost:.4f}[/green]"
+            )
+        elif is_calibrated:
             lines.append(
                 f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
                 f"· {stats.oracle_calls} sampled for calibration "
@@ -318,7 +327,14 @@ class CascadeMixin:
             lines.append(
                 f"           [dim]threshold[/dim] [dim]n/a[/dim]"
             )
-        if is_calibrated:
+        if stats.guarantee == "precision+recall" and stats.gap_verified > 0:
+            lines.append(
+                f"           [dim]result[/dim]   {stats.n_items - served_by_proxy} "
+                f"proxy-accepted + {stats.calibration_calls} calibration + "
+                f"{stats.gap_verified} gap-verified "
+                f"→ {stats.n_items} items"
+            )
+        elif is_calibrated:
             lines.append(
                 f"           [dim]result[/dim]   {stats.n_items - served_by_proxy} "
                 f"proxy-accepted + {stats.oracle_calls} calibration samples "

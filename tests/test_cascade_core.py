@@ -265,6 +265,10 @@ def test_precision_recall_extracts_proxy_scores():
         target=0.85, delta=0.1, label_budget=60, seed=0,
     )
     cascade = CategoricalCascade(spec, proxy_predict, oracle_predict)
-    cascade.run(list(range(n)))
+    result = cascade.run(list(range(n)))
     assert len(cascade.proxy_scores) == n
     assert all(0 <= s <= 1 for s in cascade.proxy_scores)
+    assert result.stats.proxy_calls == 2 * n
+    assert result.stats.calibration_calls + result.stats.gap_verified == result.stats.oracle_calls
+    assert result.stats.calibration_calls >= 0
+    assert result.stats.gap_verified >= 0

@@ -236,23 +236,32 @@ class DocetlTUI(App):
             body.append_text(line)
             body.append("\n")
             # Lines below the op label: compact stats.
-            ci = op.cascade_info if op.status == "done" else None
+            ci = op.cascade_info
             if ci:
-                # Cascade op finished: show proxy and oracle as sub-lines.
+                # Proxy sub-line
                 proxy_line = Text("    ")
                 proxy_line.append("proxy", style="green")
                 proxy_line.append(f"  {ci['proxy_calls']} scored", style="grey70")
-                proxy_line.append(f"  {_fmt_cost(ci.get('proxy_cost', 0))}", style="green")
+                pc = ci.get("proxy_cost", 0)
+                if pc:
+                    proxy_line.append(f"  {_fmt_cost(pc)}", style="green")
                 body.append_text(proxy_line)
                 body.append("\n")
 
+                # Oracle sub-line: live progress during run, final counts when done
                 oracle_line = Text("    ")
                 oracle_line.append("oracle", style="cyan")
-                oracle_line.append(f"  {ci['oracle_calls']}", style="grey70")
+                if op.status == "done":
+                    oracle_line.append(f"  {ci['oracle_calls']}", style="grey70")
+                elif op.total:
+                    oracle_line.append(f"  {op.completed}/{op.total}", style="grey70")
+                    oracle_line.append(f" {int(100 * op.completed / op.total)}%", style="yellow")
                 budget = ci.get("label_budget")
                 if budget:
-                    oracle_line.append(f"/{budget}", style="grey70")
-                oracle_line.append(f"  {_fmt_cost(ci.get('oracle_cost', 0))}", style="green")
+                    oracle_line.append(f" (budget {budget})", style="grey42")
+                oc = ci.get("oracle_cost", 0)
+                if oc:
+                    oracle_line.append(f"  {_fmt_cost(oc)}", style="green")
                 if op.elapsed >= 1:
                     oracle_line.append(f"  {_fmt_dur(op.elapsed)}", style="grey54")
                 body.append_text(oracle_line)

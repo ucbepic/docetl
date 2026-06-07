@@ -164,6 +164,13 @@ class _CascadeProgress:
             oracle_total = min(self.n_items, self.label_budget)
             if self._tracker is not None:
                 self._tracker.freeze_grid()
+                self._tracker.set_cascade_info({
+                    "proxy_model": self.proxy_model,
+                    "oracle_model": self.oracle_model,
+                    "proxy_calls": self._proxy_ticks,
+                    "label_budget": self.label_budget,
+                    "guarantee": self.guarantee,
+                })
                 self._tracker.set_phase(oracle_total, label=label)
             else:
                 self._close_bar()

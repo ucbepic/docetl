@@ -443,7 +443,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .fb-cell:focus-within .fb-send,
   .fb-cell input:not(:placeholder-shown) ~ .fb-send { opacity: 1; pointer-events: auto; }
   .fb-cell .fb-send:hover { background: var(--primary); color: white; border-color: var(--primary); }
-  .fb-sent-text { color: hsl(152 69% 31%); font-size: 12px; font-weight: 500; }
+  .fb-sent-text { color: hsl(152 69% 31%); font-size: 12px; font-weight: 500; word-break: break-word; }
 
   /* Histogram view */
   .viz-panel { flex: 1; overflow: auto; padding: 16px; }
@@ -877,7 +877,7 @@ function renderTableBody() {
     const tdFb = document.createElement('td');
     tdFb.className = 'col-fb';
     if (doc._fbSent) {
-      tdFb.innerHTML = '<span class="fb-sent-text">✓ ' + escHtml(doc._fbText.length > 25 ? doc._fbText.slice(0, 25) + '…' : doc._fbText) + '</span>';
+      tdFb.innerHTML = '<span class="fb-sent-text" title="' + escHtml(doc._fbText) + '">✓ ' + escHtml(doc._fbText) + '</span>';
     } else {
       tdFb.innerHTML =
         '<div class="fb-cell">' +

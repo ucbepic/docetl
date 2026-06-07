@@ -102,6 +102,13 @@ class ProgressTracker:
             op.errors = 0
         self._notify()
 
+    def set_phase_label(self, label: str) -> None:
+        """Update the phase label without resetting progress counters."""
+        with self._lock:
+            if self._current is not None:
+                self._current.phase = label
+        self._notify()
+
     def clear_phase(self) -> None:
         """Drop the live sub-phase label once a multi-phase op finishes."""
         with self._lock:

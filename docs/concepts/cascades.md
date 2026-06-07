@@ -153,8 +153,12 @@ Pick the guarantee that matches the operator's intent:
   Natural for **filter** (don't drop relevant docs).
 - **precision+recall** — both precision and recall hold simultaneously at the
   same `target`. Uses a union bound (δ/2 each) and oracle-verifies items in
-  the gap between the precision and recall thresholds. Useful for **resolve /
-  equijoin** when you want both "don't over-merge" and "don't miss matches".
+  the gap between the precision and recall thresholds. Total oracle calls are
+  capped at `label_budget`; if the gap exceeds the remaining budget, items are
+  verified in order of proxy confidence (most likely positives first) and recall
+  becomes best-effort. Increase `label_budget` for stronger recall. Useful for
+  **resolve / equijoin** when you want both "don't over-merge" and "don't miss
+  matches".
 
 If you omit `guarantee`, each operator applies its natural default:
 **filter → recall**, **map → accuracy**, **resolve / equijoin → precision**.

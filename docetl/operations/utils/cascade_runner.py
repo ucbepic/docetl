@@ -95,9 +95,9 @@ class CascadeConfig(BaseModel):
 class _CascadeProgress:
     """Proxy/oracle phase progress for model cascades.
 
-    When the interactive TUI is active, feeds :class:`ProgressTracker` via
-    :meth:`set_phase` / :meth:`tick`. Otherwise drives a tqdm bar on the Rich
-    console and logs short phase headers.
+    Uses a single continuous progress bar over ``n_items`` so the TUI grid
+    fills steadily instead of resetting between proxy and oracle phases.
+    The phase label updates to show which model is active.
     """
 
     def __init__(
@@ -120,49 +120,44 @@ class _CascadeProgress:
         self._status = status
         self._bar: RichLoopBar | None = None
         self._oracle_started = False
+        self._proxy_ticks = 0
+        self._oracle_ticks = 0
         self._tracker = active_tracker()
-        # Rich's live status spinner and tqdm fight over the terminal; map/filter
-        # pause status for the same reason before driving a progress bar.
         if self._tracker is None and self._status is not None:
             self._status.stop()
-        self._start_proxy()
+        self._start()
 
-    def _start_proxy(self) -> None:
+    def _start(self) -> None:
         label = f"proxy ({self.proxy_model})"
-        self._begin_phase(self.n_items, label)
+        if self._tracker is not None:
+            self._tracker.set_phase(self.n_items, label=label)
+        else:
+            from docetl.operations.utils.progress import RichLoopBar
+
+            self._bar = RichLoopBar(
+                total=self.n_items,
+                desc=f"Cascade {label}",
+                console=self.console,
+                leave=False,
+            )
+            self._bar.__enter__()
 
     def tick_proxy(self) -> None:
-        if not self._oracle_started:
+        if self._oracle_started:
+            return
+        self._proxy_ticks += 1
+        if self._proxy_ticks <= self.n_items:
             self._tick()
-
-    def _oracle_total(self) -> int:
-        """Upper bound on oracle calls for the live progress denominator."""
-        if self.guarantee in ("accuracy", "precision+recall"):
-            return self.n_items
-        return min(self.n_items, self.label_budget)
 
     def tick_oracle(self) -> None:
         if not self._oracle_started:
             self._oracle_started = True
             label = f"oracle ({self.oracle_model})"
-            self._close_bar()
-            self._begin_phase(self._oracle_total(), label)
-        self._tick()
-
-    def _begin_phase(self, total: int, label: str) -> None:
-        if self._tracker is not None:
-            self._tracker.set_phase(total, label=label)
-            return
-        from docetl.operations.utils.progress import RichLoopBar
-
-        self._close_bar()
-        self._bar = RichLoopBar(
-            total=total,
-            desc=f"Cascade {label}",
-            console=self.console,
-            leave=False,
-        )
-        self._bar.__enter__()
+            if self._tracker is not None:
+                self._tracker.set_phase_label(label)
+            elif self._bar is not None:
+                self._bar.set_description(f"Cascade {label}")
+        self._oracle_ticks += 1
 
     def _tick(self) -> None:
         if self._tracker is not None:
@@ -176,10 +171,16 @@ class _CascadeProgress:
             self._bar = None
 
     def finish(self) -> None:
-        self._close_bar()
         if self._tracker is not None:
+            op = self._tracker._current
+            if op is not None:
+                with self._tracker._lock:
+                    if op.total is not None:
+                        op.completed = op.total
+                self._tracker._notify()
             self._tracker.clear_phase()
-        elif self._status is not None:
+        self._close_bar()
+        if self._tracker is None and self._status is not None:
             self._status.start()
 
 
@@ -350,6 +351,13 @@ class CascadeMixin:
             f"           [dim]total cost[/dim] [green]${cost:.4f}[/green]"
         )
         self.console.log("\n".join(lines))
+
+        if getattr(stats, 'gap_truncated', False):
+            self.console.log(
+                f"           [bold yellow]⚠ gap verification capped by label_budget "
+                f"— recall is best-effort. Increase label_budget for stronger recall."
+                f"[/bold yellow]"
+            )
 
         if stats.escalation_rate >= 0.95 and stats.n_items > 10:
             if is_calibrated:

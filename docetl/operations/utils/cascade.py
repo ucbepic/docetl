@@ -154,6 +154,7 @@ class CascadeStats:
     threshold: float | None = None
     calibration_calls: int = 0
     gap_verified: int = 0
+    gap_truncated: bool = False
 
 
 @dataclass
@@ -477,16 +478,29 @@ class CategoricalCascade:
                 positive_set.add(idx)
 
         # Oracle-verify the gap: items in recall_pos not yet resolved.
-        # This is the cascade step — every TP in the gap is found,
-        # preserving the recall guarantee from BARGAIN_R.
-        gap = [idx for idx in recall_pos
-               if idx not in positive_set and idx not in known_labels]
-        if gap:
+        # Cap total oracle calls at label_budget; prioritize by proxy
+        # confidence so the most likely TPs are verified first.
+        full_gap = [idx for idx in recall_pos
+                    if idx not in positive_set and idx not in known_labels]
+        gap_budget = max(0, spec.label_budget - len(known_labels))
+        gap = full_gap
+        gap_truncated = len(full_gap) > gap_budget
+        if gap and gap_budget > 0:
+            def _proxy_conf(idx):
+                entry = recall_proxy.preds_dict.get(idx)
+                if entry is None:
+                    return 0.0
+                pred, score = entry
+                return pred * score + (1 - pred) * (1 - score)
+            gap.sort(key=_proxy_conf, reverse=True)
+            gap = gap[:gap_budget]
             gap_records = [items[idx] for idx in gap]
             gap_labels = recall_oracle.get_pred(gap_records, gap)
             for idx, lbl in zip(gap, gap_labels):
                 if lbl == 1:
                     positive_set.add(idx)
+        elif gap and gap_budget <= 0:
+            gap = []
 
         result_labels = [
             spec.positive_label if i in positive_set else spec.negative_label
@@ -514,6 +528,7 @@ class CategoricalCascade:
             threshold=p_threshold,
             calibration_calls=calibration_calls,
             gap_verified=len(gap),
+            gap_truncated=gap_truncated,
         )
         return CascadeResult(
             labels=result_labels,

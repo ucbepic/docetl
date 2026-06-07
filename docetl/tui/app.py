@@ -560,24 +560,38 @@ def _render_cascade_info(info: dict) -> Text:
     t.append("\ncascade\n", style="bold magenta")
     proxy_cost = info.get("proxy_cost", 0)
     oracle_cost = info.get("oracle_cost", 0)
+    is_calibrated = info["guarantee"] in ("precision", "recall")
     t.append(
         f"  proxy:      {info['proxy_model']}  "
-        f"{info['proxy_calls']:,} calls  ${proxy_cost:.4f}\n",
+        f"{info['proxy_calls']:,} scored  ${proxy_cost:.4f}\n",
         style="cyan",
     )
-    t.append(
-        f"  oracle:     {info['oracle_model']}  "
-        f"{info['oracle_calls']:,} calls  ${oracle_cost:.4f}\n",
-        style="cyan",
-    )
+    if is_calibrated:
+        budget = info.get("label_budget", "?")
+        t.append(
+            f"  oracle:     {info['oracle_model']}  "
+            f"{info['oracle_calls']:,} sampled (budget {budget})  "
+            f"${oracle_cost:.4f}\n",
+            style="cyan",
+        )
+    else:
+        t.append(
+            f"  oracle:     {info['oracle_model']}  "
+            f"{info['oracle_calls']:,} escalated  ${oracle_cost:.4f}\n",
+            style="cyan",
+        )
     guarantee = info["guarantee"]
     target = info["target"]
     t.append(f"  guarantee:  {guarantee} ≥ {target:.0%}", style="yellow")
     t.append(f"  δ={info['delta']}\n", style="grey70")
-    esc = info["escalation_rate"]
-    served = info["served_by_proxy"]
-    t.append(f"  escalation: {esc:.0%}", style="red" if esc >= 0.5 else "green")
-    t.append(f"  ({served:,} served by proxy)\n", style="grey70")
+    threshold = info.get("threshold")
+    if threshold is not None:
+        t.append(f"  threshold:  {threshold:.3f} proxy confidence\n", style="yellow")
+    if not is_calibrated:
+        esc = info["escalation_rate"]
+        served = info["served_by_proxy"]
+        t.append(f"  escalation: {esc:.0%}", style="red" if esc >= 0.5 else "green")
+        t.append(f"  ({served:,} served by proxy)\n", style="grey70")
     if info.get("cached"):
         t.append("  (cached)\n", style="dim")
     return t

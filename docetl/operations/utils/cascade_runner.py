@@ -256,37 +256,79 @@ class CascadeMixin:
                 "guarantee": stats.guarantee,
                 "target": stats.target,
                 "delta": stats.delta,
+                "label_budget": stats.label_budget,
                 "proxy_calls": stats.proxy_calls,
                 "oracle_calls": stats.oracle_calls,
                 "escalation_rate": stats.escalation_rate,
                 "served_by_proxy": served_by_proxy,
                 "proxy_cost": proxy_cost,
                 "oracle_cost": oracle_cost,
+                "threshold": stats.threshold,
                 "cached": cached_hit,
             })
 
         name = self.config.get("name", "?")
-        esc_pct = f"{stats.escalation_rate:.0%}"
         target_pct = f"{stats.target:.0%}"
+        is_calibrated = stats.guarantee in ("precision", "recall")
 
-        self.console.log(
+        lines = [
             f"[bold magenta]Cascade[/bold magenta] {op_label} "
-            f"[bold]'{name}'[/bold]{tag}\n"
+            f"[bold]'{name}'[/bold]{tag}",
+        ]
+        lines.append(
             f"           [dim]proxy[/dim]     [cyan]{proxy_model}[/cyan] "
-            f"· {stats.proxy_calls} calls · [green]${proxy_cost:.4f}[/green]\n"
-            f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
-            f"· {stats.oracle_calls} calls · [green]${oracle_cost:.4f}[/green]\n"
+            f"· {stats.proxy_calls} scored · [green]${proxy_cost:.4f}[/green]"
+        )
+        if is_calibrated:
+            lines.append(
+                f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
+                f"· {stats.oracle_calls} sampled for calibration "
+                f"(budget {stats.label_budget}) · [green]${oracle_cost:.4f}[/green]"
+            )
+        else:
+            lines.append(
+                f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
+                f"· {stats.oracle_calls} escalated · [green]${oracle_cost:.4f}[/green]"
+            )
+        lines.append(
             f"           [dim]guarantee[/dim] [yellow]{stats.guarantee} "
-            f"≥ {target_pct}[/yellow]  [dim]δ={stats.delta}[/dim]\n"
-            f"           [dim]escalation[/dim] {esc_pct} "
-            f"· {served_by_proxy}/{stats.n_items} served by proxy\n"
+            f"≥ {target_pct}[/yellow]  [dim]δ={stats.delta}[/dim]"
+        )
+        if stats.threshold is not None:
+            lines.append(
+                f"           [dim]threshold[/dim] [yellow]{stats.threshold:.3f}[/yellow] "
+                f"proxy confidence"
+            )
+        if is_calibrated:
+            lines.append(
+                f"           [dim]result[/dim]   {stats.n_items - served_by_proxy} "
+                f"proxy-accepted + {stats.oracle_calls} calibration samples "
+                f"→ {stats.n_items} items"
+            )
+        else:
+            esc_pct = f"{stats.escalation_rate:.0%}"
+            lines.append(
+                f"           [dim]escalation[/dim] {esc_pct} "
+                f"· {served_by_proxy}/{stats.n_items} served by proxy"
+            )
+        lines.append(
             f"           [dim]total cost[/dim] [green]${cost:.4f}[/green]"
         )
+        self.console.log("\n".join(lines))
+
         if stats.escalation_rate >= 0.95 and stats.n_items > 10:
-            self.console.log(
-                f"           [bold yellow]⚠ escalated {esc_pct} of items to "
-                f"oracle — proxy saved almost no cost[/bold yellow]"
-            )
+            if is_calibrated:
+                self.console.log(
+                    f"           [bold yellow]⚠ calibration used {stats.oracle_calls} "
+                    f"of {stats.label_budget} budget — threshold may be unreliable"
+                    f"[/bold yellow]"
+                )
+            else:
+                self.console.log(
+                    f"           [bold yellow]⚠ escalated "
+                    f"{stats.escalation_rate:.0%} of items to oracle — "
+                    f"proxy saved almost no cost[/bold yellow]"
+                )
 
     def _run_categorical_cascade(
         self,

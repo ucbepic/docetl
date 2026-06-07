@@ -150,6 +150,8 @@ class CascadeStats:
     guarantee: Guarantee
     target: float
     delta: float
+    label_budget: int = 0
+    threshold: float | None = None
 
 
 @dataclass
@@ -230,7 +232,9 @@ class CategoricalCascade:
             return self._run_precision(items, proxy, oracle)
         return self._run_recall(items, proxy, oracle)
 
-    def _make_stats(self, n_items: int, proxy, oracle) -> CascadeStats:
+    def _make_stats(
+        self, n_items: int, proxy, oracle, *, threshold: float | None = None
+    ) -> CascadeStats:
         oracle_calls = oracle.get_number_preds()
         return CascadeStats(
             n_items=n_items,
@@ -240,7 +244,32 @@ class CategoricalCascade:
             guarantee=self.spec.guarantee,
             target=self.spec.target,
             delta=self.spec.delta,
+            label_budget=self.spec.label_budget,
+            threshold=threshold,
         )
+
+    @staticmethod
+    def _compute_threshold(proxy, oracle, positive_set: set) -> float | None:
+        """Recover the effective proxy confidence threshold from internal state.
+
+        For precision/recall, BARGAIN sorts items by proxy confidence and
+        picks a cutoff. Items above the cutoff that weren't oracle-sampled
+        were accepted purely on proxy confidence — the minimum confidence
+        among those items IS the threshold.
+        """
+        oracle_labeled = set(oracle.preds_dict.keys())
+        proxy_accepted = positive_set - oracle_labeled
+        if not proxy_accepted:
+            return None
+        min_conf = float("inf")
+        for idx in proxy_accepted:
+            entry = proxy.preds_dict.get(idx)
+            if entry is None:
+                continue
+            pred, score = entry
+            x_prob = pred * score + (1 - pred) * (1 - score)
+            min_conf = min(min_conf, x_prob)
+        return min_conf if min_conf != float("inf") else None
 
     # ------------------------------------------------------------------
     # Accuracy guarantee via BARGAIN_A
@@ -305,10 +334,11 @@ class CategoricalCascade:
             for i in range(len(items))
         ]
         escalated = [i in oracle.preds_dict for i in range(len(items))]
+        threshold = self._compute_threshold(proxy, oracle, positive_set)
         return CascadeResult(
             labels=result_labels,
             escalated=escalated,
-            stats=self._make_stats(len(items), proxy, oracle),
+            stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
             positive_indices=sorted(positive_set),
         )
 
@@ -342,9 +372,10 @@ class CategoricalCascade:
             for i in range(len(items))
         ]
         escalated = [i in oracle.preds_dict for i in range(len(items))]
+        threshold = self._compute_threshold(proxy, oracle, positive_set)
         return CascadeResult(
             labels=result_labels,
             escalated=escalated,
-            stats=self._make_stats(len(items), proxy, oracle),
+            stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
             positive_indices=sorted(positive_set),
         )

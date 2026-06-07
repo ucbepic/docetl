@@ -91,6 +91,12 @@ class Node:
             op_name = op["name"]
             self.op_dict[op_name] = op
             self.used_actions[op_name] = set()
+
+        self.op_to_step = {}  # Dict: op_name -> step_name
+        for step in self.parsed_yaml.get("pipeline", {}).get("steps", []):
+            for op in step.get("operations", []):
+                name = op if isinstance(op, str) else list(op.keys())[0]
+                self.op_to_step[name] = step["name"]
         self.visits = 0
         self.value = 0
         self.parent = parent

@@ -107,31 +107,87 @@ def is_action_applicable(node, action: Directive) -> bool:
     return True
 
 
-def update_pipeline(orig_config, new_ops_list, target_ops):
+def update_pipeline(orig_config, new_ops_list, target_ops, old_ops_list=None):
     """
-    Update the pipeline configuration with new operations.
+    Update the pipeline step operation lists to reflect changes in the flat
+    operations list made by a directive.
+
+    Directives transform the flat ``operations`` list (removing target ops,
+    inserting replacements at the same position).  This function diffs the
+    old and new flat lists to build a per-op replacement map, then applies
+    that map to each step — so steps that don't contain the target ops are
+    left untouched.
 
     Args:
-        orig_config (dict): The original pipeline configuration
-        new_ops_list (list): The entire pipeline operations list (not a subset)
-        target_ops (list): List of target operation names to replace
+        orig_config: Pipeline configuration dict (mutated in place).
+        new_ops_list: Full operations list after the directive ran.
+        target_ops: Operation names the directive targeted.
+        old_ops_list: Full operations list *before* the directive ran.
+            If ``None``, falls back to ``orig_config["operations"]``.
 
     Returns:
-        dict: Updated pipeline configuration
+        The (mutated) ``orig_config``.
     """
-    if new_ops_list is not None:
-        op_names = [op.get("name") for op in new_ops_list if "name" in op]
+    if new_ops_list is None:
+        return orig_config
 
-    # Update the pipeline steps to use the new operation names
-    if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
-        for step in orig_config["pipeline"]["steps"]:
-            if "operations" in step:
-                new_ops = []
-                for op in step["operations"]:
-                    if op == target_ops[0]:
-                        new_ops.extend(op_names)
-                step["operations"] = new_ops
+    if old_ops_list is None:
+        old_ops_list = orig_config.get("operations", [])
 
+    old_names = [op["name"] for op in old_ops_list]
+    new_names = [op["name"] for op in new_ops_list]
+    old_set = set(old_names)
+    target_set = set(target_ops)
+
+    # Walk old and new name lists in parallel to build a replacement map.
+    # For each old op we record what sequence of new op names should replace
+    # it in the step's operation list.
+    replacement_map: dict[str, list[str]] = {}
+    ni = 0
+    for old_name in old_names:
+        if old_name in set(new_names):
+            # Op still exists — collect any insertions before it.
+            before: list[str] = []
+            while ni < len(new_names) and new_names[ni] != old_name:
+                before.append(new_names[ni])
+                ni += 1
+            ni += 1  # skip past the match
+
+            # If this is a target op, also collect insertions after it
+            # (e.g. gleaning adds a validation step right after the target).
+            after: list[str] = []
+            if old_name in target_set:
+                while ni < len(new_names) and new_names[ni] not in old_set:
+                    after.append(new_names[ni])
+                    ni += 1
+
+            replacement_map[old_name] = before + [old_name] + after
+        else:
+            # Op was removed — collect the new ops inserted at this position.
+            replacements: list[str] = []
+            while ni < len(new_names) and new_names[ni] not in old_set:
+                replacements.append(new_names[ni])
+                ni += 1
+            replacement_map[old_name] = replacements
+
+    # Apply the replacement map to each step.
+    for step in orig_config.get("pipeline", {}).get("steps", []):
+        if "operations" not in step:
+            continue
+        new_step_ops: list = []
+        for op in step["operations"]:
+            op_name = op if isinstance(op, str) else list(op.keys())[0]
+            if op_name in replacement_map:
+                replacements = replacement_map[op_name]
+                if len(replacements) == 1 and replacements[0] == op_name:
+                    new_step_ops.append(op)  # preserve original format (e.g. equijoin dicts)
+                else:
+                    new_step_ops.extend(replacements)
+            else:
+                new_step_ops.append(op)
+        step["operations"] = new_step_ops
+
+    orig_config["operations"] = new_ops_list
     return orig_config
 
 

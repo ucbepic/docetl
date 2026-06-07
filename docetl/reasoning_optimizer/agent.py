@@ -8,6 +8,7 @@ import litellm
 import yaml
 from pydantic import BaseModel
 
+from docetl.moar.search_utils import update_pipeline
 from docetl.reasoning_optimizer.directives import (
     get_all_directive_strings,
     instantiate_directive,
@@ -238,34 +239,6 @@ def update_yaml_operations(input_file_path, output_file_path, new_operations):
     print(f"Modified YAML saved to: {output_file_path}")
 
 
-def update_pipeline(orig_config, new_ops_list, target_ops):
-    """
-    Update the pipeline configuration with new operations.
-
-    Args:
-        orig_config (dict): The original pipeline configuration
-        new_ops_list (list): The entire pipeline operations list (not a subset)
-        target_ops (list): List of target operation names to replace
-
-    Returns:
-        dict: Updated pipeline configuration
-    """
-    if new_ops_list is not None:
-        op_names = [op.get("name") for op in new_ops_list if "name" in op]
-
-    # Update the pipeline steps to use the new operation names
-    if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
-        for step in orig_config["pipeline"]["steps"]:
-            if "operations" in step:
-                new_ops = []
-                for op in step["operations"]:
-                    if op == target_ops[0]:
-                        new_ops.extend(op_names)
-                step["operations"] = new_ops
-
-    return orig_config
-
-
 def fix_models(parsed_yaml):
     """No-op: Model names should be specified correctly in the YAML."""
     pass
@@ -427,10 +400,8 @@ def run_single_iteration(
             pipeline_code=orig_config,
             dataset=dataset,
         )
-        orig_config["operations"] = new_ops_list
-
         # Update pipeline steps to reflect new operation names
-        orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
+        update_pipeline(orig_config, new_ops_list, target_ops, old_ops_list=orig_operators)
 
         # Apply special post-processing for chaining directive
         if directive == "chaining":

@@ -41,7 +41,10 @@ class OpContainer:
     """
 
     def __init__(self, name: str, runner: "DSLRunner", config: dict, **kwargs):
-        self.name = name
+        self._name = name
+        parts = name.split("/", 1)
+        self.step_name = parts[0]
+        self.op_name = parts[1] if len(parts) > 1 else parts[0]
         self.config = config
         self.children = []
         self.parent = None
@@ -49,7 +52,6 @@ class OpContainer:
         self.runner = runner
         self.selectivity = kwargs.get("selectivity", None)
         if not self.selectivity:
-            # If it's a map or resolve or gather operation, we know the selectivity is 1
             if self.config.get("type") in [
                 "map",
                 "parallel_map",
@@ -60,6 +62,17 @@ class OpContainer:
                 self.selectivity = 1
         self.is_optimized = False
         self.kwargs = kwargs
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @name.setter
+    def name(self, value: str):
+        self._name = value
+        parts = value.split("/", 1)
+        self.step_name = parts[0]
+        self.op_name = parts[1] if len(parts) > 1 else parts[0]
 
     def to_string(self) -> str:
         return json.dumps(self.config, indent=2)
@@ -124,7 +137,7 @@ class OpContainer:
                 )
             else:
                 # If this is a build operation, set the captured output
-                self.runner.optimizer.captured_output.set_step(self.name.split("/")[0])
+                self.runner.optimizer.captured_output.set_step(self.step_name)
 
                 # Print statistics for optimizing this operation
                 sample_info = []
@@ -248,7 +261,7 @@ class OpContainer:
                                 }
 
                                 # Set the children to be scans of the new left and right names
-                                curr_step_name = self.name.split("/")[0]
+                                curr_step_name = self.step_name
                                 self.children[0].config = {
                                     "type": "scan",
                                     "name": f"scan_{new_left_name}",
@@ -370,7 +383,7 @@ class OpContainer:
                         self.children = []
                         local_last_op_container = self.parent
                         local_last_op_container.children = []
-                        curr_step_name = self.name.split("/")[0]
+                        curr_step_name = self.step_name
 
                         for idx, op in enumerate(list(reversed(optimized_ops))):
                             op_container = OpContainer(
@@ -421,145 +434,96 @@ class OpContainer:
         # Checkpoint the optimized operations
         self.runner.optimizer.checkpoint_optimized_ops()
 
+    def _pull_children(
+        self, is_build: bool = False, sample_size_needed: int = None
+    ) -> tuple:
+        """Pull input data from child nodes. Returns (input_data, input_len, cost, logs)."""
+        if self.is_equijoin:
+            assert len(self.children) == 2, "Equijoin should have left and right children"
+            left_data, left_cost, left_logs = self.children[0].next(is_build, sample_size_needed)
+            right_data, right_cost, right_logs = self.children[1].next(is_build, sample_size_needed)
+            return (
+                {"left_data": left_data, "right_data": right_data},
+                max(len(left_data), len(right_data)),
+                left_cost + right_cost,
+                left_logs + right_logs,
+            )
+        elif len(self.children) > 0:
+            data, cost, logs = self.children[0].next(is_build, sample_size_needed)
+            return data, len(data), cost, logs
+        return None, None, 0.0, ""
+
+    def _token_totals(self):
+        p = sum(u["prompt_tokens"] for u in self.runner.total_token_usage.values())
+        c = sum(u["completion_tokens"] for u in self.runner.total_token_usage.values())
+        return p, c
+
+    def _notify_cached(self, data: list[dict]) -> None:
+        """Surface a cached operation in the interactive progress view."""
+        tracker = getattr(self.runner, "progress_tracker", None)
+        if tracker is not None and self.config.get("type") not in ("scan", "step_boundary"):
+            tracker.op_start(
+                self.name,
+                self.config.get("type", "?"),
+                self.config.get("model", self.runner.default_model),
+                len(data),
+            )
+            tracker.op_done(self.name, cost=0.0, prompt_tokens=0, completion_tokens=0, outputs=data)
+
     def next(
         self, is_build: bool = False, sample_size_needed: int = None
     ) -> tuple[list[dict], float, str]:
         """
-        Execute this operation and return its results. This is the core method implementing
-        the pull-based execution model.
-
-        The execution follows these steps:
-        1. Check for cached results in checkpoints
-        2. If not cached, recursively request input data from child nodes
-        3. Apply any configured sampling
-        4. Execute the operation on the input data
-        5. Cache results if checkpointing is enabled
+        Execute this operation and return its results via pull-based evaluation.
 
         Returns:
-            tuple[list[dict], float, str]: A tuple containing:
-                - The operation's output data
-                - Total cost of this operation and its children
-                - Execution logs as a formatted string
+            (output_data, total_cost, execution_logs)
         """
-        # Track cost and logs for this operation and its children
-        input_data = None
-        cost = 0.0
-        this_op_cost = 0.0
-        curr_logs = ""
-        input_len = None
-
-        # If this is a build operation, check the sample cache first
+        # Build-phase: check the optimizer's sample cache (v1 optimizer path)
         if is_build:
             cache_key = self.name
             if cache_key in self.runner.optimizer.sample_cache:
-                cached_data, cached_sample_size = self.runner.optimizer.sample_cache[
-                    cache_key
-                ]
-                # If we have enough samples cached, use them
+                cached_data, cached_sample_size = self.runner.optimizer.sample_cache[cache_key]
                 if not sample_size_needed or cached_sample_size >= sample_size_needed:
-                    curr_logs += f"[green]✓[/green] Using cached {self.name} (sample size: {cached_sample_size})\n"
-                    # Sample the cached data if needed
                     if sample_size_needed:
                         cached_data = smart_sample(cached_data, sample_size_needed)
+                    return cached_data, 0, f"[green]✓[/green] Using cached {self.name} (sample size: {cached_sample_size})\n"
 
-                    return cached_data, 0, curr_logs
-
-        # Try to load from checkpoint if available
-        # Skip if this operation has bypass_cache: true
+        # Production path: try loading from checkpoint
         if not is_build and not self.config.get("bypass_cache", False):
-            attempted_input_data = self.runner._load_from_checkpoint_if_exists(
-                self.name.split("/")[0], self.name.split("/")[-1]
-            )
-            if attempted_input_data is not None:
-                curr_logs += f"[green]✓[/green] Using cached {self.name}\n"
-                # Surface cached operations in the interactive view as done, so
-                # they don't appear stuck at "queued". Outputs remain inspectable.
-                tracker = getattr(self.runner, "progress_tracker", None)
-                if tracker is not None and self.config.get("type") not in (
-                    "scan",
-                    "step_boundary",
-                ):
-                    n = len(attempted_input_data)
-                    tracker.op_start(
-                        self.name,
-                        self.config.get("type", "?"),
-                        self.config.get("model", self.runner.default_model),
-                        n,
-                    )
-                    tracker.op_done(
-                        self.name,
-                        cost=0.0,
-                        prompt_tokens=0,
-                        completion_tokens=0,
-                        outputs=attempted_input_data,
-                    )
-                return attempted_input_data, 0, curr_logs
+            cached = self.runner._load_from_checkpoint_if_exists(self.step_name, self.op_name)
+            if cached is not None:
+                self._notify_cached(cached)
+                return cached, 0, f"[green]✓[/green] Using cached {self.name}\n"
 
-        # If there's a selectivity estimate, we need to take a sample of size sample_size_needed / selectivity
+        # Compute how many input items we need (selectivity-adjusted for build phase)
         if self.selectivity and sample_size_needed:
-            input_sample_size_needed = int(
-                math.ceil(sample_size_needed / self.selectivity)
-            )
+            input_sample_size = int(math.ceil(sample_size_needed / self.selectivity))
         else:
-            input_sample_size_needed = sample_size_needed
+            input_sample_size = sample_size_needed
 
-        # Clear any existing checkpoint before running
+        # Clear stale checkpoint
         if self.runner.intermediate_dir:
-            checkpoint_path = os.path.join(
-                self.runner.intermediate_dir,
-                self.name.split("/")[0],
-                f"{self.name.split('/')[-1]}.json",
-            )
+            checkpoint_path = os.path.join(self.runner.intermediate_dir, self.step_name, f"{self.op_name}.json")
             if os.path.exists(checkpoint_path):
                 os.remove(checkpoint_path)
 
-        # Handle equijoin operations which have two input streams
-        if self.is_equijoin:
-            assert (
-                len(self.children) == 2
-            ), "Equijoin should have left and right children"
-            left_data, left_cost, left_logs = self.children[0].next(
-                is_build, input_sample_size_needed
-            )
-            right_data, right_cost, right_logs = self.children[1].next(
-                is_build, input_sample_size_needed
-            )
-            cost += left_cost + right_cost
-            curr_logs += left_logs + right_logs
-            input_len = max(len(left_data), len(right_data))
-            input_data = {"left_data": left_data, "right_data": right_data}
-        # Handle standard operations with single input
-        elif len(self.children) > 0:
-            input_data, input_cost, input_logs = self.children[0].next(
-                is_build, input_sample_size_needed
-            )
-            cost += input_cost
-            curr_logs += input_logs
-            input_len = len(input_data)
+        # Pull inputs from children
+        input_data, input_len, cost, curr_logs = self._pull_children(is_build, input_sample_size)
 
         # Apply sampling if configured
         if input_data and "sample" in self.config and not is_build:
             input_data = input_data[: self.config["sample"]]
 
-        # Notify the interactive progress tracker that this operation is starting.
-        # Scans and step boundaries are infrastructure and are not surfaced; we
-        # also skip optimizer "build" runs to avoid cluttering the live view.
+        # Start progress tracking
         tracker = getattr(self.runner, "progress_tracker", None)
-        track_this_op = (
+        track = (
             tracker is not None
             and not is_build
             and self.config.get("type") not in ("scan", "step_boundary")
         )
-        if track_this_op:
-
-            def _token_totals():
-                p = sum(u["prompt_tokens"] for u in self.runner.total_token_usage.values())
-                c = sum(
-                    u["completion_tokens"] for u in self.runner.total_token_usage.values()
-                )
-                return p, c
-
-            tokens_before = _token_totals()
+        if track:
+            tokens_before = self._token_totals()
             tracker.op_start(
                 self.name,
                 self.config.get("type", "?"),
@@ -570,59 +534,47 @@ class OpContainer:
         # Execute the operation
         with self.runner.console.status(f"Running {self.name}") as status:
             self.runner.status = status
+            cost_before = self.runner.total_cost
 
-            cost_before_execution = self.runner.total_cost
+            output_data = self.runner._run_operation(self.config, input_data, is_build=is_build)
 
-            # Execute operation with appropriate inputs
-            output_data = self.runner._run_operation(
-                self.config, input_data, is_build=is_build
+            op_cost = self.runner.total_cost - cost_before
+            cost += op_cost
+
+        # Finish progress tracking
+        if track:
+            tokens_after = self._token_totals()
+            tracker.op_done(
+                self.name,
+                cost=op_cost,
+                prompt_tokens=tokens_after[0] - tokens_before[0],
+                completion_tokens=tokens_after[1] - tokens_before[1],
+                outputs=output_data,
             )
 
-            # Track costs and log execution
-            this_op_cost = self.runner.total_cost - cost_before_execution
-            cost += this_op_cost
+        build_indicator = "[yellow](build)[/yellow] " if is_build else ""
+        curr_logs += f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${op_cost:.2f}[/green])\n"
+        self.runner.console.log(
+            f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${op_cost:.2f}[/green])"
+        )
 
-            if track_this_op:
-                tokens_after = _token_totals()
-                tracker.op_done(
-                    self.name,
-                    cost=this_op_cost,
-                    prompt_tokens=tokens_after[0] - tokens_before[0],
-                    completion_tokens=tokens_after[1] - tokens_before[1],
-                    outputs=output_data,
-                )
+        # Update selectivity estimate
+        self.selectivity = len(output_data) / input_len if input_len else 1
 
-            build_indicator = "[yellow](build)[/yellow] " if is_build else ""
-            curr_logs += f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${this_op_cost:.2f}[/green])\n"
-            self.runner.console.log(
-                f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${this_op_cost:.2f}[/green])"
-            )
+        # Build-phase: cache for the v1 optimizer
+        if is_build:
+            self.runner.optimizer.sample_cache[self.name] = (output_data, len(output_data))
 
-            # Save selectivity estimate
-            output_size = len(output_data)
-            self.selectivity = output_size / input_len if input_len else 1
+        if sample_size_needed:
+            output_data = smart_sample(output_data, sample_size_needed)
 
-            # Cache the results if this is a build operation
-            if is_build:
-                self.runner.optimizer.sample_cache[self.name] = (
-                    output_data,
-                    len(output_data),
-                )
-
-            # Truncate output data to the sample size needed
-            if sample_size_needed:
-                output_data = smart_sample(output_data, sample_size_needed)
-
-        # Save checkpoint if enabled
+        # Save checkpoint
         if (
             not is_build
             and self.runner.intermediate_dir
-            and self.name.split("/")[1]
-            in self.runner.step_op_hashes[self.name.split("/")[0]]
+            and self.op_name in self.runner.step_op_hashes.get(self.step_name, {})
         ):
-            self.runner._save_checkpoint(
-                self.name.split("/")[0], self.name.split("/")[-1], output_data
-            )
+            self.runner._save_checkpoint(self.step_name, self.op_name, output_data)
 
         return output_data, cost, curr_logs
 
@@ -656,7 +608,7 @@ class StepBoundary(OpContainer):
         )
 
         # Print step logs only if not building
-        self.runner.datasets[self.name.split("/")[0]] = Dataset(
+        self.runner.datasets[self.step_name] = Dataset(
             self, "memory", output_data
         )
         if not is_build:

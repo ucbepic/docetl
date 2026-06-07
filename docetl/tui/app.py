@@ -468,7 +468,7 @@ class DocetlTUI(App):
         if cached is not None:
             return cached
 
-        name = op.name.split("/")[-1]
+        name = op.op_name
         obs = doc.get(f"_observability_{name}")
         prompt = None
         if isinstance(obs, dict):

@@ -1226,9 +1226,9 @@ class MOARSearch:
         """
 
         new_parsed_yaml = deepcopy(node.parsed_yaml)
-        new_parsed_yaml["operations"] = new_ops_list
+        old_ops_list = node.parsed_yaml["operations"]
         new_parsed_yaml["bypass_cache"] = True
-        new_parsed_yaml = update_pipeline(new_parsed_yaml, new_ops_list, target_op_list)
+        update_pipeline(new_parsed_yaml, new_ops_list, target_op_list, old_ops_list=old_ops_list)
 
         # Update dataset path to use sample dataset if provided
         if self.sample_dataset_path and "datasets" in new_parsed_yaml:

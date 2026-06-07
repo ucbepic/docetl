@@ -183,6 +183,7 @@ class DSLRunner(ConfigWrapper):
         self.config = config
         self.op_container_map = {}
         self.last_op_container = None
+        self._op_map = {op["name"]: op for op in config.get("operations", [])}
 
         for step in self.config["pipeline"]["steps"]:
             self._validate_step(step)
@@ -340,9 +341,9 @@ class DSLRunner(ConfigWrapper):
                     + [self.config.get("system_prompt", {})]
                 )
 
-                for op in all_ops_until_and_including_current:
-                    if "model" not in op:
-                        op["model"] = self.default_model
+                for op_cfg in all_ops_until_and_including_current:
+                    if "model" not in op_cfg:
+                        op_cfg["model"] = self.default_model
 
                 all_ops_str = json.dumps(all_ops_until_and_including_current)
                 self.step_op_hashes[step["name"]][op_name] = hashlib.sha256(
@@ -417,7 +418,7 @@ class DSLRunner(ConfigWrapper):
                 if show_boundaries:
                     output = []
                     indent_str = "  " * indent
-                    step_name = op.name.split("/")[0]
+                    step_name = op.step_name
                     color = step_colors.get(step_name, "white")
                     output.append(
                         f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]"
@@ -437,7 +438,7 @@ class DSLRunner(ConfigWrapper):
             output = []
 
             # Color code the operation name based on its step
-            step_name = op.name.split("/")[0]
+            step_name = op.step_name
             color = step_colors.get(step_name, "white")
             output.append(f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]")
             output.append(f"{indent_str}Type: {op.config['type']}")
@@ -475,7 +476,7 @@ class DSLRunner(ConfigWrapper):
 
         # Create a color map for steps - using distinct colors
         colors = ["cyan", "magenta", "green", "yellow", "blue", "red"]
-        step_names = [b.name.split("/")[0] for b in step_boundaries]
+        step_names = [b.step_name for b in step_boundaries]
         step_colors = {
             name: colors[i % len(colors)] for i, name in enumerate(step_names)
         }
@@ -491,10 +492,10 @@ class DSLRunner(ConfigWrapper):
         self.console.log()
 
     def find_operation(self, op_name: str) -> dict:
-        for operation_config in self.config["operations"]:
-            if operation_config["name"] == op_name:
-                return operation_config
-        raise ValueError(f"Operation '{op_name}' not found in configuration.")
+        try:
+            return self._op_map[op_name]
+        except KeyError:
+            raise ValueError(f"Operation '{op_name}' not found in configuration.")
 
     def list_pipeline_operations(self) -> list[tuple[str, str, str, str | None]]:
         """Return ``(step, full_name, op_type, model)`` for each real operation

@@ -207,7 +207,7 @@ class Optimizer:
                 continue
 
             # Get the step name from the container's name
-            step_name = current.name.split("/")[0]
+            step_name = current.step_name
 
             # Check if current container is a reduce operation
             if current.config["type"] == "reduce" and current.config.get(
@@ -647,7 +647,7 @@ class Optimizer:
                 return None, None
 
             # Get step name from container name
-            step_name = container.name.split("/")[0]
+            step_name = container.step_name
 
             # If this is a new step, create it
             if not current_step or current_step["name"] != step_name:

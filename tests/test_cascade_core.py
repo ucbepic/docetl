@@ -155,13 +155,13 @@ def test_perfect_proxy_escalates_little():
     """A proxy that always matches the oracle (max confidence) should let the
     cascade trust most items, escalating only the calibration sample."""
     n = 500
-    truth = np.arange(n) % 3  # 3-way labels
+    truth = (np.arange(n) % 2).astype(int)  # binary labels
 
     def proxy_predict(item):
-        return int(truth[int(item)]), 1.0
+        return bool(truth[int(item)]), 1.0
 
     def oracle_predict(item):
-        return int(truth[int(item)])
+        return bool(truth[int(item)])
 
     spec = CascadeSpec(proxy_model="proxy", guarantee="accuracy", target=0.9, delta=0.1, seed=0)
     result = CategoricalCascade(spec, proxy_predict, oracle_predict).run(list(range(n)))

@@ -5,7 +5,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 import asyncio
 import base64
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from jinja2 import Template
@@ -17,12 +17,11 @@ from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types, lookup_field
 from docetl.operations.utils.api import OutputMode
-from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.progress.tracker import active_tracker
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 
-class MapOperation(BaseOperation, CascadeMixin):
+class MapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "map"
         output: dict[str, Any] | None = None
@@ -44,7 +43,6 @@ class MapOperation(BaseOperation, CascadeMixin):
         batch_prompt: str | None = None
         litellm_completion_kwargs: dict[str, Any] = {}
         pdf_url_key: str | None = None
-        cascade: Optional[CascadeConfig] = None
         flush_partial_result: bool = False
         limit: int | None = Field(None, gt=0)
         # Calibration parameters
@@ -123,27 +121,6 @@ class MapOperation(BaseOperation, CascadeMixin):
 
             return self
 
-        @model_validator(mode="after")
-        def validate_cascade_inputs(self):
-            # The cascade proxy/oracle adapters render text only; they do not
-            # yet pass PDF documents or retrieved context to the model, so
-            # combining cascade with those inputs would silently degrade the
-            # prompt. Fail loudly until that path is wired in.
-            if self.cascade is not None:
-                bad = [
-                    name
-                    for name in ("pdf_url_key", "retriever")
-                    if getattr(self, name, None)
-                ]
-                if bad:
-                    raise ValueError(
-                        "cascade cannot yet be combined with "
-                        + " or ".join(bad)
-                        + " (the proxy/oracle would not receive the PDF or "
-                        "retrieved context). Remove the cascade block or these "
-                        "inputs."
-                    )
-            return self
 
     def __init__(
         self,
@@ -303,12 +280,6 @@ Reference anchors:"""
 
         The method uses parallel processing to improve performance.
         """
-        # Opt-in model cascade for single-enum map outputs. Gated on type=="map"
-        # so the filter subclass (which reaches super().execute() only on its
-        # non-cascade/build path) never falls into the map cascade.
-        if self.config.get("cascade") and self.config.get("type") == "map":
-            return self._execute_map_cascade(input_data)
-
         limit_value = self.config.get("limit")
 
         # Check if there's no prompt and only drop_keys
@@ -670,94 +641,6 @@ Reference anchors:"""
             self.status.start()
 
         return results, total_cost
-
-    def _enum_output_key_and_values(self) -> "tuple[str, list[str]]":
-        """For map cascade (v1): require the output schema to be a single
-        ``enum[...]`` field and return ``(key, values)``."""
-        schema = self.config["output"]["schema"]
-        keys = [k for k in schema if k != "_short_explanation"]
-        if len(keys) != 1:
-            raise ValueError(
-                "map cascade (v1) requires exactly one output key of enum type; "
-                f"got keys {keys}."
-            )
-        key = keys[0]
-        val = schema[key]
-        stripped = val.strip() if isinstance(val, str) else ""
-        if not (stripped.startswith("enum[") and stripped.endswith("]")):
-            raise ValueError(
-                f"map cascade (v1) requires output '{key}' to be an 'enum[...]' "
-                f"type; got '{val}'."
-            )
-        values = [v.strip() for v in stripped[5:-1].split(",") if v.strip()]
-        if len(values) < 2:
-            raise ValueError(
-                f"map cascade enum '{key}' must have at least 2 values; got {values}."
-            )
-        return key, values
-
-    def _execute_map_cascade(
-        self, input_data: list[dict]
-    ) -> tuple[list[dict], float]:
-        """Run a single-enum map as a guarantee-bearing proxy/oracle cascade.
-
-        Every record keeps its row; the enum field is filled by the proxy where
-        the engine is confident and by the oracle (the existing map call) where
-        it escalates. Default guarantee is ``accuracy``.
-        """
-        if not input_data:
-            return [], 0.0
-
-        enum_key, enum_values = self._enum_output_key_and_values()
-        oracle_model = self.config.get("model", self.default_model)
-        schema = self.config["output"]["schema"]
-        structured_mode = (
-            self.config.get("output", {}).get("mode")
-            == OutputMode.STRUCTURED_OUTPUT.value
-        )
-
-        def render_messages(item: dict) -> list[dict[str, str]]:
-            rendered = strict_render(self.config["prompt"], {"input": item})
-            return [{"role": "user", "content": rendered}]
-
-        def oracle_predict(item: dict) -> tuple[Any, float]:
-            if self.runner.is_cancelled:
-                raise asyncio.CancelledError("Operation was cancelled")
-            llm_result = self.runner.api.call_llm(
-                oracle_model,
-                "map",
-                render_messages(item),
-                schema,
-                timeout_seconds=self.config.get("timeout", 120),
-                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
-                litellm_completion_kwargs=self.config.get(
-                    "litellm_completion_kwargs", {}
-                ),
-                op_config=self.config,
-            )
-            response = llm_result.response
-            if isinstance(response, ModelResponse):
-                parsed = self.runner.api.parse_llm_response(
-                    response, schema=schema, use_structured_output=structured_mode
-                )[0]
-            else:
-                parsed = response
-            return parsed.get(enum_key), llm_result.total_cost
-
-        result, cost = self._run_categorical_cascade(
-            items=input_data,
-            render_messages=render_messages,
-            proxy_labels=enum_values,
-            oracle_predict=oracle_predict,
-            default_guarantee="accuracy",
-            op_label="map",
-        )
-        outputs = [
-            {**item, enum_key: label}
-            for item, label in zip(input_data, result.labels)
-        ]
-        return outputs, cost
 
 
 class ParallelMapOperation(BaseOperation):

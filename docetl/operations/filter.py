@@ -13,14 +13,33 @@ from docetl.progress.tracker import active_tracker
 
 # Re-exported for backwards compatibility; the canonical definition now lives in
 # cascade_runner so all operators share one config.
-from docetl.operations.utils.cascade_runner import CascadeConfig  # noqa: F401
+from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin  # noqa: F401
 
 
-class FilterOperation(MapOperation):
+class FilterOperation(MapOperation, CascadeMixin):
     class schema(MapOperation.schema):
         type: str = "filter"
         prompt: str
         output: dict[str, Any]
+        cascade: CascadeConfig | None = None
+
+        @model_validator(mode="after")
+        def validate_cascade_inputs(self):
+            if self.cascade is not None:
+                bad = [
+                    name
+                    for name in ("pdf_url_key", "retriever")
+                    if getattr(self, name, None)
+                ]
+                if bad:
+                    raise ValueError(
+                        "cascade cannot yet be combined with "
+                        + " or ".join(bad)
+                        + " (the proxy/oracle would not receive the PDF or "
+                        "retrieved context). Remove the cascade block or these "
+                        "inputs."
+                    )
+            return self
 
         @model_validator(mode="after")
         def validate_filter_output_schema(self):

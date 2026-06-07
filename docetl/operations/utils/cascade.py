@@ -214,15 +214,11 @@ class CategoricalCascade:
                 positive_indices=[],
             )
 
-        positive_label = (
-            spec.positive_label if spec.guarantee != "accuracy" else None
-        )
-
         proxy = _ProxyAdapter(
-            self._proxy_predict, positive_label=positive_label, console=self._console
+            self._proxy_predict, positive_label=spec.positive_label, console=self._console
         )
         oracle = _OracleAdapter(
-            self._oracle_predict, positive_label=positive_label, console=self._console
+            self._oracle_predict, positive_label=spec.positive_label, console=self._console
         )
 
         if self._console:
@@ -246,12 +242,7 @@ class CategoricalCascade:
 
     @staticmethod
     def _extract_proxy_scores(proxy) -> list[float]:
-        """Extract proxy confidence scores in item order.
-
-        For binary mode (pred in {0, 1}), returns P(positive).
-        For accuracy mode (pred is an arbitrary label), returns the raw
-        proxy confidence in its chosen label.
-        """
+        """Extract proxy confidence scores in item order as P(positive)."""
         if not proxy.preds_dict:
             return []
         max_idx = max(proxy.preds_dict.keys())
@@ -262,10 +253,7 @@ class CategoricalCascade:
                 scores.append(0.5)
                 continue
             pred, score = entry
-            if isinstance(pred, (int, float)):
-                scores.append(pred * score + (1 - pred) * (1 - score))
-            else:
-                scores.append(score)
+            scores.append(pred * score + (1 - pred) * (1 - score))
         return scores
 
     def _make_stats(

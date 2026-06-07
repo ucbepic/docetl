@@ -1,7 +1,7 @@
-"""Shared plumbing for running a categorical model cascade inside an operator.
+"""Shared plumbing for running a binary model cascade inside an operator.
 
 The statistical engine lives in ``cascade.py``; this module provides the
-operator-facing pieces reused by filter / map / resolve / equijoin:
+operator-facing pieces reused by filter / resolve / equijoin:
 
 - :class:`CascadeConfig` -- the opt-in ``cascade:`` config block.
 - :class:`CascadeMixin` -- builds the proxy/oracle adapters around an
@@ -9,8 +9,9 @@ operator-facing pieces reused by filter / map / resolve / equijoin:
 
 An operator supplies only: how to enumerate items, how to render an item's
 prompt, the candidate label set, and an oracle callable. The guarantee default
-is operator-dependent (filter->recall, map->accuracy, resolve/equijoin->
-precision) and is passed in at call time.
+is operator-dependent (filter->recall, resolve/equijoin->precision) and is
+passed in at call time. Only binary predictions are supported (accuracy,
+precision, recall, precision+recall guarantees via BARGAIN).
 """
 
 import hashlib
@@ -30,7 +31,6 @@ _GUARANTEES = ("accuracy", "precision", "recall", "precision+recall")
 # Default guarantee when the cascade block omits ``guarantee`` (per operator).
 CASCADE_DEFAULT_GUARANTEE: dict[str, str] = {
     "filter": "recall",
-    "map": "accuracy",
     "resolve": "precision",
     "equijoin": "precision",
 }
@@ -274,7 +274,6 @@ class CascadeMixin:
         proxy_scores: list[float] | None = None,
         escalated: list[bool] | None = None,
         proxy_labels: list | None = None,
-        is_binary: bool = True,
     ) -> None:
         """Log a cost/escalation summary and stash stats for programmatic use."""
         self.cascade_stats = stats
@@ -320,7 +319,7 @@ class CascadeMixin:
                 info["item_proxy_scores"] = proxy_scores
             if proxy_labels is not None:
                 info["item_proxy_labels"] = proxy_labels
-            info["is_binary"] = is_binary
+            info["is_binary"] = True
             tracker.set_cascade_info(info)
 
         name = self.config.get("name", "?")
@@ -472,7 +471,6 @@ class CascadeMixin:
                     proxy_scores=pscores,
                     escalated=result.escalated,
                     proxy_labels=plabels,
-                    is_binary=cached_binary,
                 )
                 return result, total_cost
 
@@ -511,7 +509,6 @@ class CascadeMixin:
         proxy_scores_live: list[float] = []
         proxy_labels_live: list = []
         oracle_model = self.config.get("model", self.default_model)
-        is_binary = positive_label is not None
         progress = _CascadeProgress(
             self.console,
             n_items=len(items),
@@ -530,10 +527,7 @@ class CascadeMixin:
                 )
                 cost["proxy"] += c
                 proxy_labels_live.append(lbl)
-                if is_binary:
-                    p_pos = prob if lbl == positive_label else (1.0 - prob)
-                else:
-                    p_pos = prob
+                p_pos = prob if lbl == positive_label else (1.0 - prob)
                 proxy_scores_live.append(p_pos)
                 progress.tick_proxy()
                 return lbl, prob
@@ -556,10 +550,9 @@ class CascadeMixin:
             proxy_scores=cascade.proxy_scores,
             escalated=result.escalated,
             proxy_labels=proxy_labels_live,
-            is_binary=is_binary,
         )
 
         with cache as c:
             c.set(key, (result, total_cost, cost["proxy"], cost["oracle"],
-                        cascade.proxy_scores, proxy_labels_live, is_binary))
+                        cascade.proxy_scores, proxy_labels_live, True))
         return result, total_cost

@@ -717,8 +717,6 @@ def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
     proxy_labels = cascade_info.get("item_proxy_labels", [])
     escalated = cascade_info.get("item_escalated", [])
     kept = cascade_info.get("kept_input_indices")
-    is_binary = cascade_info.get("is_binary", True)
-
     input_idx = output_idx
     if kept and output_idx < len(kept):
         input_idx = kept[output_idx]
@@ -729,17 +727,11 @@ def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
         score = proxy_scores[input_idx]
         t.append("cascade\n", style="bold magenta")
 
-        if is_binary:
-            proxy_label = score > 0.5
-            confidence = max(score, 1.0 - score)
-            t.append("  proxy said:  ", style="dim")
-            t.append(f"{proxy_label}", style="green" if proxy_label else "red")
-            t.append(f"  ({confidence:.0%})\n", style="grey70")
-        else:
-            label = proxy_labels[input_idx] if input_idx < len(proxy_labels) else "?"
-            t.append("  proxy said:  ", style="dim")
-            t.append(f"{label}", style="yellow")
-            t.append(f"  ({score:.0%})\n", style="grey70")
+        proxy_label = score > 0.5
+        confidence = max(score, 1.0 - score)
+        t.append("  proxy said:  ", style="dim")
+        t.append(f"{proxy_label}", style="green" if proxy_label else "red")
+        t.append(f"  ({confidence:.0%})\n", style="grey70")
 
     if input_idx < len(escalated) and escalated[input_idx]:
         if not has_data:

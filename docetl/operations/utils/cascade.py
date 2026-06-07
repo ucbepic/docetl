@@ -408,19 +408,19 @@ class CategoricalCascade:
     # ------------------------------------------------------------------
     # Combined precision+recall via union bound (delta/2 each).
     #
-    # Precision is formally guaranteed by BARGAIN_P.  We then run
-    # BARGAIN_R to discover oracle-confirmed positives that the
-    # precision pass missed; adding verified true positives can only
-    # maintain or increase precision, so the guarantee is preserved.
-    # Recall is improved but not formally guaranteed — it depends on
-    # how many of the recall pass's positives were oracle-verified.
+    # Both guarantees hold simultaneously via union bound (delta/2
+    # each).  BARGAIN_P finds the precision-safe set; BARGAIN_R finds
+    # the recall-safe set.  Items in recall_pos that aren't already in
+    # prec_pos are oracle-verified: the oracle is perfect, so every
+    # true positive in the gap is found (preserving recall) and only
+    # verified TPs are added (preserving precision).
     # ------------------------------------------------------------------
     def _run_precision_recall(self, items, proxy, oracle) -> CascadeResult:
         spec = self.spec
         half_delta = spec.delta / 2
         half_budget = max(1, spec.label_budget // 2)
 
-        # Precision pass — this set carries the formal guarantee.
+        # Precision pass — formal precision guarantee on prec_pos.
         prec_proxy = _ProxyAdapter(self._proxy_predict, positive_label=spec.positive_label)
         prec_oracle = _OracleAdapter(self._oracle_predict, positive_label=spec.positive_label)
         bargain_p = BARGAIN_P(
@@ -430,7 +430,7 @@ class CategoricalCascade:
         )
         prec_pos = set(int(i) for i in bargain_p.process(items))
 
-        # Recall pass — used to find additional true positives.
+        # Recall pass — formal recall guarantee on recall_pos.
         recall_proxy = _ProxyAdapter(self._proxy_predict, positive_label=spec.positive_label)
         recall_oracle = _OracleAdapter(self._oracle_predict, positive_label=spec.positive_label)
         bargain_r = BARGAIN_R(
@@ -439,16 +439,30 @@ class CategoricalCascade:
         )
         recall_pos = set(int(i) for i in bargain_r.process(items))
 
-        # Start from the precision-guaranteed set and add oracle-confirmed
-        # positives from the recall pass.  Adding verified true positives
-        # never decreases precision (TP/(TP+FP) is monotone in TP).
+        # Merge oracle labels already obtained during calibration.
+        known_labels: dict[int, int] = {}
+        known_labels.update(recall_oracle.preds_dict)
+        known_labels.update(prec_oracle.preds_dict)
+
+        # Start from prec_pos (precision guaranteed).
         positive_set = prec_pos.copy()
-        for idx in recall_pos - prec_pos:
-            label = recall_oracle.preds_dict.get(idx)
-            if label is None:
-                label = prec_oracle.preds_dict.get(idx)
-            if label == 1:
+
+        # Add calibration-labeled TPs from recall_pos.
+        for idx in recall_pos:
+            if idx not in positive_set and known_labels.get(idx) == 1:
                 positive_set.add(idx)
+
+        # Oracle-verify the gap: items in recall_pos not yet resolved.
+        # This is the cascade step — every TP in the gap is found,
+        # preserving the recall guarantee from BARGAIN_R.
+        gap = [idx for idx in recall_pos
+               if idx not in positive_set and idx not in known_labels]
+        if gap:
+            gap_records = [items[idx] for idx in gap]
+            gap_labels = recall_oracle.get_pred(gap_records, gap)
+            for idx, lbl in zip(gap, gap_labels):
+                if lbl == 1:
+                    positive_set.add(idx)
 
         result_labels = [
             spec.positive_label if i in positive_set else spec.negative_label
@@ -459,7 +473,6 @@ class CategoricalCascade:
         total_oracle = len(all_oracle)
 
         p_threshold = self._compute_threshold(prec_proxy, prec_oracle, prec_pos)
-        r_threshold = self._compute_threshold(recall_proxy, recall_oracle, recall_pos)
 
         proxy.preds_dict.update(recall_proxy.preds_dict)
         proxy.preds_dict.update(prec_proxy.preds_dict)

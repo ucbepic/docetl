@@ -208,14 +208,15 @@ def test_rejects_bad_target_delta():
 
 
 def test_precision_recall_combined_guarantee():
-    """Combined precision+recall: precision is formally guaranteed by the
-    BARGAIN_P pass.  Recall is improved by adding oracle-confirmed positives
-    from the BARGAIN_R pass but is NOT formally guaranteed — it depends on
-    proxy quality and oracle budget.  We verify precision holds with the
-    claimed coverage and that recall is better than a precision-only run."""
+    """Combined precision+recall: both guarantees hold simultaneously.
+
+    BARGAIN_P guarantees precision on prec_pos.  BARGAIN_R guarantees recall
+    on recall_pos.  Items in recall_pos \\ prec_pos are oracle-verified, so
+    every TP in the gap is captured (recall preserved) and only verified TPs
+    are added (precision preserved).  Union bound: P(either fails) ≤ delta.
+    """
     target, delta, n, trials = 0.85, 0.2, 600, 40
-    prec_ok = 0
-    recall_sum = 0.0
+    prec_ok = recall_ok = both_ok = 0
     valid_trials = 0
     for trial in range(trials):
         rng = np.random.default_rng(5000 + trial)
@@ -236,16 +237,22 @@ def test_precision_recall_combined_guarantee():
         precision = float(np.mean(truth[pos] == 1))
         found = sum(1 for i in range(n) if truth[i] == 1 and i in set(pos))
         recall = found / n_positive
-        recall_sum += recall
         if precision >= target:
             prec_ok += 1
-    # Precision is formally guaranteed — should hold ≥ 1-delta of trials.
+        if recall >= target:
+            recall_ok += 1
+        if precision >= target and recall >= target:
+            both_ok += 1
+    # Both guarantees formally hold; allow statistical margin on finite trials.
     assert prec_ok / valid_trials >= 1 - delta - 0.1, (
         f"precision held {prec_ok}/{valid_trials}"
     )
-    # Recall is best-effort; just verify we're producing non-trivial output.
-    avg_recall = recall_sum / valid_trials if valid_trials else 0
-    assert avg_recall > 0.1, f"avg recall {avg_recall:.2f} too low"
+    assert recall_ok / valid_trials >= 1 - delta - 0.1, (
+        f"recall held {recall_ok}/{valid_trials}"
+    )
+    assert both_ok / valid_trials >= 1 - delta - 0.15, (
+        f"both held {both_ok}/{valid_trials}"
+    )
 
 
 def test_precision_recall_extracts_proxy_scores():

@@ -174,15 +174,9 @@ class Pipeline:
         )
 
     def _load_env(self):
-        import os
-
         from dotenv import load_dotenv
 
-        # Get the current working directory
-        cwd = os.getcwd()
-
-        # Load .env file from the current working directory if it exists
-        env_file = os.path.join(cwd, ".env")
+        env_file = os.path.join(os.getcwd(), ".env")
         if os.path.exists(env_file):
             load_dotenv(env_file)
 

@@ -6,7 +6,6 @@ import datetime
 import functools
 import json
 import os
-import shutil
 import time
 from collections import defaultdict
 from typing import Any
@@ -489,20 +488,20 @@ class DSLRunner:
             f"in step '{step_name}' at {path}[/italic][/green]"
         )
 
+    def _prepare_optimizer_kwargs(self, **kwargs) -> dict:
+        opt_cfg = self.pipeline.optimizer_config or {}
+        kwargs.setdefault("litellm_kwargs", opt_cfg.get("litellm_kwargs", {}))
+        kwargs.setdefault("rewrite_agent_model", opt_cfg.get("rewrite_agent_model", "gpt-5.1"))
+        kwargs.setdefault("judge_agent_model", opt_cfg.get("judge_agent_model", "gpt-4o-mini"))
+        return kwargs
+
     def should_optimize(
         self, step_name: str, op_name: str, **kwargs
     ) -> tuple[str, float, list[dict[str, Any]], list[dict[str, Any]]]:
         self.load()
-
-        opt_cfg = self.pipeline.optimizer_config or {}
-        kwargs["litellm_kwargs"] = opt_cfg.get("litellm_kwargs", {})
-        kwargs["rewrite_agent_model"] = opt_cfg.get("rewrite_agent_model", "gpt-5.1")
-        kwargs["judge_agent_model"] = opt_cfg.get("judge_agent_model", "gpt-4o-mini")
-
-        builder = Optimizer(self, **kwargs)
+        builder = Optimizer(self, **self._prepare_optimizer_kwargs(**kwargs))
         self.optimizer = builder
-        result = builder.should_optimize(step_name, op_name)
-        return result
+        return builder.should_optimize(step_name, op_name)
 
     def optimize(
         self,
@@ -510,31 +509,18 @@ class DSLRunner:
         return_pipeline: bool = True,
         **kwargs,
     ) -> tuple[dict | "DSLRunner", float]:
-
         if not self.last_op_container:
             raise ValueError("No operations in pipeline. Cannot optimize.")
 
         self.load()
+        save_path = kwargs.pop("save_path", None)
 
-        opt_cfg = self.pipeline.optimizer_config or {}
-        kwargs["litellm_kwargs"] = opt_cfg.get("litellm_kwargs", {})
-        kwargs["rewrite_agent_model"] = opt_cfg.get("rewrite_agent_model", "gpt-5.1")
-        kwargs["judge_agent_model"] = opt_cfg.get("judge_agent_model", "gpt-4o-mini")
-
-        save_path = kwargs.get("save_path", None)
-        # Pop the save_path from kwargs
-        kwargs.pop("save_path", None)
-
-        builder = Optimizer(
-            self,
-            **kwargs,
-        )
+        builder = Optimizer(self, **self._prepare_optimizer_kwargs(**kwargs))
         self.optimizer = builder
         llm_api_cost = builder.optimize()
         operations_cost = self.total_cost
         self.total_cost += llm_api_cost
 
-        # Log the cost of optimization
         self.console.log(
             f"[green italic]💰 Total cost: ${self.total_cost:.4f}[/green italic]"
         )
@@ -546,16 +532,13 @@ class DSLRunner:
         )
 
         if save:
-            # If output path is provided, save the optimized config to that path
-            if kwargs.get("save_path"):
-                save_path = kwargs["save_path"]
+            if save_path:
                 if not os.path.isabs(save_path):
                     save_path = os.path.join(os.getcwd(), save_path)
-                builder.save_optimized_config(save_path)
-                self.optimized_config_path = save_path
             else:
-                builder.save_optimized_config(f"{self.base_name}_opt.yaml")
-                self.optimized_config_path = f"{self.base_name}_opt.yaml"
+                save_path = f"{self.base_name}_opt.yaml"
+            builder.save_optimized_config(save_path)
+            self.optimized_config_path = save_path
 
         if return_pipeline:
             return (

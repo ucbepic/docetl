@@ -2,15 +2,15 @@
 
 When ``interactive_ui: True`` but stdout is not a TTY (e.g. running from an AI
 agent, CI, or a subprocess), the full Textual TUI cannot run.  This module
-provides a lightweight alternative that prints structured progress lines to the
-console so the caller can still observe operation status, document counts, and
-costs as the pipeline executes.
+provides a lightweight alternative that prints structured progress lines **and
+document samples** to the console, so a human or AI agent can see what is being
+generated in real time and decide whether to intervene (Ctrl-C, edit, etc.).
 """
 
 from __future__ import annotations
 
+import json
 import threading
-import time
 from typing import TYPE_CHECKING
 
 from docetl.progress.tracker import ProgressTracker, set_active_tracker
@@ -38,8 +38,28 @@ def _fmt_dur(secs: float) -> str:
     return f"{h}h {m}m"
 
 
+_TRUNC = 200
+
+
+def _trunc(s: str) -> str:
+    return s if len(s) <= _TRUNC else s[:_TRUNC] + " …"
+
+
+def _format_doc(doc: dict) -> str:
+    """Render a document dict as a compact, human-readable block."""
+    lines = []
+    for k, v in doc.items():
+        if k.startswith("_"):
+            continue
+        if isinstance(v, str):
+            lines.append(f"  {k}: {_trunc(v)}")
+        else:
+            lines.append(f"  {k}: {_trunc(json.dumps(v, ensure_ascii=False, default=str))}")
+    return "\n".join(lines)
+
+
 class _LogReporter:
-    """Periodically prints progress lines based on tracker state changes."""
+    """Periodically prints progress and document samples from tracker state."""
 
     def __init__(self, tracker: ProgressTracker, console, interval: float = 3.0):
         self._tracker = tracker
@@ -51,6 +71,9 @@ class _LogReporter:
         self._last_completed: int = -1
         self._last_cost: float = -1.0
         self._reported_done: set[str] = set()
+        # Track how many outputs we've already printed per op, so we only
+        # print *new* documents each tick.
+        self._printed_outputs: dict[str, int] = {}
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -67,6 +90,23 @@ class _LogReporter:
             self._stop.wait(self._interval)
         self._emit()
 
+    def _print_new_outputs(self, op) -> None:
+        """Print any document samples that arrived since our last check."""
+        already = self._printed_outputs.get(op.name, 0)
+        docs = op.outputs[already:]
+        if not docs:
+            return
+        label = f"{op.op_type}:{op.name.split('/')[-1]}"
+        # Show up to 3 new docs per tick to avoid flooding.
+        for doc in docs[:3]:
+            self._console.log(f"[output] {label}  document #{already + 1}:\n{_format_doc(doc)}")
+            already += 1
+        remaining = len(docs) - 3
+        if remaining > 0:
+            already += remaining
+            self._console.log(f"[output] {label}  … and {remaining} more document(s)")
+        self._printed_outputs[op.name] = already
+
     def _emit(self) -> None:
         state = self._tracker.snapshot()
         for op in state.ops:
@@ -74,6 +114,8 @@ class _LogReporter:
 
             if op.status == "done" and op.name not in self._reported_done:
                 self._reported_done.add(op.name)
+                # Print any remaining unprinted outputs before the summary.
+                self._print_new_outputs(op)
                 parts = [f"[progress] {label}  ✓ done"]
                 if op.total is not None:
                     parts.append(f"{op.completed}/{op.total}")
@@ -85,6 +127,9 @@ class _LogReporter:
                 continue
 
             if op.status == "running":
+                # Print new document samples first.
+                self._print_new_outputs(op)
+
                 changed = (
                     op.name != self._last_op
                     or op.completed != self._last_completed
@@ -121,6 +166,7 @@ def run_with_log_reporter(runner: "DSLRunner") -> float:
     (e.g. non-TTY environment like an AI agent or CI).
     """
     import threading
+
     from tqdm import tqdm as _tqdm
 
     _tqdm.set_lock(threading.RLock())

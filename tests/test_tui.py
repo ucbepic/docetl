@@ -357,11 +357,21 @@ def test_log_reporter_emits_progress():
     assert any("map:classify" in line for line in console.lines)
     assert any("0/10" in line for line in console.lines)
 
-    t.tick(5)
+    # Stream some documents mid-run.
+    t.tick(2)
     t.tick_cost(0.10)
+    t.add_outputs([{"category": "billing", "priority": "high"}])
     console.lines.clear()
     reporter._emit()
-    assert any("50%" in line for line in console.lines)
+    assert any("50%" in line or "20%" in line for line in console.lines)
+    # Document content should appear in the output.
+    assert any("category" in line and "billing" in line for line in console.lines)
+    assert any("[output]" in line for line in console.lines)
+
+    # A second emit should not repeat the same document.
+    console.lines.clear()
+    reporter._emit()
+    assert not any("billing" in line for line in console.lines)
 
     t.op_done("s/classify", cost=0.20, prompt_tokens=500, completion_tokens=100,
               outputs=[{"x": i} for i in range(10)])

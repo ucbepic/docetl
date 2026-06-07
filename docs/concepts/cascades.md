@@ -132,7 +132,7 @@ runner.load_run_save()
 | Knob | Meaning | Default |
 |---|---|---|
 | `proxy_model` | the cheap model (required) | — |
-| `guarantee` | `accuracy` \| `precision` \| `recall` | operator-specific (see below) |
+| `guarantee` | `accuracy` \| `precision` \| `recall` \| `precision+recall` | operator-specific (see below) |
 | `target` | threshold for that metric, in `(0, 1]` (required) | — |
 | `delta` | failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
 | `label_budget` | max oracle calls spent *learning* the threshold | `400` |
@@ -140,7 +140,7 @@ runner.load_run_save()
 The raw logprob threshold is deliberately **not** exposed — it is learned from
 the data, and exposing it would defeat the guarantee. You stay in metric-space.
 
-## The three guarantees
+## Guarantees
 
 Pick the guarantee that matches the operator's intent:
 
@@ -151,9 +151,17 @@ Pick the guarantee that matches the operator's intent:
   positive. Natural for **resolve / equijoin** (don't over-merge / over-join).
 - **recall** — of the truly-positive items, at least `target` are returned.
   Natural for **filter** (don't drop relevant docs).
+- **precision+recall** — both precision and recall hold simultaneously at the
+  same `target`. Uses a union bound (δ/2 each) and oracle-verifies items in
+  the gap between the precision and recall thresholds. Useful for **resolve /
+  equijoin** when you want both "don't over-merge" and "don't miss matches".
 
 If you omit `guarantee`, each operator applies its natural default:
 **filter → recall**, **map → accuracy**, **resolve / equijoin → precision**.
+
+For `precision+recall`, both passes share the same `target` value. If you need
+different targets (e.g. precision ≥ 0.95 but recall ≥ 0.8), run two separate
+operations — one with each guarantee.
 
 If the oracle sample is too small to certify the `target` at the chosen `delta`,
 the engine errs toward the guarantee — escalating more items to the oracle (or
@@ -204,6 +212,29 @@ clustering (resolve) / join (equijoin) unchanged.
   blocking_threshold: 0.8
   cascade: { proxy_model: gpt-4o-mini, target: 0.9 }    # guarantee=precision
 ```
+
+To guarantee both precision **and** recall on the same operation, set
+`guarantee: precision+recall`. The engine runs a precision pass and a recall
+pass (splitting δ and the label budget equally), then oracle-verifies items in
+the gap between the two thresholds so both guarantees transfer:
+
+```yaml
+- name: dedupe
+  type: resolve
+  comparison_model: gpt-4o
+  comparison_prompt: "Are these the same entity? {{ input1.name }} / {{ input2.name }}"
+  blocking_threshold: 0.8
+  cascade:
+    proxy_model: gpt-4o-mini
+    guarantee: precision+recall   # both hold simultaneously
+    target: 0.9                   # precision >= 0.9 AND recall >= 0.9
+    delta: 0.05                   # P(either fails) <= 0.05 via union bound
+    label_budget: 300             # split equally: 150 for each threshold search
+```
+
+The extra oracle cost for verifying the gap depends on the proxy quality — a
+good proxy has a small gap (few extra calls); a weak proxy has a large gap
+(many calls, but both guarantees still hold).
 
 ## Caching
 

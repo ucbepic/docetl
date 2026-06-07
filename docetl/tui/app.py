@@ -558,19 +558,25 @@ def _render_cascade_info(info: dict) -> Text:
     """Compact cascade stats block for the operation detail pane."""
     t = Text()
     t.append("\ncascade\n", style="bold magenta")
-    t.append(f"  proxy:      {info['proxy_model']}\n", style="cyan")
-    t.append(f"  oracle:     {info['oracle_model']}\n", style="cyan")
+    proxy_cost = info.get("proxy_cost", 0)
+    oracle_cost = info.get("oracle_cost", 0)
+    t.append(
+        f"  proxy:      {info['proxy_model']}  "
+        f"{info['proxy_calls']:,} calls  ${proxy_cost:.4f}\n",
+        style="cyan",
+    )
+    t.append(
+        f"  oracle:     {info['oracle_model']}  "
+        f"{info['oracle_calls']:,} calls  ${oracle_cost:.4f}\n",
+        style="cyan",
+    )
     guarantee = info["guarantee"]
     target = info["target"]
     t.append(f"  guarantee:  {guarantee} ≥ {target:.0%}", style="yellow")
     t.append(f"  δ={info['delta']}\n", style="grey70")
-    proxy_calls = info["proxy_calls"]
-    oracle_calls = info["oracle_calls"]
     esc = info["escalation_rate"]
     served = info["served_by_proxy"]
-    t.append(f"  proxy calls:  {proxy_calls:,}\n", style="grey70")
-    t.append(f"  oracle calls: {oracle_calls:,}\n", style="grey70")
-    t.append(f"  escalation:   {esc:.0%}", style="red" if esc >= 0.5 else "green")
+    t.append(f"  escalation: {esc:.0%}", style="red" if esc >= 0.5 else "green")
     t.append(f"  ({served:,} served by proxy)\n", style="grey70")
     if info.get("cached"):
         t.append("  (cached)\n", style="dim")

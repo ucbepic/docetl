@@ -230,19 +230,29 @@ class CascadeMixin:
         return "cascade:" + hashlib.sha256(blob.encode()).hexdigest()
 
     def _report_cascade(
-        self, op_label: str, stats, cost: float, cached_hit: bool
+        self,
+        op_label: str,
+        stats,
+        cost: float,
+        cached_hit: bool,
+        *,
+        proxy_cost: float = 0.0,
+        oracle_cost: float = 0.0,
     ) -> None:
         """Log a cost/escalation summary and stash stats for programmatic use."""
         self.cascade_stats = stats
         served_by_proxy = stats.n_items - stats.oracle_calls
         tag = " [dim](cached)[/dim]" if cached_hit else ""
 
+        cfg = self._cascade_cfg()
+        proxy_model = cfg["proxy_model"]
+        oracle_model = self.config.get("model", getattr(self, "default_model", "?"))
+
         tracker = active_tracker()
         if tracker is not None:
-            cfg = self._cascade_cfg()
             tracker.set_cascade_info({
-                "proxy_model": cfg["proxy_model"],
-                "oracle_model": self.config.get("model", getattr(self, "default_model", "?")),
+                "proxy_model": proxy_model,
+                "oracle_model": oracle_model,
                 "guarantee": stats.guarantee,
                 "target": stats.target,
                 "delta": stats.delta,
@@ -250,12 +260,11 @@ class CascadeMixin:
                 "oracle_calls": stats.oracle_calls,
                 "escalation_rate": stats.escalation_rate,
                 "served_by_proxy": served_by_proxy,
+                "proxy_cost": proxy_cost,
+                "oracle_cost": oracle_cost,
                 "cached": cached_hit,
             })
 
-        cfg = self._cascade_cfg()
-        proxy_model = cfg["proxy_model"]
-        oracle_model = self.config.get("model", getattr(self, "default_model", "?"))
         name = self.config.get("name", "?")
         esc_pct = f"{stats.escalation_rate:.0%}"
         target_pct = f"{stats.target:.0%}"
@@ -264,14 +273,14 @@ class CascadeMixin:
             f"[bold magenta]Cascade[/bold magenta] {op_label} "
             f"[bold]'{name}'[/bold]{tag}\n"
             f"           [dim]proxy[/dim]     [cyan]{proxy_model}[/cyan] "
-            f"· {stats.proxy_calls} calls\n"
+            f"· {stats.proxy_calls} calls · [green]${proxy_cost:.4f}[/green]\n"
             f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
-            f"· {stats.oracle_calls} calls\n"
+            f"· {stats.oracle_calls} calls · [green]${oracle_cost:.4f}[/green]\n"
             f"           [dim]guarantee[/dim] [yellow]{stats.guarantee} "
             f"≥ {target_pct}[/yellow]  [dim]δ={stats.delta}[/dim]\n"
             f"           [dim]escalation[/dim] {esc_pct} "
             f"· {served_by_proxy}/{stats.n_items} served by proxy\n"
-            f"           [dim]cost[/dim] [green]${cost:.4f}[/green]"
+            f"           [dim]total cost[/dim] [green]${cost:.4f}[/green]"
         )
         if stats.escalation_rate >= 0.95 and stats.n_items > 10:
             self.console.log(
@@ -319,8 +328,15 @@ class CascadeMixin:
             with cache as c:
                 cached = c.get(key)
             if cached is not None:
-                result, total_cost = cached
-                self._report_cascade(op_label, result.stats, total_cost, True)
+                if len(cached) == 4:
+                    result, total_cost, pc, oc = cached
+                else:
+                    result, total_cost = cached
+                    pc, oc = 0.0, 0.0
+                self._report_cascade(
+                    op_label, result.stats, total_cost, True,
+                    proxy_cost=pc, oracle_cost=oc,
+                )
                 return result, total_cost
 
         spec = CascadeSpec(
@@ -354,7 +370,7 @@ class CascadeMixin:
             )
 
         # Mutable accumulator; the engine drives the adapters sequentially.
-        cost = {"total": 0.0}
+        cost = {"proxy": 0.0, "oracle": 0.0}
         oracle_model = self.config.get("model", self.default_model)
         progress = _CascadeProgress(
             self.console,
@@ -371,13 +387,13 @@ class CascadeMixin:
                 lbl, prob, c = self.runner.api._classify_with_logprob_with_cost(
                     spec.proxy_model, render_messages(item), proxy_labels
                 )
-                cost["total"] += c
+                cost["proxy"] += c
                 progress.tick_proxy()
                 return lbl, prob
 
             def _oracle(item):
                 lbl, c = oracle_predict(item)
-                cost["total"] += c
+                cost["oracle"] += c
                 progress.tick_oracle()
                 return lbl
 
@@ -385,8 +401,12 @@ class CascadeMixin:
         finally:
             progress.finish()
 
-        self._report_cascade(op_label, result.stats, cost["total"], False)
+        total_cost = cost["proxy"] + cost["oracle"]
+        self._report_cascade(
+            op_label, result.stats, total_cost, False,
+            proxy_cost=cost["proxy"], oracle_cost=cost["oracle"],
+        )
 
         with cache as c:
-            c.set(key, (result, cost["total"]))
-        return result, cost["total"]
+            c.set(key, (result, total_cost, cost["proxy"], cost["oracle"]))
+        return result, total_cost

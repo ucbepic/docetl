@@ -164,7 +164,7 @@ class Pipeline:
     def optimize(
         self,
         method: str = "moar",
-        # MOAR parameters (used when method="moar")
+        # MOAR parameters
         eval_fn: Any = None,
         metric_key: str | None = None,
         models: list[str] | None = None,
@@ -173,70 +173,64 @@ class Pipeline:
         save_dir: str | None = None,
         exploration_weight: float = 1.414,
         dataset_path: str | None = None,
-        # V1 parameters (used when method="v1")
+        # V1 parameters
         max_threads: int | None = None,
         resume: bool = False,
         save_path: str | None = None,
     ) -> "MOARResult | Pipeline":
         if method == "moar":
-            if eval_fn is None:
-                raise ValueError(
-                    "eval_fn is required for MOAR optimization. "
-                    "Pass a callable, e.g.: "
-                    "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
-                )
-            if metric_key is None:
-                raise ValueError(
-                    "metric_key is required for MOAR optimization. "
-                    "This is the key in your eval function's return dict to optimize."
-                )
-
-            from docetl.moar.optimizer import MOAROptimizer
-
-            optimizer = MOAROptimizer(
-                pipeline=self,
-                eval_fn=eval_fn,
-                metric_key=metric_key,
-                models=models,
-                agent_model=agent_model,
-                max_iterations=max_iterations,
-                save_dir=save_dir,
-                exploration_weight=exploration_weight,
+            return self._optimize_moar(
+                eval_fn=eval_fn, metric_key=metric_key, models=models,
+                agent_model=agent_model, max_iterations=max_iterations,
+                save_dir=save_dir, exploration_weight=exploration_weight,
                 dataset_path=dataset_path,
             )
-            return optimizer.optimize()
-
         elif method == "v1":
-            config = self._to_dict()
-            runner = DSLRunner(
-                config,
-                base_name=os.path.join(os.getcwd(), self.name),
-                yaml_file_suffix=self.name,
-                max_threads=max_threads,
+            return self._optimize_v1(
+                max_threads=max_threads, resume=resume, save_path=save_path,
             )
-            optimized_config, _ = runner.optimize(
-                resume=resume,
-                return_pipeline=False,
-                save_path=save_path,
-            )
-
-            updated_pipeline = Pipeline(
-                name=self.name,
-                datasets=self.datasets,
-                operations=self.operations,
-                steps=self.steps,
-                output=self.output,
-                default_model=self.default_model,
-                parsing_tools=self.parsing_tools,
-                optimizer_config=self.optimizer_config,
-            )
-            updated_pipeline._update_from_dict(optimized_config)
-            return updated_pipeline
-
         else:
             raise ValueError(
                 f"Unknown optimization method {method!r}. Use 'moar' or 'v1'."
             )
+
+    def _optimize_moar(self, *, eval_fn, metric_key, **kwargs) -> "MOARResult":
+        if eval_fn is None:
+            raise ValueError(
+                "eval_fn is required for MOAR optimization. "
+                "Pass a callable, e.g.: "
+                "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
+            )
+        if metric_key is None:
+            raise ValueError(
+                "metric_key is required for MOAR optimization. "
+                "This is the key in your eval function's return dict to optimize."
+            )
+
+        from docetl.moar.optimizer import MOAROptimizer
+
+        return MOAROptimizer(
+            pipeline=self, eval_fn=eval_fn, metric_key=metric_key, **kwargs,
+        ).optimize()
+
+    def _optimize_v1(self, *, max_threads, resume, save_path) -> "Pipeline":
+        runner = DSLRunner(
+            self._to_dict(),
+            base_name=os.path.join(os.getcwd(), self.name),
+            yaml_file_suffix=self.name,
+            max_threads=max_threads,
+        )
+        optimized_config, _ = runner.optimize(
+            resume=resume, return_pipeline=False, save_path=save_path,
+        )
+
+        updated = Pipeline(
+            name=self.name, datasets=self.datasets, operations=self.operations,
+            steps=self.steps, output=self.output, default_model=self.default_model,
+            parsing_tools=self.parsing_tools, optimizer_config=self.optimizer_config,
+        )
+        updated._update_from_dict(optimized_config)
+        return updated
 
     def run(self, max_threads: int | None = None) -> float:
         runner = DSLRunner(

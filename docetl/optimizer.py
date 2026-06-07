@@ -103,28 +103,6 @@ class Optimizer:
         if not self.runner.last_op_container:
             return
 
-        def find_map_without_resolve(container, visited=None):
-            """Helper to find first map descendant without a resolve operation in between."""
-            if visited is None:
-                visited = set()
-
-            if container.name in visited:
-                return None
-            visited.add(container.name)
-
-            if not container.children:
-                return None
-
-            for child in container.children:
-                if child.config["type"] == "map":
-                    return child
-                if child.config["type"] == "resolve":
-                    continue
-                map_desc = find_map_without_resolve(child, visited)
-                if map_desc:
-                    return map_desc
-            return None
-
         containers_to_check = [self.runner.last_op_container]
         while containers_to_check:
             current = containers_to_check.pop(0)
@@ -133,68 +111,76 @@ class Optimizer:
                 containers_to_check.extend(current.children)
                 continue
 
-            step_name = current.step_name
-
             if current.config["type"] == "reduce" and current.config.get(
                 "synthesize_resolve", True
             ):
-                reduce_key = current.config.get("reduce_key", "_all")
-                if isinstance(reduce_key, str):
-                    reduce_key = [reduce_key]
+                new_container = self._maybe_synthesize_resolve(current)
+                if new_container:
+                    containers_to_check.extend(new_container.children)
+                    continue
 
-                if "_all" not in reduce_key:
-                    map_desc = find_map_without_resolve(current)
-                    if map_desc:
-                        self.console.log(
-                            "[yellow]Synthesizing empty resolver operation:[/yellow]"
-                        )
-                        self.console.log(
-                            f"  • [cyan]Reduce operation:[/cyan] [bold]{current.name}[/bold]"
-                        )
-                        self.console.log(
-                            f"  • [cyan]Step:[/cyan] [bold]{step_name}[/bold]"
-                        )
+            containers_to_check.extend(current.children)
 
-                        new_resolve_name = (
-                            f"synthesized_resolve_{len(self.config['operations'])}"
-                        )
-                        new_resolve_config = {
-                            "name": new_resolve_name,
-                            "type": "resolve",
-                            "empty": True,
-                            "optimize": True,
-                            "embedding_model": "text-embedding-3-small",
-                            "resolution_model": self.config.get(
-                                "default_model", "gpt-4o-mini"
-                            ),
-                            "comparison_model": self.config.get(
-                                "default_model", "gpt-4o-mini"
-                            ),
-                            "_intermediates": {
-                                "map_prompt": map_desc.config.get("prompt"),
-                                "reduce_key": reduce_key,
-                            },
-                        }
+    def _find_map_without_resolve(self, container, visited=None):
+        if visited is None:
+            visited = set()
+        if container.name in visited:
+            return None
+        visited.add(container.name)
+        if not container.children:
+            return None
+        for child in container.children:
+            if child.config["type"] == "map":
+                return child
+            if child.config["type"] == "resolve":
+                continue
+            result = self._find_map_without_resolve(child, visited)
+            if result:
+                return result
+        return None
 
-                        self.config["operations"].append(new_resolve_config)
+    def _maybe_synthesize_resolve(self, reduce_container) -> OpContainer | None:
+        reduce_key = reduce_container.config.get("reduce_key", "_all")
+        if isinstance(reduce_key, str):
+            reduce_key = [reduce_key]
+        if "_all" in reduce_key:
+            return None
 
-                        new_resolve_container = OpContainer(
-                            f"{step_name}/{new_resolve_name}",
-                            self.runner,
-                            new_resolve_config,
-                        )
+        map_desc = self._find_map_without_resolve(reduce_container)
+        if not map_desc:
+            return None
 
-                        new_resolve_container.children = current.children
-                        for child in new_resolve_container.children:
-                            child.parent = new_resolve_container
-                        current.children = [new_resolve_container]
-                        new_resolve_container.parent = current
+        step_name = reduce_container.step_name
+        self.console.log("[yellow]Synthesizing empty resolver operation:[/yellow]")
+        self.console.log(f"  • [cyan]Reduce operation:[/cyan] [bold]{reduce_container.name}[/bold]")
+        self.console.log(f"  • [cyan]Step:[/cyan] [bold]{step_name}[/bold]")
 
-                        self.runner.op_container_map[
-                            f"{step_name}/{new_resolve_name}"
-                        ] = new_resolve_container
+        resolve_name = f"synthesized_resolve_{len(self.config['operations'])}"
+        resolve_config = {
+            "name": resolve_name,
+            "type": "resolve",
+            "empty": True,
+            "optimize": True,
+            "embedding_model": "text-embedding-3-small",
+            "resolution_model": self.config.get("default_model", "gpt-4o-mini"),
+            "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
+            "_intermediates": {
+                "map_prompt": map_desc.config.get("prompt"),
+                "reduce_key": reduce_key,
+            },
+        }
+        self.config["operations"].append(resolve_config)
 
-                        containers_to_check.extend(new_resolve_container.children)
+        resolve_container = OpContainer(
+            f"{step_name}/{resolve_name}", self.runner, resolve_config,
+        )
+        resolve_container.children = reduce_container.children
+        for child in resolve_container.children:
+            child.parent = resolve_container
+        reduce_container.children = [resolve_container]
+        resolve_container.parent = reduce_container
+        self.runner.op_container_map[f"{step_name}/{resolve_name}"] = resolve_container
+        return resolve_container
 
     def _add_map_prompts_to_reduce_operations(self):
         if not self.runner.last_op_container:
@@ -344,20 +330,16 @@ class Optimizer:
             [dict[str, Any], list[dict[str, Any]]], list[dict[str, Any]]
         ],
     ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]], str, str]:
-        max_iterations = 2
         new_left_name = left_name
         new_right_name = right_name
         new_steps = []
-        for _ in range(max_iterations):
+
+        equijoin_cfg = self.runner.config.get("optimizer_config", {}).get("equijoin", {})
+        for _ in range(2):
             join_optimizer = JoinOptimizer(
-                self.runner,
-                op_config,
-                target_recall=self.runner.config.get("optimizer_config", {})
-                .get("equijoin", {})
-                .get("target_recall", 0.95),
-                estimated_selectivity=self.runner.config.get("optimizer_config", {})
-                .get("equijoin", {})
-                .get("estimated_selectivity", None),
+                self.runner, op_config,
+                target_recall=equijoin_cfg.get("target_recall", 0.95),
+                estimated_selectivity=equijoin_cfg.get("estimated_selectivity", None),
             )
             optimized_config, cost, agent_results = join_optimizer.optimize_equijoin(
                 left_data, right_data
@@ -368,71 +350,58 @@ class Optimizer:
             if not agent_results.get("optimize_map", False):
                 break
 
-            output_key = agent_results["output_key"]
-            if self.runner.status:
-                self.runner.status.update(
-                    f"Optimizing map operation for {output_key} extraction to help with the equijoin"
-                )
-            map_prompt = agent_results["map_prompt"]
-            dataset_to_transform = (
-                left_data
-                if agent_results["dataset_to_transform"] == "left"
-                else right_data
+            step, ops = self._synthesize_extraction_step(
+                agent_results, left_name, right_name, left_data, right_data, run_operation,
             )
-
-            map_operation = {
-                "name": f"synthesized_{output_key}_extraction",
-                "type": "map",
-                "prompt": map_prompt,
-                "model": self.config.get("default_model", "gpt-4o-mini"),
-                "output": {"schema": {output_key: "string"}},
-                "optimize": False,
-            }
-
-            if map_operation["optimize"]:
-                dataset_to_transform_sample = (
-                    random.sample(dataset_to_transform, self.sample_size_map.get("map"))
-                    if self.config.get("optimizer_config", {}).get(
-                        "random_sample", False
-                    )
-                    else dataset_to_transform[: self.sample_size_map.get("map")]
-                )
-                optimized_map_operations = self._optimize_map(
-                    map_operation, dataset_to_transform_sample
-                )
+            is_left = agent_results["dataset_to_transform"] == "left"
+            if is_left:
+                new_left_name = step["name"]
+                left_data = self._run_synthesized_ops(ops, left_data, run_operation)
             else:
-                optimized_map_operations = [map_operation]
+                new_right_name = step["name"]
+                right_data = self._run_synthesized_ops(ops, right_data, run_operation)
 
-            new_step = {
-                "name": f"synthesized_{output_key}_extraction",
-                "input": (
-                    left_name
-                    if agent_results["dataset_to_transform"] == "left"
-                    else right_name
-                ),
-                "operations": [mo["name"] for mo in optimized_map_operations],
-            }
-            if agent_results["dataset_to_transform"] == "left":
-                new_left_name = new_step["name"]
-            else:
-                new_right_name = new_step["name"]
-
-            new_steps.append((new_step["name"], new_step, optimized_map_operations))
-
-            for op in optimized_map_operations:
-                dataset_to_transform = run_operation(op, dataset_to_transform)
-
-            if agent_results["dataset_to_transform"] == "left":
-                left_data = dataset_to_transform
-            else:
-                right_data = dataset_to_transform
+            new_steps.append((step["name"], step, ops))
 
             if self.runner.status:
                 self.runner.status.update(
-                    f"Optimizing equijoin operation with {output_key} extraction"
+                    f"Optimizing equijoin operation with {agent_results['output_key']} extraction"
                 )
 
         return op_config, new_steps, new_left_name, new_right_name
+
+    def _synthesize_extraction_step(
+        self, agent_results, left_name, right_name, left_data, right_data, run_operation,
+    ) -> tuple[dict, list[dict]]:
+        output_key = agent_results["output_key"]
+        if self.runner.status:
+            self.runner.status.update(
+                f"Optimizing map operation for {output_key} extraction to help with the equijoin"
+            )
+
+        map_operation = {
+            "name": f"synthesized_{output_key}_extraction",
+            "type": "map",
+            "prompt": agent_results["map_prompt"],
+            "model": self.config.get("default_model", "gpt-4o-mini"),
+            "output": {"schema": {output_key: "string"}},
+            "optimize": False,
+        }
+        optimized_ops = [map_operation]
+
+        is_left = agent_results["dataset_to_transform"] == "left"
+        step = {
+            "name": f"synthesized_{output_key}_extraction",
+            "input": left_name if is_left else right_name,
+            "operations": [op["name"] for op in optimized_ops],
+        }
+        return step, optimized_ops
+
+    @staticmethod
+    def _run_synthesized_ops(ops, data, run_operation):
+        for op in ops:
+            data = run_operation(op, data)
+        return data
 
     def checkpoint_optimized_ops(self) -> None:
         clean_config = self.clean_optimized_config()

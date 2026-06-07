@@ -214,10 +214,7 @@ class Node:
     def set_id_to_counter(self):
         old_id = self.id
         new_id = self.increment_id_counter()
-
-        # Rename files to match the new ID
         self._rename_files_for_new_id(old_id, new_id)
-
         self.id = new_id
         return self.id
 
@@ -225,38 +222,23 @@ class Node:
         self, failure_type: str, error_message: str, yaml_path: str
     ):
         try:
-            # Create log directory if it doesn't exist
             log_dir = os.path.join(os.path.dirname(yaml_path), "inf_logs")
             os.makedirs(log_dir, exist_ok=True)
-
-            # Create log file path
             log_file = os.path.join(log_dir, "inf_occurrences.txt")
 
-            # Get current timestamp
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            # Get node information
-            node_id = getattr(self, "id", "unknown")
-            latest_action = getattr(self, "latest_action", "unknown")
             parent_id = getattr(self.parent, "id", "root") if self.parent else "root"
-
-            # Format log entry
-            log_entry = f"""
-                {'='*80}
-                Timestamp: {timestamp}
-                Node ID: {node_id}
-                Parent ID: {parent_id}
-                Latest Action: {latest_action}
-                Failure Type: {failure_type}
-                YAML Path: {yaml_path}
-                Error Message: {error_message}
-                {'='*80}
-                """
-
-            # Append to log file
+            log_entry = (
+                f"\n{'='*80}\n"
+                f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"Node ID: {self.id} | Parent ID: {parent_id}\n"
+                f"Latest Action: {self.latest_action}\n"
+                f"Failure Type: {failure_type}\n"
+                f"YAML Path: {yaml_path}\n"
+                f"Error Message: {error_message}\n"
+                f"{'='*80}\n"
+            )
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(log_entry)
-
         except Exception as log_error:
             self.console.log(
                 f"[yellow]Warning: Failed to log -inf occurrence: {log_error}[/yellow]"
@@ -316,93 +298,60 @@ class Node:
     def get_exploration_tree_summary(
         self, root: Node, node_accuracies: dict["Node", float] | None = None
     ) -> str:
+        successful, failed = self._collect_exploration_paths(root, node_accuracies)
 
-        successful_paths = []
-        failed_paths = []
+        summary_parts = [f"CURRENT POSITION: {self.get_optimization_path()}"]
 
-        def traverse_tree(node, current_path="ROOT"):
-            if node != root:
-                if hasattr(node, "cost") and node.cost != -1:
-                    if node_accuracies and node in node_accuracies:
-                        accuracy = node_accuracies[node]
-                        successful_paths.append(
-                            f"{current_path} (cost: ${node.cost:.2f}, accuracy: {accuracy:.3f})"
-                        )
-                    else:
-                        successful_paths.append(
-                            f"{current_path} (cost: ${node.cost:.2f})"
-                        )
-                else:
-                    failed_paths.append(f"{current_path} (failed)")
-
-            for child in node.children:
-                if child.memo:
-                    # Get the most recent directive-operator pair for this child
-                    latest_directive, latest_target = child.memo[-1]
-                    child_path = f"{current_path} → {latest_directive}({latest_target})"
-                else:
-                    child_path = f"{current_path} → {child.latest_action.name if child.latest_action else 'unknown'}"
-                traverse_tree(child, child_path)
-
-        traverse_tree(root)
-
-        directive_patterns = {}
-        for path in successful_paths + failed_paths:
-            directives = []
-            parts = path.split(" → ")
-            for part in parts[1:]:  # Skip ROOT
-                if "(" in part:
-                    directive = part.split("(")[0]
-                    directives.append(directive)
-
-            if directives:
-                pattern_key = " → ".join(directives)
-                if pattern_key not in directive_patterns:
-                    directive_patterns[pattern_key] = {"successful": [], "failed": []}
-
-                if "(failed)" in path:
-                    directive_patterns[pattern_key]["failed"].append(path)
-                else:
-                    directive_patterns[pattern_key]["successful"].append(path)
-
-        summary_parts = []
-        current_path = self.get_optimization_path()
-        summary_parts.append(f"CURRENT POSITION: {current_path}")
-
-        if successful_paths:
+        if successful:
             summary_parts.append(
-                f"\nSUCCESSFUL EXPLORATIONS ({len(successful_paths)} total):"
+                f"\nSUCCESSFUL EXPLORATIONS ({len(successful)} total):"
             )
-
-            def extract_sort_key(path):
-                if "cost: $" not in path:
-                    return (
-                        0,
-                        float("inf"),
-                    )  # lowest accuracy, highest cost for failed cases
-                try:
-                    cost_part = path.split("cost: $")[1]
-                    if ", accuracy:" in cost_part:
-                        cost_str = cost_part.split(", accuracy:")[0]
-                        accuracy_str = cost_part.split(", accuracy:")[1].split(")")[0]
-                        return (
-                            -float(accuracy_str),
-                            float(cost_str),
-                        )  # negative accuracy for descending order
-                    else:
-                        cost_str = cost_part.split(")")[0]
-                        return (
-                            0,
-                            float(cost_str),
-                        )  # no accuracy info, sort by cost only
-                except (ValueError, IndexError):
-                    return (0, float("inf"))
-
-            sorted_successful = sorted(successful_paths, key=extract_sort_key)
-            for i, path in enumerate(sorted_successful):
+            for i, path in enumerate(sorted(successful, key=self._path_sort_key)):
                 summary_parts.append(f"  {i+1}. {path}")
 
         return "\n".join(summary_parts)
+
+    def _collect_exploration_paths(
+        self, root: Node, node_accuracies: dict["Node", float] | None,
+    ) -> tuple[list[str], list[str]]:
+        successful = []
+        failed = []
+
+        def traverse(node, current_path="ROOT"):
+            if node != root:
+                if hasattr(node, "cost") and node.cost != -1:
+                    label = f"cost: ${node.cost:.2f}"
+                    if node_accuracies and node in node_accuracies:
+                        label += f", accuracy: {node_accuracies[node]:.3f}"
+                    successful.append(f"{current_path} ({label})")
+                else:
+                    failed.append(f"{current_path} (failed)")
+
+            for child in node.children:
+                if child.memo:
+                    d, t = child.memo[-1]
+                    child_path = f"{current_path} → {d}({t})"
+                else:
+                    action = child.latest_action.name if child.latest_action else "unknown"
+                    child_path = f"{current_path} → {action}"
+                traverse(child, child_path)
+
+        traverse(root)
+        return successful, failed
+
+    @staticmethod
+    def _path_sort_key(path: str) -> tuple[float, float]:
+        if "cost: $" not in path:
+            return (0, float("inf"))
+        try:
+            cost_part = path.split("cost: $")[1]
+            if ", accuracy:" in cost_part:
+                cost_str = cost_part.split(", accuracy:")[0]
+                acc_str = cost_part.split(", accuracy:")[1].split(")")[0]
+                return (-float(acc_str), float(cost_str))
+            return (0, float(cost_part.split(")")[0]))
+        except (ValueError, IndexError):
+            return (0, float("inf"))
 
     def get_memo_for_llm(
         self, root_node: Node, node_accuracies: dict["Node", float] | None = None

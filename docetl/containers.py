@@ -99,7 +99,6 @@ class OpContainer:
         self.runner.optimizer.checkpoint_optimized_ops()
 
     def _run_optimizer(self, input_data: list) -> "OpContainer":
-        """Run the appropriate optimizer for this operation's type. Returns the new head pointer."""
         self.runner.optimizer.captured_output.set_step(self.step_name)
         self._log_optimization_panel(input_data)
 
@@ -200,7 +199,6 @@ class OpContainer:
         return [op_config]
 
     def _optimize_equijoin(self, input_data: list) -> None:
-        """Optimize an equijoin operation, rewiring the DAG in place."""
         op_config, new_steps, new_left_name, new_right_name = (
             self.runner.optimizer._optimize_equijoin(
                 self.config,
@@ -264,7 +262,6 @@ class OpContainer:
             insertion_point.add_child(child)
 
     def _replace_with_optimized(self, optimized_ops: list[dict]) -> "OpContainer":
-        """Replace this container with optimized ops in the DAG. Returns the new head."""
         old_children = self.children
         self.children = []
         parent = self.parent
@@ -286,7 +283,6 @@ class OpContainer:
         return new_head
 
     def _propagate_selectivities(self, head: "OpContainer") -> None:
-        """Walk the subtree rooted at *head* and compute selectivities."""
         sample_size = self.runner.optimizer.sample_size_map.get(head.config["type"])
         if head.config["type"] == "equijoin" and isinstance(sample_size, dict):
             sample_size = min(sample_size["left"], sample_size["right"])
@@ -305,7 +301,6 @@ class OpContainer:
     def _pull_children(
         self, is_build: bool = False, sample_size_needed: int = None
     ) -> tuple:
-        """Pull input data from child nodes. Returns (input_data, input_len, cost, logs)."""
         if self.is_equijoin:
             assert len(self.children) == 2, "Equijoin should have left and right children"
             left_data, left_cost, left_logs = self.children[0].next(is_build, sample_size_needed)
@@ -327,7 +322,6 @@ class OpContainer:
         return p, c
 
     def _notify_cached(self, data: list[dict]) -> None:
-        """Surface a cached operation in the interactive progress view."""
         tracker = getattr(self.runner, "progress_tracker", None)
         if tracker is not None and self.config.get("type") not in ("scan", "step_boundary"):
             tracker.op_start(
@@ -338,10 +332,9 @@ class OpContainer:
             )
             tracker.op_done(self.name, cost=0.0, prompt_tokens=0, completion_tokens=0, outputs=data)
 
-    def next(
-        self, is_build: bool = False, sample_size_needed: int = None
-    ) -> tuple[list[dict], float, str]:
-        # Build-phase: check the optimizer's sample cache (v1 optimizer path)
+    def _check_caches(
+        self, is_build: bool, sample_size_needed: int | None
+    ) -> tuple[list[dict], float, str] | None:
         if is_build:
             cache_key = self.name
             if cache_key in self.runner.optimizer.sample_cache:
@@ -351,31 +344,17 @@ class OpContainer:
                         cached_data = smart_sample(cached_data, sample_size_needed)
                     return cached_data, 0, f"[green]✓[/green] Using cached {self.name} (sample size: {cached_sample_size})\n"
 
-        # Production path: try loading from checkpoint
         if not is_build and not self.config.get("bypass_cache", False):
             cached = self.runner._load_from_checkpoint_if_exists(self.step_name, self.op_name)
             if cached is not None:
                 self._notify_cached(cached)
                 return cached, 0, f"[green]✓[/green] Using cached {self.name}\n"
 
-        # Compute how many input items we need (selectivity-adjusted for build phase)
-        if self.selectivity and sample_size_needed:
-            input_sample_size = int(math.ceil(sample_size_needed / self.selectivity))
-        else:
-            input_sample_size = sample_size_needed
+        return None
 
-        # Clear stale checkpoint
-        if self.runner.checkpoints:
-            self.runner.checkpoints.clear_stale(self.step_name, self.op_name)
-
-        # Pull inputs from children
-        input_data, input_len, cost, curr_logs = self._pull_children(is_build, input_sample_size)
-
-        # Apply sampling if configured
-        if input_data and "sample" in self.config and not is_build:
-            input_data = input_data[: self.config["sample"]]
-
-        # Start progress tracking
+    def _execute_and_track(
+        self, input_data, input_len: int, is_build: bool
+    ) -> tuple[list[dict], float]:
         tracker = getattr(self.runner, "progress_tracker", None)
         track = (
             tracker is not None
@@ -391,17 +370,12 @@ class OpContainer:
                 input_len,
             )
 
-        # Execute the operation
         with self.runner.console.status(f"Running {self.name}") as status:
             self.runner.status = status
             cost_before = self.runner.total_cost
-
             output_data = self.runner._run_operation(self.config, input_data, is_build=is_build)
-
             op_cost = self.runner.total_cost - cost_before
-            cost += op_cost
 
-        # Finish progress tracking
         if track:
             tokens_after = self._token_totals()
             tracker.op_done(
@@ -412,23 +386,45 @@ class OpContainer:
                 outputs=output_data,
             )
 
+        return output_data, op_cost
+
+    def next(
+        self, is_build: bool = False, sample_size_needed: int = None
+    ) -> tuple[list[dict], float, str]:
+        cached = self._check_caches(is_build, sample_size_needed)
+        if cached is not None:
+            return cached
+
+        if self.selectivity and sample_size_needed:
+            input_sample_size = int(math.ceil(sample_size_needed / self.selectivity))
+        else:
+            input_sample_size = sample_size_needed
+
+        if self.runner.checkpoints:
+            self.runner.checkpoints.clear_stale(self.step_name, self.op_name)
+
+        input_data, input_len, cost, curr_logs = self._pull_children(is_build, input_sample_size)
+
+        if input_data and "sample" in self.config and not is_build:
+            input_data = input_data[: self.config["sample"]]
+
+        output_data, op_cost = self._execute_and_track(input_data, input_len, is_build)
+        cost += op_cost
+
         build_indicator = "[yellow](build)[/yellow] " if is_build else ""
         curr_logs += f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${op_cost:.2f}[/green])\n"
         self.runner.console.log(
             f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${op_cost:.2f}[/green])"
         )
 
-        # Update selectivity estimate
         self.selectivity = len(output_data) / input_len if input_len else 1
 
-        # Build-phase: cache for the v1 optimizer
         if is_build:
             self.runner.optimizer.sample_cache[self.name] = (output_data, len(output_data))
 
         if sample_size_needed:
             output_data = smart_sample(output_data, sample_size_needed)
 
-        # Save checkpoint
         if (
             not is_build
             and self.runner.checkpoints

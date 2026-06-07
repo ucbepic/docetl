@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 
 def build_operation_graph(runner: DSLRunner) -> None:
-    """Build the DAG of OpContainers from ``runner.pipeline``."""
     runner.op_container_map = {}
     runner.last_op_container = None
     runner._op_map = {op["name"]: op for op in runner._raw_ops_list}
@@ -161,7 +160,6 @@ def _add_step_boundary(runner: DSLRunner, step: dict) -> None:
 
 
 def compute_operation_hashes(runner: DSLRunner) -> None:
-    """Compute hashes for operations to enable checkpoint validation."""
     runner.step_op_hashes = defaultdict(dict)
 
     for step in runner.pipeline.steps:

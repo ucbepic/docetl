@@ -1,53 +1,4 @@
-"""
-This module defines the core data structures and classes for the DocETL pipeline.
-
-It includes Pydantic models for various operation types, pipeline steps, and the main Pipeline class.
-The module provides a high-level API for defining, optimizing, and running document processing pipelines.
-
-Classes:
-    Dataset: Represents a dataset with a type, path, and optional parsing tools.
-    BaseOp: Base class for all operation types.
-    MapOp: Represents a map operation in the pipeline.
-    ResolveOp: Represents a resolve operation for entity resolution.
-    ReduceOp: Represents a reduce operation in the pipeline.
-    ParallelMapOp: Represents a parallel map operation.
-    FilterOp: Represents a filter operation in the pipeline.
-    EquijoinOp: Represents an equijoin operation for joining datasets.
-    SplitOp: Represents a split operation for dividing data.
-    GatherOp: Represents a gather operation for collecting data.
-    UnnestOp: Represents an unnest operation for flattening nested structures.
-    PipelineStep: Represents a step in the pipeline with input and operations.
-    PipelineOutput: Defines the output configuration for the pipeline.
-    Pipeline: Main class for defining and running a complete document processing pipeline.
-
-The Pipeline class provides methods for optimizing and running the defined pipeline,
-as well as utility methods for converting between dictionary and object representations.
-
-Usage:
-    from docetl.api import Pipeline, Dataset, MapOp, ReduceOp
-
-    pipeline = Pipeline(
-        datasets={
-            "input": Dataset(
-                type="file",
-                path="input.json",
-                parsing=[{"name": "txt_to_string", "input_key": "text", "output_key": "content"}]
-            )
-        },
-        operations=[
-            MapOp(name="process", type="map", prompt="Process the document"),
-            ReduceOp(name="summarize", type="reduce", reduce_key="content")
-        ],
-        steps=[
-            PipelineStep(name="process_step", input="input", operations=["process"]),
-            PipelineStep(name="summarize_step", input="process_step", operations=["summarize"])
-        ],
-        output=PipelineOutput(type="file", path="output.json")
-    )
-
-    optimized_pipeline = pipeline.optimize()
-    result = optimized_pipeline.run()
-"""
+"""High-level API for defining, optimizing, and running DocETL pipelines."""
 
 import inspect
 import os
@@ -82,61 +33,6 @@ from docetl.schemas import (
 
 
 class Pipeline:
-    """
-    Represents a complete document processing pipeline.
-
-    Attributes:
-        name (str): The name of the pipeline.
-        datasets (dict[str, Dataset]): A dictionary of datasets used in the pipeline,
-                                       where keys are dataset names and values are Dataset objects.
-        operations (list[OpType]): A list of operations to be performed in the pipeline.
-        steps (list[PipelineStep]): A list of steps that make up the pipeline.
-        output (PipelineOutput): The output configuration for the pipeline.
-        parsing_tools (list[ParsingTool]): A list of parsing tools used in the pipeline.
-                                           Defaults to an empty list.
-        default_model (str | None): The default language model to use for operations
-                                       that require one. Defaults to None.
-
-    Example:
-        ```python
-        def custom_parser(text: str) -> list[str]:
-            # this will convert the text in the column to uppercase
-            # You should return a list of strings, where each string is a separate document
-            return [text.upper()]
-
-        pipeline = Pipeline(
-            name="document_processing_pipeline",
-            datasets={
-                "input_data": Dataset(type="file", path="/path/to/input.json", parsing=[{"name": "custom_parser", "input_key": "content", "output_key": "uppercase_content"}]),
-            },
-            parsing_tools=[custom_parser],
-            operations=[
-                MapOp(
-                    name="process",
-                    type="map",
-                    prompt="Determine what type of document this is: {{ input.uppercase_content }}",
-                    output={"schema": {"document_type": "string"}}
-                ),
-                ReduceOp(
-                    name="summarize",
-                    type="reduce",
-                    reduce_key="document_type",
-                    prompt="Summarize the processed contents: {% for item in inputs %}{{ item.uppercase_content }} {% endfor %}",
-                    output={"schema": {"summary": "string"}}
-                )
-            ],
-            steps=[
-                PipelineStep(name="process_step", input="input_data", operations=["process"]),
-                PipelineStep(name="summarize_step", input="process_step", operations=["summarize"])
-            ],
-            output=PipelineOutput(type="file", path="/path/to/output.json"),
-            default_model="gpt-4o-mini"
-        )
-        ```
-
-    This example shows a complete pipeline configuration with datasets, operations,
-    steps, and output settings.
-    """
 
     # Maps operation type strings to their Pydantic schema classes.
     _OP_TYPE_REGISTRY: dict[str, type] = {
@@ -307,63 +203,6 @@ class Pipeline:
         resume: bool = False,
         save_path: str | None = None,
     ) -> "MOARResult | Pipeline":
-        """
-        Optimize the pipeline.
-
-        Args:
-            method: ``"moar"`` (default) for multi-objective agentic rewrite
-                optimization, or ``"v1"`` for the legacy single-pass optimizer.
-
-        **MOAR parameters** (``method="moar"``):
-
-        Args:
-            eval_fn: A callable that scores pipeline output. Accepts
-                ``(results_path) -> dict`` (1-arg) or
-                ``(dataset_path, results_path) -> dict`` (2-arg).
-                Also accepts a file path to a ``@register_eval``-decorated
-                function. **Required** for MOAR.
-            metric_key: Key to extract from the eval function's return dict.
-                **Required** for MOAR.
-            models: Model names to search over. ``None`` = auto-detect from
-                environment API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.).
-            agent_model: Model for the rewrite agent. ``None`` = auto-select.
-            max_iterations: MCTS iterations (default 20).
-            save_dir: Output directory. ``None`` = temp directory.
-            exploration_weight: UCB exploration constant (default sqrt(2)).
-            dataset_path: Explicit dataset path override.
-
-        **V1 parameters** (``method="v1"``):
-
-        Args:
-            max_threads: Maximum threads for optimization.
-            resume: Resume from a previous optimization state.
-            save_path: Path to save the optimized pipeline.
-
-        Returns:
-            ``MOARResult`` when ``method="moar"``, ``Pipeline`` when ``method="v1"``.
-
-        Examples::
-
-            # MOAR optimization (recommended)
-            def my_eval(results_path):
-                import json
-                with open(results_path) as f:
-                    results = json.load(f)
-                return {"score": sum(1 for r in results if r["correct"])}
-
-            result = pipeline.optimize(eval_fn=my_eval, metric_key="score")
-
-            # Each frontier point is a runnable pipeline
-            best = result.best()
-            best.run()
-
-            # Inspect all explored plans as a DataFrame
-            df = result.to_df()
-
-            # V1 optimization (legacy)
-            optimized = pipeline.optimize(method="v1")
-            optimized.run()
-        """
         if method == "moar":
             if eval_fn is None:
                 raise ValueError(
@@ -425,15 +264,6 @@ class Pipeline:
             )
 
     def run(self, max_threads: int | None = None) -> float:
-        """
-        Run the pipeline using the DSLRunner.
-
-        Args:
-            max_threads (int | None): Maximum number of threads to use for execution.
-
-        Returns:
-            float: The total cost of running the pipeline.
-        """
         runner = DSLRunner(
             self,
             base_name=os.path.join(os.getcwd(), self.name),
@@ -444,26 +274,6 @@ class Pipeline:
         return result
 
     def run_with_stats(self, max_threads: int | None = None) -> dict[str, Any]:
-        """
-        Run the pipeline and return detailed execution statistics.
-
-        Args:
-            max_threads (int | None): Maximum number of threads to use for execution.
-
-        Returns:
-            dict[str, Any]: A dictionary containing:
-                - cost (float): The total cost of running the pipeline.
-                - token_usage (dict[str, dict[str, int]]): Token usage broken down
-                  by model, each with "prompt_tokens" and "completion_tokens".
-
-        Example:
-            ```python
-            stats = pipeline.run_with_stats()
-            print(f"Cost: ${stats['cost']:.2f}")
-            for model, usage in stats['token_usage'].items():
-                print(f"{model}: {usage['prompt_tokens']} in, {usage['completion_tokens']} out")
-            ```
-        """
         runner = DSLRunner(
             self,
             base_name=os.path.join(os.getcwd(), self.name),
@@ -477,15 +287,6 @@ class Pipeline:
         }
 
     def to_yaml(self, path: str) -> None:
-        """
-        Convert the Pipeline object to a YAML string and save it to a file.
-
-        Args:
-            path (str): Path to save the YAML file.
-
-        Returns:
-            None
-        """
         config = self._to_dict()
         with open(path, "w") as f:
             yaml.safe_dump(config, f)
@@ -493,12 +294,6 @@ class Pipeline:
         print(f"[green]Pipeline saved to {path}[/green]")
 
     def _to_dict(self) -> dict[str, Any]:
-        """
-        Convert the Pipeline object to a dictionary representation.
-
-        Returns:
-            dict[str, Any]: Dictionary representation of the Pipeline.
-        """
         d = {
             "datasets": {
                 name: (dataset.model_dump() if hasattr(dataset, "model_dump") else dataset.dict())
@@ -529,11 +324,6 @@ class Pipeline:
         return d
 
     def _update_from_dict(self, config: dict[str, Any]):
-        """
-        Update this Pipeline's fields from a raw config dict.
-
-        Delegates to ``from_dict`` so the type-dispatch logic lives in one place.
-        """
         other = Pipeline.from_dict(config, name=self.name)
         self.datasets = other.datasets
         self.operations = other.operations

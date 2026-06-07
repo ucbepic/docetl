@@ -4,7 +4,7 @@ import math
 import os
 import random
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 from dotenv import load_dotenv
@@ -32,10 +32,10 @@ class Node:
     def __init__(
         self,
         yaml_file_path: str,
-        parent: Optional[Node] = None,
+        parent: Node | None = None,
         c: float = 1.414,
         message_history=[],
-        id: Optional[int] = None,
+        id: int | None = None,
         is_multi_instance: bool = False,
         console=None,
     ):
@@ -44,8 +44,6 @@ class Node:
         self.console = console if console is not None else DOCETL_CONSOLE
         self.yaml_file_path = yaml_file_path
         self.parsed_yaml = self._load_yaml()
-        # Where the JSON results will be written (if defined in the YAML). This is
-        # useful later for evaluation without having to guess filenames.
         try:
             self.result_path: str | None = (
                 self.parsed_yaml.get("pipeline", {}).get("output", {}).get("path")
@@ -61,25 +59,16 @@ class Node:
         self.value = 0
         self.parent = parent
         self.children = []
-        self.c = c  # Exploration constant for UCB
+        self.c = c
         self.cost = -1.0
-        self.scaled_cost = -1.0  # Scaled cost in [0,1] range for reward calculations
+        self.scaled_cost = -1.0
         self.sample_result = []
-        self.latest_action = None  # Latest action that led to this node
-        self.optimization_goal = (
-            None  # The optimization goal used for this node (e.g., 'acc', 'cost')
-        )
-
-        # Message history from root to this node (accumulated LLM conversations)
+        self.latest_action = None
+        self.optimization_goal = None
         self.message_history = message_history
-
-        # Memo list to track (directive, target_operator) pairs from root to this node
         self.memo = []
-
-        # Flag to indicate if this is a multi-instance candidate
         self.is_multi_instance = is_multi_instance
 
-        # Assign a unique ID to this node
         if id:
             self.id = id
         else:
@@ -88,7 +77,6 @@ class Node:
 
     @property
     def pipeline(self):
-        """Lazily create a typed Pipeline from the raw config."""
         if self._pipeline is None:
             from docetl.api import Pipeline
             self._pipeline = Pipeline.from_dict(self.parsed_yaml)
@@ -96,7 +84,6 @@ class Node:
 
     @property
     def op_to_step(self) -> dict[str, str]:
-        """Map op_name → step_name, derived from the typed pipeline."""
         mapping = {}
         for step in self.pipeline.steps:
             for op in step.operations:
@@ -104,7 +91,7 @@ class Node:
                 mapping[name] = step.name
         return mapping
 
-    def execute_plan(self, max_threads: Optional[int] = None) -> float:
+    def execute_plan(self, max_threads: int | None = None) -> float:
         self.console.log(f"[dim]EXECUTING PLAN:[/dim] {self.yaml_file_path}")
 
         cwd = os.getcwd()
@@ -148,7 +135,7 @@ class Node:
 
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")
 
-    def _load_yaml(self) -> Dict[str, Any]:
+    def _load_yaml(self) -> dict[str, Any]:
         try:
             with open(self.yaml_file_path, "r", encoding="utf-8") as file:
                 return yaml.safe_load(file)
@@ -166,22 +153,14 @@ class Node:
             exploration = self.c * math.sqrt(math.log(self.visits) / child.visits)
             return exploitation + exploration
 
-        # Print visits and value for each child
         for child in self.children:
             self.console.log(
                 f"[dim]Child {child.yaml_file_path}: visits = {child.visits}, value = {child.value}[/dim]"
             )
 
-        # Calculate UCB values for all children
         ucb_values = [(child, ucb(child)) for child in self.children]
-
-        # Find the maximum UCB value
         max_ucb = max(ucb_values, key=lambda x: x[1])[1]
-
-        # Find all children with the maximum UCB value (ties)
         tied_children = [child for child, ucb_val in ucb_values if ucb_val == max_ucb]
-
-        # Randomly select among tied children
         return random.choice(tied_children)
 
     def add_child(self, child: Node):
@@ -199,13 +178,11 @@ class Node:
         return self.parent is None
 
     def update_value(self, value: float):
-        # Guard against NaN and -inf values to prevent corruption of node.value
-        # Don't backpropagate -inf (failed evaluations) or NaN to parent nodes
         if (
             value is None
             or (isinstance(value, float) and (value != value))
             or value == float("-inf")
-        ):  # NaN or -inf check
+        ):
             self.console.log(
                 f"[yellow]⚠️ Skipping backpropagation of -inf / NaN value to node {self.get_id()}[/yellow]"
             )
@@ -287,7 +264,6 @@ class Node:
 
     def _rename_files_for_new_id(self, old_id, new_id):
         try:
-            # Rename YAML file
             if os.path.exists(self.yaml_file_path):
                 old_yaml_path = self.yaml_file_path
                 new_yaml_path = old_yaml_path.replace(
@@ -301,7 +277,6 @@ class Node:
             )
 
         try:
-            # Rename output JSON file
             if self.result_path and os.path.exists(self.result_path):
                 old_result_path = self.result_path
                 new_result_path = old_result_path.replace(
@@ -310,10 +285,8 @@ class Node:
                 os.rename(old_result_path, new_result_path)
                 self.result_path = new_result_path
 
-                # Also update the YAML to point to the new output file
                 if hasattr(self, "parsed_yaml") and self.parsed_yaml:
                     self.parsed_yaml["pipeline"]["output"]["path"] = new_result_path
-                    # Rewrite the YAML file with the updated output path
                     with open(self.yaml_file_path, "w") as f:
                         yaml.dump(
                             self.parsed_yaml,
@@ -328,22 +301,9 @@ class Node:
             )
 
     def add_memo_entry(self, directive_name: str, target_operator: str):
-        """
-        Add a (directive, target_operator) pair to the memo list.
-
-        Args:
-            directive_name: Name of the directive that was applied
-            target_operator: Name of the target operator the directive was applied to
-        """
         self.memo.append((directive_name, target_operator))
 
     def get_optimization_path(self) -> str:
-        """
-        Get a formatted string showing the optimization path from root to this node.
-
-        Returns:
-            Formatted path string like "ROOT → chaining(extract_clause) → gleaning(extract_entity)"
-        """
         if not self.memo:
             return "ROOT"
 
@@ -354,29 +314,15 @@ class Node:
         return " → ".join(path_parts)
 
     def get_exploration_tree_summary(
-        self, root: Node, node_accuracies: Optional[Dict["Node", float]] = None
+        self, root: Node, node_accuracies: dict["Node", float] | None = None
     ) -> str:
-        """
-        Generate a comprehensive but concise summary of the entire exploration tree.
-        This gives the LLM agent complete context about what has been tried.
 
-        Args:
-            root: Root node of the tree
-            node_accuracies: Optional dictionary mapping nodes to their accuracy values
-
-        Returns:
-            Formatted tree summary optimized for LLM consumption
-        """
-
-        # Collect all exploration paths and their outcomes
         successful_paths = []
         failed_paths = []
 
         def traverse_tree(node, current_path="ROOT"):
-            # Add this node's path if it's not the root
             if node != root:
                 if hasattr(node, "cost") and node.cost != -1:
-                    # Include accuracy if available
                     if node_accuracies and node in node_accuracies:
                         accuracy = node_accuracies[node]
                         successful_paths.append(
@@ -389,7 +335,6 @@ class Node:
                 else:
                     failed_paths.append(f"{current_path} (failed)")
 
-            # Traverse children
             for child in node.children:
                 if child.memo:
                     # Get the most recent directive-operator pair for this child
@@ -401,10 +346,8 @@ class Node:
 
         traverse_tree(root)
 
-        # Group paths by directive patterns for better insights
         directive_patterns = {}
         for path in successful_paths + failed_paths:
-            # Extract directive sequence
             directives = []
             parts = path.split(" → ")
             for part in parts[1:]:  # Skip ROOT
@@ -422,20 +365,15 @@ class Node:
                 else:
                     directive_patterns[pattern_key]["successful"].append(path)
 
-        # Build summary
         summary_parts = []
-
-        # Current position
         current_path = self.get_optimization_path()
         summary_parts.append(f"CURRENT POSITION: {current_path}")
 
-        # Successful explorations
         if successful_paths:
             summary_parts.append(
                 f"\nSUCCESSFUL EXPLORATIONS ({len(successful_paths)} total):"
             )
 
-            # Show best performers first - sort by accuracy (highest first), then by cost (lowest first)
             def extract_sort_key(path):
                 if "cost: $" not in path:
                     return (
@@ -467,49 +405,19 @@ class Node:
         return "\n".join(summary_parts)
 
     def get_memo_for_llm(
-        self, root_node: Node, node_accuracies: Optional[Dict["Node", float]] = None
+        self, root_node: Node, node_accuracies: dict["Node", float] | None = None
     ) -> str:
-        """
-        Get a comprehensive exploration summary formatted for LLM prompts.
-
-        Args:
-            root_node: Root node of the tree
-            node_accuracies: Optional dictionary mapping nodes to their accuracy values
-
-        Returns:
-            Complete exploration context to guide decision making
-        """
         return self.get_exploration_tree_summary(root_node, node_accuracies)
 
     def delete(self, selected_node_final_id=None):
-        """
-        Delete this node and clean up its resources.
-        For multi-instance candidates, moves files to backup_plans folder instead of deleting.
-
-        Args:
-            selected_node_final_id: The final ID of the selected node (for backup naming)
-
-        This method:
-        1. Removes the node from its parent's children list
-        2. Moves multi-instance files to backup or deletes regular files
-        3. Clears references to prevent memory leaks
-
-        The global node ID counter is maintained (not decremented) to ensure
-        unique IDs across the lifetime of the program.
-        """
-        # Remove from parent's children list
         if self.parent and self in self.parent.children:
             self.parent.children.remove(self)
 
-        # Check if this is a multi-instance candidate using the explicit flag
         if self.is_multi_instance and selected_node_final_id is not None:
-            # Move files to backup_plans folder with renamed IDs
             self._backup_multi_instance_files(selected_node_final_id)
         else:
-            # Regular deletion for non-multi-instance nodes
             self._delete_files_permanently()
 
-        # Clear references to help with garbage collection
         self.parent = None
         self.children = []
         self.parsed_yaml = {}
@@ -519,14 +427,7 @@ class Node:
         self.sample_result = []
 
     def _backup_multi_instance_files(self, selected_node_final_id):
-        """
-        Move multi-instance files to backup_plans folder with new naming scheme.
-
-        Args:
-            selected_node_final_id: The final ID of the selected node
-        """
         try:
-            # Extract the instantiation number from current ID (e.g., "7-2" -> "2")
             current_id_str = str(self.id)
             if "-" in current_id_str:
                 instantiation_num = current_id_str.split("-")[1]
@@ -534,15 +435,12 @@ class Node:
             else:
                 new_backup_id = f"{selected_node_final_id}-backup"
 
-            # Create backup_plans directory
             if os.path.exists(self.yaml_file_path):
                 yaml_dir = os.path.dirname(self.yaml_file_path)
                 backup_dir = os.path.join(yaml_dir, "backup_plans")
                 os.makedirs(backup_dir, exist_ok=True)
 
-                # Move YAML file
                 yaml_filename = os.path.basename(self.yaml_file_path)
-                # Replace old ID with new backup ID in filename
                 new_yaml_filename = yaml_filename.replace(
                     f"_{current_id_str}.yaml", f"_{new_backup_id}.yaml"
                 )
@@ -554,7 +452,6 @@ class Node:
                         f"[dim]Moved YAML to backup:[/dim] {self.yaml_file_path} → {backup_yaml_path}"
                     )
 
-                # Move result JSON file
                 if self.result_path and os.path.exists(self.result_path):
                     result_filename = os.path.basename(self.result_path)
                     new_result_filename = result_filename.replace(
@@ -571,22 +468,14 @@ class Node:
             self.console.log(
                 f"[yellow]Warning: Could not backup files for multi-instance node {self.id}: {e}[/yellow]"
             )
-            # Fall back to regular deletion if backup fails
             self._delete_files_permanently()
 
     def _delete_files_permanently(self):
-        """
-        Permanently delete files (for non-multi-instance nodes).
-        """
         try:
             if os.path.exists(self.yaml_file_path) and str(
                 self.yaml_file_path
             ).endswith((".yaml", ".yml")):
-                # Only delete if it looks like a generated file (contains numbers)
-                if any(
-                    char.isdigit()
-                    for char in os.path.basename(str(self.yaml_file_path))
-                ):
+                if any(char.isdigit() for char in os.path.basename(str(self.yaml_file_path))):
                     os.remove(self.yaml_file_path)
                     self.console.log(
                         f"[dim]Deleted generated YAML file:[/dim] {self.yaml_file_path}"
@@ -598,7 +487,6 @@ class Node:
 
         try:
             if self.result_path and os.path.exists(self.result_path):
-                # Only delete if it looks like a generated file (contains numbers)
                 if any(char.isdigit() for char in os.path.basename(self.result_path)):
                     os.remove(self.result_path)
                     self.console.log(

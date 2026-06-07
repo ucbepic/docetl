@@ -41,6 +41,57 @@ if TYPE_CHECKING:
 load_dotenv()
 
 
+def _create_router(console, fallback_models: list, router_type: str) -> Any | None:
+    if not fallback_models:
+        return None
+    try:
+        from litellm import Router
+    except ImportError:
+        console.log(
+            f"[yellow]Warning: LiteLLM Router not available. Fallback {router_type} models will be ignored.[/yellow]"
+        )
+        return None
+
+    model_list = []
+    fallback_model_names = []
+    for fallback_config in fallback_models:
+        if isinstance(fallback_config, dict):
+            model_name = fallback_config.get("model_name")
+            litellm_params = fallback_config.get("litellm_params", {})
+        elif isinstance(fallback_config, str):
+            model_name = fallback_config
+            litellm_params = {}
+        else:
+            continue
+        if not model_name:
+            continue
+        litellm_params_with_model = litellm_params.copy()
+        litellm_params_with_model["model"] = model_name
+        model_list.append({"model_name": model_name, "litellm_params": litellm_params_with_model})
+        fallback_model_names.append(model_name)
+
+    if not model_list:
+        return None
+    try:
+        router_kwargs = {"model_list": model_list}
+        if len(fallback_model_names) > 1:
+            fallbacks = []
+            for i, model_name in enumerate(fallback_model_names):
+                if i < len(fallback_model_names) - 1:
+                    fallbacks.append({model_name: fallback_model_names[i + 1:]})
+            router_kwargs["fallbacks"] = fallbacks
+        router = Router(**router_kwargs)
+        console.log(
+            f"[green]Created LiteLLM {router_type} Router with {len(model_list)} fallback model(s) in order: {', '.join(fallback_model_names)}[/green]"
+        )
+        return router
+    except Exception as e:
+        console.log(
+            f"[yellow]Warning: Failed to create LiteLLM {router_type} Router: {e}. Fallback models will be ignored.[/yellow]"
+        )
+        return None
+
+
 class DSLRunner:
 
     @classproperty
@@ -86,18 +137,6 @@ class DSLRunner:
         return cls(config, base_name=base_name, yaml_file_suffix=suffix, **kwargs)
 
     def __init__(self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs):
-        """
-        Initialize the DSLRunner with a config dict or a typed ``Pipeline`` object.
-
-        Args:
-            config: A raw YAML-style config dict **or** a ``docetl.api.Pipeline``
-                instance.  When a ``Pipeline`` is passed it is used directly;
-                when a dict is passed it is converted via ``Pipeline.from_dict``.
-                Either way, ``self.pipeline`` holds the typed representation and
-                ``self.config`` holds the raw dict (for backward compat with
-                ConfigWrapper and code that still reads it).
-            max_threads (int, optional): Maximum number of threads to use. Defaults to None.
-        """
         from docetl.api import Pipeline as PipelineCls
 
         if isinstance(config, PipelineCls):
@@ -107,25 +146,41 @@ class DSLRunner:
             config_dict = config
             self.pipeline = PipelineCls.from_dict(config_dict)
 
-        # Keep the raw operations list for _op_map so that checkpoint hashes
-        # match regardless of whether Pipeline was passed or dict was passed.
         self._raw_ops_list = config_dict.get("operations", [])
-
-        # --- Config & runtime setup (formerly ConfigWrapper) ---
         self.config = config_dict
         self.base_name = kwargs.pop("base_name", None)
         self.yaml_file_suffix = kwargs.pop("yaml_file_suffix", None) or (
             datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         )
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
-        console = kwargs.pop("console", None)
-        if console:
-            self.console = console
-        else:
-            self.console = get_console()
+        self.console = kwargs.pop("console", None) or get_console()
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
 
+        self._setup_api_keys()
+        self._setup_rate_limiter()
+        self._setup_routers()
+        self.api = APIWrapper(self)
+
+        self.total_cost = 0
+        self.total_token_usage = defaultdict(
+            lambda: {"prompt_tokens": 0, "completion_tokens": 0}
+        )
+        self.progress_tracker = None
+        self._tui_active = False
+
+        self._initialize_state()
+        self._setup_parsing_tools()
+        self._setup_retrievers()
+        build_operation_graph(self)
+        compute_operation_hashes(self)
+        self._setup_checkpoints()
+
+        self._from_df_accessors = kwargs.get("from_df_accessors", False)
+        if not self._from_df_accessors:
+            self.syntax_check()
+
+    def _setup_api_keys(self) -> None:
         encrypted_llm_api_keys = self.config.get("llm_api_keys", {})
         if encrypted_llm_api_keys:
             self.llm_api_keys = {
@@ -138,34 +193,19 @@ class DSLRunner:
         for key, value in self.llm_api_keys.items():
             os.environ[key] = value
 
+    def _setup_rate_limiter(self) -> None:
         bucket_factory = create_bucket_factory(self.config.get("rate_limits", {}))
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=200)
         self.is_cancelled = False
 
+    def _setup_routers(self) -> None:
         self.fallback_models_config = self.config.get("fallback_models", [])
         self.fallback_embedding_models_config = self.config.get("fallback_embedding_models", [])
-        self.router = self._create_router(self.fallback_models_config, "completion")
-        self.embedding_router = self._create_router(self.fallback_embedding_models_config, "embedding")
+        self.router = _create_router(self.console, self.fallback_models_config, "completion")
+        self.embedding_router = _create_router(self.console, self.fallback_embedding_models_config, "embedding")
         self._router_cache: dict[str, Any] = {}
-        self.api = APIWrapper(self)
-        # --- End config setup ---
 
-        self.total_cost = 0
-        self.total_token_usage = defaultdict(
-            lambda: {"prompt_tokens": 0, "completion_tokens": 0}
-        )
-        # Interactive progress TUI state. ``progress_tracker`` is only set while
-        # an interactive run is active; the TUI is enabled by the top-level
-        # ``interactive_ui`` flag in the config.
-        self.progress_tracker = None
-        self._tui_active = False
-        self._initialize_state()
-        self._setup_parsing_tools()
-        self._setup_retrievers()
-        build_operation_graph(self)
-        compute_operation_hashes(self)
-
-        # Build checkpoint store (None when no intermediate_dir configured)
+    def _setup_checkpoints(self) -> None:
         if self.intermediate_dir:
             from docetl.checkpoint import CheckpointStore
             self.checkpoints: "CheckpointStore | None" = CheckpointStore(
@@ -176,65 +216,9 @@ class DSLRunner:
         else:
             self.checkpoints = None
 
-        # Run initial validation
-        self._from_df_accessors = kwargs.get("from_df_accessors", False)
-        if not self._from_df_accessors:
-            self.syntax_check()
-
     def _initialize_state(self) -> None:
-        """Initialize basic runner state and datasets"""
         self.datasets = {}
         self.intermediate_dir = self.pipeline.output.intermediate_dir
-
-    def _create_router(self, fallback_models: list, router_type: str) -> Any | None:
-        if not fallback_models:
-            return None
-        try:
-            from litellm import Router
-        except ImportError:
-            self.console.log(
-                f"[yellow]Warning: LiteLLM Router not available. Fallback {router_type} models will be ignored.[/yellow]"
-            )
-            return None
-
-        model_list = []
-        fallback_model_names = []
-        for fallback_config in fallback_models:
-            if isinstance(fallback_config, dict):
-                model_name = fallback_config.get("model_name")
-                litellm_params = fallback_config.get("litellm_params", {})
-            elif isinstance(fallback_config, str):
-                model_name = fallback_config
-                litellm_params = {}
-            else:
-                continue
-            if not model_name:
-                continue
-            litellm_params_with_model = litellm_params.copy()
-            litellm_params_with_model["model"] = model_name
-            model_list.append({"model_name": model_name, "litellm_params": litellm_params_with_model})
-            fallback_model_names.append(model_name)
-
-        if not model_list:
-            return None
-        try:
-            router_kwargs = {"model_list": model_list}
-            if len(fallback_model_names) > 1:
-                fallbacks = []
-                for i, model_name in enumerate(fallback_model_names):
-                    if i < len(fallback_model_names) - 1:
-                        fallbacks.append({model_name: fallback_model_names[i + 1:]})
-                router_kwargs["fallbacks"] = fallbacks
-            router = Router(**router_kwargs)
-            self.console.log(
-                f"[green]Created LiteLLM {router_type} Router with {len(model_list)} fallback model(s) in order: {', '.join(fallback_model_names)}[/green]"
-            )
-            return router
-        except Exception as e:
-            self.console.log(
-                f"[yellow]Warning: Failed to create LiteLLM {router_type} Router: {e}. Fallback models will be ignored.[/yellow]"
-            )
-            return None
 
     def reset_env(self):
         os.environ = self._original_env
@@ -304,9 +288,6 @@ class DSLRunner:
         return output_path
 
     def syntax_check(self):
-        """
-        Perform a syntax check on all operations defined in the configuration.
-        """
         self.console.log("[yellow]Checking operations...[/yellow]")
 
         # Just validate that it's a json file if specified
@@ -355,12 +336,6 @@ class DSLRunner:
             raise ValueError(f"Operation '{op_name}' not found in configuration.")
 
     def list_pipeline_operations(self) -> list[tuple[str, str, str, str | None]]:
-        """Return ``(step, full_name, op_type, model)`` for each real operation
-        in pipeline order, excluding scans and step boundaries.
-
-        Used to pre-populate the interactive progress view so all operations are
-        visible (as ``queued``) before execution begins.
-        """
         ops_by_name = self.pipeline.ops_by_name
         ops: list[tuple[str, str, str, str | None]] = []
         for step in self.pipeline.steps:
@@ -375,12 +350,6 @@ class DSLRunner:
         return ops
 
     def _should_use_tui(self) -> bool:
-        """Decide whether to launch the interactive TUI for this run.
-
-        Enabled by the top-level ``interactive_ui`` flag in the config (alongside
-        ``default_model``). The TUI requires an interactive terminal; otherwise
-        we fall back to plain logging.
-        """
         import sys
 
         if self._tui_active:
@@ -442,7 +411,6 @@ class DSLRunner:
         return self.total_cost
 
     def load(self) -> None:
-        """Load all datasets defined in the pipeline config."""
         self.console.rule("[bold]Loading Datasets[/bold]")
         self.datasets = {}
 

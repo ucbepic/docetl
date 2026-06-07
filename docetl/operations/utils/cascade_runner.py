@@ -184,7 +184,9 @@ class CascadeMixin:
             cost["total"] += c
             return lbl
 
-        result = CategoricalCascade(spec, proxy_predict, _oracle).run(items)
+        result = CategoricalCascade(
+            spec, proxy_predict, _oracle, console=self.console
+        ).run(items)
         self._report_cascade(op_label, result.stats, cost["total"], False)
 
         with cache as c:

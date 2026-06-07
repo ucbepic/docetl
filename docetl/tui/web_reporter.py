@@ -328,31 +328,29 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 
   /* Operations strip */
   .ops-strip {
-    background: var(--card); border-bottom: 1px solid var(--border);
-    padding: 10px 16px; display: flex; gap: 6px; flex-wrap: wrap;
-    align-items: center; flex-shrink: 0;
+    background: white; border-bottom: 1px solid var(--border);
+    padding: 0 16px; display: flex; gap: 0; align-items: stretch; flex-shrink: 0;
+    overflow-x: auto;
   }
-  .op-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 12px 4px 8px; border-radius: 999px; font-size: 12px;
-    font-weight: 500; border: 1px solid var(--border); background: white;
-    position: relative; overflow: hidden;
+  .op-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; font-size: 12px; font-weight: 500;
+    border-right: 1px solid hsl(211 30% 92%); position: relative;
+    white-space: nowrap;
   }
-  .op-chip[data-status="done"] { border-color: hsl(152 69% 55%); background: hsl(152 69% 97%); }
-  .op-chip[data-status="running"] { border-color: hsl(211 100% 70%); background: hsl(211 100% 97%); }
-  .op-chip[data-status="error"] { border-color: var(--destructive); background: hsl(0 100% 97%); }
+  .op-item:last-child { border-right: none; }
   .op-dot {
-    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   }
-  .op-dot.queued { background: var(--border); }
+  .op-dot.queued { background: hsl(211 20% 78%); }
   .op-dot.running { background: var(--primary); animation: pulse 1.5s infinite; }
   .op-dot.done { background: hsl(152 69% 40%); }
   .op-dot.error { background: var(--destructive); }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
   .op-name { color: var(--foreground); }
-  .op-pct { color: var(--muted-foreground); font-size: 11px; }
+  .op-detail { color: var(--muted-foreground); font-size: 11px; }
   .op-cost { color: hsl(152 69% 31%); font-size: 11px; font-weight: 600; }
-  .op-progress {
+  .op-bar {
     position: absolute; bottom: 0; left: 0; height: 2px;
     background: var(--primary); transition: width .4s ease;
   }
@@ -375,7 +373,17 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .tab.active { color: var(--foreground); border-bottom-color: var(--primary); }
 
   /* Table view */
-  .table-wrap { flex: 1; overflow: auto; }
+  .table-wrap {
+    flex: 1; overflow: auto; position: relative;
+    background:
+      linear-gradient(white 30%, transparent),
+      linear-gradient(transparent, white 70%) 0 100%,
+      radial-gradient(farthest-side at 50% 0, rgba(0,0,0,.08), transparent),
+      radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.08), transparent) 0 100%;
+    background-repeat: no-repeat;
+    background-size: 100% 30px, 100% 30px, 100% 8px, 100% 8px;
+    background-attachment: local, local, scroll, scroll;
+  }
   .data-table {
     width: 100%; border-collapse: collapse; font-size: 13px;
     table-layout: fixed;
@@ -392,8 +400,8 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     cursor: pointer; user-select: none;
   }
   .col-header-name:hover { color: var(--foreground); }
-  .sort-icon { width: 12px; height: 12px; opacity: .5; flex-shrink: 0; }
-  .col-header-name:hover .sort-icon { opacity: .8; }
+  .sort-icon { opacity: .4; flex-shrink: 0; font-size: 10px; }
+  .col-header-name:hover .sort-icon { opacity: .7; }
   .col-stats {
     font-size: 10px; color: var(--muted-foreground); margin-top: 2px;
     display: flex; justify-content: space-between;
@@ -401,9 +409,9 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .col-histogram { height: 48px; margin-top: 4px; display: flex; align-items: flex-end; gap: 1px; }
   .hist-bar {
     flex: 1; background: var(--chart-2); border-radius: 2px 2px 0 0;
-    min-width: 0; transition: opacity .15s; cursor: default; position: relative;
+    min-width: 0; transition: opacity .15s; cursor: default;
   }
-  .hist-bar:hover { opacity: .75; }
+  .hist-bar:hover { opacity: .7; }
 
   .data-table td {
     padding: 8px 10px; border-bottom: 1px solid hsl(211 30% 92%);
@@ -412,39 +420,34 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .data-table tr { transition: background .1s; }
   .data-table tbody tr:hover { background: hsl(211 40% 97%); }
-  .data-table tbody tr.selected { background: hsl(211 60% 95%); }
 
   .cell-text { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
   .cell-num { font-variant-numeric: tabular-nums; }
 
-  .col-idx { width: 44px; text-align: center; color: var(--muted-foreground); font-size: 12px; }
-  .col-op { width: 120px; }
-  .col-fb { width: 44px; text-align: center; }
-  .fb-icon {
-    width: 28px; height: 28px; border-radius: var(--radius); border: 1px solid transparent;
-    background: none; cursor: pointer; display: inline-flex; align-items: center;
-    justify-content: center; color: var(--muted-foreground); transition: all .15s;
-    font-family: inherit; padding: 0;
+  .col-idx { width: 40px; text-align: center; color: var(--muted-foreground); font-size: 12px; }
+  .col-op { width: 110px; }
+  .col-fb { min-width: 220px; width: 220px; }
+  .fb-cell { display: flex; align-items: center; gap: 4px; }
+  .fb-cell input {
+    flex: 1; border: 1px solid transparent; border-radius: var(--radius);
+    padding: 4px 8px; font-family: inherit; font-size: 12px; background: transparent;
+    color: var(--foreground); transition: border-color .15s, background .15s;
   }
-  .fb-icon:hover { border-color: var(--border); background: var(--accent); color: var(--primary); }
-  .fb-icon.has-fb { color: hsl(152 69% 40%); }
-
-  /* Feedback row */
-  .fb-row td { padding: 0 !important; border-bottom: 1px solid var(--border) !important; }
-  .fb-inline {
-    display: flex; gap: 8px; padding: 8px 10px; background: hsl(211 40% 98%);
-    align-items: center;
+  .fb-cell input:hover { border-color: hsl(211 30% 88%); background: white; }
+  .fb-cell input:focus {
+    border-color: var(--primary); outline: none; background: white;
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .1);
   }
-  .fb-inline input {
-    flex: 1; border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 5px 10px; font-family: inherit; font-size: 13px; background: white;
-    color: var(--foreground); transition: border-color .15s, box-shadow .15s;
+  .fb-cell .fb-send {
+    padding: 3px 8px; font-size: 11px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: white; cursor: pointer;
+    color: var(--muted-foreground); font-family: inherit; transition: all .15s;
+    flex-shrink: 0; opacity: 0; pointer-events: none;
   }
-  .fb-inline input:focus {
-    border-color: var(--primary); outline: none;
-    box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
-  }
-  .fb-sent-msg { color: hsl(152 69% 31%); font-size: 12px; font-weight: 500; padding: 10px; }
+  .fb-cell:focus-within .fb-send,
+  .fb-cell input:not(:placeholder-shown) ~ .fb-send { opacity: 1; pointer-events: auto; }
+  .fb-cell .fb-send:hover { background: var(--primary); color: white; border-color: var(--primary); }
+  .fb-sent-text { color: hsl(152 69% 31%); font-size: 12px; font-weight: 500; }
 
   /* Histogram view */
   .viz-panel { flex: 1; overflow: auto; padding: 16px; }
@@ -457,7 +460,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .viz-card-sub { font-size: 11px; color: var(--muted-foreground); margin-bottom: 10px; }
   .viz-chart { height: 100px; display: flex; align-items: flex-end; gap: 2px; }
   .viz-bar {
-    flex: 1; background: var(--chart-2); border-radius: 3px 3px 0 0;
+    flex: 1; background: var(--chart-2); border-radius: 2px 2px 0 0;
     min-width: 0; position: relative; cursor: default; transition: opacity .15s;
   }
   .viz-bar:hover { opacity: .7; }
@@ -559,7 +562,6 @@ let columns = [];
 let columnStats = {};
 let sortCol = null;
 let sortDir = 'asc';
-let expandedRow = -1;
 let finished = false;
 let killed = false;
 let seenDocKeys = new Set();
@@ -588,24 +590,22 @@ function updateOps(ops) {
   const strip = document.getElementById('ops-strip');
   strip.innerHTML = '';
   ops.forEach(op => {
-    const chip = document.createElement('div');
-    chip.className = 'op-chip';
-    chip.dataset.status = op.status;
-    let pctText = '';
+    const el = document.createElement('div');
+    el.className = 'op-item';
     let pctWidth = 0;
+    let parts = '<span class="op-dot ' + op.status + '"></span>';
+    parts += '<span class="op-name">' + op.op_type + ':' + op.name.split('/').pop() + '</span>';
     if (op.total) {
       pctWidth = Math.round(100 * op.completed / op.total);
-      pctText = pctWidth + '%';
+      parts += '<span class="op-detail">' + op.completed + '/' + op.total + '</span>';
     }
-    let inner = '<span class="op-dot ' + op.status + '"></span>';
-    inner += '<span class="op-name">' + op.op_type + ':' + op.name.split('/').pop() + '</span>';
-    if (pctText) inner += '<span class="op-pct">' + pctText + '</span>';
-    if (op.cost > 0) inner += '<span class="op-cost">' + fmtCost(op.cost) + '</span>';
+    if (op.cost > 0) parts += '<span class="op-cost">' + fmtCost(op.cost) + '</span>';
+    if (op.elapsed >= 1) parts += '<span class="op-detail">' + fmtDur(op.elapsed) + '</span>';
     if (op.status === 'running' && op.total) {
-      inner += '<span class="op-progress" style="width:' + pctWidth + '%"></span>';
+      parts += '<span class="op-bar" style="width:' + pctWidth + '%"></span>';
     }
-    chip.innerHTML = inner;
-    strip.appendChild(chip);
+    el.innerHTML = parts;
+    strip.appendChild(el);
   });
 }
 
@@ -807,7 +807,7 @@ function renderTableHead() {
   // Feedback column
   const thFb = document.createElement('th');
   thFb.className = 'col-fb';
-  thFb.innerHTML = '<div class="col-header"><span style="font-size:11px">fb</span></div>';
+  thFb.innerHTML = '<div class="col-header"><span style="font-size:11px;color:var(--muted-foreground)">feedback</span></div>';
   tr.appendChild(thFb);
 
   thead.appendChild(tr);
@@ -827,7 +827,6 @@ function renderTableBody() {
   sorted.forEach(idx => {
     const doc = allDocs[idx];
     const tr = document.createElement('tr');
-    if (idx === expandedRow) tr.classList.add('selected');
 
     // Row number
     const tdIdx = document.createElement('td');
@@ -858,44 +857,21 @@ function renderTableBody() {
       tr.appendChild(td);
     });
 
-    // Feedback button
+    // Inline feedback cell
     const tdFb = document.createElement('td');
     tdFb.className = 'col-fb';
-    const fbBtn = document.createElement('button');
-    fbBtn.className = 'fb-icon' + (doc._fbSent ? ' has-fb' : '');
-    fbBtn.innerHTML = doc._fbSent ? '✓' : '✎';
-    fbBtn.title = doc._fbSent ? 'Feedback sent' : 'Give feedback';
-    fbBtn.onclick = (e) => { e.stopPropagation(); toggleFeedbackRow(idx); };
-    tdFb.appendChild(fbBtn);
-    tr.appendChild(tdFb);
-
-    tr.onclick = () => toggleFeedbackRow(idx);
-    tbody.appendChild(tr);
-
-    // Feedback expansion row
-    if (idx === expandedRow) {
-      const fbTr = document.createElement('tr');
-      fbTr.className = 'fb-row';
-      const fbTd = document.createElement('td');
-      fbTd.colSpan = columns.length + 3;
-      if (doc._fbSent) {
-        fbTd.innerHTML = '<div class="fb-sent-msg">✓ Feedback sent: "' + escHtml(doc._fbText) + '"</div>';
-      } else {
-        fbTd.innerHTML =
-          '<div class="fb-inline">' +
-            '<input type="text" placeholder="Feedback on this output…" id="fb-input-' + idx + '" ' +
-              'onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + idx + ')">' +
-            '<button class="btn" onclick="sendDocFeedback(' + idx + ')">Send</button>' +
-          '</div>';
-      }
-      fbTr.appendChild(fbTd);
-      tbody.appendChild(fbTr);
-      // Focus input
-      setTimeout(() => {
-        const inp = document.getElementById('fb-input-' + idx);
-        if (inp) inp.focus();
-      }, 0);
+    if (doc._fbSent) {
+      tdFb.innerHTML = '<span class="fb-sent-text">✓ ' + escHtml(doc._fbText.length > 25 ? doc._fbText.slice(0, 25) + '…' : doc._fbText) + '</span>';
+    } else {
+      tdFb.innerHTML =
+        '<div class="fb-cell">' +
+          '<input type="text" placeholder="Feedback…" id="fb-input-' + idx + '" ' +
+            'onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + idx + ')">' +
+          '<button class="fb-send" onclick="sendDocFeedback(' + idx + ')">Send</button>' +
+        '</div>';
     }
+    tr.appendChild(tdFb);
+    tbody.appendChild(tr);
   });
 }
 
@@ -907,11 +883,6 @@ function toggleSort(col) {
     sortDir = 'asc';
   }
   renderTableHead();
-  renderTableBody();
-}
-
-function toggleFeedbackRow(idx) {
-  expandedRow = expandedRow === idx ? -1 : idx;
   renderTableBody();
 }
 

@@ -500,9 +500,9 @@ class DocetlTUI(App):
         out = Text()
         role = op.cell_cascade_role(idx)
         if role == "oracle":
-            out.append_text(_kv("status", "done (oracle)", value_style="cyan"))
+            out.append_text(_kv("status", "done — oracle decided", value_style="cyan"))
         elif role == "proxy":
-            out.append_text(_kv("status", "done (proxy)", value_style="green"))
+            out.append_text(_kv("status", "done — proxy decided", value_style="green"))
         else:
             out.append_text(_kv("status", "done", value_style="green"))
         out.append("\n")
@@ -727,8 +727,11 @@ def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
         score = proxy_scores[input_idx]
         t.append("cascade\n", style="bold magenta")
 
-        proxy_label = score > 0.5
-        confidence = max(score, 1.0 - score)
+        if input_idx < len(proxy_labels):
+            proxy_label = bool(proxy_labels[input_idx])
+        else:
+            proxy_label = score > 0.5
+        confidence = score if proxy_label else (1.0 - score)
         t.append("  proxy said:  ", style="dim")
         t.append(f"{proxy_label}", style="green" if proxy_label else "red")
         t.append(f"  ({confidence:.0%})\n", style="grey70")
@@ -736,11 +739,15 @@ def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
     if input_idx < len(escalated) and escalated[input_idx]:
         if not has_data:
             t.append("cascade\n", style="bold magenta")
-        t.append("  decided by: ", style="dim")
-        t.append("oracle\n", style="cyan")
+        t.append("  kept by:     ", style="dim")
+        t.append("oracle", style="cyan")
+        t.append(" said ", style="dim")
+        t.append("True\n", style="green")
     elif has_data:
-        t.append("  decided by: ", style="dim")
-        t.append("proxy\n", style="green")
+        t.append("  kept by:     ", style="dim")
+        t.append("proxy", style="green")
+        t.append(" said ", style="dim")
+        t.append("True\n", style="green")
 
     threshold = cascade_info.get("threshold")
     if threshold is not None and threshold >= 0.01:

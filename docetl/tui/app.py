@@ -92,7 +92,7 @@ class DocetlTUI(App):
             yield Static(id="detail")
 
     def on_mount(self) -> None:
-        self.title = "DocETL"
+        self.title = self._pipeline_label()
         self.set_interval(0.15, self.render_all)
         if self.runner is not None:
             self._worker = threading.Thread(target=self._run_pipeline, daemon=True)
@@ -115,6 +115,11 @@ class DocetlTUI(App):
                 pass
 
     # -- helpers ---------------------------------------------------------
+    def _pipeline_label(self) -> str:
+        if self.runner is not None:
+            return self.runner.pipeline_label()
+        return "DocETL pipeline"
+
     def _ops(self) -> list[OpState]:
         return self.tracker.snapshot().ops
 
@@ -192,7 +197,7 @@ class DocetlTUI(App):
 
     def _render_ops(self, state: RunState) -> Group:
         head = Text()
-        head.append("DocETL pipeline\n", style="bold")
+        head.append(f"{self._pipeline_label()}\n", style="bold")
         head.append(f"{state.done_ops}/{len(state.ops)} ops", style="grey70")
         head.append("   ")
         head.append(_fmt_cost(state.total_cost), style="green")

@@ -19,6 +19,7 @@ from docetl.progress.tracker import (
     active_tracker,
     set_active_tracker,
 )
+from docetl.config_wrapper import ConfigWrapper
 from docetl.tui.profiles import get_profile
 
 
@@ -120,6 +121,11 @@ def test_active_tracker_hook():
     finally:
         set_active_tracker(None)
     assert active_tracker() is None
+
+
+def test_pipeline_label_from_yaml_path():
+    runner = ConfigWrapper.from_yaml("workloads/medical/filteronly.yaml")
+    assert runner.pipeline_label() == "filteronly.yaml"
 
 
 def test_should_use_tui_reads_top_level_flag(monkeypatch):

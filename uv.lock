@@ -346,6 +346,22 @@ wheels = [
 ]
 
 [[package]]
+name = "bargain"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "openai" },
+    { name = "pandas" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/0b/d61165d6738eaa7469bdb336058cfe50a7a3b81c3ecb887d7fd03c6142db/bargain-0.1.2.tar.gz", hash = "sha256:6ad79a65e6f2f248f2f523fc915fce85c92aa855916f60b80776d7984c0d156f", size = 13886, upload-time = "2026-02-16T04:13:09.258Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/20/35/c81282665551d99099b3bb6df95f8e9fc79727a5ae97b02de35466b78f63/bargain-0.1.2-py3-none-any.whl", hash = "sha256:963702ec0f2a34252f0b688f9cbd11a5a7619bd7977db56a8c958c6a71fa077d", size = 13375, upload-time = "2026-02-16T04:13:07.815Z" },
+]
+
+[[package]]
 name = "beautifulsoup4"
 version = "4.13.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1001,6 +1017,7 @@ version = "0.2.6"
 source = { editable = "." }
 dependencies = [
     { name = "asteval" },
+    { name = "bargain" },
     { name = "boto3" },
     { name = "diskcache" },
     { name = "frozendict" },
@@ -1086,6 +1103,7 @@ requires-dist = [
     { name = "azure-ai-documentintelligence", marker = "extra == 'parsing'", specifier = ">=1.0.0b4" },
     { name = "azure-ai-documentintelligence", marker = "extra == 'server'", specifier = ">=1.0.0b4" },
     { name = "azure-ai-formrecognizer", marker = "extra == 'server'", specifier = ">=3.3.3" },
+    { name = "bargain", specifier = ">=0.1.2" },
     { name = "beautifulsoup4", marker = "extra == 'server'", specifier = ">=4.12.0" },
     { name = "boto3", specifier = ">=1.37.27" },
     { name = "diskcache", specifier = ">=5.6.3" },

@@ -1,14 +1,4 @@
-"""
-The Optimizer module implements a pipeline optimization system that works with DocETL's pull-based execution model.
-It analyzes operations marked for optimization and rewrites them into more efficient sub-pipelines while preserving
-the lazy evaluation semantics of the container system.
-
-The architecture follows these key principles:
-- Integration with the container-based lazy evaluation model
-- Specialized optimizers for different operation types (map, reduce, join)
-- Sample-based optimization to handle large datasets efficiently
-- Cost tracking and caching of intermediate results
-"""
+"""V1 pipeline optimizer: sample-based rewrites for map/reduce/join operations."""
 
 import copy
 import hashlib
@@ -46,11 +36,6 @@ SAMPLE_SIZE_MAP = {
 
 
 class Optimizer:
-    """
-    Orchestrates the optimization of a DocETL pipeline by analyzing and potentially rewriting
-    operations marked for optimization. Works with the runner's pull-based execution model
-    to maintain lazy evaluation while improving pipeline efficiency.
-    """
 
     def __init__(
         self,
@@ -61,35 +46,6 @@ class Optimizer:
         resume: bool = False,
         timeout: int = 60,
     ):
-        """
-        Initialize the optimizer with a runner instance and configuration.
-        Sets up optimization parameters, caching, and cost tracking.
-
-        Args:
-            yaml_file (str): Path to the YAML configuration file.
-            model (str): The name of the language model to use. Defaults to "gpt-5.1".
-            resume (bool): Whether to resume optimization from a previous run. Defaults to False.
-            timeout (int): Timeout in seconds for operations. Defaults to 60.
-
-        Attributes:
-            config (Dict): Stores the loaded configuration from the YAML file.
-            console (Console): Rich console for formatted output.
-            max_threads (int): Maximum number of threads for parallel processing.
-            base_name (str): Base name used for file paths.
-            yaml_file_suffix (str): Suffix for YAML configuration files.
-            runner (DSLRunner): The DSL runner instance.
-            status: Status tracking for the runner.
-            optimized_config (Dict): A copy of the original config to be optimized.
-            llm_client (LLMClient): Client for interacting with the language model.
-            timeout (int): Timeout for operations in seconds.
-            resume (bool): Whether to resume from previous optimization.
-            captured_output (CapturedOutput): Captures output during optimization.
-            sample_cache (Dict): Maps operation names to tuples of (output_data, sample_size).
-            optimized_ops_path (str): Path to store optimized operations.
-            sample_size_map (Dict): Maps operation types to sample sizes.
-
-        The method also calls print_optimizer_config() to display the initial configuration.
-        """
         self.config = runner.config
         self.console = runner.console
         self.max_threads = runner.max_threads
@@ -135,17 +91,6 @@ class Optimizer:
             self.print_optimizer_config()
 
     def print_optimizer_config(self):
-        """
-        Print the current configuration of the optimizer.
-
-        This method uses the Rich console to display a formatted output of the optimizer's
-        configuration. It includes details such as the YAML file path, sample sizes for
-        different operation types, maximum number of threads, the language model being used,
-        and the timeout setting.
-
-        The output is color-coded and formatted for easy readability, with a header and
-        separator lines to clearly delineate the configuration information.
-        """
         self.console.log(
             Panel.fit(
                 "[bold cyan]Optimizer Configuration[/bold cyan]\n"
@@ -159,18 +104,6 @@ class Optimizer:
         )
 
     def _insert_empty_resolve_operations(self):
-        """
-        Determines whether to insert resolve operations in the pipeline.
-
-        For each reduce operation in the tree, checks if it has any map operation as a descendant
-        without a resolve operation in between. If found, inserts an empty resolve operation
-        right after the reduce operation.
-
-        The method modifies the operation container tree in-place.
-
-        Returns:
-            None
-        """
         if not self.runner.last_op_container:
             return
 
@@ -280,16 +213,6 @@ class Optimizer:
                         containers_to_check.extend(new_resolve_container.children)
 
     def _add_map_prompts_to_reduce_operations(self):
-        """
-        Add relevant map prompts to reduce operations based on their reduce keys.
-
-        This method walks the operation container tree to find map operations and their
-        output schemas, then associates those with reduce operations that use those keys.
-        When a reduce operation is found, it looks through its descendants to find the
-        relevant map operations and adds their prompts.
-
-        The method modifies the operation container tree in-place.
-        """
         if not self.runner.last_op_container:
             return
 
@@ -346,10 +269,6 @@ class Optimizer:
     def should_optimize(
         self, step_name: str, op_name: str
     ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]], float]:
-        """
-        Analyzes whether an operation should be optimized by running it on a sample of input data
-        and evaluating potential optimizations. Returns the optimization suggestion and relevant data.
-        """
         self.console.rule("[bold cyan]Beginning Pipeline Assessment[/bold cyan]")
 
         self._insert_empty_resolve_operations()
@@ -416,10 +335,6 @@ class Optimizer:
         )
 
     def optimize(self) -> float:
-        """
-        Optimizes the entire pipeline by walking the operation DAG and applying
-        operation-specific optimizers where marked. Returns the total optimization cost.
-        """
         self.console.rule("[bold cyan]Beginning Pipeline Rewrites[/bold cyan]")
 
         # If self.resume is True and there's a checkpoint, load it
@@ -462,10 +377,6 @@ class Optimizer:
             [dict[str, Any], list[dict[str, Any]]], list[dict[str, Any]]
         ],
     ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]], str, str]:
-        """
-        Optimizes an equijoin operation by analyzing join conditions and potentially inserting
-        map operations to improve join efficiency. Returns the optimized configuration and updated data.
-        """
         max_iterations = 2
         new_left_name = left_name
         new_right_name = right_name
@@ -563,10 +474,6 @@ class Optimizer:
         return op_config, new_steps, new_left_name, new_right_name
 
     def checkpoint_optimized_ops(self) -> None:
-        """
-        Generates the clean config and saves it to the self.optimized_ops_path
-        This is used to resume optimization from a previous run
-        """
         clean_config = self.clean_optimized_config()
         with open(self.optimized_ops_path, "w") as f:
             yaml.safe_dump(clean_config, f, default_flow_style=False, width=80)
@@ -574,17 +481,6 @@ class Optimizer:
     # Recursively resolve all anchors and aliases
     @staticmethod
     def resolve_anchors(data):
-        """
-        Recursively resolve all anchors and aliases in a nested data structure.
-
-        This static method traverses through dictionaries and lists, resolving any YAML anchors and aliases.
-
-        Args:
-            data: The data structure to resolve. Can be a dictionary, list, or any other type.
-
-        Returns:
-            The resolved data structure with all anchors and aliases replaced by their actual values.
-        """
         if isinstance(data, dict):
             return {k: Optimizer.resolve_anchors(v) for k, v in data.items()}
         elif isinstance(data, list):
@@ -593,10 +489,6 @@ class Optimizer:
             return data
 
     def clean_optimized_config(self) -> dict:
-        """
-        Creates a clean YAML configuration from the optimized operation containers,
-        removing internal fields and organizing operations into proper pipeline steps.
-        """
         if not self.runner.last_op_container:
             return self.config
 
@@ -732,10 +624,6 @@ class Optimizer:
         return clean_config
 
     def save_optimized_config(self, optimized_config_path: str):
-        """
-        Saves the optimized configuration to a YAML file after resolving all references
-        and cleaning up internal optimization artifacts.
-        """
         resolved_config = self.clean_optimized_config()
 
         with open(optimized_config_path, "w") as f:

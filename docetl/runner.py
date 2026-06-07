@@ -258,13 +258,11 @@ class DSLRunner:
                 time.sleep(max(time_to_wait, wait_time))
 
     def _setup_parsing_tools(self) -> None:
-        """Set up parsing tools from configuration"""
         self.parsing_tool_map = create_parsing_tool_map(
             self.config.get("parsing_tools", None)
         )
 
     def _setup_retrievers(self) -> None:
-        """Instantiate retrievers from configuration (lazy index creation)."""
         from docetl.retrievers.lancedb import LanceDBRetriever
 
         self.retrievers: dict[str, Any] = {}

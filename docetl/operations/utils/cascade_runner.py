@@ -244,6 +244,13 @@ class CascadeMixin:
             f"proxy) | guarantee={stats.guarantee} target={stats.target} "
             f"delta={stats.delta} | cost=${cost:.4f}"
         )
+        if stats.escalation_rate >= 0.95 and stats.n_items > 10:
+            self.console.log(
+                f"[bold yellow]Warning:[/bold yellow] cascade escalated "
+                f"{stats.escalation_rate:.0%} of items to the oracle — the "
+                f"proxy saved almost no cost. The proxy model may be too weak "
+                f"or the label_budget too small for this dataset."
+            )
 
     def _run_categorical_cascade(
         self,
@@ -298,6 +305,24 @@ class CascadeMixin:
             positive_label=positive_label,
             negative_label=negative_label,
         )
+        if guarantee in ("precision", "recall") and spec.label_budget < 50:
+            self.console.log(
+                f"[bold yellow]Warning:[/bold yellow] cascade label_budget="
+                f"{spec.label_budget} is very small. With fewer than ~50 oracle "
+                f"samples the {guarantee} threshold search may not reach "
+                f"confidence, causing the cascade to {'keep everything (no '
+                'filtering)' if guarantee == 'recall' else 'return only oracle-'
+                'confirmed positives (very few results)'}. Consider "
+                f"label_budget ≥ 100."
+            )
+        elif guarantee in ("precision", "recall") and spec.label_budget < len(items) * 0.05:
+            self.console.log(
+                f"[bold yellow]Warning:[/bold yellow] cascade label_budget="
+                f"{spec.label_budget} is small relative to {len(items)} items "
+                f"({spec.label_budget / len(items):.0%}). The {guarantee} "
+                f"guarantee may degrade — consider increasing label_budget."
+            )
+
         # Mutable accumulator; the engine drives the adapters sequentially.
         cost = {"total": 0.0}
         oracle_model = self.config.get("model", self.default_model)

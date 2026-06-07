@@ -3,7 +3,6 @@
 import copy
 import hashlib
 import os
-import random
 from typing import TYPE_CHECKING, Any, Callable
 
 import yaml
@@ -54,8 +53,6 @@ class Optimizer:
         self.yaml_file_suffix = runner.yaml_file_suffix
         self.runner = runner
         self.status = runner.status
-
-        self.optimized_config = copy.deepcopy(self.config)
 
         rate_limits = self.config.get("optimizer_config", {}).get("rate_limits", {})
 
@@ -181,55 +178,6 @@ class Optimizer:
         resolve_container.parent = reduce_container
         self.runner.op_container_map[f"{step_name}/{resolve_name}"] = resolve_container
         return resolve_container
-
-    def _add_map_prompts_to_reduce_operations(self):
-        if not self.runner.last_op_container:
-            return
-
-        def find_map_prompts_for_keys(container, keys, visited=None):
-            """Helper to find map prompts for given keys in the container's descendants."""
-            if visited is None:
-                visited = set()
-
-            if container.name in visited:
-                return []
-            visited.add(container.name)
-
-            prompts = []
-            if container.config["type"] == "map":
-                output_schema = container.config.get("output", {}).get("schema", {})
-                if any(key in output_schema for key in keys):
-                    prompts.append(container.config.get("prompt", ""))
-
-            for child in container.children:
-                prompts.extend(find_map_prompts_for_keys(child, keys, visited))
-
-            return prompts
-
-        containers_to_check = [self.runner.last_op_container]
-        while containers_to_check:
-            current = containers_to_check.pop(0)
-
-            if isinstance(current, StepBoundary) or not current.children:
-                containers_to_check.extend(current.children)
-                continue
-
-            if current.config["type"] == "reduce":
-                reduce_keys = current.config.get("reduce_key", [])
-                if isinstance(reduce_keys, str):
-                    reduce_keys = [reduce_keys]
-
-                relevant_prompts = find_map_prompts_for_keys(current, reduce_keys)
-
-                if relevant_prompts:
-                    current.config["_intermediates"] = current.config.get(
-                        "_intermediates", {}
-                    )
-                    current.config["_intermediates"]["last_map_prompt"] = (
-                        relevant_prompts[-1]
-                    )
-
-            containers_to_check.extend(current.children)
 
     def should_optimize(
         self, step_name: str, op_name: str
@@ -407,15 +355,6 @@ class Optimizer:
         clean_config = self.clean_optimized_config()
         with open(self.optimized_ops_path, "w") as f:
             yaml.safe_dump(clean_config, f, default_flow_style=False, width=80)
-
-    @staticmethod
-    def resolve_anchors(data):
-        if isinstance(data, dict):
-            return {k: Optimizer.resolve_anchors(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [Optimizer.resolve_anchors(item) for item in data]
-        else:
-            return data
 
     def clean_optimized_config(self) -> dict:
         if not self.runner.last_op_container:

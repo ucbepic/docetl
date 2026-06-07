@@ -249,6 +249,28 @@ def test_done_cell_status_marks_errors_first():
     assert op.cell_status(1, 0) == "done"
 
 
+def test_cell_cascade_role_distinguishes_proxy_and_oracle():
+    op = OpState("s", "s/f", "filter")
+    op.status = "done"
+    op.out_count = 3
+    op.cascade_info = {
+        "item_escalated": [False, True, False, True, False],
+        "item_proxy_scores": [0.9, 0.3, 0.85, 0.4, 0.95],
+        "kept_input_indices": [0, 1, 4],
+    }
+    assert op.cell_cascade_role(0) == "proxy"   # input 0, not escalated
+    assert op.cell_cascade_role(1) == "oracle"  # input 1, escalated
+    assert op.cell_cascade_role(2) == "proxy"   # input 4, not escalated
+    assert op.cell_cascade_role(3) is None      # out of range
+
+
+def test_cell_cascade_role_returns_none_without_cascade():
+    op = OpState("s", "s/f", "filter")
+    op.status = "done"
+    op.out_count = 5
+    assert op.cell_cascade_role(0) is None
+
+
 def test_units_per_operator_type():
     assert get_profile("reduce").unit == "groups"
     assert get_profile("resolve").unit == "comparisons"

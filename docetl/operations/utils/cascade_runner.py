@@ -254,6 +254,7 @@ class CascadeMixin:
         proxy_cost: float = 0.0,
         oracle_cost: float = 0.0,
         proxy_scores: list[float] | None = None,
+        escalated: list[bool] | None = None,
     ) -> None:
         """Log a cost/escalation summary and stash stats for programmatic use."""
         self.cascade_stats = stats
@@ -274,7 +275,7 @@ class CascadeMixin:
 
         tracker = active_tracker()
         if tracker is not None:
-            tracker.set_cascade_info({
+            info = {
                 "proxy_model": proxy_model,
                 "oracle_model": oracle_model,
                 "guarantee": stats.guarantee,
@@ -292,7 +293,12 @@ class CascadeMixin:
                 "cached": cached_hit,
                 "calibration_calls": stats.calibration_calls,
                 "gap_verified": stats.gap_verified,
-            })
+            }
+            if escalated is not None:
+                info["item_escalated"] = escalated
+            if proxy_scores is not None:
+                info["item_proxy_scores"] = proxy_scores
+            tracker.set_cascade_info(info)
 
         name = self.config.get("name", "?")
         target_pct = f"{stats.target:.0%}"
@@ -426,14 +432,19 @@ class CascadeMixin:
             with cache as c:
                 cached = c.get(key)
             if cached is not None:
-                if len(cached) == 4:
+                if len(cached) == 5:
+                    result, total_cost, pc, oc, pscores = cached
+                elif len(cached) == 4:
                     result, total_cost, pc, oc = cached
+                    pscores = None
                 else:
                     result, total_cost = cached
-                    pc, oc = 0.0, 0.0
+                    pc, oc, pscores = 0.0, 0.0, None
                 self._report_cascade(
                     op_label, result.stats, total_cost, True,
                     proxy_cost=pc, oracle_cost=oc,
+                    proxy_scores=pscores,
+                    escalated=result.escalated,
                 )
                 return result, total_cost
 
@@ -505,8 +516,9 @@ class CascadeMixin:
             op_label, result.stats, total_cost, False,
             proxy_cost=cost["proxy"], oracle_cost=cost["oracle"],
             proxy_scores=cascade.proxy_scores,
+            escalated=result.escalated,
         )
 
         with cache as c:
-            c.set(key, (result, total_cost, cost["proxy"], cost["oracle"]))
+            c.set(key, (result, total_cost, cost["proxy"], cost["oracle"], cascade.proxy_scores))
         return result, total_cost

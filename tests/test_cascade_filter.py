@@ -177,6 +177,46 @@ def test_cascade_progress_ticks_tracker(cascade_cache):
         set_active_tracker(None)
 
 
+def test_cascade_stores_per_item_data_on_tracker():
+    from docetl.progress.tracker import ProgressTracker, set_active_tracker
+
+    tracker = ProgressTracker()
+    set_active_tracker(tracker)
+    tracker.op_start("op", "filter", "gpt-4o", total=60)
+    try:
+        data = make_data(n=60, every=3)
+        op, api = make_op(
+            cascade={
+                "proxy_model": "gpt-4o-mini",
+                "guarantee": "recall",
+                "target": 0.9,
+            }
+        )
+        kept, cost = op.execute(data)
+        snap = tracker.snapshot().get("op")
+
+        ci = snap.cascade_info
+        assert ci is not None
+        assert "item_escalated" in ci
+        assert "item_proxy_scores" in ci
+        assert "kept_input_indices" in ci
+
+        assert len(ci["item_escalated"]) == len(data)
+        assert len(ci["item_proxy_scores"]) == len(data)
+        assert len(ci["kept_input_indices"]) == len(kept)
+
+        for idx in ci["kept_input_indices"]:
+            assert 0 <= idx < len(data)
+
+        for esc in ci["item_escalated"]:
+            assert isinstance(esc, bool)
+
+        for score in ci["item_proxy_scores"]:
+            assert 0.0 <= score <= 1.0
+    finally:
+        set_active_tracker(None)
+
+
 def test_format_cascade_plan_lines():
     from docetl.operations.utils.cascade_runner import format_cascade_plan_lines
 

@@ -9,6 +9,7 @@ from pydantic import model_validator
 from docetl.operations.map import MapOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.api import OutputMode
+from docetl.progress.tracker import active_tracker
 
 # Re-exported for backwards compatibility; the canonical definition now lives in
 # cascade_runner so all operators share one config.
@@ -150,7 +151,10 @@ class FilterOperation(MapOperation):
             op_label="filter",
         )
 
-        kept = [
-            item for item, label in zip(input_data, result.labels) if bool(label)
-        ]
+        kept_indices = [i for i, lbl in enumerate(result.labels) if bool(lbl)]
+        tracker = active_tracker()
+        if tracker is not None:
+            tracker.update_cascade_info({"kept_input_indices": kept_indices})
+
+        kept = [input_data[i] for i in kept_indices]
         return kept, cost

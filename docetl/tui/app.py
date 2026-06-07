@@ -284,6 +284,12 @@ class DocetlTUI(App):
             t.append(
                 f"     page {self.page + 1}/{self._page_count} [PgDn]", style="grey50"
             )
+        if op.cascade_info and op.cascade_info.get("item_escalated"):
+            t.append("   ")
+            t.append(_DOT, style="green")
+            t.append(" proxy ", style="dim")
+            t.append(_DOT, style="cyan")
+            t.append(" oracle", style="dim")
         return t
 
     def _render_grid(self, state: RunState) -> Text:
@@ -367,6 +373,10 @@ class DocetlTUI(App):
             st = op.cell_status(idx, running_band)
             style = _STATUS_STYLE[st]
             glyph = _DOT if st != "queued" else _EMPTY
+            if st == "done":
+                role = op.cell_cascade_role(idx)
+                if role == "oracle":
+                    style = "cyan"
             if i == self.cursor and self.focus_pane == "grid":
                 out.append(glyph, style=style + " reverse")
             else:
@@ -455,7 +465,13 @@ class DocetlTUI(App):
         rows, prompt, provenance = self._doc_view(op, prof, idx, doc)
 
         out = Text()
-        out.append_text(_kv("status", "done", value_style="green"))
+        role = op.cell_cascade_role(idx)
+        if role == "oracle":
+            out.append_text(_kv("status", "done (oracle-verified)", value_style="cyan"))
+        elif role == "proxy":
+            out.append_text(_kv("status", "done (proxy-accepted)", value_style="green"))
+        else:
+            out.append_text(_kv("status", "done", value_style="green"))
         out.append("\n")
         for key, value in rows:
             # short scalars read best inline; long / multi-line values get their
@@ -467,6 +483,8 @@ class DocetlTUI(App):
                 for line in value.splitlines() or [""]:
                     out.append(f"  {line}\n", style="grey85")
         parts = [out]
+        if op.cascade_info:
+            parts.append(_render_cascade_doc(op.cascade_info, idx))
         if provenance:
             parts.append(_section("provenance", provenance))
         if prompt:
@@ -617,6 +635,38 @@ def _render_cascade_info(info: dict) -> Text:
     score_hist = info.get("score_hist")
     if score_hist:
         t.append_text(_render_score_bar(score_hist, threshold))
+
+    return t
+
+
+def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
+    """Per-document cascade info for the detail pane."""
+    t = Text()
+    t.append("\ncascade\n", style="bold magenta")
+
+    proxy_scores = cascade_info.get("item_proxy_scores", [])
+    escalated = cascade_info.get("item_escalated", [])
+    kept = cascade_info.get("kept_input_indices")
+
+    input_idx = output_idx
+    if kept and output_idx < len(kept):
+        input_idx = kept[output_idx]
+
+    if input_idx < len(proxy_scores):
+        score = proxy_scores[input_idx]
+        proxy_label = score > 0.5
+        t.append(f"  proxy label:      ", style="dim")
+        t.append(f"{proxy_label}\n", style="yellow")
+        t.append(f"  proxy confidence: ", style="dim")
+        t.append(f"{score:.3f}\n", style="yellow")
+
+    if input_idx < len(escalated):
+        if escalated[input_idx]:
+            t.append("  source: ", style="dim")
+            t.append("oracle-verified\n", style="cyan")
+        else:
+            t.append("  source: ", style="dim")
+            t.append("proxy-accepted\n", style="green")
 
     return t
 

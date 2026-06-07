@@ -138,6 +138,13 @@ class ProgressTracker:
                 self._current.cascade_info = info
         self._notify()
 
+    def update_cascade_info(self, updates: dict) -> None:
+        """Merge additional keys into the current op's cascade_info."""
+        with self._lock:
+            if self._current is not None and self._current.cascade_info is not None:
+                self._current.cascade_info.update(updates)
+        self._notify()
+
     def tick(self, n: int = 1) -> None:
         """Advance the current operation by ``n`` completed documents."""
         with self._lock:

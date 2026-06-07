@@ -79,6 +79,24 @@ class OpState:
             return self.grid_total
         return self.total or 0
 
+    def cell_cascade_role(self, index: int) -> str | None:
+        """Return 'proxy' or 'oracle' for the given cell, or None."""
+        if not self.cascade_info:
+            return None
+        escalated = self.cascade_info.get("item_escalated")
+        if not escalated:
+            return None
+        input_idx = index
+        if self.status == "done" and self.out_count is not None:
+            kept = self.cascade_info.get("kept_input_indices")
+            if kept and index < len(kept):
+                input_idx = kept[index]
+            else:
+                return None
+        if input_idx < len(escalated):
+            return "oracle" if escalated[input_idx] else "proxy"
+        return None
+
     def cell_status(self, index: int, running_band: int) -> DocStatus:
         """Synthesize a per-document status for the dot grid.
 

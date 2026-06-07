@@ -439,22 +439,12 @@ class OpContainer:
         return output_data, cost, curr_logs
 
     def syntax_check(self) -> str:
-        operation = self.config["name"]
-        operation_type = self.config["type"]
-
-        operation_class = get_operation(operation_type)
-        obj = operation_class(
-            self.runner,
-            self.config,
-            self.runner.default_model,
-            self.runner.max_threads,
-            self.runner.console,
-            self.runner.status,
-        )
-
-        obj.syntax_check()
-
-        return f"[green]✓[/green] Operation '{operation}' ({operation_type})"
+        op_cls = get_operation(self.config["type"])
+        op_cls(
+            self.runner, self.config, self.runner.default_model,
+            self.runner.max_threads, self.runner.console, self.runner.status,
+        ).syntax_check()
+        return f"[green]✓[/green] Operation '{self.config['name']}' ({self.config['type']})"
 
 
 class StepBoundary(OpContainer):

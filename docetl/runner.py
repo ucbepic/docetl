@@ -19,7 +19,6 @@ from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.display import format_execution_summary, format_query_plan
 from docetl.graph_builder import build_operation_graph, compute_operation_hashes
 from docetl.operations import get_operation
-from docetl.operations.base import BaseOperation
 from docetl.operations.utils import APIWrapper
 from docetl.optimizer import Optimizer
 from docetl.ratelimiter import create_bucket_factory
@@ -31,6 +30,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from docetl.api import Pipeline as PipelineType
+    from docetl.operations.base import BaseOperation
 
 load_dotenv()
 
@@ -475,18 +475,12 @@ class DSLRunner:
         input_data: list[dict[str, Any]] | dict[str, Any],
         return_instance: bool = False,
         is_build: bool = False,
-    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation, float]:
+    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation]:
         operation_class = get_operation(op_config["type"])
-
-        oc_kwargs = {
-            "runner": self,
-            "config": op_config,
-            "default_model": self.default_model,
-            "max_threads": self.max_threads,
-            "console": self.console,
-            "status": self.status,
-        }
-        operation_instance = operation_class(**oc_kwargs)
+        operation_instance = operation_class(
+            runner=self, config=op_config, default_model=self.default_model,
+            max_threads=self.max_threads, console=self.console, status=self.status,
+        )
         if op_config["type"] == "equijoin":
             output_data, cost = operation_instance.execute(
                 input_data["left_data"], input_data["right_data"]
@@ -506,16 +500,9 @@ class DSLRunner:
     def _flush_partial_results(
         self, operation_name: str, batch_index: int, data: list[dict]
     ) -> None:
-        if self.checkpoints:
-            path = self.checkpoints.flush_batch(operation_name, batch_index, data)
-        elif self.intermediate_dir:
-            batch_dir = os.path.join(self.intermediate_dir, f"{operation_name}_batches")
-            os.makedirs(batch_dir, exist_ok=True)
-            path = os.path.join(batch_dir, f"batch_{batch_index}.json")
-            with open(path, "w") as f:
-                json.dump(data, f)
-        else:
+        if not self.checkpoints:
             return
+        path = self.checkpoints.flush_batch(operation_name, batch_index, data)
         self.console.log(
             f"[green]✓[/green] [italic]Partial checkpoint saved for '{operation_name}', "
             f"batch {batch_index} at '{path}'[/italic]"

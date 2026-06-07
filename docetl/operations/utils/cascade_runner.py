@@ -253,20 +253,30 @@ class CascadeMixin:
                 "cached": cached_hit,
             })
 
+        cfg = self._cascade_cfg()
+        proxy_model = cfg["proxy_model"]
+        oracle_model = self.config.get("model", getattr(self, "default_model", "?"))
+        name = self.config.get("name", "?")
+        esc_pct = f"{stats.escalation_rate:.0%}"
+        target_pct = f"{stats.target:.0%}"
+
         self.console.log(
-            f"[bold green]Cascade {op_label} "
-            f"'{self.config.get('name', '?')}'[/bold green]{tag}: {stats.n_items} "
-            f"items | proxy {stats.proxy_calls} + oracle {stats.oracle_calls} "
-            f"(escalation {stats.escalation_rate:.0%}; {served_by_proxy} served by "
-            f"proxy) | guarantee={stats.guarantee} target={stats.target} "
-            f"delta={stats.delta} | cost=${cost:.4f}"
+            f"[bold magenta]Cascade[/bold magenta] {op_label} "
+            f"[bold]'{name}'[/bold]{tag}\n"
+            f"           [dim]proxy[/dim]     [cyan]{proxy_model}[/cyan] "
+            f"· {stats.proxy_calls} calls\n"
+            f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
+            f"· {stats.oracle_calls} calls\n"
+            f"           [dim]guarantee[/dim] [yellow]{stats.guarantee} "
+            f"≥ {target_pct}[/yellow]  [dim]δ={stats.delta}[/dim]\n"
+            f"           [dim]escalation[/dim] {esc_pct} "
+            f"· {served_by_proxy}/{stats.n_items} served by proxy\n"
+            f"           [dim]cost[/dim] [green]${cost:.4f}[/green]"
         )
         if stats.escalation_rate >= 0.95 and stats.n_items > 10:
             self.console.log(
-                f"[bold yellow]Warning:[/bold yellow] cascade escalated "
-                f"{stats.escalation_rate:.0%} of items to the oracle — the "
-                f"proxy saved almost no cost. The proxy model may be too weak "
-                f"or the label_budget too small for this dataset."
+                f"           [bold yellow]⚠ escalated {esc_pct} of items to "
+                f"oracle — proxy saved almost no cost[/bold yellow]"
             )
 
     def _run_categorical_cascade(

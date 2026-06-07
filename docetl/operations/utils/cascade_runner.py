@@ -364,7 +364,7 @@ class CascadeMixin:
             )
         elif is_calibrated:
             lines.append(
-                f"           [dim]threshold[/dim] [dim]n/a — all positives oracle-verified[/dim]"
+                f"           [dim]threshold[/dim] [dim]n/a — proxy not confident enough[/dim]"
             )
         else:
             lines.append(

@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from rich.console import Group
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
 from docetl.progress.events import OpState, RunState
@@ -53,6 +53,7 @@ class DocetlTUI(App):
     #ops { width: 40; border: round $primary; padding: 0 1; }
     #middle { border: round $primary; padding: 0 1; }
     #detail { width: 52; border: round $accent; padding: 0 1; }
+    #detail_body { width: 1fr; }
     #ops, #middle, #detail { border-title-align: center; border-title-color: $text-muted; }
     #grid_title { height: 1; color: $text-muted; }
     #grid { height: 1fr; }
@@ -89,7 +90,8 @@ class DocetlTUI(App):
             with Vertical(id="middle"):
                 yield Static(id="grid_title")
                 yield Static(id="grid")
-            yield Static(id="detail")
+            with VerticalScroll(id="detail"):
+                yield Static(id="detail_body")
 
     def on_mount(self) -> None:
         self.title = self._pipeline_label()
@@ -187,10 +189,11 @@ class DocetlTUI(App):
             self.query_one("#grid_title", Static).update(self._render_grid_title(state))
             self.query_one("#grid", Static).update(self._render_grid(state))
 
-            detail = self.query_one("#detail", Static)
+            detail_container = self.query_one("#detail", VerticalScroll)
+            detail_body = self.query_one("#detail_body", Static)
             title, body = self._render_detail(state)
-            detail.update(body)
-            detail.border_title = title
+            detail_body.update(body)
+            detail_container.border_title = title
         except Exception:
             # Widgets may not be mounted on the very first tick.
             pass
@@ -497,9 +500,9 @@ class DocetlTUI(App):
         out = Text()
         role = op.cell_cascade_role(idx)
         if role == "oracle":
-            out.append_text(_kv("status", "done (oracle-verified)", value_style="cyan"))
+            out.append_text(_kv("status", "done (oracle)", value_style="cyan"))
         elif role == "proxy":
-            out.append_text(_kv("status", "done (proxy-accepted)", value_style="green"))
+            out.append_text(_kv("status", "done (proxy)", value_style="green"))
         else:
             out.append_text(_kv("status", "done", value_style="green"))
         out.append("\n")
@@ -671,7 +674,7 @@ def _render_cascade_info(info: dict) -> Text:
     if threshold is not None and threshold >= 0.01:
         t.append(f"  threshold  {threshold:.3f}\n", style="yellow")
     elif "oracle_calls" in info and is_calibrated:
-        t.append("  threshold  n/a — all positives oracle-verified\n", style="dim")
+        t.append("  threshold  n/a — proxy not confident enough\n", style="dim")
 
     if not is_calibrated and "escalation_rate" in info:
         esc = info["escalation_rate"]
@@ -701,15 +704,7 @@ def _render_cascade_info(info: dict) -> Text:
 
 
 def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
-    """Per-document cascade info for the detail pane.
-
-    Binary mode (filter / precision / recall): ``item_proxy_scores`` are
-    P(positive). Score > 0.5 means the proxy predicted positive.
-
-    Multiclass mode (accuracy): ``item_proxy_scores`` are the proxy's
-    confidence in its chosen label. The actual label is in
-    ``item_proxy_labels``.
-    """
+    """Per-document cascade info for the detail pane."""
     t = Text()
 
     proxy_scores = cascade_info.get("item_proxy_scores", [])
@@ -731,30 +726,27 @@ def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
         if is_binary:
             proxy_label = score > 0.5
             confidence = max(score, 1.0 - score)
-            t.append("  proxy label:      ", style="dim")
-            t.append(f"{proxy_label}", style="yellow")
-            t.append(f"  ({confidence:.0%} confident)\n", style="grey70")
-            t.append("  P(positive):      ", style="dim")
-            t.append(f"{score:.3f}\n", style="yellow")
+            t.append("  proxy said:  ", style="dim")
+            t.append(f"{proxy_label}", style="green" if proxy_label else "red")
+            t.append(f"  ({confidence:.0%})\n", style="grey70")
         else:
             label = proxy_labels[input_idx] if input_idx < len(proxy_labels) else "?"
-            t.append("  proxy label:      ", style="dim")
+            t.append("  proxy said:  ", style="dim")
             t.append(f"{label}", style="yellow")
-            t.append(f"  ({score:.0%} confident)\n", style="grey70")
+            t.append(f"  ({score:.0%})\n", style="grey70")
 
-    if input_idx < len(escalated):
+    if input_idx < len(escalated) and escalated[input_idx]:
         if not has_data:
             t.append("cascade\n", style="bold magenta")
-        if escalated[input_idx]:
-            t.append("  source: ", style="dim")
-            t.append("oracle-verified\n", style="cyan")
-        else:
-            t.append("  source: ", style="dim")
-            t.append("proxy-accepted\n", style="green")
+        t.append("  decided by: ", style="dim")
+        t.append("oracle\n", style="cyan")
+    elif has_data:
+        t.append("  decided by: ", style="dim")
+        t.append("proxy\n", style="green")
 
     threshold = cascade_info.get("threshold")
     if threshold is not None and threshold >= 0.01:
-        t.append("  threshold:        ", style="dim")
+        t.append("  threshold:   ", style="dim")
         t.append(f"{threshold:.3f}\n", style="yellow")
 
     return t

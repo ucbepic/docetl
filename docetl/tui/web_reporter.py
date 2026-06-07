@@ -350,6 +350,14 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .op-name { color: var(--foreground); }
   .op-detail { color: var(--muted-foreground); font-size: 11px; }
   .op-cost { color: hsl(152 69% 31%); font-size: 11px; font-weight: 600; }
+  .op-bar {
+    position: absolute; bottom: 0; left: 0; height: 2px;
+    background: linear-gradient(90deg, var(--primary), hsl(173 58% 39%), var(--primary));
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+    transition: width .4s ease;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
   /* Main content area */
   .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
@@ -587,6 +595,9 @@ function updateOps(ops) {
     }
     if (op.cost > 0) parts += '<span class="op-cost">' + fmtCost(op.cost) + '</span>';
     if (op.elapsed >= 1) parts += '<span class="op-detail">' + fmtDur(op.elapsed) + '</span>';
+    if (op.status === 'running' && op.total) {
+      parts += '<span class="op-bar" style="width:' + pctWidth + '%"></span>';
+    }
     el.innerHTML = parts;
     strip.appendChild(el);
   });
@@ -925,7 +936,6 @@ function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('tab-table').classList.toggle('hidden', tab !== 'table');
   document.getElementById('tab-visualize').classList.toggle('hidden', tab !== 'visualize');
-  document.getElementById('ops-strip').classList.toggle('hidden', tab !== 'table');
   if (tab === 'visualize') renderVizPanel();
 }
 

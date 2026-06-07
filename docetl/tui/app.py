@@ -235,30 +235,51 @@ class DocetlTUI(App):
                 line.stylize("reverse")
             body.append_text(line)
             body.append("\n")
-            # Line 2: compact, dot-separated stats — only the parts that apply,
-            # short enough to never wrap the 36-wide panel.
-            frags: list[Text] = []
-            if op.phase:
-                frags.append(Text(op.phase, style="cyan"))
-            if op.total:
-                f = Text(f"{op.completed}/{op.total}", style="grey70")
-                if op.status == "running":
-                    f.append(f" {int(100 * op.completed / op.total)}%", style="yellow")
-                frags.append(f)
-            if op.cost:
-                frags.append(Text(_fmt_cost(op.cost), style="green"))
-            if op.status in ("done", "running") and op.elapsed >= 1:
-                frags.append(Text(_fmt_dur(op.elapsed), style="grey54"))
-            if op.errors:
-                frags.append(Text(f"!{op.errors}", style="red"))
-            if frags:
-                sub = Text("    ")
-                for j, f in enumerate(frags):
-                    if j:
-                        sub.append("   ")
-                    sub.append_text(f)
-                body.append_text(sub)
+            # Lines below the op label: compact stats.
+            ci = op.cascade_info if op.status == "done" else None
+            if ci:
+                # Cascade op finished: show proxy and oracle as sub-lines.
+                proxy_line = Text("    ")
+                proxy_line.append("proxy", style="green")
+                proxy_line.append(f"  {ci['proxy_calls']} scored", style="grey70")
+                proxy_line.append(f"  {_fmt_cost(ci.get('proxy_cost', 0))}", style="green")
+                body.append_text(proxy_line)
                 body.append("\n")
+
+                oracle_line = Text("    ")
+                oracle_line.append("oracle", style="cyan")
+                oracle_line.append(f"  {ci['oracle_calls']}", style="grey70")
+                budget = ci.get("label_budget")
+                if budget:
+                    oracle_line.append(f"/{budget}", style="grey70")
+                oracle_line.append(f"  {_fmt_cost(ci.get('oracle_cost', 0))}", style="green")
+                if op.elapsed >= 1:
+                    oracle_line.append(f"  {_fmt_dur(op.elapsed)}", style="grey54")
+                body.append_text(oracle_line)
+                body.append("\n")
+            else:
+                frags: list[Text] = []
+                if op.phase:
+                    frags.append(Text(op.phase, style="cyan"))
+                if op.total:
+                    f = Text(f"{op.completed}/{op.total}", style="grey70")
+                    if op.status == "running":
+                        f.append(f" {int(100 * op.completed / op.total)}%", style="yellow")
+                    frags.append(f)
+                if op.cost:
+                    frags.append(Text(_fmt_cost(op.cost), style="green"))
+                if op.status in ("done", "running") and op.elapsed >= 1:
+                    frags.append(Text(_fmt_dur(op.elapsed), style="grey54"))
+                if op.errors:
+                    frags.append(Text(f"!{op.errors}", style="red"))
+                if frags:
+                    sub = Text("    ")
+                    for j, f in enumerate(frags):
+                        if j:
+                            sub.append("   ")
+                        sub.append_text(f)
+                    body.append_text(sub)
+                    body.append("\n")
 
         return Group(head, body)
 

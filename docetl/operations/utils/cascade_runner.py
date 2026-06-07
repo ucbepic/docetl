@@ -129,14 +129,15 @@ class _CascadeProgress:
 
     def _start_proxy(self) -> None:
         label = f"proxy ({self.proxy_model})"
-        self._begin_phase(self.n_items, label)
+        n = self.n_items * 2 if self.guarantee == "precision+recall" else self.n_items
+        self._begin_phase(n, label)
 
     def tick_proxy(self) -> None:
         self._tick()
 
     def _oracle_total(self) -> int:
         """Upper bound on oracle calls for the live progress denominator."""
-        if self.guarantee == "accuracy":
+        if self.guarantee in ("accuracy", "precision+recall"):
             return self.n_items
         return min(self.n_items, self.label_budget)
 
@@ -304,22 +305,19 @@ class CascadeMixin:
             f"           [dim]guarantee[/dim] [yellow]{stats.guarantee} "
             f"≥ {target_pct}[/yellow]  [dim]δ={stats.delta}[/dim]"
         )
-        if stats.threshold is not None:
-            if stats.threshold < 0.01:
-                lines.append(
-                    f"           [dim]threshold[/dim] [bold yellow]none found[/bold yellow] "
-                    f"— proxy could not confidently separate items"
-                )
-            else:
-                lines.append(
-                    f"           [dim]threshold[/dim] [yellow]{stats.threshold:.3f}[/yellow] "
-                    f"proxy confidence"
-                )
+        if stats.threshold is not None and stats.threshold >= 0.01:
+            lines.append(
+                f"           [dim]threshold[/dim] [yellow]{stats.threshold:.3f}[/yellow] "
+                f"proxy confidence"
+            )
+        elif is_calibrated:
+            lines.append(
+                f"           [dim]threshold[/dim] [dim]n/a — all positives oracle-verified[/dim]"
+            )
         else:
-            if is_calibrated:
-                lines.append(
-                    f"           [dim]threshold[/dim] [dim]all positives oracle-verified[/dim]"
-                )
+            lines.append(
+                f"           [dim]threshold[/dim] [dim]n/a[/dim]"
+            )
         if is_calibrated:
             lines.append(
                 f"           [dim]result[/dim]   {stats.n_items - served_by_proxy} "

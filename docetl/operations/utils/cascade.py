@@ -314,6 +314,7 @@ class CategoricalCascade:
             self._console.log("[dim]Cascade: determining confidence threshold...[/dim]")
 
         labels, used_oracle = bargain.process(items, return_oracle_usage=True)
+        threshold = self._compute_accuracy_threshold(proxy, used_oracle)
 
         if self._console:
             n_oracle = sum(used_oracle)
@@ -321,12 +322,25 @@ class CategoricalCascade:
                 f"[dim]Cascade: threshold found — {n_oracle}/{len(items)} "
                 f"items escalated to oracle[/dim]"
             )
-
         return CascadeResult(
             labels=labels,
             escalated=used_oracle,
-            stats=self._make_stats(len(items), proxy, oracle),
+            stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
         )
+
+    @staticmethod
+    def _compute_accuracy_threshold(proxy, used_oracle) -> float | None:
+        """Min proxy confidence among items trusted (not escalated) by BARGAIN_A."""
+        min_conf = float("inf")
+        for i, esc in enumerate(used_oracle):
+            if esc:
+                continue
+            entry = proxy.preds_dict.get(i)
+            if entry is None:
+                continue
+            _, score = entry
+            min_conf = min(min_conf, score)
+        return min_conf if min_conf != float("inf") else None
 
     # ------------------------------------------------------------------
     # Precision guarantee via BARGAIN_P

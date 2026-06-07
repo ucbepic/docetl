@@ -590,13 +590,12 @@ def _render_cascade_info(info: dict) -> Text:
     t.append(f"  {guarantee} ≥ {target:.0%}", style="yellow")
     t.append(f"  δ={info['delta']}\n", style="grey70")
     threshold = info.get("threshold")
-    if threshold is not None:
-        if threshold < 0.01:
-            t.append("  threshold  none found — all items kept\n", style="bold yellow")
-        else:
-            t.append(f"  threshold  {threshold:.3f}\n", style="yellow")
+    if threshold is not None and threshold >= 0.01:
+        t.append(f"  threshold  {threshold:.3f}\n", style="yellow")
     elif is_calibrated:
-        t.append("  threshold  all positives oracle-verified\n", style="dim")
+        t.append("  threshold  n/a — all positives oracle-verified\n", style="dim")
+    else:
+        t.append("  threshold  n/a\n", style="dim")
     if not is_calibrated:
         esc = info["escalation_rate"]
         served = info["served_by_proxy"]
@@ -635,7 +634,7 @@ def _render_score_bar(hist: list[int], threshold: float | None) -> Text:
         if threshold is not None and threshold >= 0.01 and bin_center >= threshold:
             t.append(_HIST_CHARS[level], style="green")
         else:
-            t.append(_HIST_CHARS[level], style="grey50")
+            t.append(_HIST_CHARS[level], style="bright_cyan" if level > 0 else "grey42")
     t.append("\n")
 
     axis_pad = pad + " " * len(label)

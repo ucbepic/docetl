@@ -261,71 +261,96 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DocETL Monitor</title>
 <style>
+  :root {
+    --bg: hsl(211 100% 98%);
+    --fg: hsl(211 5% 10%);
+    --primary: hsl(211 100% 50%);
+    --primary-fg: #fff;
+    --muted: hsl(211 20% 94%);
+    --muted-fg: hsl(211 5% 40%);
+    --border: hsl(211 20% 86%);
+    --card: #fff;
+    --card-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --success: hsl(152 69% 31%);
+    --warning: hsl(38 92% 50%);
+    --destructive: hsl(346 87% 44%);
+    --radius: 8px;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px;
-         background: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; }
+  body { font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; font-size: 14px;
+         background: var(--bg); color: var(--fg); display: flex; flex-direction: column; height: 100vh; }
 
-  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px;
-           display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  header h1 { font-size: 15px; color: #58a6ff; font-weight: 600; white-space: nowrap; }
-  .stats { color: #8b949e; font-size: 12px; display: flex; gap: 16px; }
-  .stats .cost { color: #3fb950; }
+  header { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 24px;
+           display: flex; align-items: center; gap: 16px; flex-wrap: wrap; box-shadow: var(--card-shadow); }
+  header h1 { font-size: 16px; color: var(--primary); font-weight: 700; white-space: nowrap; }
+  .stats { color: var(--muted-fg); font-size: 13px; display: flex; gap: 16px; }
+  .stats .cost { color: var(--success); font-weight: 600; }
 
-  .pipeline-fb { display: flex; gap: 8px; flex: 1; min-width: 300px; }
-  .pipeline-fb input { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-                        color: #c9d1d9; padding: 6px 10px; font-family: inherit; font-size: 12px; }
-  .pipeline-fb input:focus { border-color: #58a6ff; outline: none; }
+  .pipeline-fb { display: flex; gap: 8px; flex: 1; min-width: 280px; }
+  .pipeline-fb input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+                        color: var(--fg); padding: 7px 12px; font-family: inherit; font-size: 13px; }
+  .pipeline-fb input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px hsla(211,100%,50%,.15); }
 
-  .btn { background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9;
-         padding: 6px 14px; cursor: pointer; font-family: inherit; font-size: 12px; white-space: nowrap; }
-  .btn:hover { background: #30363d; }
-  .btn.danger { border-color: #f85149; color: #f85149; }
-  .btn.danger:hover { background: #f8514922; }
-  .btn.primary { border-color: #58a6ff; color: #58a6ff; }
+  .btn { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); color: var(--fg);
+         padding: 7px 16px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500;
+         white-space: nowrap; transition: background .15s, border-color .15s; }
+  .btn:hover { background: var(--muted); }
+  .btn.danger { border-color: var(--destructive); color: var(--destructive); }
+  .btn.danger:hover { background: hsl(346 87% 44% / .08); }
+  .btn.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+  .btn.primary:hover { background: hsl(211 100% 42%); }
 
   .main { display: flex; flex: 1; overflow: hidden; }
 
-  .sidebar { width: 260px; min-width: 200px; background: #161b22; border-right: 1px solid #30363d;
-             padding: 12px; overflow-y: auto; }
-  .sidebar h2 { font-size: 11px; text-transform: uppercase; color: #8b949e; margin-bottom: 8px; letter-spacing: 0.5px; }
-  .op { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; }
-  .op:hover { background: #1c2128; }
-  .op .name { font-weight: 600; color: #c9d1d9; }
-  .op .meta { font-size: 11px; color: #8b949e; margin-top: 2px; }
-  .op .meta .cost { color: #3fb950; }
-  .op.running { border-left: 3px solid #d29922; }
-  .op.done { border-left: 3px solid #3fb950; }
-  .op.error { border-left: 3px solid #f85149; }
-  .op.queued { border-left: 3px solid #30363d; }
+  .sidebar { width: 260px; min-width: 220px; background: var(--card); border-right: 1px solid var(--border);
+             padding: 16px; overflow-y: auto; }
+  .sidebar h2 { font-size: 11px; text-transform: uppercase; color: var(--muted-fg); margin-bottom: 10px;
+                letter-spacing: .6px; font-weight: 600; }
+  .op { padding: 10px 12px; border-radius: var(--radius); margin-bottom: 4px; transition: background .1s; }
+  .op:hover { background: var(--muted); }
+  .op .name { font-weight: 600; font-size: 13px; }
+  .op .meta { font-size: 12px; color: var(--muted-fg); margin-top: 3px; }
+  .op .meta .cost { color: var(--success); font-weight: 600; }
+  .op.running { border-left: 3px solid var(--warning); }
+  .op.done { border-left: 3px solid var(--success); }
+  .op.error { border-left: 3px solid var(--destructive); }
+  .op.queued { border-left: 3px solid var(--border); }
 
-  .content { flex: 1; overflow-y: auto; padding: 16px 20px; }
-  .content h2 { font-size: 11px; text-transform: uppercase; color: #8b949e; margin-bottom: 12px; letter-spacing: 0.5px; }
+  .content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .content h2 { font-size: 11px; text-transform: uppercase; color: var(--muted-fg); margin-bottom: 14px;
+                letter-spacing: .6px; font-weight: 600; }
 
-  .doc-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-              margin-bottom: 12px; overflow: hidden; }
-  .doc-header { padding: 10px 14px; background: #1c2128; border-bottom: 1px solid #30363d;
+  .doc-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+              margin-bottom: 14px; box-shadow: var(--card-shadow); overflow: hidden;
+              animation: fadeIn .3s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .doc-header { padding: 12px 16px; border-bottom: 1px solid var(--border);
                 display: flex; justify-content: space-between; align-items: center; }
-  .doc-header .label { font-weight: 600; color: #58a6ff; font-size: 12px; }
-  .doc-header .op-tag { font-size: 11px; color: #8b949e; background: #21262d;
-                        padding: 2px 8px; border-radius: 10px; }
-  .doc-fields { padding: 12px 14px; }
-  .field { margin-bottom: 6px; }
-  .field .key { color: #79c0ff; font-weight: 600; }
-  .field .val { color: #c9d1d9; white-space: pre-wrap; word-break: break-word; }
-  .doc-fb { padding: 10px 14px; border-top: 1px solid #30363d; display: flex; gap: 8px; }
-  .doc-fb input { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-                  color: #c9d1d9; padding: 5px 10px; font-family: inherit; font-size: 12px; }
-  .doc-fb input:focus { border-color: #58a6ff; outline: none; }
-  .fb-sent { color: #3fb950; font-size: 11px; padding: 6px 0; }
+  .doc-header .label { font-weight: 600; color: var(--primary); font-size: 13px; }
+  .doc-header .op-tag { font-size: 11px; color: var(--muted-fg); background: var(--muted);
+                        padding: 2px 10px; border-radius: 999px; font-weight: 500; }
+  .doc-fields { padding: 14px 16px; }
+  .field { margin-bottom: 8px; line-height: 1.5; }
+  .field .key { color: var(--primary); font-weight: 600; font-size: 13px; }
+  .field .val { color: var(--fg); white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+  .doc-fb { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px;
+            background: hsl(211 100% 98% / .5); }
+  .doc-fb input { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+                  color: var(--fg); padding: 6px 12px; font-family: inherit; font-size: 13px; }
+  .doc-fb input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px hsla(211,100%,50%,.15); }
+  .fb-sent { color: var(--success); font-size: 12px; padding: 7px 0; font-weight: 500; }
 
-  .banner { background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
-            padding: 16px 20px; margin-bottom: 16px; text-align: center; }
-  .banner.done { border-color: #3fb950; }
-  .banner.killed { border-color: #f85149; }
-  .banner .big { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .banner { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+            padding: 20px 24px; margin-bottom: 16px; text-align: center; box-shadow: var(--card-shadow); }
+  .banner.done { border-color: var(--success); }
+  .banner .big { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
 
-  footer { background: #161b22; border-top: 1px solid #30363d; padding: 8px 20px;
-           font-size: 11px; color: #8b949e; display: flex; gap: 20px; }
+  footer { background: var(--card); border-top: 1px solid var(--border); padding: 8px 24px;
+           font-size: 12px; color: var(--muted-fg); display: flex; gap: 20px; }
+
+  .progress-bar { height: 4px; background: var(--muted); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), hsl(270 80% 60%));
+                   border-radius: 2px; transition: width .3s ease; }
 </style>
 </head>
 <body>
@@ -338,10 +363,11 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     <span>Ops: <span id="h-ops">0/0</span></span>
   </div>
   <div class="pipeline-fb">
-    <input type="text" id="pipeline-fb-input" placeholder="Pipeline-level feedback (e.g. 'prompts are too aggressive')">
-    <button class="btn primary" onclick="sendPipelineFeedback()">Send</button>
+    <input type="text" id="pipeline-fb-input" placeholder="Pipeline-level feedback (e.g. 'prompts are too aggressive')"
+           onkeydown="if(event.key==='Enter')sendPipelineFeedback()">
+    <button class="btn primary" onclick="sendPipelineFeedback()">Send Feedback</button>
   </div>
-  <button class="btn danger" id="kill-btn" onclick="killPipeline()">Kill Pipeline</button>
+  <button class="btn danger" id="kill-btn" onclick="killPipeline()">Stop Pipeline</button>
 </header>
 
 <div class="main">
@@ -357,7 +383,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 
 <footer>
   <span id="f-status">Connecting…</span>
-  <span id="f-feedback">Feedback: 0</span>
+  <span id="f-feedback">Feedback: 0 items</span>
 </footer>
 
 <script>
@@ -396,11 +422,18 @@ function updateOps(ops) {
       const pct = Math.round(100 * op.completed / op.total);
       meta += op.completed + '/' + op.total + ' (' + pct + '%)';
     }
-    if (op.cost > 0) meta += (meta ? '  ' : '') + '<span class="cost">' + fmtCost(op.cost) + '</span>';
-    if (op.elapsed >= 1) meta += (meta ? '  ' : '') + fmtDur(op.elapsed);
-    if (op.errors) meta += '  <span style="color:#f85149">!' + op.errors + '</span>';
+    if (op.cost > 0) meta += (meta ? ' &middot; ' : '') + '<span class="cost">' + fmtCost(op.cost) + '</span>';
+    if (op.elapsed >= 1) meta += (meta ? ' &middot; ' : '') + fmtDur(op.elapsed);
+    if (op.errors) meta += ' &middot; <span style="color:var(--destructive)">!' + op.errors + '</span>';
+
+    let progress = '';
+    if (op.status === 'running' && op.total) {
+      const pct = Math.round(100 * op.completed / op.total);
+      progress = '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>';
+    }
+
     el.innerHTML = '<div class="name">' + glyph + ' ' + op.op_type + ':' + op.name.split('/').pop() + '</div>' +
-                   (meta ? '<div class="meta">' + meta + '</div>' : '');
+                   (meta ? '<div class="meta">' + meta + '</div>' : '') + progress;
     opsList.appendChild(el);
   });
 }
@@ -431,7 +464,6 @@ function addDocs(docs) {
       '</div>';
     docsList.appendChild(card);
   });
-  // Auto-scroll to bottom
   const content = document.getElementById('content');
   content.scrollTop = content.scrollHeight;
 }
@@ -453,7 +485,7 @@ function sendDocFeedback(idx) {
     body: JSON.stringify({op_name: doc.op_name, doc_index: doc.doc_index, doc_snapshot: doc.fields, text: text})
   });
   const row = document.getElementById('fb-row-' + idx);
-  row.innerHTML = '<span class="fb-sent">✓ Feedback sent: "' + escHtml(text) + '"</span>';
+  row.innerHTML = '<span class="fb-sent">✓ Feedback sent: “' + escHtml(text) + '”</span>';
 }
 
 function sendPipelineFeedback() {
@@ -470,7 +502,7 @@ function sendPipelineFeedback() {
 }
 
 function killPipeline() {
-  const reason = prompt('Reason for killing the pipeline (optional):') || '';
+  const reason = prompt('Reason for stopping the pipeline (optional):') || '';
   if (killed) return;
   killed = true;
   fetch('/kill', {
@@ -478,11 +510,12 @@ function killPipeline() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({reason: reason})
   });
-  document.getElementById('kill-btn').textContent = 'Killing…';
-  document.getElementById('kill-btn').disabled = true;
+  const btn = document.getElementById('kill-btn');
+  btn.textContent = 'Stopping…';
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
 }
 
-// SSE connection
 const evtSource = new EventSource('/events');
 evtSource.onmessage = function(e) {
   const data = JSON.parse(e.data);
@@ -490,15 +523,15 @@ evtSource.onmessage = function(e) {
   if (data.new_docs.length) addDocs(data.new_docs);
   document.getElementById('h-cost').textContent = fmtCost(data.total_cost);
   document.getElementById('h-time').textContent = fmtDur(data.elapsed);
-  document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
+  document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count + ' item' + (data.feedback_count === 1 ? '' : 's');
   document.getElementById('f-status').textContent = data.finished ? 'Pipeline complete' : 'Running';
 
   if (data.finished && !finished) {
     finished = true;
     const banner = document.createElement('div');
     banner.className = 'banner done';
-    banner.innerHTML = '<div class="big" style="color:#3fb950">✓ Pipeline Complete</div>' +
-                       '<div>' + fmtCost(data.total_cost) + '  ' + fmtDur(data.elapsed) + '</div>';
+    banner.innerHTML = '<div class="big" style="color:var(--success)">✓ Pipeline Complete</div>' +
+                       '<div style="color:var(--muted-fg)">' + fmtCost(data.total_cost) + ' &middot; ' + fmtDur(data.elapsed) + '</div>';
     docsList.prepend(banner);
     document.getElementById('kill-btn').style.display = 'none';
   }

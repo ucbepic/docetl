@@ -245,7 +245,12 @@ class CategoricalCascade:
 
     @staticmethod
     def _extract_proxy_scores(proxy) -> list[float]:
-        """Extract proxy confidence scores (P(positive)) in item order."""
+        """Extract proxy confidence scores in item order.
+
+        For binary mode (pred in {0, 1}), returns P(positive).
+        For accuracy mode (pred is an arbitrary label), returns the raw
+        proxy confidence in its chosen label.
+        """
         if not proxy.preds_dict:
             return []
         max_idx = max(proxy.preds_dict.keys())
@@ -256,7 +261,10 @@ class CategoricalCascade:
                 scores.append(0.5)
                 continue
             pred, score = entry
-            scores.append(pred * score + (1 - pred) * (1 - score))
+            if isinstance(pred, (int, float)):
+                scores.append(pred * score + (1 - pred) * (1 - score))
+            else:
+                scores.append(score)
         return scores
 
     def _make_stats(

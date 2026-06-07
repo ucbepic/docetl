@@ -61,9 +61,9 @@ def test_parse_picks_argmax_label():
     assert prob == pytest.approx(0.9, abs=1e-9)
 
 
-def test_parse_softmax_normalizes_over_menu_tokens_only():
-    # A non-menu token ("the") in the alternatives is ignored; the remaining
-    # menu tokens are renormalized.
+def test_parse_uses_raw_logprob_ignoring_off_menu_tokens():
+    # A non-menu token ("the") in the alternatives is ignored; the chosen
+    # label's raw model probability is returned (not renormalized).
     resp = make_response(
         "2",
         [
@@ -74,8 +74,7 @@ def test_parse_softmax_normalizes_over_menu_tokens_only():
     )
     label, prob = APIWrapper._parse_logprob_response(resp, {"1": "a", "2": "b"})
     assert label == "b"
-    # 0.3 / (0.2 + 0.3) = 0.6 after dropping the off-menu mass.
-    assert prob == pytest.approx(0.6, abs=1e-9)
+    assert prob == pytest.approx(0.3, abs=1e-9)
 
 
 def test_parse_strips_whitespace_on_tokens():
@@ -93,8 +92,7 @@ def test_parse_falls_back_to_chosen_token_without_top_logprobs():
     )
     label, prob = APIWrapper._parse_logprob_response(resp, {"1": "a", "2": "b"})
     assert label == "b"
-    # Only one menu token present -> normalizes to 1.0.
-    assert prob == pytest.approx(1.0, abs=1e-9)
+    assert prob == pytest.approx(0.7, abs=1e-9)
 
 
 def test_parse_raises_when_no_logprobs():

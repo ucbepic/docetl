@@ -1105,9 +1105,12 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         Map a logprobs completion response to ``(label, prob)``.
 
         Pure (no I/O): looks at the alternatives for the first generated token,
-        keeps those that match a menu digit, softmax-normalizes their logprobs,
-        and returns the argmax label with its probability. Kept separate from
-        the network call so it can be unit-tested with synthetic responses.
+        keeps those that match a menu digit, and returns the argmax label with
+        its raw model probability ``exp(logprob)``. Using the raw probability
+        instead of softmax-renormalizing over menu tokens preserves meaningful
+        confidence variation even when only one menu token appears in
+        top_logprobs (common for confident binary predictions). Kept separate
+        from the network call so it can be unit-tested with synthetic responses.
         """
         try:
             content_lp = response.choices[0].logprobs.content
@@ -1145,12 +1148,9 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
 
         present_labels = list(logp_by_label)
         logps = [logp_by_label[lbl] for lbl in present_labels]
-        m = max(logps)
-        exps = [math.exp(lp - m) for lp in logps]
-        total = sum(exps)
-        probs = [e / total for e in exps]
-        best = max(range(len(present_labels)), key=lambda i: probs[i])
-        return present_labels[best], probs[best]
+        best = max(range(len(present_labels)), key=lambda i: logps[i])
+        prob = math.exp(logps[best])
+        return present_labels[best], prob
 
     def parse_llm_response(
         self,

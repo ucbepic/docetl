@@ -15,12 +15,12 @@ import pyrate_limiter
 from dotenv import load_dotenv
 from pyrate_limiter import BucketFullException, LimiterDelayException
 from pydantic import BaseModel
-from rich.markup import escape
 from rich.panel import Panel
 
 from docetl.console import get_console
 from docetl.containers import OpContainer, StepBoundary
 from docetl.dataset import Dataset, create_parsing_tool_map
+from docetl.display import format_execution_summary, format_query_plan
 from docetl.graph_builder import build_operation_graph, compute_operation_hashes
 from docetl.operations import get_operation, get_operations
 from docetl.operations.base import BaseOperation
@@ -335,98 +335,19 @@ class DSLRunner:
         self.console.log("[green]✓ All operations passed syntax check[/green]")
 
     def print_query_plan(self, show_boundaries=False):
-        """
-        Print a visual representation of the entire query plan using indentation and arrows.
-        Operations are color-coded by step to show the pipeline structure while maintaining
-        dependencies between steps.
-        """
         if not self.last_op_container:
             self.console.log("\n[bold]Pipeline Steps:[/bold]")
-            self.console.log(
-                Panel("No operations in pipeline", title="Query Plan", width=100)
-            )
+            self.console.log(Panel("No operations in pipeline", title="Query Plan", width=100))
             self.console.log()
             return
 
-        def _print_op(
-            op: OpContainer, indent: int = 0, step_colors: dict[str, str] | None = None
-        ) -> str:
-            # Handle boundary operations based on show_boundaries flag
-            if isinstance(op, StepBoundary):
-                if show_boundaries:
-                    output = []
-                    indent_str = "  " * indent
-                    step_name = op.step_name
-                    color = step_colors.get(step_name, "white")
-                    output.append(
-                        f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]"
-                    )
-                    output.append(f"{indent_str}Type: step_boundary")
-                    if op.children:
-                        output.append(f"{indent_str}[yellow]▼[/yellow]")
-                        for child in op.children:
-                            output.append(_print_op(child, indent + 1, step_colors))
-                    return "\n".join(output)
-                elif op.children:
-                    return _print_op(op.children[0], indent, step_colors)
-                return ""
-
-            # Build the string for the current operation with indentation
-            indent_str = "  " * indent
-            output = []
-
-            # Color code the operation name based on its step
-            step_name = op.step_name
-            color = step_colors.get(step_name, "white")
-            output.append(f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]")
-            output.append(f"{indent_str}Type: {op.config['type']}")
-
-            # Add schema if available
-            if "output" in op.config and "schema" in op.config["output"]:
-                output.append(f"{indent_str}Output Schema:")
-                for field, field_type in op.config["output"]["schema"].items():
-                    escaped_type = escape(str(field_type))
-                    output.append(
-                        f"{indent_str}  {field}: [bright_white]{escaped_type}[/bright_white]"
-                    )
-
-            # Add children
-            if op.children:
-                if op.is_equijoin:
-                    output.append(f"{indent_str}[yellow]▼ LEFT[/yellow]")
-                    output.append(_print_op(op.children[0], indent + 1, step_colors))
-                    output.append(f"{indent_str}[yellow]▼ RIGHT[/yellow]")
-                    output.append(_print_op(op.children[1], indent + 1, step_colors))
-                else:
-                    output.append(f"{indent_str}[yellow]▼[/yellow]")
-                    for child in op.children:
-                        output.append(_print_op(child, indent + 1, step_colors))
-
-            return "\n".join(output)
-
-        # Get all step boundaries and extract unique step names
-        step_boundaries = [
-            op
-            for name, op in self.op_container_map.items()
-            if isinstance(op, StepBoundary)
-        ]
-        step_boundaries.sort(key=lambda x: x.name)
-
-        # Create a color map for steps - using distinct colors
-        colors = ["cyan", "magenta", "green", "yellow", "blue", "red"]
-        step_names = [b.step_name for b in step_boundaries]
-        step_colors = {
-            name: colors[i % len(colors)] for i, name in enumerate(step_names)
-        }
-
-        # Print the legend
+        step_colors, plan_text = format_query_plan(
+            self.last_op_container, self.op_container_map, show_boundaries
+        )
         self.console.log("\n[bold]Pipeline Steps:[/bold]")
         for step_name, color in step_colors.items():
             self.console.log(f"[{color}]■[/{color}] {step_name}")
-
-        # Print the full query plan starting from the last step boundary
-        query_plan = _print_op(self.last_op_container, step_colors=step_colors)
-        self.console.log(Panel(query_plan, title="Query Plan", width=100))
+        self.console.log(Panel(plan_text, title="Query Plan", width=100))
         self.console.log()
 
     def find_operation(self, op_name: str) -> dict:
@@ -508,42 +429,12 @@ class DSLRunner:
 
         execution_time = time.time() - start_time
 
-        # Print execution summary
-        token_usage_lines = ""
-        if self.total_token_usage:
-            token_usage_lines = "\n[bold]Token Usage:[/bold]\n"
-            total_prompt = 0
-            total_completion = 0
-            total_cached = 0
-            for model, usage in sorted(self.total_token_usage.items()):
-                prompt = usage["prompt_tokens"]
-                completion = usage["completion_tokens"]
-                cached = usage.get("cached_tokens", 0)
-                total_prompt += prompt
-                total_completion += completion
-                total_cached += cached
-                line = f"  {model}: [cyan]{prompt:,}[/cyan] input"
-                if cached:
-                    line += f" ([dim]{cached:,} cached[/dim])"
-                line += f", [cyan]{completion:,}[/cyan] output"
-                token_usage_lines += line + "\n"
-            if len(self.total_token_usage) > 1:
-                total_line = f"  [bold]Total: [cyan]{total_prompt:,}[/cyan] input"
-                if total_cached:
-                    total_line += f" ([dim]{total_cached:,} cached[/dim])"
-                total_line += f", [cyan]{total_completion:,}[/cyan] output[/bold]"
-                token_usage_lines += total_line + "\n"
-
-        summary = (
-            f"Cost: [green]${self.total_cost:.2f}[/green]\n"
-            f"Time: {execution_time:.2f}s\n"
-            + token_usage_lines
-            + (
-                f"Cache: [dim]{self.intermediate_dir}[/dim]\n"
-                if self.intermediate_dir
-                else ""
-            )
-            + f"Output: [dim]{output_path}[/dim]"
+        summary = format_execution_summary(
+            self.total_cost,
+            execution_time,
+            self.total_token_usage,
+            self.intermediate_dir,
+            output_path,
         )
         self.console.log(Panel(summary, title="Execution Summary"))
 

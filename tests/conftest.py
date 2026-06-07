@@ -1,6 +1,5 @@
 import pytest
 from docetl.operations.map import MapOperation
-from docetl.config_wrapper import ConfigWrapper
 from docetl.runner import DSLRunner
 
 # =============================================================================

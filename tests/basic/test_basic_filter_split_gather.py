@@ -6,7 +6,6 @@ from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.split import SplitOperation
 from docetl.operations.gather import GatherOperation
 from docetl.operations.utils import APIWrapper
-from docetl.config_wrapper import ConfigWrapper
 from dotenv import load_dotenv
 from tests.conftest import runner
 

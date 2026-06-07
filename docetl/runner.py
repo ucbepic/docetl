@@ -25,6 +25,7 @@ The architecture prioritizes:
 
 from __future__ import annotations
 
+import datetime
 import functools
 import hashlib
 import json
@@ -34,20 +35,24 @@ import time
 from collections import defaultdict
 from typing import Any
 
+import pyrate_limiter
 from dotenv import load_dotenv
+from pyrate_limiter import BucketFullException, LimiterDelayException
 from pydantic import BaseModel
 from rich.markup import escape
 from rich.panel import Panel
 
-from docetl.config_wrapper import ConfigWrapper
+from docetl.console import get_console
 from docetl.containers import OpContainer, StepBoundary
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils import APIWrapper
 from docetl.optimizer import Optimizer
+from docetl.ratelimiter import create_bucket_factory
+from docetl.utils import classproperty, decrypt, load_config
 
 from . import schemas
-from .utils import classproperty
 
 # Avoid circular import — Pipeline is only needed for isinstance checks
 # and from_dict calls, so import lazily or use TYPE_CHECKING.
@@ -59,7 +64,7 @@ if TYPE_CHECKING:
 load_dotenv()
 
 
-class DSLRunner(ConfigWrapper):
+class DSLRunner:
     """
     DSLRunner orchestrates pipeline execution by building and traversing a DAG of OpContainers.
     The runner uses a two-phase approach:
@@ -113,6 +118,17 @@ class DSLRunner(ConfigWrapper):
     def json_schema(cls):
         return cls.schema.model_json_schema()
 
+    @classmethod
+    def from_yaml(cls, yaml_file: str, **kwargs):
+        if not yaml_file.endswith(".yaml") and not yaml_file.endswith(".yml"):
+            raise ValueError(
+                "Invalid file type. Please provide a YAML file ending with '.yaml' or '.yml'."
+            )
+        base_name = yaml_file.rsplit(".", 1)[0]
+        suffix = yaml_file.split("/")[-1].split(".")[0]
+        config = load_config(yaml_file)
+        return cls(config, base_name=base_name, yaml_file_suffix=suffix, **kwargs)
+
     def __init__(self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs):
         """
         Initialize the DSLRunner with a config dict or a typed ``Pipeline`` object.
@@ -139,13 +155,45 @@ class DSLRunner(ConfigWrapper):
         # match regardless of whether Pipeline was passed or dict was passed.
         self._raw_ops_list = config_dict.get("operations", [])
 
-        super().__init__(
-            config_dict,
-            base_name=kwargs.pop("base_name", None),
-            yaml_file_suffix=kwargs.pop("yaml_file_suffix", None),
-            max_threads=max_threads,
-            **kwargs,
+        # --- Config & runtime setup (formerly ConfigWrapper) ---
+        self.config = config_dict
+        self.base_name = kwargs.pop("base_name", None)
+        self.yaml_file_suffix = kwargs.pop("yaml_file_suffix", None) or (
+            datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         )
+        self.default_model = self.config.get("default_model", "gpt-4o-mini")
+        console = kwargs.pop("console", None)
+        if console:
+            self.console = console
+        else:
+            self.console = get_console()
+        self.max_threads = max_threads or (os.cpu_count() or 1) * 4
+        self.status = None
+
+        encrypted_llm_api_keys = self.config.get("llm_api_keys", {})
+        if encrypted_llm_api_keys:
+            self.llm_api_keys = {
+                key: decrypt(value, os.environ.get("DOCETL_ENCRYPTION_KEY", ""))
+                for key, value in encrypted_llm_api_keys.items()
+            }
+        else:
+            self.llm_api_keys = {}
+        self._original_env = os.environ.copy()
+        for key, value in self.llm_api_keys.items():
+            os.environ[key] = value
+
+        bucket_factory = create_bucket_factory(self.config.get("rate_limits", {}))
+        self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=200)
+        self.is_cancelled = False
+
+        self.fallback_models_config = self.config.get("fallback_models", [])
+        self.fallback_embedding_models_config = self.config.get("fallback_embedding_models", [])
+        self.router = self._create_router(self.fallback_models_config, "completion")
+        self.embedding_router = self._create_router(self.fallback_embedding_models_config, "embedding")
+        self._router_cache: dict[str, Any] = {}
+        self.api = APIWrapper(self)
+        # --- End config setup ---
+
         self.total_cost = 0
         self.total_token_usage = defaultdict(
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
@@ -170,6 +218,77 @@ class DSLRunner(ConfigWrapper):
         """Initialize basic runner state and datasets"""
         self.datasets = {}
         self.intermediate_dir = self.pipeline.output.intermediate_dir
+
+    def _create_router(self, fallback_models: list, router_type: str) -> Any | None:
+        if not fallback_models:
+            return None
+        try:
+            from litellm import Router
+        except ImportError:
+            self.console.log(
+                f"[yellow]Warning: LiteLLM Router not available. Fallback {router_type} models will be ignored.[/yellow]"
+            )
+            return None
+
+        model_list = []
+        fallback_model_names = []
+        for fallback_config in fallback_models:
+            if isinstance(fallback_config, dict):
+                model_name = fallback_config.get("model_name")
+                litellm_params = fallback_config.get("litellm_params", {})
+            elif isinstance(fallback_config, str):
+                model_name = fallback_config
+                litellm_params = {}
+            else:
+                continue
+            if not model_name:
+                continue
+            litellm_params_with_model = litellm_params.copy()
+            litellm_params_with_model["model"] = model_name
+            model_list.append({"model_name": model_name, "litellm_params": litellm_params_with_model})
+            fallback_model_names.append(model_name)
+
+        if not model_list:
+            return None
+        try:
+            router_kwargs = {"model_list": model_list}
+            if len(fallback_model_names) > 1:
+                fallbacks = []
+                for i, model_name in enumerate(fallback_model_names):
+                    if i < len(fallback_model_names) - 1:
+                        fallbacks.append({model_name: fallback_model_names[i + 1:]})
+                router_kwargs["fallbacks"] = fallbacks
+            router = Router(**router_kwargs)
+            self.console.log(
+                f"[green]Created LiteLLM {router_type} Router with {len(model_list)} fallback model(s) in order: {', '.join(fallback_model_names)}[/green]"
+            )
+            return router
+        except Exception as e:
+            self.console.log(
+                f"[yellow]Warning: Failed to create LiteLLM {router_type} Router: {e}. Fallback models will be ignored.[/yellow]"
+            )
+            return None
+
+    def reset_env(self):
+        os.environ = self._original_env
+
+    def blocking_acquire(self, key: str, weight: int, wait_time=0.5):
+        while True:
+            try:
+                self.rate_limiter.try_acquire(key, weight=weight)
+                return
+            except LimiterDelayException as e:
+                time_to_wait = e.meta_info["actual_delay"] / 1000
+                self.console.log(
+                    f"Rate limits met for {key}; sleeping for {max(time_to_wait, wait_time):.2f} seconds"
+                )
+                time.sleep(max(time_to_wait, wait_time))
+            except BucketFullException as e:
+                time_to_wait = e.meta_info["remaining_time"]
+                self.console.log(
+                    f"Rate limits met for {key}; sleeping for {max(time_to_wait, wait_time):.2f} seconds"
+                )
+                time.sleep(max(time_to_wait, wait_time))
 
     def _setup_parsing_tools(self) -> None:
         """Set up parsing tools from configuration"""

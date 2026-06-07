@@ -15,37 +15,16 @@ from docetl.utils import extract_output_from_json
 
 
 class Node:
-    """
-    A Node class for Monte Carlo Tree Search that represents a state in the search tree.
+    """MCTS node holding a pipeline config variant and its evaluation state."""
 
-    Each node holds:
-    - YAML file path and parsed content
-    - Visit count and value for UCB calculation
-    - Parent and children relationships
-    - Methods for tree traversal and expansion
-    """
-
-    # A class-level counter for unique IDs
     _id_counter = 0
 
     @classmethod
     def get_next_id(cls) -> int:
-        """
-        Get the next available ID from the counter without incrementing it.
-
-        Returns:
-            int: The next ID that would be assigned
-        """
         return cls._id_counter
 
     @classmethod
     def increment_id_counter(cls) -> int:
-        """
-        Increment the ID counter and return the new ID.
-
-        Returns:
-            int: The newly assigned ID
-        """
         new_id = cls._id_counter
         cls._id_counter += 1
         return new_id
@@ -60,16 +39,6 @@ class Node:
         is_multi_instance: bool = False,
         console=None,
     ):
-        """
-        Initialize a Node with YAML file information.
-
-        Args:
-            yaml_file_path: Path to the YAML configuration file
-            parent: Parent node in the search tree
-            c: Exploration constant for UCB calculation (default: sqrt(2))
-            is_multi_instance: Whether this node is a multi-instance candidate (default: False)
-            console: Console instance for logging (default: None, uses DOCETL_CONSOLE)
-        """
         from docetl.console import DOCETL_CONSOLE
 
         self.console = console if console is not None else DOCETL_CONSOLE
@@ -84,19 +53,10 @@ class Node:
         except Exception:
             self.result_path = None
         self.on_frontier = False
-        self.used_actions = {}
 
-        self.op_dict = {}  # Dict: op_name -> op
-        for op in self.parsed_yaml["operations"]:
-            op_name = op["name"]
-            self.op_dict[op_name] = op
-            self.used_actions[op_name] = set()
-
-        self.op_to_step = {}  # Dict: op_name -> step_name
-        for step in self.parsed_yaml.get("pipeline", {}).get("steps", []):
-            for op in step.get("operations", []):
-                name = op if isinstance(op, str) else list(op.keys())[0]
-                self.op_to_step[name] = step["name"]
+        self._pipeline = None
+        self.op_dict = {op["name"]: op for op in self.parsed_yaml.get("operations", [])}
+        self.used_actions = {name: set() for name in self.op_dict}
         self.visits = 0
         self.value = 0
         self.parent = parent
@@ -126,53 +86,48 @@ class Node:
             self.id = Node._id_counter
             Node._id_counter += 1
 
-    def execute_plan(self, max_threads: Optional[int] = None) -> tuple[float, list]:
-        """
-        This method execute the query plan by running the YAML file with docetl.
+    @property
+    def pipeline(self):
+        """Lazily create a typed Pipeline from the raw config."""
+        if self._pipeline is None:
+            from docetl.api import Pipeline
+            self._pipeline = Pipeline.from_dict(self.parsed_yaml)
+        return self._pipeline
 
-        Args:
-            max_threads (Optional[int]): Maximum number of threads to use for running operations.
+    @property
+    def op_to_step(self) -> dict[str, str]:
+        """Map op_name → step_name, derived from the typed pipeline."""
+        mapping = {}
+        for step in self.pipeline.steps:
+            for op in step.operations:
+                name = op if isinstance(op, str) else list(op.keys())[0]
+                mapping[name] = step.name
+        return mapping
 
-        Returns:
-            tuple[float, list]: A tuple containing (total_cost, result_data)
-
-        Raises:
-            Exception: If the pipeline execution fails.
-        """
-
+    def execute_plan(self, max_threads: Optional[int] = None) -> float:
         self.console.log(f"[dim]EXECUTING PLAN:[/dim] {self.yaml_file_path}")
 
-        # Get the current working directory (where the user called the command)
         cwd = os.getcwd()
-
-        # Load .env file from the current working directory if it exists
         env_file = os.path.join(cwd, ".env")
         if os.path.exists(env_file):
             load_dotenv(env_file)
 
         try:
-            runner = DSLRunner.from_yaml(self.yaml_file_path, max_threads=max_threads)
-
-            # Print the query plan
+            runner = DSLRunner(
+                self.parsed_yaml,
+                max_threads=max_threads,
+                base_name=str(self.yaml_file_path).rsplit(".", 1)[0],
+                yaml_file_suffix=os.path.basename(str(self.yaml_file_path)).split(".")[0],
+            )
             runner.print_query_plan()
-
-            # Load datasets and execute the pipeline
             runner.load()
 
-            # Execute the pipeline and get the result data
             if runner.last_op_container:
                 result_data, _, _ = runner.last_op_container.next()
                 runner.save(result_data)
-            else:
-                result_data = []
 
-            # Get the total cost
-            total_cost = runner.total_cost
-
-            # Reset the environment
+            self.cost = runner.total_cost
             runner.reset_env()
-
-            self.cost = total_cost
 
             try:
                 self.sample_result = extract_output_from_json(self.yaml_file_path)[:1]
@@ -182,7 +137,7 @@ class Node:
                 )
                 self.sample_result = []
 
-            return total_cost
+            return self.cost
 
         except Exception as e:
             self.cost = -1  # Indicate failure
@@ -194,13 +149,6 @@ class Node:
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")
 
     def _load_yaml(self) -> Dict[str, Any]:
-        """
-        Load and parse the YAML file.
-
-        Returns:
-            Parsed YAML content as a dictionary
-        """
-
         try:
             with open(self.yaml_file_path, "r", encoding="utf-8") as file:
                 return yaml.safe_load(file)
@@ -211,16 +159,6 @@ class Node:
             return {}
 
     def best_child(self) -> Node:
-        """
-        Return the child with the highest UCB (Upper Confidence Bound) value.
-        If there are ties, randomly select among the tied children.
-
-        UCB formula: value/visits + c * sqrt(ln(parent_visits) / visits)
-
-        Returns:
-            Child node with highest UCB, or None if no children exist
-        """
-
         def ucb(child: Node) -> float:
             if child.cost == -1 or child.visits == 0:
                 return float("-inf")
@@ -247,53 +185,20 @@ class Node:
         return random.choice(tied_children)
 
     def add_child(self, child: Node):
-        """
-        Add a new child node during tree expansion.
-
-        Args:
-            yaml_file_path: Path to the YAML file for the new child node
-
-        Returns:
-            The newly created child node
-        """
 
         self.children.append(child)
         child.parent = self
 
     def is_leaf(self) -> bool:
-        """
-        Check if this node is a leaf (has no children).
-
-        Returns:
-            True if the node has no children, False otherwise
-        """
         return len(self.children) == 0
 
     def mark_action_used(self, op_name, action: Directive):
-        """
-        Mark a rewrite action as used.
-
-        Args:
-            action: The action identifier to mark as used
-        """
         self.used_actions[op_name].add(action)
 
     def is_root(self) -> bool:
-        """
-        Check if this node is the root (has no parent).
-
-        Returns:
-            True if the node has no parent, False otherwise
-        """
         return self.parent is None
 
     def update_value(self, value: float):
-        """
-        Update the node's value (typically after a simulation).
-
-        Args:
-            value: The value to add to the current node value
-        """
         # Guard against NaN and -inf values to prevent corruption of node.value
         # Don't backpropagate -inf (failed evaluations) or NaN to parent nodes
         if (
@@ -314,18 +219,9 @@ class Node:
         self.value = self.value + value
 
     def update_visit(self):
-        """
-        Update the node's visit by 1 (typically after a simulation).
-        """
         self.visits += 1
 
     def get_ucb(self) -> float:
-        """
-        Calculate the UCB value for this node.
-
-        Returns:
-            UCB value for this node
-        """
         if self.visits == 0:
             return float("inf")
         if self.parent is None:
@@ -336,22 +232,9 @@ class Node:
         return exploitation + exploration
 
     def get_id(self) -> int:
-        """
-        Return the unique identifier for this node.
-        Returns:
-            int: The unique ID of the node
-        """
         return self.id
 
     def set_id_to_counter(self):
-        """
-        Change this node's ID to the next available counter ID.
-        This is used after selecting the best multi-instance candidate.
-        Also renames the associated files to match the new ID.
-
-        Returns:
-            int: The new ID assigned to this node
-        """
         old_id = self.id
         new_id = self.increment_id_counter()
 
@@ -364,14 +247,6 @@ class Node:
     def _log_inf_occurrence(
         self, failure_type: str, error_message: str, yaml_path: str
     ):
-        """
-        Log -inf occurrences to a dedicated log file for debugging.
-
-        Args:
-            failure_type: Type of failure (e.g., "execution_failure", "evaluation_failure")
-            error_message: The error message that caused the failure
-            yaml_path: Path to the YAML file that failed
-        """
         try:
             # Create log directory if it doesn't exist
             log_dir = os.path.join(os.path.dirname(yaml_path), "inf_logs")
@@ -411,13 +286,6 @@ class Node:
             )
 
     def _rename_files_for_new_id(self, old_id, new_id):
-        """
-        Rename the YAML and output files to match the new node ID.
-
-        Args:
-            old_id: The old node ID (e.g., "7-2")
-            new_id: The new node ID (e.g., 8)
-        """
         try:
             # Rename YAML file
             if os.path.exists(self.yaml_file_path):
@@ -645,6 +513,7 @@ class Node:
         self.parent = None
         self.children = []
         self.parsed_yaml = {}
+        self._pipeline = None
         self.message_history = []
         self.memo = []
         self.sample_result = []

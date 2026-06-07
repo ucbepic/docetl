@@ -232,13 +232,14 @@ class Pipeline:
         for op_cfg in config.get("operations", []):
             op_type = op_cfg.get("type")
             schema_cls = cls._OP_TYPE_REGISTRY.get(op_type)
+            filtered = {k: v for k, v in op_cfg.items() if v is not None}
             if schema_cls is not None:
-                filtered = {k: v for k, v in op_cfg.items() if v is not None}
-                operations.append(schema_cls(**filtered))
+                try:
+                    operations.append(schema_cls(**filtered))
+                except Exception:
+                    operations.append(MapOp.model_construct(**filtered))
             else:
-                # Unknown / plugin operation type — store as-is via MapOp
-                # with extra fields preserved through Pydantic's extra="allow"
-                operations.append(MapOp(**{k: v for k, v in op_cfg.items() if v is not None}))
+                operations.append(MapOp.model_construct(**filtered))
 
         steps = []
         for step_cfg in config.get("pipeline", {}).get("steps", []):

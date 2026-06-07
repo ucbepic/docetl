@@ -406,12 +406,8 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     font-size: 10px; color: var(--muted-foreground); margin-top: 2px;
     display: flex; justify-content: space-between;
   }
-  .col-histogram { height: 48px; margin-top: 4px; display: flex; align-items: flex-end; gap: 1px; }
-  .hist-bar {
-    flex: 1; background: var(--chart-2); border-radius: 2px 2px 0 0;
-    min-width: 0; transition: opacity .15s; cursor: default;
-  }
-  .hist-bar:hover { opacity: .7; }
+  .col-histogram { margin-top: 4px; }
+  .col-histogram svg { display: block; width: 100%; }
 
   .data-table td {
     padding: 8px 10px; border-bottom: 1px solid hsl(211 30% 92%);
@@ -458,14 +454,8 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .viz-card-title { font-size: 13px; font-weight: 600; color: var(--foreground); margin-bottom: 2px; }
   .viz-card-sub { font-size: 11px; color: var(--muted-foreground); margin-bottom: 10px; }
-  .viz-chart { height: 100px; display: flex; align-items: flex-end; gap: 2px; }
-  .viz-bar {
-    flex: 1; background: var(--chart-2); border-radius: 2px 2px 0 0;
-    min-width: 0; position: relative; cursor: default; transition: opacity .15s;
-  }
-  .viz-bar:hover { opacity: .7; }
-  .viz-labels { display: flex; justify-content: space-between; margin-top: 4px; }
-  .viz-label { font-size: 10px; color: var(--muted-foreground); }
+  .viz-chart { }
+  .viz-chart svg { display: block; width: 100%; }
 
   /* Tooltip */
   .tt {
@@ -674,43 +664,69 @@ function recomputeStats() {
   columns.forEach(col => { columnStats[col] = computeColumnStats(col); });
 }
 
-/* --- Histogram rendering --- */
+/* --- Histogram rendering (SVG) --- */
 function unitLabel(type) {
   return { number: '', array: ' items', boolean: '', 'string-chars': ' chars', 'string-words': ' words' }[type] || '';
 }
 
 function renderHistogram(stats, container, tall) {
-  const h = tall ? 100 : 48;
-  const barClass = tall ? 'viz-bar' : 'hist-bar';
   container.innerHTML = '';
-  container.style.height = h + 'px';
   if (!stats) return;
 
+  const barH = tall ? 90 : 40;
+  const labelH = tall ? 16 : 12;
+  const totalH = barH + labelH + 2;
+  const pad = tall ? 4 : 2;
+  const barR = tall ? 3 : 2;
+  const chartColor = 'hsl(173,58%,39%)';
+  const hoverColor = 'hsl(173,58%,32%)';
+  const labelColor = 'hsl(211,5%,35%)';
+  const labelSize = tall ? 10 : 8;
+
+  let items, labels;
   if (stats.isLowCardinality) {
-    const items = stats.sortedValueCounts.slice(0, 10);
-    const maxC = Math.max(...items.map(d => d.count));
-    items.forEach(d => {
-      const bar = document.createElement('div');
-      bar.className = barClass;
-      bar.style.height = Math.max(2, (d.count / maxC) * h) + 'px';
-      bar.dataset.ttLabel = d.value;
-      bar.dataset.ttVal = d.count + ' (' + ((d.count / stats.totalCount) * 100).toFixed(1) + '%)';
-      container.appendChild(bar);
-    });
+    items = stats.sortedValueCounts.slice(0, 10);
+    labels = items.map(d => d.value.length > 8 ? d.value.slice(0, 7) + '…' : d.value);
   } else {
-    const maxC = Math.max(...stats.distribution);
     const u = unitLabel(stats.type);
-    stats.distribution.forEach((count, i) => {
-      const bar = document.createElement('div');
-      bar.className = barClass;
-      bar.style.height = Math.max(2, (count / maxC) * h) + 'px';
-      const lo = Math.round(stats.min + i * stats.bucketSize);
-      const hi = Math.round(stats.min + (i + 1) * stats.bucketSize);
-      bar.dataset.ttLabel = lo + ' – ' + hi + u;
-      bar.dataset.ttVal = count + ' (' + ((count / stats.totalCount) * 100).toFixed(1) + '%)';
-      container.appendChild(bar);
-    });
+    items = stats.distribution.map((count, i) => ({
+      count,
+      label: Math.round(stats.min + i * stats.bucketSize),
+      fullLabel: Math.round(stats.min + i * stats.bucketSize) + '–' + Math.round(stats.min + (i + 1) * stats.bucketSize) + u
+    }));
+    labels = items.map(d => String(d.label));
   }
+
+  const n = items.length;
+  if (!n) return;
+  const maxC = Math.max(...items.map(d => d.count));
+  if (maxC === 0) return;
+
+  const svgW = container.clientWidth || 200;
+  const gap = Math.max(1, Math.round(svgW / n * 0.15));
+  const barW = Math.max(4, (svgW - gap * (n - 1)) / n);
+
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + totalH + '" viewBox="0 0 ' + svgW + ' ' + totalH + '">';
+
+  items.forEach((d, i) => {
+    const x = i * (barW + gap);
+    const h = Math.max(1, (d.count / maxC) * barH);
+    const y = barH - h;
+    const pct = ((d.count / stats.totalCount) * 100).toFixed(1);
+    const ttLabel = stats.isLowCardinality ? d.value : d.fullLabel;
+    const ttVal = d.count.toLocaleString() + ' (' + pct + '%)';
+
+    svg += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + h + '" rx="' + barR + '" fill="' + chartColor + '" data-tt-label="' + escHtml(ttLabel) + '" data-tt-val="' + escHtml(ttVal) + '" style="cursor:pointer"><title>' + escHtml(ttLabel) + ': ' + escHtml(ttVal) + '</title></rect>';
+
+    // Label
+    if (tall || i % Math.ceil(n / 5) === 0) {
+      const lbl = labels[i] || '';
+      svg += '<text x="' + (x + barW / 2) + '" y="' + (barH + labelH) + '" text-anchor="middle" fill="' + labelColor + '" font-size="' + labelSize + '" font-family="-apple-system,BlinkMacSystemFont,sans-serif">' + escHtml(lbl) + '</text>';
+    }
+  });
+
+  svg += '</svg>';
+  container.innerHTML = svg;
 }
 
 /* --- Tooltip --- */
@@ -902,20 +918,11 @@ function renderVizPanel() {
     card.innerHTML =
       '<div class="viz-card-title">' + escHtml(col) + '</div>' +
       '<div class="viz-card-sub">' + sub + '</div>' +
-      '<div class="viz-chart" id="vizchart-' + escHtml(col) + '"></div>' +
-      '<div class="viz-labels" id="vizlabels-' + escHtml(col) + '"></div>';
+      '<div class="viz-chart" id="vizchart-' + escHtml(col) + '"></div>';
     grid.appendChild(card);
 
     const chartEl = document.getElementById('vizchart-' + col);
     renderHistogram(stats, chartEl, true);
-
-    const labelsEl = document.getElementById('vizlabels-' + col);
-    if (stats.isLowCardinality) {
-      const top = stats.sortedValueCounts.slice(0, 3);
-      labelsEl.innerHTML = top.map(d => '<span class="viz-label">' + escHtml(d.value.length > 12 ? d.value.slice(0, 12) + '…' : d.value) + '</span>').join('');
-    } else {
-      labelsEl.innerHTML = '<span class="viz-label">' + Math.round(stats.min) + u + '</span><span class="viz-label">' + Math.round(stats.max) + u + '</span>';
-    }
   });
 }
 

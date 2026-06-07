@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import datetime
 import functools
-import hashlib
 import json
 import os
 import shutil
@@ -45,6 +44,7 @@ from rich.panel import Panel
 from docetl.console import get_console
 from docetl.containers import OpContainer, StepBoundary
 from docetl.dataset import Dataset, create_parsing_tool_map
+from docetl.graph_builder import build_operation_graph, compute_operation_hashes
 from docetl.operations import get_operation, get_operations
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import APIWrapper
@@ -206,8 +206,8 @@ class DSLRunner:
         self._initialize_state()
         self._setup_parsing_tools()
         self._setup_retrievers()
-        self._build_operation_graph()
-        self._compute_operation_hashes()
+        build_operation_graph(self)
+        compute_operation_hashes(self)
 
         # Build checkpoint store (None when no intermediate_dir configured)
         if self.intermediate_dir:
@@ -331,177 +331,6 @@ class DSLRunner:
             rconf.setdefault("build_index", "if_missing")
 
             self.retrievers[name] = LanceDBRetriever(self, name, rconf)
-
-    def _build_operation_graph(self) -> None:
-        """Build the DAG of operations from ``self.pipeline``."""
-        self.op_container_map = {}
-        self.last_op_container = None
-        self._op_map = {op["name"]: op for op in self._raw_ops_list}
-
-        for step in self.pipeline.steps:
-            step_dict = {k: v for k, v in step.dict().items() if v is not None}
-            self._validate_step(step_dict)
-
-            if step.input:
-                self._add_scan_operation(step_dict)
-            elif step.operations and isinstance(step.operations[0], dict):
-                self._add_equijoin_operation(step_dict)
-            else:
-                self._add_empty_scan_operation(step_dict)
-
-            self._add_step_operations(step_dict)
-            self._add_step_boundary(step_dict)
-
-    def _validate_step(self, step: dict) -> None:
-        """Validate step configuration"""
-        assert "name" in step.keys(), f"Step {step} does not have a name"
-        assert "operations" in step.keys(), f"Step {step} does not have `operations`"
-
-    def _add_scan_operation(self, step: dict) -> None:
-        """Add a scan operation for input datasets"""
-        scan_op_container = OpContainer(
-            f"{step['name']}/scan_{step['input']}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": step["input"],
-                "name": f"scan_{step['input']}",
-            },
-        )
-        self.op_container_map[f"{step['name']}/scan_{step['input']}"] = (
-            scan_op_container
-        )
-        if self.last_op_container:
-            scan_op_container.add_child(self.last_op_container)
-        self.last_op_container = scan_op_container
-
-    def _add_empty_scan_operation(self, step: dict) -> None:
-        """Add a scan operation for a synthetic empty dataset [{}]"""
-        dataset_name = "__empty__"
-        scan_op_container = OpContainer(
-            f"{step['name']}/scan_{dataset_name}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": dataset_name,
-                "name": f"scan_{dataset_name}",
-            },
-        )
-        self.op_container_map[f"{step['name']}/scan_{dataset_name}"] = scan_op_container
-        if self.last_op_container:
-            scan_op_container.add_child(self.last_op_container)
-        self.last_op_container = scan_op_container
-
-    def _add_equijoin_operation(self, step: dict) -> None:
-        """Add an equijoin operation with its scan operations"""
-        equijoin_operation_name = list(step["operations"][0].keys())[0]
-        left_dataset_name = list(step["operations"][0].values())[0]["left"]
-        right_dataset_name = list(step["operations"][0].values())[0]["right"]
-
-        left_scan_op_container = OpContainer(
-            f"{step['name']}/scan_{left_dataset_name}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": left_dataset_name,
-                "name": f"scan_{left_dataset_name}",
-            },
-        )
-        if self.last_op_container:
-            left_scan_op_container.add_child(self.last_op_container)
-        right_scan_op_container = OpContainer(
-            f"{step['name']}/scan_{right_dataset_name}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": right_dataset_name,
-                "name": f"scan_{right_dataset_name}",
-            },
-        )
-        if self.last_op_container:
-            right_scan_op_container.add_child(self.last_op_container)
-        equijoin_op_container = OpContainer(
-            f"{step['name']}/{equijoin_operation_name}",
-            self,
-            self.find_operation(equijoin_operation_name),
-            left_name=left_dataset_name,
-            right_name=right_dataset_name,
-        )
-
-        equijoin_op_container.add_child(left_scan_op_container)
-        equijoin_op_container.add_child(right_scan_op_container)
-
-        self.last_op_container = equijoin_op_container
-        self.op_container_map[f"{step['name']}/{equijoin_operation_name}"] = (
-            equijoin_op_container
-        )
-        self.op_container_map[f"{step['name']}/scan_{left_dataset_name}"] = (
-            left_scan_op_container
-        )
-        self.op_container_map[f"{step['name']}/scan_{right_dataset_name}"] = (
-            right_scan_op_container
-        )
-
-    def _add_step_operations(self, step: dict) -> None:
-        """Add operations for a step"""
-        # Skip first op only for equijoin (first op is a dict, not a string)
-        is_equijoin = (
-            step.get("input") is None
-            and step["operations"]
-            and isinstance(step["operations"][0], dict)
-        )
-        op_start_idx = 1 if is_equijoin else 0
-
-        for operation_name in step["operations"][op_start_idx:]:
-            if not isinstance(operation_name, str):
-                raise ValueError(
-                    f"Operation {operation_name} in step {step['name']} should be a string. "
-                    "If you intend for it to be an equijoin, don't specify an input in the step."
-                )
-
-            op_container = OpContainer(
-                f"{step['name']}/{operation_name}",
-                self,
-                self.find_operation(operation_name),
-            )
-            op_container.add_child(self.last_op_container)
-            self.last_op_container = op_container
-            self.op_container_map[f"{step['name']}/{operation_name}"] = op_container
-
-    def _add_step_boundary(self, step: dict) -> None:
-        """Add a step boundary node"""
-        step_boundary = StepBoundary(
-            f"{step['name']}/boundary",
-            self,
-            {"type": "step_boundary", "name": f"{step['name']}/boundary"},
-        )
-        step_boundary.add_child(self.last_op_container)
-        self.op_container_map[f"{step['name']}/boundary"] = step_boundary
-        self.last_op_container = step_boundary
-
-    def _compute_operation_hashes(self) -> None:
-        """Compute hashes for operations to enable caching."""
-        self.step_op_hashes = defaultdict(dict)
-
-        for step in self.pipeline.steps:
-            for idx, entry in enumerate(step.operations):
-                op_name = entry if isinstance(entry, str) else list(entry.keys())[0]
-
-                all_ops_until_and_including_current = (
-                    [self._op_map[prev] for prev in step.operations[:idx]
-                     if isinstance(prev, str)]
-                    + [self._op_map[op_name]]
-                    + [self.pipeline.other_config.get("system_prompt", {})]
-                )
-
-                for op_cfg in all_ops_until_and_including_current:
-                    if isinstance(op_cfg, dict) and "model" not in op_cfg:
-                        op_cfg["model"] = self.default_model
-
-                all_ops_str = json.dumps(all_ops_until_and_including_current)
-                self.step_op_hashes[step.name][op_name] = hashlib.sha256(
-                    all_ops_str.encode()
-                ).hexdigest()
 
     def get_output_path(self, require=False):
         output_path = self.pipeline.output.path or None

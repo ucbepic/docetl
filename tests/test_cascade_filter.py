@@ -151,6 +151,52 @@ def test_cascade_cost_is_accumulated_from_both_models():
     assert cost > 0
 
 
+def test_cascade_progress_ticks_tracker(cascade_cache):
+    from docetl.progress.tracker import ProgressTracker, set_active_tracker
+
+    tracker = ProgressTracker()
+    set_active_tracker(tracker)
+    tracker.op_start("op", "filter", "gpt-4o", total=8)
+    try:
+        op, api = make_op(
+            cascade={
+                "proxy_model": "gpt-4o-mini",
+                "guarantee": "recall",
+                "target": 0.9,
+                "label_budget": 5,
+            }
+        )
+        op.execute(make_data(8))
+        snap = tracker.snapshot().get("op")
+        assert snap.phase is None
+        assert api.proxy_calls == 8
+        assert api.oracle_calls > 0
+        assert snap.completed == api.oracle_calls
+        assert snap.total == 5  # label_budget, not n_items
+    finally:
+        set_active_tracker(None)
+
+
+def test_format_cascade_plan_lines():
+    from docetl.operations.utils.cascade_runner import format_cascade_plan_lines
+
+    lines = format_cascade_plan_lines(
+        {
+            "proxy_model": "gpt-4o-mini",
+            "target": 0.95,
+            "label_budget": 20,
+        },
+        op_type="filter",
+        oracle_model="gpt-4o",
+    )
+    text = "\n".join(lines)
+    assert "gpt-4o-mini" in text
+    assert "gpt-4o" in text
+    assert "recall" in text
+    assert "95%" in text
+    assert "≤20 oracle labels" in text
+
+
 def test_build_phase_bypasses_cascade():
     data = make_data(n=12, every=3)
     op, api = make_op(

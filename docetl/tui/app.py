@@ -177,9 +177,8 @@ class DocetlTUI(App):
             op = self._selected_op()
             middle = self.query_one("#middle")
             middle.border_title = (
-                (f"{op.op_type}:{op.name.split('/')[-1]}" if op else "Documents")
-                + (" ◀" if self.focus_pane == "grid" else "")
-            )
+                f"{op.op_type}:{op.name.split('/')[-1]}" if op else "Documents"
+            ) + (" ◀" if self.focus_pane == "grid" else "")
             self.query_one("#grid_title", Static).update(self._render_grid_title(state))
             self.query_one("#grid", Static).update(self._render_grid(state))
 
@@ -223,8 +222,10 @@ class DocetlTUI(App):
             # so it reads as a clean highlighted row rather than a ragged block.
             line = Text()
             line.append(f" {glyph} ", style=gstyle)
-            line.append(_trunc(f"{op.op_type}:{op.name.split('/')[-1]}", 30),
-                        style="bold" if selected else "")
+            line.append(
+                _trunc(f"{op.op_type}:{op.name.split('/')[-1]}", 30),
+                style="bold" if selected else "",
+            )
             if selected:
                 line.stylize("reverse")
             body.append_text(line)
@@ -232,6 +233,8 @@ class DocetlTUI(App):
             # Line 2: compact, dot-separated stats — only the parts that apply,
             # short enough to never wrap the 36-wide panel.
             frags: list[Text] = []
+            if op.phase:
+                frags.append(Text(op.phase, style="cyan"))
             if op.total:
                 f = Text(f"{op.completed}/{op.total}", style="grey70")
                 if op.status == "running":
@@ -266,6 +269,8 @@ class DocetlTUI(App):
             t.append(f"{op.completed:,}/{op.total:,} {prof.unit}", style="grey70")
         else:
             t.append("? docs", style="grey62")  # count not known yet
+        if op.phase:
+            t.append(f"   {op.phase}", style="cyan")
         t.append("   ")
         t.append(op.status, style=_STATUS_STYLE[op.status])
         if self._mode == "heatmap":
@@ -386,6 +391,8 @@ class DocetlTUI(App):
             body.append(f"step:    {op.step}\n", style="grey70")
             body.append(f"model:   {op.model}\n", style="grey70")
             body.append(f"status:  {op.status}\n", style=_STATUS_STYLE[op.status])
+            if op.phase:
+                body.append(f"phase:   {op.phase}\n", style="cyan")
             prof = get_profile(op.op_type)
             if op.total:
                 body.append(
@@ -395,7 +402,9 @@ class DocetlTUI(App):
                 body.append(
                     f"output:  {op.out_count:,} {prof.doc_unit}\n", style="grey70"
                 )
-            body.append(f"errors:  {op.errors}\n", style="red" if op.errors else "grey70")
+            body.append(
+                f"errors:  {op.errors}\n", style="red" if op.errors else "grey70"
+            )
             body.append(f"cost:    ${op.cost:.4f}\n", style="green")
             body.append(f"tokens:  {op.tokens:,}\n", style="grey70")
             body.append(f"elapsed: {_fmt_dur(op.elapsed)}\n", style="grey70")
@@ -473,7 +482,11 @@ class DocetlTUI(App):
         prompt = None
         if isinstance(obs, dict):
             prompt = obs.get("prompt")
-            if prompt is None and isinstance(obs.get("prompts"), list) and obs["prompts"]:
+            if (
+                prompt is None
+                and isinstance(obs.get("prompts"), list)
+                and obs["prompts"]
+            ):
                 prompt = obs["prompts"][0]
 
         consumed = prof.consumed_keys(doc) if prof.consumed_keys else set()
@@ -481,7 +494,11 @@ class DocetlTUI(App):
         for k, v in doc.items():
             if k.startswith("_") or k in consumed:
                 continue  # internal bookkeeping / surfaced as provenance instead
-            value = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str)
+            value = (
+                v
+                if isinstance(v, str)
+                else json.dumps(v, ensure_ascii=False, default=str)
+            )
             rows.append((k, _trunc(str(value), 280)))
 
         provenance = prof.provenance(op, doc) if prof.provenance else None

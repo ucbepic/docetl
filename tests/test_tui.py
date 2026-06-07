@@ -81,6 +81,16 @@ def test_set_phase_resets_to_the_real_unit_count():
     assert op.total == 5 and op.completed == 0
 
 
+def test_set_phase_accepts_label_for_tui():
+    t = ProgressTracker()
+    t.op_start("op", "filter", None, total=100)
+    t.set_phase(40, label="proxy (gpt-4o-mini)")
+    op = t.snapshot().get("op")
+    assert op.total == 40 and op.completed == 0 and op.phase == "proxy (gpt-4o-mini)"
+    t.clear_phase()
+    assert t.snapshot().get("op").phase is None
+
+
 def test_add_outputs_streams_documents_during_run():
     # Finished docs are appended to the current op's sample as they complete,
     # so the detail pane can show them before the whole op finishes.

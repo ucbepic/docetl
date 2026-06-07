@@ -139,9 +139,9 @@ class APIWrapper(object):
             prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
             self.runner.total_token_usage[model]["prompt_tokens"] += prompt_tokens
-            self.runner.total_token_usage[model]["completion_tokens"] += (
-                completion_tokens
-            )
+            self.runner.total_token_usage[model][
+                "completion_tokens"
+            ] += completion_tokens
 
             # Track cached/cache-creation tokens if available
             cached = 0
@@ -1093,6 +1093,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             cost = completion_cost(response)
         except Exception:
             cost = 0.0
+        self._track_token_usage(model, response)
         label, prob = self._parse_logprob_response(response, token_to_label)
         return label, prob, cost
 

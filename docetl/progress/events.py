@@ -26,6 +26,7 @@ class OpState:
 
     status: OpStatus = "queued"
     total: int | None = None  # total input docs (None until known)
+    phase: str | None = None  # live sub-phase label (e.g. cascade proxy/oracle)
     completed: int = 0
     errors: int = 0
     out_count: int | None = None  # output docs once finished
@@ -142,6 +143,7 @@ class RunState:
                     "type": op.op_type,
                     "model": op.model,
                     "status": op.status,
+                    "phase": op.phase,
                     "total": op.total,
                     "completed": op.completed,
                     "errors": op.errors,

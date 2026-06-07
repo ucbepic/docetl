@@ -15,13 +15,52 @@ precision) and is passed in at call time.
 
 import hashlib
 import json
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
 from docetl.operations.utils.cache import cache
+from docetl.progress.tracker import active_tracker
+
+if TYPE_CHECKING:
+    from docetl.operations.utils.progress import RichLoopBar
 
 _GUARANTEES = ("accuracy", "precision", "recall")
+
+# Default guarantee when the cascade block omits ``guarantee`` (per operator).
+CASCADE_DEFAULT_GUARANTEE: dict[str, str] = {
+    "filter": "recall",
+    "map": "accuracy",
+    "resolve": "precision",
+    "equijoin": "precision",
+}
+
+
+def format_cascade_plan_lines(
+    cascade: dict[str, Any] | BaseModel,
+    *,
+    op_type: str,
+    oracle_model: str,
+) -> list[str]:
+    """Rich-markup lines for the cascade block in the query-plan panel."""
+    cfg = cascade.model_dump() if isinstance(cascade, BaseModel) else cascade
+    guarantee = cfg.get("guarantee") or CASCADE_DEFAULT_GUARANTEE.get(op_type, "recall")
+    target = cfg["target"]
+    delta = cfg.get("delta", 0.05)
+    budget = cfg.get("label_budget", 400)
+    if guarantee in ("recall", "precision"):
+        oracle_hint = f"≤{budget} oracle labels"
+    else:
+        oracle_hint = "escalated items"
+    return [
+        "[bold magenta]Cascade[/bold magenta]",
+        f"  [dim]proxy[/dim]     [cyan]{cfg['proxy_model']}[/cyan]  [dim]· all items[/dim]",
+        f"  [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan]  [dim]· {oracle_hint}[/dim]",
+        (
+            f"  [dim]guarantee[/dim] [yellow]{guarantee}[/yellow] "
+            f"[dim]≥[/dim][yellow]{target:.0%}[/yellow]  [dim]δ={delta}[/dim]"
+        ),
+    ]
 
 
 class CascadeConfig(BaseModel):
@@ -51,6 +90,96 @@ class CascadeConfig(BaseModel):
                 f"'recall'; got '{self.guarantee}'"
             )
         return self
+
+
+class _CascadeProgress:
+    """Proxy/oracle phase progress for model cascades.
+
+    When the interactive TUI is active, feeds :class:`ProgressTracker` via
+    :meth:`set_phase` / :meth:`tick`. Otherwise drives a tqdm bar on the Rich
+    console and logs short phase headers.
+    """
+
+    def __init__(
+        self,
+        console,
+        *,
+        n_items: int,
+        proxy_model: str,
+        oracle_model: str,
+        label_budget: int,
+        guarantee: str,
+        status=None,
+    ) -> None:
+        self.console = console
+        self.n_items = n_items
+        self.proxy_model = proxy_model
+        self.oracle_model = oracle_model
+        self.label_budget = label_budget
+        self.guarantee = guarantee
+        self._status = status
+        self._bar: RichLoopBar | None = None
+        self._oracle_started = False
+        self._tracker = active_tracker()
+        # Rich's live status spinner and tqdm fight over the terminal; map/filter
+        # pause status for the same reason before driving a progress bar.
+        if self._tracker is None and self._status is not None:
+            self._status.stop()
+        self._start_proxy()
+
+    def _start_proxy(self) -> None:
+        label = f"proxy ({self.proxy_model})"
+        self._begin_phase(self.n_items, label)
+
+    def tick_proxy(self) -> None:
+        self._tick()
+
+    def _oracle_total(self) -> int:
+        """Upper bound on oracle calls for the live progress denominator."""
+        if self.guarantee == "accuracy":
+            return self.n_items
+        return min(self.n_items, self.label_budget)
+
+    def tick_oracle(self) -> None:
+        if not self._oracle_started:
+            self._oracle_started = True
+            label = f"oracle ({self.oracle_model})"
+            self._close_bar()
+            self._begin_phase(self._oracle_total(), label)
+        self._tick()
+
+    def _begin_phase(self, total: int, label: str) -> None:
+        if self._tracker is not None:
+            self._tracker.set_phase(total, label=label)
+            return
+        from docetl.operations.utils.progress import RichLoopBar
+
+        self._close_bar()
+        self._bar = RichLoopBar(
+            total=total,
+            desc=f"Cascade {label}",
+            console=self.console,
+            leave=False,
+        )
+        self._bar.__enter__()
+
+    def _tick(self) -> None:
+        if self._tracker is not None:
+            self._tracker.tick()
+        elif self._bar is not None:
+            self._bar.update()
+
+    def _close_bar(self) -> None:
+        if self._bar is not None:
+            self._bar.__exit__(None, None, None)
+            self._bar = None
+
+    def finish(self) -> None:
+        self._close_bar()
+        if self._tracker is not None:
+            self._tracker.clear_phase()
+        elif self._status is not None:
+            self._status.start()
 
 
 class CascadeMixin:
@@ -171,22 +300,36 @@ class CascadeMixin:
         )
         # Mutable accumulator; the engine drives the adapters sequentially.
         cost = {"total": 0.0}
+        oracle_model = self.config.get("model", self.default_model)
+        progress = _CascadeProgress(
+            self.console,
+            n_items=len(items),
+            proxy_model=spec.proxy_model,
+            oracle_model=oracle_model,
+            label_budget=spec.label_budget,
+            guarantee=guarantee,
+            status=getattr(self, "status", None),
+        )
+        try:
 
-        def proxy_predict(item):
-            lbl, prob, c = self.runner.api._classify_with_logprob_with_cost(
-                spec.proxy_model, render_messages(item), proxy_labels
-            )
-            cost["total"] += c
-            return lbl, prob
+            def proxy_predict(item):
+                lbl, prob, c = self.runner.api._classify_with_logprob_with_cost(
+                    spec.proxy_model, render_messages(item), proxy_labels
+                )
+                cost["total"] += c
+                progress.tick_proxy()
+                return lbl, prob
 
-        def _oracle(item):
-            lbl, c = oracle_predict(item)
-            cost["total"] += c
-            return lbl
+            def _oracle(item):
+                lbl, c = oracle_predict(item)
+                cost["total"] += c
+                progress.tick_oracle()
+                return lbl
 
-        result = CategoricalCascade(
-            spec, proxy_predict, _oracle, console=self.console
-        ).run(items)
+            result = CategoricalCascade(spec, proxy_predict, _oracle).run(items)
+        finally:
+            progress.finish()
+
         self._report_cascade(op_label, result.stats, cost["total"], False)
 
         with cache as c:

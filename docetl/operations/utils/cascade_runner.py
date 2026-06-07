@@ -112,6 +112,7 @@ class _CascadeProgress:
         label_budget: int,
         guarantee: str,
         status=None,
+        proxy_scores: list[float] | None = None,
     ) -> None:
         self.console = console
         self.n_items = n_items
@@ -120,6 +121,7 @@ class _CascadeProgress:
         self.label_budget = label_budget
         self.guarantee = guarantee
         self._status = status
+        self._proxy_scores = proxy_scores
         self._bar: RichLoopBar | None = None
         self._oracle_started = False
         self._proxy_ticks = 0
@@ -164,13 +166,22 @@ class _CascadeProgress:
             oracle_total = min(self.n_items, self.label_budget)
             if self._tracker is not None:
                 self._tracker.freeze_grid()
-                self._tracker.set_cascade_info({
+                info = {
                     "proxy_model": self.proxy_model,
                     "oracle_model": self.oracle_model,
                     "proxy_calls": self._proxy_ticks,
                     "label_budget": self.label_budget,
                     "guarantee": self.guarantee,
-                })
+                }
+                if self._proxy_scores:
+                    n_bins = 20
+                    hist = [0] * n_bins
+                    for s in self._proxy_scores:
+                        b = min(int(s * n_bins), n_bins - 1)
+                        hist[b] += 1
+                    info["score_hist"] = hist
+                    info["item_proxy_scores"] = list(self._proxy_scores)
+                self._tracker.set_cascade_info(info)
                 self._tracker.set_phase(oracle_total, label=label)
             else:
                 self._close_bar()
@@ -487,6 +498,7 @@ class CascadeMixin:
 
         # Mutable accumulator; the engine drives the adapters sequentially.
         cost = {"proxy": 0.0, "oracle": 0.0}
+        proxy_scores_live: list[float] = []
         oracle_model = self.config.get("model", self.default_model)
         progress = _CascadeProgress(
             self.console,
@@ -496,6 +508,7 @@ class CascadeMixin:
             label_budget=spec.label_budget,
             guarantee=guarantee,
             status=getattr(self, "status", None),
+            proxy_scores=proxy_scores_live,
         )
         try:
 
@@ -504,6 +517,7 @@ class CascadeMixin:
                     spec.proxy_model, render_messages(item), proxy_labels
                 )
                 cost["proxy"] += c
+                proxy_scores_live.append(prob)
                 progress.tick_proxy()
                 return lbl, prob
 

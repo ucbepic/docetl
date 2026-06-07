@@ -503,6 +503,9 @@ class DocetlTUI(App):
         else:
             out.append_text(_kv("status", "done", value_style="green"))
         out.append("\n")
+        if op.cascade_info:
+            out.append_text(_render_cascade_doc(op.cascade_info, idx))
+            out.append("\n")
         for key, value in rows:
             # short scalars read best inline; long / multi-line values get their
             # own indented block so nothing wraps awkwardly against the label.
@@ -513,8 +516,6 @@ class DocetlTUI(App):
                 for line in value.splitlines() or [""]:
                     out.append(f"  {line}\n", style="grey85")
         parts = [out]
-        if op.cascade_info:
-            parts.append(_render_cascade_doc(op.cascade_info, idx))
         if provenance:
             parts.append(_section("provenance", provenance))
         if prompt:
@@ -608,53 +609,71 @@ def _fmt_dur(secs: float) -> str:
 
 
 def _render_cascade_info(info: dict) -> Text:
-    """Compact cascade stats block for the operation detail pane."""
+    """Compact cascade stats block for the operation detail pane.
+
+    During the oracle phase, only partial data is available (proxy stats +
+    histogram). After the cascade finishes, all fields are present.
+    """
     t = Text()
     t.append("\ncascade\n", style="bold magenta")
     proxy_cost = info.get("proxy_cost", 0)
     oracle_cost = info.get("oracle_cost", 0)
-    is_calibrated = info["guarantee"] in ("precision", "recall", "precision+recall")
+    guarantee = info.get("guarantee", "")
+    is_calibrated = guarantee in ("precision", "recall", "precision+recall")
+
     t.append(
         f"  proxy   {info['proxy_model']}  "
-        f"{info['proxy_calls']:,} scored  ${proxy_cost:.4f}\n",
+        f"{info['proxy_calls']:,} scored",
         style="cyan",
     )
-    if info["guarantee"] == "precision+recall" and info.get("gap_verified", 0) > 0:
-        cal = info.get("calibration_calls", info["oracle_calls"])
-        gap = info.get("gap_verified", 0)
+    if proxy_cost:
+        t.append(f"  ${proxy_cost:.4f}", style="cyan")
+    t.append("\n")
+
+    if "oracle_calls" in info:
+        if guarantee == "precision+recall" and info.get("gap_verified", 0) > 0:
+            cal = info.get("calibration_calls", info["oracle_calls"])
+            gap = info.get("gap_verified", 0)
+            budget = info.get("label_budget", "?")
+            t.append(
+                f"  oracle  {info['oracle_model']}  "
+                f"{cal} cal + {gap} gap = {info['oracle_calls']:,}  "
+                f"(budget {budget})  ${oracle_cost:.4f}\n",
+                style="cyan",
+            )
+        elif is_calibrated:
+            budget = info.get("label_budget", "?")
+            t.append(
+                f"  oracle  {info['oracle_model']}  "
+                f"{info['oracle_calls']:,} sampled (budget {budget})  "
+                f"${oracle_cost:.4f}\n",
+                style="cyan",
+            )
+        else:
+            t.append(
+                f"  oracle  {info['oracle_model']}  "
+                f"{info['oracle_calls']:,} escalated  ${oracle_cost:.4f}\n",
+                style="cyan",
+            )
+    elif info.get("oracle_model"):
         budget = info.get("label_budget", "?")
         t.append(
-            f"  oracle  {info['oracle_model']}  "
-            f"{cal} cal + {gap} gap = {info['oracle_calls']:,}  "
-            f"(budget {budget})  ${oracle_cost:.4f}\n",
+            f"  oracle  {info['oracle_model']}  sampling… (budget {budget})\n",
             style="cyan",
         )
-    elif is_calibrated:
-        budget = info.get("label_budget", "?")
-        t.append(
-            f"  oracle  {info['oracle_model']}  "
-            f"{info['oracle_calls']:,} sampled (budget {budget})  "
-            f"${oracle_cost:.4f}\n",
-            style="cyan",
-        )
-    else:
-        t.append(
-            f"  oracle  {info['oracle_model']}  "
-            f"{info['oracle_calls']:,} escalated  ${oracle_cost:.4f}\n",
-            style="cyan",
-        )
-    guarantee = info["guarantee"]
-    target = info["target"]
-    t.append(f"  {guarantee} ≥ {target:.0%}", style="yellow")
-    t.append(f"  δ={info['delta']}\n", style="grey70")
+
+    if "target" in info:
+        target = info["target"]
+        t.append(f"  {guarantee} ≥ {target:.0%}", style="yellow")
+        t.append(f"  δ={info.get('delta', '?')}\n", style="grey70")
+
     threshold = info.get("threshold")
     if threshold is not None and threshold >= 0.01:
         t.append(f"  threshold  {threshold:.3f}\n", style="yellow")
-    elif is_calibrated:
+    elif "oracle_calls" in info and is_calibrated:
         t.append("  threshold  n/a — all positives oracle-verified\n", style="dim")
-    else:
-        t.append("  threshold  n/a\n", style="dim")
-    if not is_calibrated:
+
+    if not is_calibrated and "escalation_rate" in info:
         esc = info["escalation_rate"]
         served = info["served_by_proxy"]
         t.append(f"  escalation {esc:.0%}", style="red" if esc >= 0.5 else "green")

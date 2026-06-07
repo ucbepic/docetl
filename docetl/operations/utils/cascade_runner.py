@@ -517,7 +517,11 @@ class CascadeMixin:
                     spec.proxy_model, render_messages(item), proxy_labels
                 )
                 cost["proxy"] += c
-                proxy_scores_live.append(prob)
+                if positive_label is not None:
+                    p_pos = prob if lbl == positive_label else (1.0 - prob)
+                else:
+                    p_pos = prob
+                proxy_scores_live.append(p_pos)
                 progress.tick_proxy()
                 return lbl, prob
 

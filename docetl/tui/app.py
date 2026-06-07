@@ -701,9 +701,13 @@ def _render_cascade_info(info: dict) -> Text:
 
 
 def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
-    """Per-document cascade info for the detail pane."""
+    """Per-document cascade info for the detail pane.
+
+    ``item_proxy_scores`` are P(positive) — the proxy's estimated probability
+    that the item is positive (True for filter). Score > 0.5 means the proxy
+    predicted positive; confidence = max(score, 1-score).
+    """
     t = Text()
-    t.append("\ncascade\n", style="bold magenta")
 
     proxy_scores = cascade_info.get("item_proxy_scores", [])
     escalated = cascade_info.get("item_escalated", [])
@@ -714,12 +718,15 @@ def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
         input_idx = kept[output_idx]
 
     if input_idx < len(proxy_scores):
-        score = proxy_scores[input_idx]
-        proxy_label = score > 0.5
+        p_pos = proxy_scores[input_idx]
+        proxy_label = p_pos > 0.5
+        confidence = max(p_pos, 1.0 - p_pos)
+        t.append("cascade\n", style="bold magenta")
         t.append(f"  proxy label:      ", style="dim")
-        t.append(f"{proxy_label}\n", style="yellow")
-        t.append(f"  proxy confidence: ", style="dim")
-        t.append(f"{score:.3f}\n", style="yellow")
+        t.append(f"{proxy_label}", style="yellow")
+        t.append(f"  ({confidence:.0%} confident)\n", style="grey70")
+        t.append(f"  P(positive):      ", style="dim")
+        t.append(f"{p_pos:.3f}\n", style="yellow")
 
     if input_idx < len(escalated):
         if escalated[input_idx]:
@@ -728,6 +735,11 @@ def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
         else:
             t.append("  source: ", style="dim")
             t.append("proxy-accepted\n", style="green")
+
+    threshold = cascade_info.get("threshold")
+    if threshold is not None and threshold >= 0.01:
+        t.append("  threshold:        ", style="dim")
+        t.append(f"{threshold:.3f}\n", style="yellow")
 
     return t
 

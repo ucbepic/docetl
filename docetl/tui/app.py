@@ -685,11 +685,17 @@ def _render_cascade_info(info: dict) -> Text:
         t.append("  (cached)\n", style="dim")
 
     escalated = info.get("item_escalated")
-    kept = info.get("kept_input_indices")
-    if escalated and kept:
-        n_oracle = sum(1 for idx in kept if idx < len(escalated) and escalated[idx])
-        n_proxy = len(kept) - n_oracle
-        t.append("  kept  ", style="dim")
+    if escalated:
+        kept = info.get("kept_input_indices")
+        if kept:
+            n_oracle = sum(1 for idx in kept if idx < len(escalated) and escalated[idx])
+            n_proxy = len(kept) - n_oracle
+            label = "kept"
+        else:
+            n_oracle = sum(escalated)
+            n_proxy = len(escalated) - n_oracle
+            label = "items"
+        t.append(f"  {label}  ", style="dim")
         t.append(_DOT, style="green")
         t.append(f" {n_proxy} proxy", style="green")
         t.append("  ", style="dim")

@@ -264,6 +264,22 @@ def test_cell_cascade_role_distinguishes_proxy_and_oracle():
     assert op.cell_cascade_role(3) is None      # out of range
 
 
+def test_cell_cascade_role_map_no_kept_indices():
+    """Map cascade: output index == input index (no filtering)."""
+    op = OpState("s", "s/m", "map")
+    op.status = "done"
+    op.out_count = 4
+    op.cascade_info = {
+        "item_escalated": [False, True, True, False],
+        "item_proxy_scores": [0.9, 0.6, 0.55, 0.95],
+    }
+    assert op.cell_cascade_role(0) == "proxy"
+    assert op.cell_cascade_role(1) == "oracle"
+    assert op.cell_cascade_role(2) == "oracle"
+    assert op.cell_cascade_role(3) == "proxy"
+    assert op.cell_cascade_role(4) is None
+
+
 def test_cell_cascade_role_returns_none_without_cascade():
     op = OpState("s", "s/f", "filter")
     op.status = "done"

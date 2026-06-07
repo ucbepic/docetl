@@ -89,10 +89,12 @@ class OpState:
         input_idx = index
         if self.status == "done" and self.out_count is not None:
             kept = self.cascade_info.get("kept_input_indices")
-            if kept and index < len(kept):
-                input_idx = kept[index]
-            else:
-                return None
+            if kept:
+                if index < len(kept):
+                    input_idx = kept[index]
+                else:
+                    return None
+            # No kept_input_indices → output index == input index (map cascade)
         if input_idx < len(escalated):
             return "oracle" if escalated[input_idx] else "proxy"
         return None

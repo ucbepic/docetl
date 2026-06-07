@@ -123,8 +123,10 @@ def test_active_tracker_hook():
     assert active_tracker() is None
 
 
-def test_pipeline_label_from_yaml_path():
-    runner = ConfigWrapper.from_yaml("workloads/medical/filteronly.yaml")
+def test_pipeline_label_from_yaml_path(tmp_path):
+    yaml_file = tmp_path / "filteronly.yaml"
+    yaml_file.write_text("default_model: gpt-4o-mini\n")
+    runner = ConfigWrapper.from_yaml(str(yaml_file))
     assert runner.pipeline_label() == "filteronly.yaml"
 
 

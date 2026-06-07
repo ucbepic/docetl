@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-import functools
 import json
 import os
 import time
@@ -13,22 +12,18 @@ from typing import Any
 import pyrate_limiter
 from dotenv import load_dotenv
 from pyrate_limiter import BucketFullException, LimiterDelayException
-from pydantic import BaseModel
 from rich.panel import Panel
 
 from docetl.console import get_console
-from docetl.containers import OpContainer, StepBoundary
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.display import format_execution_summary, format_query_plan
 from docetl.graph_builder import build_operation_graph, compute_operation_hashes
-from docetl.operations import get_operation, get_operations
+from docetl.operations import get_operation
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import APIWrapper
 from docetl.optimizer import Optimizer
 from docetl.ratelimiter import create_bucket_factory
-from docetl.utils import classproperty, decrypt, load_config
-
-from . import schemas
+from docetl.utils import decrypt, load_config
 
 # Avoid circular import — Pipeline is only needed for isinstance checks
 # and from_dict calls, so import lazily or use TYPE_CHECKING.
@@ -93,27 +88,6 @@ def _create_router(console, fallback_models: list, router_type: str) -> Any | No
 
 class DSLRunner:
 
-    @classproperty
-    def schema(cls):
-        OpType = functools.reduce(
-            lambda a, b: a | b, [op.schema for op in get_operations().values()]
-        )
-
-        class Pipeline(BaseModel):
-            config: dict[str, Any] | None
-            parsing_tools: list[schemas.ParsingTool] | None
-            datasets: dict[str, schemas.Dataset] | None = None
-            retrievers: dict[str, Any] | None
-            operations: list[OpType]
-            pipeline: schemas.PipelineSpec
-            interactive_ui: bool = False
-
-        return Pipeline
-
-    @classproperty
-    def json_schema(cls):
-        return cls.schema.model_json_schema()
-
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
         if not yaml_file.endswith(".yaml") and not yaml_file.endswith(".yml"):
@@ -158,7 +132,8 @@ class DSLRunner:
         self.progress_tracker = None
         self._tui_active = False
 
-        self._initialize_state()
+        self.datasets = {}
+        self.intermediate_dir = self.pipeline.output.intermediate_dir
         self._setup_parsing_tools()
         self._setup_retrievers()
         build_operation_graph(self)
@@ -204,10 +179,6 @@ class DSLRunner:
             )
         else:
             self.checkpoints = None
-
-    def _initialize_state(self) -> None:
-        self.datasets = {}
-        self.intermediate_dir = self.pipeline.output.intermediate_dir
 
     def reset_env(self):
         os.environ = self._original_env

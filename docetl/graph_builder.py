@@ -23,11 +23,11 @@ def build_operation_graph(runner: DSLRunner) -> None:
         _validate_step(step_dict)
 
         if step.input:
-            _add_scan_operation(runner, step_dict)
+            _add_scan_operation(runner, step_dict, step.input)
         elif step.operations and isinstance(step.operations[0], dict):
             _add_equijoin_operation(runner, step_dict)
         else:
-            _add_empty_scan_operation(runner, step_dict)
+            _add_scan_operation(runner, step_dict, "__empty__")
 
         _add_step_operations(runner, step_dict)
         _add_step_boundary(runner, step_dict)
@@ -38,89 +38,40 @@ def _validate_step(step: dict) -> None:
     assert "operations" in step, f"Step {step} does not have `operations`"
 
 
-def _add_scan_operation(runner: DSLRunner, step: dict) -> None:
-    scan_op_container = OpContainer(
-        f"{step['name']}/scan_{step['input']}",
-        runner,
-        {
-            "type": "scan",
-            "dataset_name": step["input"],
-            "name": f"scan_{step['input']}",
-        },
-    )
-    runner.op_container_map[f"{step['name']}/scan_{step['input']}"] = (
-        scan_op_container
-    )
-    if runner.last_op_container:
-        scan_op_container.add_child(runner.last_op_container)
-    runner.last_op_container = scan_op_container
+def _add_scan_operation(runner: DSLRunner, step: dict, dataset_name: str) -> None:
+    runner.last_op_container = _make_scan_container(runner, step["name"], dataset_name)
 
 
-def _add_empty_scan_operation(runner: DSLRunner, step: dict) -> None:
-    dataset_name = "__empty__"
-    scan_op_container = OpContainer(
-        f"{step['name']}/scan_{dataset_name}",
-        runner,
-        {
-            "type": "scan",
-            "dataset_name": dataset_name,
-            "name": f"scan_{dataset_name}",
-        },
+def _make_scan_container(runner: DSLRunner, step_name: str, dataset_name: str) -> OpContainer:
+    key = f"{step_name}/scan_{dataset_name}"
+    container = OpContainer(
+        key, runner,
+        {"type": "scan", "dataset_name": dataset_name, "name": f"scan_{dataset_name}"},
     )
-    runner.op_container_map[f"{step['name']}/scan_{dataset_name}"] = scan_op_container
+    runner.op_container_map[key] = container
     if runner.last_op_container:
-        scan_op_container.add_child(runner.last_op_container)
-    runner.last_op_container = scan_op_container
+        container.add_child(runner.last_op_container)
+    return container
 
 
 def _add_equijoin_operation(runner: DSLRunner, step: dict) -> None:
-    equijoin_operation_name = list(step["operations"][0].keys())[0]
-    left_dataset_name = list(step["operations"][0].values())[0]["left"]
-    right_dataset_name = list(step["operations"][0].values())[0]["right"]
+    equijoin_op_name = list(step["operations"][0].keys())[0]
+    join_cfg = list(step["operations"][0].values())[0]
+    left_name, right_name = join_cfg["left"], join_cfg["right"]
 
-    left_scan_op_container = OpContainer(
-        f"{step['name']}/scan_{left_dataset_name}",
-        runner,
-        {
-            "type": "scan",
-            "dataset_name": left_dataset_name,
-            "name": f"scan_{left_dataset_name}",
-        },
-    )
-    if runner.last_op_container:
-        left_scan_op_container.add_child(runner.last_op_container)
-    right_scan_op_container = OpContainer(
-        f"{step['name']}/scan_{right_dataset_name}",
-        runner,
-        {
-            "type": "scan",
-            "dataset_name": right_dataset_name,
-            "name": f"scan_{right_dataset_name}",
-        },
-    )
-    if runner.last_op_container:
-        right_scan_op_container.add_child(runner.last_op_container)
-    equijoin_op_container = OpContainer(
-        f"{step['name']}/{equijoin_operation_name}",
-        runner,
-        runner.find_operation(equijoin_operation_name),
-        left_name=left_dataset_name,
-        right_name=right_dataset_name,
-    )
+    left_scan = _make_scan_container(runner, step["name"], left_name)
+    right_scan = _make_scan_container(runner, step["name"], right_name)
 
-    equijoin_op_container.add_child(left_scan_op_container)
-    equijoin_op_container.add_child(right_scan_op_container)
+    equijoin = OpContainer(
+        f"{step['name']}/{equijoin_op_name}", runner,
+        runner.find_operation(equijoin_op_name),
+        left_name=left_name, right_name=right_name,
+    )
+    equijoin.add_child(left_scan)
+    equijoin.add_child(right_scan)
 
-    runner.last_op_container = equijoin_op_container
-    runner.op_container_map[f"{step['name']}/{equijoin_operation_name}"] = (
-        equijoin_op_container
-    )
-    runner.op_container_map[f"{step['name']}/scan_{left_dataset_name}"] = (
-        left_scan_op_container
-    )
-    runner.op_container_map[f"{step['name']}/scan_{right_dataset_name}"] = (
-        right_scan_op_container
-    )
+    runner.last_op_container = equijoin
+    runner.op_container_map[f"{step['name']}/{equijoin_op_name}"] = equijoin
 
 
 def _add_step_operations(runner: DSLRunner, step: dict) -> None:

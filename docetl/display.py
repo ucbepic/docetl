@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from rich.markup import escape
-from rich.panel import Panel
 
 if TYPE_CHECKING:
     from docetl.containers import OpContainer
@@ -16,10 +15,6 @@ def format_query_plan(
     op_container_map: dict[str, OpContainer],
     show_boundaries: bool = False,
 ) -> tuple[dict[str, str], str]:
-    """Build a colored query plan string from the DAG.
-
-    Returns ``(step_colors, plan_text)``.
-    """
     from docetl.containers import StepBoundary
 
     step_boundaries = sorted(
@@ -83,7 +78,6 @@ def format_execution_summary(
     intermediate_dir: str | None,
     output_path: str,
 ) -> str:
-    """Build the rich-formatted execution summary panel content."""
     token_lines = ""
     if token_usage:
         token_lines = "\n[bold]Token Usage:[/bold]\n"

@@ -4,7 +4,7 @@ import os
 import re
 import sys
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 import tiktoken
 import yaml
@@ -367,14 +367,6 @@ def smart_sample(
     return sorted(result, key=lambda x: len(json.dumps(x)), reverse=True)[
         :sample_size_needed
     ]
-
-
-class classproperty:
-    def __init__(self, f: Callable[[Any], Any]) -> None:
-        self.f = f
-
-    def __get__(self, obj: Any | None, owner: type) -> Any:
-        return self.f(owner)
 
 
 def extract_output_from_json(yaml_file_path, json_output_path=None):

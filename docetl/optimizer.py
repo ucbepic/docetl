@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.traceback import install
 
 from docetl.containers import OpContainer, StepBoundary
+from docetl.graph_builder import build_operation_graph, compute_operation_hashes
 from docetl.operations.utils import flush_cache
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.map_optimizer import MapOptimizer
@@ -251,7 +252,13 @@ class Optimizer:
                     self.console.log(
                         "[yellow]Loading partially optimized pipeline from checkpoint...[/yellow]"
                     )
-                    self.runner._build_operation_graph(partial_optimized_config)
+                    from docetl.api import Pipeline as PipelineCls
+
+                    self.runner.config = partial_optimized_config
+                    self.runner._raw_ops_list = partial_optimized_config.get("operations", [])
+                    self.runner.pipeline = PipelineCls.from_dict(partial_optimized_config)
+                    build_operation_graph(self.runner)
+                    compute_operation_hashes(self.runner)
             else:
                 self.console.log(
                     "[yellow]No checkpoint found, starting optimization from scratch...[/yellow]"
@@ -360,98 +367,109 @@ class Optimizer:
         if not self.runner.last_op_container:
             return self.config
 
-        datasets = {}
-        for dataset_name, dataset_config in self.config.get("datasets", {}).items():
-            if dataset_config["type"] == "memory":
-                dataset_config_copy = copy.deepcopy(dataset_config)
-                dataset_config_copy["path"] = "in-memory data"
-                datasets[dataset_name] = dataset_config_copy
-            else:
-                datasets[dataset_name] = dataset_config
-
         clean_config = {
-            "datasets": datasets,
+            "datasets": self._clean_datasets(),
             "operations": [],
             "pipeline": self.runner.config.get("pipeline", {}).copy(),
         }
         clean_config["pipeline"]["steps"] = []
-        seen_operations = set()
 
-        def clean_operation(op_container: OpContainer) -> dict:
-            clean_op = copy.deepcopy(op_container.config)
-            clean_op.pop("_intermediates", None)
-            if op_container.is_optimized:
-                for field in ["recursively_optimize", "optimize"]:
-                    clean_op.pop(field, None)
-            return clean_op
-
-        def process_container(container, current_step=None):
-            if isinstance(container, StepBoundary):
-                if container.children:
-                    return process_container(container.children[0], current_step)
-                return None, None
-
-            step_name = container.step_name
-            if not current_step or current_step["name"] != step_name:
-                current_step = {"name": step_name, "operations": []}
-                clean_config["pipeline"]["steps"].insert(0, current_step)
-
-            if container.config["type"] == "scan":
-                if container.children:
-                    return process_container(container.children[0], current_step)
-                return None, current_step
-
-            if container.name not in seen_operations:
-                clean_config["operations"].append(clean_operation(container))
-                seen_operations.add(container.name)
-
-            if container.is_equijoin:
-                current_step["operations"].insert(
-                    0,
-                    {
-                        container.config["name"]: {
-                            "left": container.kwargs["left_name"],
-                            "right": container.kwargs["right_name"],
-                        }
-                    },
-                )
-                if container.children:
-                    process_container(container.children[0], current_step)
-                    process_container(container.children[1], current_step)
-            else:
-                current_step["operations"].insert(0, container.config["name"])
-                if container.children:
-                    for child in container.children:
-                        process_container(child, current_step)
-
-            return container, current_step
-
-        process_container(self.runner.last_op_container)
-
-        for step in clean_config["pipeline"]["steps"]:
-            first_op = step["operations"][0]
-            if isinstance(first_op, dict):
-                continue
-            elif len(step["operations"]) > 0:
-                op_container = self.runner.op_container_map.get(
-                    f"{step['name']}/{first_op}"
-                )
-                if op_container and op_container.children:
-                    child = op_container.children[0]
-                    while (
-                        child
-                        and child.config["type"] == "step_boundary"
-                        and child.children
-                    ):
-                        child = child.children[0]
-                    if child and child.config["type"] == "scan":
-                        step["input"] = child.config["dataset_name"]
+        self._collect_operations(
+            self.runner.last_op_container, clean_config, set()
+        )
+        self._resolve_step_inputs(clean_config["pipeline"]["steps"])
 
         for key, value in self.config.items():
             if key not in ["datasets", "operations", "pipeline"]:
                 clean_config[key] = value
 
         return clean_config
+
+    def _clean_datasets(self) -> dict:
+        datasets = {}
+        for name, cfg in self.config.get("datasets", {}).items():
+            if cfg["type"] == "memory":
+                cfg = copy.deepcopy(cfg)
+                cfg["path"] = "in-memory data"
+            datasets[name] = cfg
+        return datasets
+
+    @staticmethod
+    def _clean_single_operation(op_container: OpContainer) -> dict:
+        clean_op = copy.deepcopy(op_container.config)
+        clean_op.pop("_intermediates", None)
+        if op_container.is_optimized:
+            for field in ["recursively_optimize", "optimize"]:
+                clean_op.pop(field, None)
+        return clean_op
+
+    def _collect_operations(
+        self, container, clean_config: dict, seen: set, current_step=None,
+    ):
+        if isinstance(container, StepBoundary):
+            if container.children:
+                return self._collect_operations(
+                    container.children[0], clean_config, seen, current_step,
+                )
+            return None, None
+
+        step_name = container.step_name
+        if not current_step or current_step["name"] != step_name:
+            current_step = {"name": step_name, "operations": []}
+            clean_config["pipeline"]["steps"].insert(0, current_step)
+
+        if container.config["type"] == "scan":
+            if container.children:
+                return self._collect_operations(
+                    container.children[0], clean_config, seen, current_step,
+                )
+            return None, current_step
+
+        if container.name not in seen:
+            clean_config["operations"].append(
+                self._clean_single_operation(container)
+            )
+            seen.add(container.name)
+
+        if container.is_equijoin:
+            current_step["operations"].insert(0, {
+                container.config["name"]: {
+                    "left": container.kwargs["left_name"],
+                    "right": container.kwargs["right_name"],
+                },
+            })
+            if container.children:
+                self._collect_operations(
+                    container.children[0], clean_config, seen, current_step,
+                )
+                self._collect_operations(
+                    container.children[1], clean_config, seen, current_step,
+                )
+        else:
+            current_step["operations"].insert(0, container.config["name"])
+            if container.children:
+                for child in container.children:
+                    self._collect_operations(
+                        child, clean_config, seen, current_step,
+                    )
+
+        return container, current_step
+
+    def _resolve_step_inputs(self, steps: list[dict]) -> None:
+        for step in steps:
+            first_op = step["operations"][0]
+            if isinstance(first_op, dict):
+                continue
+            op_container = self.runner.op_container_map.get(
+                f"{step['name']}/{first_op}"
+            )
+            if not (op_container and op_container.children):
+                continue
+            child = op_container.children[0]
+            while child and child.config["type"] == "step_boundary" and child.children:
+                child = child.children[0]
+            if child and child.config["type"] == "scan":
+                step["input"] = child.config["dataset_name"]
 
     def save_optimized_config(self, optimized_config_path: str):
         resolved_config = self.clean_optimized_config()

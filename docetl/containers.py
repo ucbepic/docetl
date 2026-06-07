@@ -69,7 +69,6 @@ class OpContainer:
         for child in self.children:
             child.optimize()
 
-        # Gather input samples from children
         sample_size_needed = self.runner.optimizer.sample_size_map.get(
             self.config["type"]
         )
@@ -445,7 +444,6 @@ class OpContainer:
             self.runner.status,
         )
 
-        # Do syntax check
         obj.syntax_check()
 
         return f"[green]✓[/green] Operation '{operation}' ({operation_type})"
@@ -460,7 +458,6 @@ class StepBoundary(OpContainer):
             is_build, sample_size_needed
         )
 
-        # Print step logs only if not building
         self.runner.datasets[self.step_name] = Dataset(
             self, "memory", output_data
         )

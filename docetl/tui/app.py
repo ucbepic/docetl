@@ -632,6 +632,18 @@ def _render_cascade_info(info: dict) -> Text:
     if info.get("cached"):
         t.append("  (cached)\n", style="dim")
 
+    escalated = info.get("item_escalated")
+    kept = info.get("kept_input_indices")
+    if escalated and kept:
+        n_oracle = sum(1 for idx in kept if idx < len(escalated) and escalated[idx])
+        n_proxy = len(kept) - n_oracle
+        t.append("  kept  ", style="dim")
+        t.append(_DOT, style="green")
+        t.append(f" {n_proxy} proxy", style="green")
+        t.append("  ", style="dim")
+        t.append(_DOT, style="cyan")
+        t.append(f" {n_oracle} oracle\n", style="cyan")
+
     score_hist = info.get("score_hist")
     if score_hist:
         t.append_text(_render_score_bar(score_hist, threshold))

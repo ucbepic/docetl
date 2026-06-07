@@ -503,10 +503,8 @@ class OpContainer:
             input_sample_size = sample_size_needed
 
         # Clear stale checkpoint
-        if self.runner.intermediate_dir:
-            checkpoint_path = os.path.join(self.runner.intermediate_dir, self.step_name, f"{self.op_name}.json")
-            if os.path.exists(checkpoint_path):
-                os.remove(checkpoint_path)
+        if self.runner.checkpoints:
+            self.runner.checkpoints.clear_stale(self.step_name, self.op_name)
 
         # Pull inputs from children
         input_data, input_len, cost, curr_logs = self._pull_children(is_build, input_sample_size)
@@ -571,8 +569,8 @@ class OpContainer:
         # Save checkpoint
         if (
             not is_build
-            and self.runner.intermediate_dir
-            and self.op_name in self.runner.step_op_hashes.get(self.step_name, {})
+            and self.runner.checkpoints
+            and self.runner.checkpoints.has_hash(self.step_name, self.op_name)
         ):
             self.runner._save_checkpoint(self.step_name, self.op_name, output_data)
 

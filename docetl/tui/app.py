@@ -411,6 +411,8 @@ class DocetlTUI(App):
             if prof.summary is not None:
                 for line in prof.summary(op):
                     body.append_text(line)
+            if op.cascade_info:
+                body.append_text(_render_cascade_info(op.cascade_info))
             body.append("\nTab → grid, then ↑↓←→ to inspect documents.", style="dim")
             return "Operation", body
 
@@ -550,6 +552,29 @@ def _fmt_dur(secs: float) -> str:
         return f"{m}m {s}s"
     h, m = divmod(m, 60)
     return f"{h}h {m}m"
+
+
+def _render_cascade_info(info: dict) -> Text:
+    """Compact cascade stats block for the operation detail pane."""
+    t = Text()
+    t.append("\ncascade\n", style="bold magenta")
+    t.append(f"  proxy:      {info['proxy_model']}\n", style="cyan")
+    t.append(f"  oracle:     {info['oracle_model']}\n", style="cyan")
+    guarantee = info["guarantee"]
+    target = info["target"]
+    t.append(f"  guarantee:  {guarantee} ≥ {target:.0%}", style="yellow")
+    t.append(f"  δ={info['delta']}\n", style="grey70")
+    proxy_calls = info["proxy_calls"]
+    oracle_calls = info["oracle_calls"]
+    esc = info["escalation_rate"]
+    served = info["served_by_proxy"]
+    t.append(f"  proxy calls:  {proxy_calls:,}\n", style="grey70")
+    t.append(f"  oracle calls: {oracle_calls:,}\n", style="grey70")
+    t.append(f"  escalation:   {esc:.0%}", style="red" if esc >= 0.5 else "green")
+    t.append(f"  ({served:,} served by proxy)\n", style="grey70")
+    if info.get("cached"):
+        t.append("  (cached)\n", style="dim")
+    return t
 
 
 def _heat_style(frac: float, has_error: bool) -> str:

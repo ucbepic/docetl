@@ -109,6 +109,13 @@ class ProgressTracker:
                 self._current.phase = None
         self._notify()
 
+    def set_cascade_info(self, info: dict) -> None:
+        """Store cascade stats on the current op for TUI display."""
+        with self._lock:
+            if self._current is not None:
+                self._current.cascade_info = info
+        self._notify()
+
     def tick(self, n: int = 1) -> None:
         """Advance the current operation by ``n`` completed documents."""
         with self._lock:

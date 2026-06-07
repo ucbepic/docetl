@@ -35,6 +35,8 @@ class OpState:
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
+    cascade_info: dict | None = None
+
     start_t: float | None = None
     end_t: float | None = None
 
@@ -151,6 +153,7 @@ class RunState:
                     "cost": op.cost,
                     "tokens": op.tokens,
                     "elapsed": op.elapsed,
+                    "cascade_info": op.cascade_info,
                 }
                 for op in self.ops
             ],

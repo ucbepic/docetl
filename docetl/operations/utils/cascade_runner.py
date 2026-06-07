@@ -236,6 +236,23 @@ class CascadeMixin:
         self.cascade_stats = stats
         served_by_proxy = stats.n_items - stats.oracle_calls
         tag = " [dim](cached)[/dim]" if cached_hit else ""
+
+        tracker = active_tracker()
+        if tracker is not None:
+            cfg = self._cascade_cfg()
+            tracker.set_cascade_info({
+                "proxy_model": cfg["proxy_model"],
+                "oracle_model": self.config.get("model", getattr(self, "default_model", "?")),
+                "guarantee": stats.guarantee,
+                "target": stats.target,
+                "delta": stats.delta,
+                "proxy_calls": stats.proxy_calls,
+                "oracle_calls": stats.oracle_calls,
+                "escalation_rate": stats.escalation_rate,
+                "served_by_proxy": served_by_proxy,
+                "cached": cached_hit,
+            })
+
         self.console.log(
             f"[bold green]Cascade {op_label} "
             f"'{self.config.get('name', '?')}'[/bold green]{tag}: {stats.n_items} "
@@ -306,13 +323,16 @@ class CascadeMixin:
             negative_label=negative_label,
         )
         if guarantee in ("precision", "recall") and spec.label_budget < 50:
+            fallback = (
+                "keep everything (no filtering)"
+                if guarantee == "recall"
+                else "return only oracle-confirmed positives (very few results)"
+            )
             self.console.log(
                 f"[bold yellow]Warning:[/bold yellow] cascade label_budget="
                 f"{spec.label_budget} is very small. With fewer than ~50 oracle "
                 f"samples the {guarantee} threshold search may not reach "
-                f"confidence, causing the cascade to {'keep everything (no '
-                'filtering)' if guarantee == 'recall' else 'return only oracle-'
-                'confirmed positives (very few results)'}. Consider "
+                f"confidence, causing the cascade to {fallback}. Consider "
                 f"label_budget ≥ 100."
             )
         elif guarantee in ("precision", "recall") and spec.label_budget < len(items) * 0.05:

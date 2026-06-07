@@ -340,9 +340,13 @@ class OpContainer:
                         cached_data = smart_sample(cached_data, sample_size_needed)
                     return cached_data, 0, f"[green]✓[/green] Using cached {self.name} (sample size: {cached_sample_size})\n"
 
-        if not is_build and not self.config.get("bypass_cache", False):
-            cached = self.runner._load_from_checkpoint_if_exists(self.step_name, self.op_name)
+        if not is_build and not self.config.get("bypass_cache", False) and self.runner.checkpoints:
+            cached = self.runner.checkpoints.load(self.step_name, self.op_name)
             if cached is not None:
+                self.runner.console.log(
+                    f"[green]✓[/green] [italic]Loaded checkpoint for operation "
+                    f"'{self.op_name}' in step '{self.step_name}'[/italic]"
+                )
                 self._notify_cached(cached)
                 return cached, 0, f"[green]✓[/green] Using cached {self.name}\n"
 
@@ -426,7 +430,11 @@ class OpContainer:
             and self.runner.checkpoints
             and self.runner.checkpoints.has_hash(self.step_name, self.op_name)
         ):
-            self.runner._save_checkpoint(self.step_name, self.op_name, output_data)
+            path = self.runner.checkpoints.save(self.step_name, self.op_name, output_data)
+            self.runner.console.log(
+                f"[green]✓ [italic]Intermediate saved for operation '{self.op_name}' "
+                f"in step '{self.step_name}' at {path}[/italic][/green]"
+            )
 
         return output_data, cost, curr_logs
 

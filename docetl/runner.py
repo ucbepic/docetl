@@ -163,9 +163,10 @@ class DSLRunner:
 
     def _setup_routers(self) -> None:
         self.fallback_models_config = self.config.get("fallback_models", [])
-        self.fallback_embedding_models_config = self.config.get("fallback_embedding_models", [])
         self.router = _create_router(self.console, self.fallback_models_config, "completion")
-        self.embedding_router = _create_router(self.console, self.fallback_embedding_models_config, "embedding")
+        self.embedding_router = _create_router(
+            self.console, self.config.get("fallback_embedding_models", []), "embedding"
+        )
         self._router_cache: dict[str, Any] = {}
 
     def _setup_checkpoints(self) -> None:
@@ -402,39 +403,11 @@ class DSLRunner:
                 f"Unsupported output type: {out.type}. Supported types: file"
             )
 
-    def _load_from_checkpoint_if_exists(
-        self, step_name: str, operation_name: str
-    ) -> list[dict] | None:
-        if not self.checkpoints:
-            return None
-
-        data = self.checkpoints.load(step_name, operation_name)
-        if data is not None:
-            self.datasets[f"{step_name}_{operation_name}"] = Dataset(
-                self, "memory", data
-            )
-            self.console.log(
-                f"[green]✓[/green] [italic]Loaded checkpoint for operation "
-                f"'{operation_name}' in step '{step_name}'[/italic]"
-            )
-        return data
-
     def clear_intermediate(self) -> None:
         if self.checkpoints:
             self.checkpoints.clear_all()
             return
         raise ValueError("Intermediate directory not set. Cannot clear intermediate.")
-
-    def _save_checkpoint(
-        self, step_name: str, operation_name: str, data: list[dict]
-    ) -> None:
-        if not self.checkpoints:
-            return
-        path = self.checkpoints.save(step_name, operation_name, data)
-        self.console.log(
-            f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' "
-            f"in step '{step_name}' at {path}[/italic][/green]"
-        )
 
     def _prepare_optimizer_kwargs(self, **kwargs) -> dict:
         opt_cfg = self.pipeline.optimizer_config or {}

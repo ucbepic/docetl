@@ -1,20 +1,18 @@
 # Model Cascades for DocETL operators
 
-Status: complete — all 5 milestones landed (engine, proxy logprob path, filter
-/ map(enum) / resolve / equijoin wiring, caching + cost reporting + user docs at
-`docs/concepts/cascades.md`)
+Status: complete — engine, proxy logprob path, filter / resolve / equijoin
+wiring, caching + cost reporting + user docs at `docs/concepts/cascades.md`.
 Owner: (you)
 Branch: `claude/zen-maxwell-OPO34`
 
 ## Motivation
 
 Several DocETL operators issue an LLM call whose output is a single
-**categorical** value:
+**binary** value:
 
-| Operator | Items | Categorical output |
+| Operator | Items | Binary output |
 |---|---|---|
 | `filter` | records | boolean `keep` |
-| `map` (enum output) | records | enum value |
 | `resolve` | candidate pairs (post-blocking) | `is_match` |
 | `equijoin` | candidate pairs across two datasets | `is_match` |
 
@@ -25,10 +23,11 @@ proxy above the threshold, and escalates the rest — while preserving a
 **statistical guarantee** that holds with probability `1 - delta` for finite
 samples.
 
-This is the approach of [BARGAIN](https://github.com/ucbepic/BARGAIN). We do
-**not** depend on BARGAIN; its statistical core is small and is reimplemented
-here (`docetl/operations/utils/cascade.py`) so it can operate over pluggable
-proxy/oracle callables and be shared by all four operators.
+This is the approach of [BARGAIN](https://github.com/ucbepic/BARGAIN).
+DocETL depends on the BARGAIN library directly for the statistical core
+(BARGAIN_A, BARGAIN_P, BARGAIN_R) and wraps its Proxy/Oracle abstract
+classes with thin adapters that bridge BARGAIN's interface with DocETL's
+pluggable proxy/oracle callables.
 
 ## The single abstraction
 
@@ -57,8 +56,7 @@ engine.
 `guarantee` is operator-dependent, so it is not hardcoded:
 
 - **accuracy** — output matches the oracle on at least `target` fraction of
-  items. Natural for **map (enum)** (multi-class; precision/recall per class
-  is ill-defined). Mirrors `BARGAIN_A`.
+  items. Works for any binary operator. Mirrors `BARGAIN_A`.
 - **precision** — of the items returned positive, at least `target` are truly
   positive. Natural for **resolve / equijoin** (don't over-merge). `BARGAIN_P`.
 - **recall** — of the truly-positive items, at least `target` are returned.
@@ -100,9 +98,8 @@ metric-space.
     label_budget: 300
 ```
 
-Defaults if `guarantee` is omitted: filter→recall, map→accuracy,
-resolve/equijoin→precision. `syntax_check` validates compatibility
-(enum-map → accuracy only).
+Defaults if `guarantee` is omitted: filter→recall,
+resolve/equijoin→precision.
 
 ## Architecture / where it hooks in
 
@@ -112,7 +109,6 @@ is set:
 
 - **filter** (`filter.py`) — items = records; write-back via `_handle_result`.
   Cleanest vertical slice.
-- **map** (`map.py`) — restricted to single-enum output in v1.
 - **resolve** (`resolve.py:172`) / **equijoin** (`equijoin.py`) — items =
   candidate pairs *after existing blocking*; matched pairs feed the existing
   clustering / join.
@@ -152,32 +148,22 @@ dataset signature) so re-runs don't re-pay the labeling cost.
 
 - **Logprob availability** varies by provider — need a clear error + optional
   self-reported-confidence fallback.
-- **map with mixed outputs** isn't cleanly guaranteeable — v1 limits to
-  single-enum.
 - **Calibration cost** — `label_budget` is a hard ceiling; tiny datasets may
   not afford a meaningful sample (warn + fall back to all-oracle).
+- **target must be strict (0, 1)** — BARGAIN cannot guarantee 100% with finite
+  samples; `target=1.0` is rejected at config validation.
 
 ## Attribution
 
-The statistical procedures (betting confidence sequences, without-replacement
-sampling, and the accuracy/precision/recall threshold search) are ports of the
-methods in BARGAIN (UC Berkeley EPIC lab). Reimplemented here, not vendored.
+The statistical procedures (BARGAIN_A, BARGAIN_P, BARGAIN_R) are from the
+BARGAIN library (UC Berkeley EPIC lab). DocETL depends on BARGAIN directly
+and wraps its `Proxy`/`Oracle` abstract classes with thin adapters.
 
-### Dependency decision: vendor the statistical core
+### Dependency decision: use BARGAIN directly
 
-We deliberately do **not** take a runtime dependency on the `bargain` package:
-
-- It is **not published on PyPI** (0.1.1, MIT) — the only way to depend on it
-  is a git pin to a research repo with no release cadence, which is fragile
-  for a core runtime feature.
-- It ships `openai` + `pandas` as hard deps and its `Proxy`/`Oracle` model is
-  OpenAI-logprob-specific; DocETL goes through litellm, so we need our own
-  proxy/oracle adapters regardless.
-- The reused math is ~120 lines of pure numpy and is mathematically frozen;
-  MIT permits a verbatim, attributed port, and the coverage tests
-  (`tests/test_cascade_core.py`) guard against regressions.
-
-Trade-off accepted: we own correctness of the port and will not auto-receive
-upstream fixes. The `proxy_predict`/`oracle_predict` callable seam keeps the
-door open to an *optional* `bargain` backend later without changing operators.
+DocETL depends on the BARGAIN package at runtime. Thin adapter classes
+(`_ProxyAdapter`, `_OracleAdapter` in `cascade.py`) bridge BARGAIN's
+`Proxy`/`Oracle` interface with DocETL's callable-based proxy/oracle
+pattern. The `proxy_predict`/`oracle_predict` callable seam keeps the
+adapters simple and operators decoupled from BARGAIN internals.
 

@@ -1,12 +1,11 @@
 # Model Cascades
 
 Several DocETL operators issue an LLM call whose output is a single
-**categorical** value — a boolean or an enum:
+**binary** value — keep/drop or match/no-match:
 
-| Operator | Items | Categorical output |
+| Operator | Items | Binary output |
 |---|---|---|
 | `filter` | records | boolean `keep` |
-| `map` (enum output) | records | one enum value |
 | `resolve` | candidate pairs (after blocking) | `is_match` |
 | `equijoin` | candidate pairs across two datasets | `is_match` |
 
@@ -133,7 +132,7 @@ runner.load_run_save()
 |---|---|---|
 | `proxy_model` | the cheap model (required) | — |
 | `guarantee` | `accuracy` \| `precision` \| `recall` \| `precision+recall` | operator-specific (see below) |
-| `target` | threshold for that metric, in `(0, 1]` (required) | — |
+| `target` | threshold for that metric, in `(0, 1)` (required) | — |
 | `delta` | failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
 | `label_budget` | max oracle calls spent *learning* the threshold | `400` |
 
@@ -145,8 +144,7 @@ the data, and exposing it would defeat the guarantee. You stay in metric-space.
 Pick the guarantee that matches the operator's intent:
 
 - **accuracy** — output matches the oracle on at least `target` fraction of
-  items. Natural for **map (enum)**, where precision/recall per class is
-  ill-defined.
+  items. Works for any binary operator.
 - **precision** — of the items returned positive, at least `target` are truly
   positive. Natural for **resolve / equijoin** (don't over-merge / over-join).
 - **recall** — of the truly-positive items, at least `target` are returned.
@@ -161,7 +159,7 @@ Pick the guarantee that matches the operator's intent:
   matches".
 
 If you omit `guarantee`, each operator applies its natural default:
-**filter → recall**, **map → accuracy**, **resolve / equijoin → precision**.
+**filter → recall**, **resolve / equijoin → precision**.
 
 For `precision+recall`, both passes share the same `target` value. If you need
 different targets (e.g. precision ≥ 0.95 but recall ≥ 0.8), run two separate
@@ -184,21 +182,6 @@ datasets.
   prompt: "Is this document about climate policy? {{ input.text }}"
   output: { schema: { keep: "bool" } }
   cascade: { proxy_model: gpt-4o-mini, target: 0.95 }   # guarantee=recall
-```
-
-### map (single enum)
-
-`map` cascades are limited to a **single `enum[...]` output field** (v1). Every
-row is kept; the enum is filled by the proxy where confident, by the oracle
-where escalated.
-
-```yaml
-- name: categorize
-  type: map
-  model: gpt-4o
-  prompt: "Classify the ticket: {{ input.body }}"
-  output: { schema: { category: "enum[bug, feature, question]" } }
-  cascade: { proxy_model: gpt-4o-mini, target: 0.9 }    # guarantee=accuracy
 ```
 
 ### resolve / equijoin
@@ -264,13 +247,14 @@ The same numbers are available programmatically on the operation instance as
 
 ## Limitations (v1)
 
-- The proxy uses a **single-token** decode, so a cascade supports at most **9
-  labels** (booleans and small enums). Larger enums fall back to all-oracle —
-  remove the `cascade` block.
-- The proxy requires a provider/model that returns **token logprobs**; if it
+- Cascades only support **binary predictions** — `filter` (keep/drop),
+  `resolve` / `equijoin` (match/no-match). Multiclass (`map` with enum) is not
+  currently supported.
+- The proxy uses a **single-token** decode with **token logprobs** to estimate
+  confidence. It requires a provider/model that returns logprobs; if it
   doesn't, the proxy raises a clear error.
-- `map` cascades require a **single `enum[...]`** output; multi-field or
-  free-text map outputs are not guaranteeable and should not set `cascade`.
+- `target` must be strictly between 0 and 1 — BARGAIN cannot guarantee 100%
+  with finite samples.
 - The proxy renders the operator's prompt with `{{ input }}` (or
   `{{ input1/input2 }}`, `{{ left/right }}`); retrieval-context and PDF inputs
   are not yet wired into the cascade path. Combining `cascade` with

@@ -426,6 +426,12 @@ class ReduceOperation(BaseOperation):
                 total_cost += item_cost
                 if output is not None:
                     results.append(output)
+                from docetl.progress.tracker import active_tracker
+                _tracker = active_tracker()
+                if _tracker is not None:
+                    _tracker.tick_cost(item_cost)
+                    if output is not None:
+                        _tracker.add_outputs([output])
 
         if limit_value is not None and len(results) > limit_value:
             results = results[:limit_value]

@@ -78,7 +78,7 @@ class RichLoopBar:
         if self.tqdm is not None:
             self.tqdm.close()
 
-    def update(self, n: int = 1) -> None:
+    def update(self, n: int = 1, cost: float = 0.0) -> None:
         if self.tqdm is not None:
             self.tqdm.update(n)
         # Feed the interactive progress tracker, if one is active for this run.
@@ -86,6 +86,8 @@ class RichLoopBar:
         tracker = self._active_tracker()
         if tracker is not None:
             tracker.tick(n)
+            if cost > 0:
+                tracker.tick_cost(cost)
 
 
 def rich_as_completed(

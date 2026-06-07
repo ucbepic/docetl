@@ -632,7 +632,7 @@ Reference anchors:"""
                             if _tracker is not None:
                                 _tracker.add_outputs(batch_done)
 
-                        pbar.update()
+                        pbar.update(cost=item_cost)
 
                     chunk_start = chunk_end
 

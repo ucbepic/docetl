@@ -517,35 +517,32 @@ class DSLRunner(ConfigWrapper):
                 ops.append((step_name, f"{step_name}/{op_name}", op_type, model))
         return ops
 
-    def _should_use_tui(self) -> bool:
-        """Decide whether to launch the interactive TUI for this run.
+    def _should_use_tui(self) -> str | None:
+        """Decide which interactive progress mode to use for this run.
 
-        Enabled by the top-level ``interactive_ui`` flag in the config (alongside
-        ``default_model``). The TUI requires an interactive terminal; otherwise
-        we fall back to plain logging.
+        Returns ``"tui"`` for the full Textual dashboard, ``"log"`` for a
+        log-based reporter (non-TTY environments such as AI agents or CI),
+        or ``None`` to skip interactive progress entirely.
         """
         import sys
 
         if self._tui_active:
-            return False
+            return None
         if not self.config.get("interactive_ui", False):
-            return False
-        if not (sys.stdout.isatty() and sys.stdin.isatty()):
-            self.console.log(
-                "[yellow]interactive_ui requested but stdout is not a TTY; "
-                "falling back to standard output.[/yellow]"
-            )
-            return False
-        return True
+            return None
+        if sys.stdout.isatty() and sys.stdin.isatty():
+            return "tui"
+        return "log"
 
     def load_run_save(self) -> float:
         """
         Execute the entire pipeline defined in the configuration.
         """
-        # Route to the interactive TUI if requested and supported. The TUI runs
-        # this same method again on a worker thread with ``_tui_active`` set, so
-        # the actual execution path below is shared.
-        if self._should_use_tui():
+        # Route to an interactive progress view if requested and supported. The
+        # TUI runs this same method again on a worker thread with ``_tui_active``
+        # set, so the actual execution path below is shared.
+        ui_mode = self._should_use_tui()
+        if ui_mode == "tui":
             try:
                 from docetl.tui.app import run_with_tui
             except ImportError:
@@ -557,6 +554,10 @@ class DSLRunner(ConfigWrapper):
                 )
             else:
                 return run_with_tui(self)
+        elif ui_mode == "log":
+            from docetl.tui.log_reporter import run_with_log_reporter
+
+            return run_with_log_reporter(self)
 
         output_path = self.get_output_path(require=True)
 

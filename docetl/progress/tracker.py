@@ -108,6 +108,18 @@ class ProgressTracker:
                 op.completed = op.total
         self._notify()
 
+    def tick_cost(self, delta: float) -> None:
+        """Increment the current operation's cost so the UI can show it live."""
+        if delta <= 0:
+            return
+        with self._lock:
+            op = self._current
+            if op is None:
+                return
+            op.cost += delta
+            self.state.total_cost = sum(o.cost for o in self.state.ops)
+        self._notify()
+
     def add_outputs(self, items: list[dict]) -> None:
         """Append finished documents to the current op's output sample as they
         complete, so the detail pane can show them mid-run instead of only once

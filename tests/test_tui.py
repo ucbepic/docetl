@@ -95,6 +95,42 @@ def test_add_outputs_streams_documents_during_run():
     assert len(op.outputs) == 3
 
 
+def test_tick_cost_streams_cost_during_run():
+    t = ProgressTracker()
+    t.pipeline_start([("s", "s/op", "map", None)])
+    t.op_start("s/op", "map", None, total=10)
+    t.tick_cost(0.05)
+    t.tick_cost(0.10)
+    op = t.snapshot().get("s/op")
+    assert op.cost == pytest.approx(0.15)
+    assert t.snapshot().total_cost == pytest.approx(0.15)
+    # Zero or negative deltas are ignored.
+    t.tick_cost(0.0)
+    t.tick_cost(-1.0)
+    assert op.cost == pytest.approx(0.15)
+    # op_done overwrites with the final total.
+    t.op_done("s/op", cost=0.15, prompt_tokens=100, completion_tokens=50)
+    assert op.cost == pytest.approx(0.15)
+
+
+def test_richloopbar_update_with_cost():
+    t = ProgressTracker()
+    set_active_tracker(t)
+    try:
+        t.op_start("op", "map", None, total=5)
+        from docetl.operations.utils.progress import RichLoopBar
+
+        bar = RichLoopBar.__new__(RichLoopBar)
+        bar.tqdm = None
+        bar.update(1, cost=0.03)
+        bar.update(1, cost=0.07)
+        op = t.snapshot().get("op")
+        assert op.completed == 2
+        assert op.cost == pytest.approx(0.10)
+    finally:
+        set_active_tracker(None)
+
+
 def test_active_tracker_hook():
     t = ProgressTracker()
     set_active_tracker(t)
@@ -130,13 +166,33 @@ def test_should_use_tui_reads_top_level_flag(monkeypatch):
         },
         max_threads=2,
     )
-    assert runner._should_use_tui() is False  # absent -> off
+    assert runner._should_use_tui() is None  # absent -> off
     runner.config["interactive_ui"] = True
-    assert runner._should_use_tui() is True  # top level -> on
+    assert runner._should_use_tui() == "tui"  # top level + TTY -> tui
     # the old nested location is ignored
     runner.config["interactive_ui"] = False
     runner.config["pipeline"]["interactive_ui"] = True
-    assert runner._should_use_tui() is False
+    assert runner._should_use_tui() is None
+
+
+def test_should_use_tui_returns_log_for_non_tty(monkeypatch):
+    import sys
+
+    from docetl.runner import DSLRunner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False, raising=False)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False, raising=False)
+
+    runner = DSLRunner(
+        {
+            "default_model": "gpt-4o-mini",
+            "operations": [],
+            "pipeline": {"steps": [], "output": {"path": "/tmp/x.json"}},
+            "interactive_ui": True,
+        },
+        max_threads=2,
+    )
+    assert runner._should_use_tui() == "log"
 
 
 def test_runstate_to_dict():
@@ -278,6 +334,42 @@ def test_filter_summary_reports_dropped():
     f = OpState("s", "s/f", "filter")
     f.total, f.out_count = 20, 12
     assert "dropped: 8" in "".join(str(x) for x in get_profile("filter").summary(f))
+
+
+def test_log_reporter_emits_progress():
+    """The log reporter should emit progress lines for running and done ops."""
+    from docetl.tui.log_reporter import _LogReporter
+
+    class FakeConsole:
+        def __init__(self):
+            self.lines = []
+        def log(self, msg):
+            self.lines.append(str(msg))
+
+    console = FakeConsole()
+    t = ProgressTracker()
+    t.pipeline_start([("s", "s/classify", "map", "m")])
+    t.op_start("s/classify", "map", "m", total=10)
+
+    reporter = _LogReporter(t, console, interval=60)
+    # Emit once with the op running.
+    reporter._emit()
+    assert any("map:classify" in line for line in console.lines)
+    assert any("0/10" in line for line in console.lines)
+
+    t.tick(5)
+    t.tick_cost(0.10)
+    console.lines.clear()
+    reporter._emit()
+    assert any("50%" in line for line in console.lines)
+
+    t.op_done("s/classify", cost=0.20, prompt_tokens=500, completion_tokens=100,
+              outputs=[{"x": i} for i in range(10)])
+    t.pipeline_done()
+    console.lines.clear()
+    reporter._emit()
+    assert any("✓ done" in line for line in console.lines)
+    assert any("pipeline complete" in line for line in console.lines)
 
 
 # =============================================================================

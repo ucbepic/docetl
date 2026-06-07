@@ -1,12 +1,7 @@
-"""
-This module contains the container classes used by the DSLRunner for pipeline execution.
-The containers implement a pull-based execution model where operations are lazily evaluated
-only when their outputs are needed by parent nodes.
-"""
+"""Pull-based execution containers for pipeline operations."""
 
 import json
 import math
-import os
 from typing import TYPE_CHECKING
 
 from rich.panel import Panel
@@ -25,20 +20,6 @@ NUM_OPTIMIZER_RETRIES = 1
 
 
 class OpContainer:
-    """
-    OpContainer implements a pull-based execution model for pipeline operations. Each container
-    represents a node in the execution DAG and lazily evaluates its operation only when its
-    output is requested by a parent node.
-
-    Key features:
-    - Lazy evaluation: Operations only execute when their output is needed
-    - Transparent caching: Results can be cached and reused across pipeline runs
-    - Cost tracking: Each operation's execution cost is tracked and aggregated
-
-    The pull-based model means that execution flows backwards through the DAG - when the final
-    node is asked for data, it recursively requests data from its children until reaching leaf
-    nodes (typically scan operations that load initial datasets).
-    """
 
     def __init__(self, name: str, runner: "DSLRunner", config: dict, **kwargs):
         self._name = name
@@ -82,357 +63,244 @@ class OpContainer:
         child.parent = self
 
     def optimize(self):
-        """
-        Optimize the next operation, to get a sample of size sample_size.
-        Along the way, we will replace this op container with the optimized op container.
-
-        We do the following:
-        1. Optimize the children
-        2. Run the children to get the input data for optimizing this operation
-        3. Optimize this operation and replace it with the optimized op containers
-        """
-        # Return early if already optimized
         if self.is_optimized:
             return
 
-        # optimize the children
         for child in self.children:
             child.optimize()
 
-        # Figure out the sample size needed for this operation from the sample size map
-        # It may be None if the operation is not in the sample size map, which means we will get all the data
+        # Gather input samples from children
         sample_size_needed = self.runner.optimizer.sample_size_map.get(
             self.config["type"]
         )
-
-        # if type is equijoin, sample_size_needed may be a dictionary
         if self.config["type"] == "equijoin":
             if isinstance(sample_size_needed, dict):
-                sample_size_needed = [
-                    sample_size_needed["left"],
-                    sample_size_needed["right"],
-                ]
+                sample_size_needed = [sample_size_needed["left"], sample_size_needed["right"]]
             else:
                 sample_size_needed = [sample_size_needed, sample_size_needed]
         else:
             sample_size_needed = [sample_size_needed]
 
-        assert len(sample_size_needed) >= len(
-            self.children
-        ), f"Sample size list must be a list of at least the same length as the number of children. Current sample size list: {sample_size_needed}. Current number of children: {len(self.children)}"
+        input_data = [
+            child.next(is_build=True, sample_size_needed=sample_size_needed[idx])[0]
+            for idx, child in enumerate(self.children)
+        ]
 
-        # run the children to get the input data for optimizing this operation
-        input_data = []
-        for idx, child in enumerate(self.children):
-            input_data.append(
-                child.next(is_build=True, sample_size_needed=sample_size_needed[idx])[0]
-            )
-
-        # Optimize this operation if it's eligible for optimization
         new_head_pointer = self
         if self.config.get("optimize", False):
             if self.config["type"] not in SUPPORTED_OPS:
                 self.runner.console.log(
-                    f"[red]Operation {self.name} is not supported for optimization. Proceeding without optimizing it.[/red]"
+                    f"[red]Operation {self.name} is not supported for optimization.[/red]"
                 )
             else:
-                # If this is a build operation, set the captured output
-                self.runner.optimizer.captured_output.set_step(self.step_name)
+                new_head_pointer = self._run_optimizer(input_data)
 
-                # Print statistics for optimizing this operation
-                sample_info = []
-                if self.config["type"] == "equijoin":
-                    sample_info.extend(
-                        [
-                            f"[yellow]Sample size (left): {len(input_data[0])}",
-                            f"[yellow]Sample size (right): {len(input_data[1])}",
-                        ]
-                    )
-                else:
-                    sample_info.append(f"[yellow]Sample size: {len(input_data[0])}")
-
-                # Get optimizer config for this operation type if it exists
-                optimizer_config = self.runner.config.get("optimizer_config", {}).get(
-                    self.config["type"], {}
-                )
-
-                panel_content = "\n".join(sample_info)
-                if optimizer_config:
-                    panel_content += "\n\n[cyan]Optimizer Config:[/cyan]"
-                    for key, value in optimizer_config.items():
-                        panel_content += f"\n[cyan]{key}:[/cyan] {value}"
-
-                self.runner.console.log(
-                    Panel.fit(
-                        panel_content,
-                        title=f"[yellow]Optimizing {self.name} (Type: {self.config['type']})",
-                    )
-                )
-
-                # Use rich console status to indicate optimization of the operation
-                with self.runner.console.status(
-                    f"[bold blue]Optimizing operation: {self.name} (Type: {self.config['type']})[/bold blue]"
-                ) as status:
-                    self.runner.status = status
-                    optimized_ops = []
-
-                    # Run optimization
-                    for retry in range(
-                        self.runner.config.get("optimizer_config", {}).get(
-                            "num_retries", NUM_OPTIMIZER_RETRIES
-                        )
-                    ):
-                        try:
-                            if self.config.get("type") in ["map", "filter"]:
-                                map_optimizer = MapOptimizer(
-                                    self.runner,
-                                    self.runner._run_operation,
-                                    is_filter=self.config["type"] == "filter",
-                                )
-                                optimized_ops, _, cost = map_optimizer.optimize(
-                                    self.config,
-                                    input_data[0],
-                                    plan_types=self.runner.config.get(
-                                        "optimizer_config", {}
-                                    )
-                                    .get("map", {})
-                                    .get(
-                                        "plan_types",
-                                        ["chunk", "proj_synthesis", "glean"],
-                                    ),
-                                )
-                                self.runner.total_cost += cost
-                            elif self.config.get("type") == "reduce":
-                                reduce_optimizer = ReduceOptimizer(
-                                    self.runner,
-                                    self.runner._run_operation,
-                                )
-                                optimized_ops, _, cost = reduce_optimizer.optimize(
-                                    self.config, input_data[0]
-                                )
-                                self.runner.total_cost += cost
-                            elif self.config.get("type") == "resolve":
-                                optimized_config, cost = JoinOptimizer(
-                                    self.runner,
-                                    self.config,
-                                    target_recall=self.runner.config.get(
-                                        "optimizer_config", {}
-                                    )
-                                    .get("resolve", {})
-                                    .get("target_recall", 0.95),
-                                    estimated_selectivity=self.runner.config.get(
-                                        "optimizer_config", {}
-                                    )
-                                    .get("resolve", {})
-                                    .get("estimated_selectivity", None),
-                                ).optimize_resolve(input_data[0])
-                                op_config = self.config.copy()
-                                op_config.update(optimized_config)
-                                optimized_ops = (
-                                    [op_config]
-                                    if not optimized_config.get("empty", False)
-                                    else []
-                                )
-                                self.runner.total_cost += cost
-
-                            elif self.config.get("type") == "equijoin":
-                                op_config, new_steps, new_left_name, new_right_name = (
-                                    self.runner.optimizer._optimize_equijoin(
-                                        self.config,
-                                        self.kwargs["left_name"],
-                                        self.kwargs["right_name"],
-                                        input_data[0],
-                                        input_data[1],
-                                        self.runner._run_operation,
-                                    )
-                                )
-                                # Set this current config to be op_config
-                                self.config = op_config
-
-                                # Replace old op map
-                                self.runner.op_container_map = {
-                                    k: v
-                                    for k, v in self.runner.op_container_map.items()
-                                    if k
-                                    not in [
-                                        self.children[0].name,
-                                        self.children[1].name,
-                                    ]
-                                }
-
-                                # Set the children to be scans of the new left and right names
-                                curr_step_name = self.step_name
-                                self.children[0].config = {
-                                    "type": "scan",
-                                    "name": f"scan_{new_left_name}",
-                                    "dataset_name": new_left_name,
-                                }
-                                self.children[0].name = (
-                                    f"{curr_step_name}/scan_{new_left_name}"
-                                )
-                                self.children[1].config = {
-                                    "type": "scan",
-                                    "name": f"scan_{new_right_name}",
-                                    "dataset_name": new_right_name,
-                                }
-                                self.children[1].name = (
-                                    f"{curr_step_name}/scan_{new_right_name}"
-                                )
-
-                                # Replace in the op map
-                                self.runner.op_container_map[
-                                    f"{curr_step_name}/scan_{new_left_name}"
-                                ] = self.children[0]
-                                self.runner.op_container_map[
-                                    f"{curr_step_name}/scan_{new_right_name}"
-                                ] = self.children[1]
-
-                                # Find the child dataset name that changed (left or right)
-                                left_changed = new_left_name != self.kwargs["left_name"]
-                                if left_changed:
-                                    # Set the left to be the local last op container
-                                    local_last_op_container = self.children[0]
-                                else:
-                                    # Set the right to be the local last op container
-                                    local_last_op_container = self.children[1]
-
-                                # Change the kwargs left and right names
-                                self.kwargs["left_name"] = new_left_name
-                                self.kwargs["right_name"] = new_right_name
-
-                                # Insert new containers before local_last_op_container's children and local_last_op_container
-                                old_children = local_last_op_container.children
-                                local_last_op_container.children = []
-
-                                # Add the new steps and operations to the query plan
-                                for step_name, step_obj, operations in reversed(
-                                    new_steps
-                                ):
-                                    # Create the step boundary op container
-                                    step_boundary_container = StepBoundary(
-                                        f"{step_name}/boundary",
-                                        self.runner,
-                                        {
-                                            "type": "step_boundary",
-                                            "name": f"{step_name}/boundary",
-                                        },
-                                    )
-                                    self.runner.op_container_map[
-                                        f"{step_name}/boundary"
-                                    ] = step_boundary_container
-                                    # Point the equijoin op container to this step boundary
-                                    local_last_op_container.add_child(
-                                        step_boundary_container
-                                    )
-
-                                    local_last_op_container = step_boundary_container
-
-                                    # Create new op containers for each operation
-                                    for op in operations:
-                                        op_container = OpContainer(
-                                            f"{step_name}/{op['name']}", self.runner, op
-                                        )
-                                        self.runner.op_container_map[
-                                            f"{step_name}/{op['name']}"
-                                        ] = op_container
-                                        local_last_op_container.add_child(op_container)
-                                        local_last_op_container = op_container
-
-                                    # Add a scan operation based on the input for the step op
-                                    scan_op_container = OpContainer(
-                                        f"{step_name}/scan_{step_obj['input']}",
-                                        self.runner,
-                                        {
-                                            "type": "scan",
-                                            "name": f"scan_{step_obj['input']}",
-                                            "dataset_name": step_obj["input"],
-                                        },
-                                    )
-                                    self.runner.op_container_map[
-                                        f"{step_name}/scan_{step_obj['input']}"
-                                    ] = scan_op_container
-                                    local_last_op_container.add_child(scan_op_container)
-                                    local_last_op_container = scan_op_container
-
-                                # Set the local_last_op_container's children to the old children
-                                for child in old_children:
-                                    local_last_op_container.add_child(child)
-
-                            else:
-                                raise ValueError(
-                                    f"Unsupported operation type: {self.config['type']}"
-                                )
-                            break  # If successful, break out of the retry loop
-                        except Exception as e:
-                            if (
-                                retry
-                                == self.runner.config.get("optimizer_config", {}).get(
-                                    "num_retries", NUM_OPTIMIZER_RETRIES
-                                )
-                                - 1
-                            ):
-                                raise  # If this was the last retry, re-raise the exception
-                            self.runner.console.log(
-                                f"Optimization attempt {retry + 1} failed with error: {e}. Retrying..."
-                            )
-
-                    if len(optimized_ops) > 0:
-                        # Replace this op container with the optimized op containers
-                        # Since this is not an equijoin, we have only one child
-                        old_children = self.children
-                        self.children = []
-                        local_last_op_container = self.parent
-                        local_last_op_container.children = []
-                        curr_step_name = self.step_name
-
-                        for idx, op in enumerate(list(reversed(optimized_ops))):
-                            op_container = OpContainer(
-                                f"{curr_step_name}/{op['name']}", self.runner, op
-                            )
-                            if idx == 0:
-                                new_head_pointer = op_container
-
-                            self.runner.op_container_map[
-                                f"{curr_step_name}/{op['name']}"
-                            ] = op_container
-                            local_last_op_container.add_child(op_container)
-                            local_last_op_container = op_container
-
-                        for child in old_children:
-                            local_last_op_container.add_child(child)
-
-        # Figure out the sample size needed for this operation from the sample size map
-        # It may be None if the operation is not in the sample size map, which means we will get all the data
-        sample_size_needed = self.runner.optimizer.sample_size_map.get(
-            new_head_pointer.config["type"]
-        )
-        # if it's an equijoin, sample_size_needed may be a dictionary
-        if new_head_pointer.config["type"] == "equijoin":
-            if isinstance(sample_size_needed, dict):
-                sample_size_needed = min(
-                    sample_size_needed["left"], sample_size_needed["right"]
-                )
-
-        # walk down the new head pointer and set the selectivities
-        queue = [new_head_pointer] if new_head_pointer.parent else []
-        while queue:
-            curr_op = queue.pop(0)
-            if not curr_op.selectivity:
-                # Run the operation to set the selectivity
-                if len(curr_op.children) == 0:
-                    # Selectivity is 1 because it's a scan
-                    curr_op.selectivity = 1
-                else:
-                    # Just run the operation because next will set the selectivity
-                    curr_op.next(is_build=True, sample_size_needed=sample_size_needed)
-
-            # Set the curr op to be optimized
-            curr_op.is_optimized = True
-
-            queue.extend(curr_op.children)
-
-        # Checkpoint the optimized operations
+        self._propagate_selectivities(new_head_pointer)
         self.runner.optimizer.checkpoint_optimized_ops()
+
+    def _run_optimizer(self, input_data: list) -> "OpContainer":
+        """Run the appropriate optimizer for this operation's type. Returns the new head pointer."""
+        self.runner.optimizer.captured_output.set_step(self.step_name)
+        self._log_optimization_panel(input_data)
+
+        opt_cfg = self.runner.config.get("optimizer_config", {})
+        num_retries = opt_cfg.get("num_retries", NUM_OPTIMIZER_RETRIES)
+
+        with self.runner.console.status(
+            f"[bold blue]Optimizing operation: {self.name} (Type: {self.config['type']})[/bold blue]"
+        ) as status:
+            self.runner.status = status
+            optimized_ops = []
+
+            for retry in range(num_retries):
+                try:
+                    op_type = self.config["type"]
+                    if op_type in ("map", "filter"):
+                        optimized_ops = self._optimize_map_filter(input_data)
+                    elif op_type == "reduce":
+                        optimized_ops = self._optimize_reduce(input_data)
+                    elif op_type == "resolve":
+                        optimized_ops = self._optimize_resolve(input_data)
+                    elif op_type == "equijoin":
+                        self._optimize_equijoin(input_data)
+                        return self
+                    else:
+                        raise ValueError(f"Unsupported operation type: {op_type}")
+                    break
+                except Exception as e:
+                    if retry == num_retries - 1:
+                        raise
+                    self.runner.console.log(
+                        f"Optimization attempt {retry + 1} failed with error: {e}. Retrying..."
+                    )
+
+            if optimized_ops:
+                return self._replace_with_optimized(optimized_ops)
+        return self
+
+    def _log_optimization_panel(self, input_data: list) -> None:
+        if self.config["type"] == "equijoin":
+            sample_info = [
+                f"[yellow]Sample size (left): {len(input_data[0])}",
+                f"[yellow]Sample size (right): {len(input_data[1])}",
+            ]
+        else:
+            sample_info = [f"[yellow]Sample size: {len(input_data[0])}"]
+
+        opt_type_cfg = self.runner.config.get("optimizer_config", {}).get(
+            self.config["type"], {}
+        )
+        panel_content = "\n".join(sample_info)
+        if opt_type_cfg:
+            panel_content += "\n\n[cyan]Optimizer Config:[/cyan]"
+            for key, value in opt_type_cfg.items():
+                panel_content += f"\n[cyan]{key}:[/cyan] {value}"
+
+        self.runner.console.log(
+            Panel.fit(panel_content, title=f"[yellow]Optimizing {self.name} (Type: {self.config['type']})")
+        )
+
+    def _optimize_map_filter(self, input_data: list) -> list[dict]:
+        opt_cfg = self.runner.config.get("optimizer_config", {})
+        optimizer = MapOptimizer(
+            self.runner,
+            self.runner._run_operation,
+            is_filter=self.config["type"] == "filter",
+        )
+        optimized_ops, _, cost = optimizer.optimize(
+            self.config,
+            input_data[0],
+            plan_types=opt_cfg.get("map", {}).get(
+                "plan_types", ["chunk", "proj_synthesis", "glean"]
+            ),
+        )
+        self.runner.total_cost += cost
+        return optimized_ops
+
+    def _optimize_reduce(self, input_data: list) -> list[dict]:
+        optimizer = ReduceOptimizer(self.runner, self.runner._run_operation)
+        optimized_ops, _, cost = optimizer.optimize(self.config, input_data[0])
+        self.runner.total_cost += cost
+        return optimized_ops
+
+    def _optimize_resolve(self, input_data: list) -> list[dict]:
+        opt_cfg = self.runner.config.get("optimizer_config", {})
+        resolve_cfg = opt_cfg.get("resolve", {})
+        optimized_config, cost = JoinOptimizer(
+            self.runner,
+            self.config,
+            target_recall=resolve_cfg.get("target_recall", 0.95),
+            estimated_selectivity=resolve_cfg.get("estimated_selectivity", None),
+        ).optimize_resolve(input_data[0])
+        op_config = self.config.copy()
+        op_config.update(optimized_config)
+        self.runner.total_cost += cost
+        if optimized_config.get("empty", False):
+            return []
+        return [op_config]
+
+    def _optimize_equijoin(self, input_data: list) -> None:
+        """Optimize an equijoin operation, rewiring the DAG in place."""
+        op_config, new_steps, new_left_name, new_right_name = (
+            self.runner.optimizer._optimize_equijoin(
+                self.config,
+                self.kwargs["left_name"],
+                self.kwargs["right_name"],
+                input_data[0],
+                input_data[1],
+                self.runner._run_operation,
+            )
+        )
+        self.config = op_config
+
+        # Remove old scan children from the container map
+        self.runner.op_container_map = {
+            k: v for k, v in self.runner.op_container_map.items()
+            if k not in [self.children[0].name, self.children[1].name]
+        }
+
+        # Rewire children as scans of the new dataset names
+        step = self.step_name
+        for idx, ds_name in enumerate([new_left_name, new_right_name]):
+            self.children[idx].config = {
+                "type": "scan", "name": f"scan_{ds_name}", "dataset_name": ds_name,
+            }
+            self.children[idx].name = f"{step}/scan_{ds_name}"
+            self.runner.op_container_map[f"{step}/scan_{ds_name}"] = self.children[idx]
+
+        # Determine which side changed and insert new steps there
+        left_changed = new_left_name != self.kwargs["left_name"]
+        insertion_point = self.children[0] if left_changed else self.children[1]
+        self.kwargs["left_name"] = new_left_name
+        self.kwargs["right_name"] = new_right_name
+
+        old_children = insertion_point.children
+        insertion_point.children = []
+
+        for step_name, step_obj, operations in reversed(new_steps):
+            boundary = StepBoundary(
+                f"{step_name}/boundary", self.runner,
+                {"type": "step_boundary", "name": f"{step_name}/boundary"},
+            )
+            self.runner.op_container_map[f"{step_name}/boundary"] = boundary
+            insertion_point.add_child(boundary)
+            insertion_point = boundary
+
+            for op in operations:
+                container = OpContainer(f"{step_name}/{op['name']}", self.runner, op)
+                self.runner.op_container_map[f"{step_name}/{op['name']}"] = container
+                insertion_point.add_child(container)
+                insertion_point = container
+
+            scan = OpContainer(
+                f"{step_name}/scan_{step_obj['input']}", self.runner,
+                {"type": "scan", "name": f"scan_{step_obj['input']}", "dataset_name": step_obj["input"]},
+            )
+            self.runner.op_container_map[f"{step_name}/scan_{step_obj['input']}"] = scan
+            insertion_point.add_child(scan)
+            insertion_point = scan
+
+        for child in old_children:
+            insertion_point.add_child(child)
+
+    def _replace_with_optimized(self, optimized_ops: list[dict]) -> "OpContainer":
+        """Replace this container with optimized ops in the DAG. Returns the new head."""
+        old_children = self.children
+        self.children = []
+        parent = self.parent
+        parent.children = []
+        step = self.step_name
+        new_head = None
+
+        for idx, op in enumerate(reversed(optimized_ops)):
+            container = OpContainer(f"{step}/{op['name']}", self.runner, op)
+            if idx == 0:
+                new_head = container
+            self.runner.op_container_map[f"{step}/{op['name']}"] = container
+            parent.add_child(container)
+            parent = container
+
+        for child in old_children:
+            parent.add_child(child)
+
+        return new_head
+
+    def _propagate_selectivities(self, head: "OpContainer") -> None:
+        """Walk the subtree rooted at *head* and compute selectivities."""
+        sample_size = self.runner.optimizer.sample_size_map.get(head.config["type"])
+        if head.config["type"] == "equijoin" and isinstance(sample_size, dict):
+            sample_size = min(sample_size["left"], sample_size["right"])
+
+        queue = [head] if head.parent else []
+        while queue:
+            curr = queue.pop(0)
+            if not curr.selectivity:
+                if not curr.children:
+                    curr.selectivity = 1
+                else:
+                    curr.next(is_build=True, sample_size_needed=sample_size)
+            curr.is_optimized = True
+            queue.extend(curr.children)
 
     def _pull_children(
         self, is_build: bool = False, sample_size_needed: int = None
@@ -473,12 +341,6 @@ class OpContainer:
     def next(
         self, is_build: bool = False, sample_size_needed: int = None
     ) -> tuple[list[dict], float, str]:
-        """
-        Execute this operation and return its results via pull-based evaluation.
-
-        Returns:
-            (output_data, total_cost, execution_logs)
-        """
         # Build-phase: check the optimizer's sample cache (v1 optimizer path)
         if is_build:
             cache_key = self.name

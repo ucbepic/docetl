@@ -54,16 +54,17 @@ def wrapper():
 # Pure parser: _parse_logprob_response
 # ---------------------------------------------------------------------------
 def test_parse_picks_argmax_label():
-    # "1" much more likely than "2" -> label True with high confidence.
+    # "1" much more likely than "2" -> label True; confidence via sigmoid(gap/3).
     resp = make_response("1", [_alt("1", math.log(0.9)), _alt("2", math.log(0.1))])
     label, prob = APIWrapper._parse_logprob_response(resp, {"1": True, "2": False})
     assert label is True
-    assert prob == pytest.approx(0.9, abs=1e-9)
+    gap = math.log(0.9) - math.log(0.1)
+    expected = 1.0 / (1.0 + math.exp(-gap / 3.0))
+    assert prob == pytest.approx(expected, abs=1e-9)
 
 
-def test_parse_uses_raw_logprob_ignoring_off_menu_tokens():
-    # A non-menu token ("the") in the alternatives is ignored; the chosen
-    # label's raw model probability is returned (not renormalized).
+def test_parse_ignores_off_menu_tokens():
+    # A non-menu token ("the") in the alternatives is ignored.
     resp = make_response(
         "2",
         [
@@ -74,14 +75,18 @@ def test_parse_uses_raw_logprob_ignoring_off_menu_tokens():
     )
     label, prob = APIWrapper._parse_logprob_response(resp, {"1": "a", "2": "b"})
     assert label == "b"
-    assert prob == pytest.approx(0.3, abs=1e-9)
+    gap = math.log(0.3) - math.log(0.2)
+    expected = 1.0 / (1.0 + math.exp(-gap / 3.0))
+    assert prob == pytest.approx(expected, abs=1e-9)
 
 
 def test_parse_strips_whitespace_on_tokens():
     resp = make_response(" 1", [_alt(" 1", math.log(0.8)), _alt("2", math.log(0.2))])
     label, prob = APIWrapper._parse_logprob_response(resp, {"1": "yes", "2": "no"})
     assert label == "yes"
-    assert prob == pytest.approx(0.8, abs=1e-9)
+    gap = math.log(0.8) - math.log(0.2)
+    expected = 1.0 / (1.0 + math.exp(-gap / 3.0))
+    assert prob == pytest.approx(expected, abs=1e-9)
 
 
 def test_parse_falls_back_to_chosen_token_without_top_logprobs():
@@ -93,6 +98,19 @@ def test_parse_falls_back_to_chosen_token_without_top_logprobs():
     label, prob = APIWrapper._parse_logprob_response(resp, {"1": "a", "2": "b"})
     assert label == "b"
     assert prob == pytest.approx(0.7, abs=1e-9)
+
+
+def test_parse_confidence_monotone_in_gap():
+    # Larger logprob gaps should give higher confidence.
+    _, p_small = APIWrapper._parse_logprob_response(
+        make_response("1", [_alt("1", -0.5), _alt("2", -1.0)]),
+        {"1": "a", "2": "b"},
+    )
+    _, p_large = APIWrapper._parse_logprob_response(
+        make_response("1", [_alt("1", -0.01), _alt("2", -10.0)]),
+        {"1": "a", "2": "b"},
+    )
+    assert p_large > p_small
 
 
 def test_parse_raises_when_no_logprobs():
@@ -141,7 +159,9 @@ def test_classify_builds_menu_and_returns_label(wrapper, monkeypatch):
     )
 
     assert label is False
-    assert prob == pytest.approx(0.75, abs=1e-9)
+    gap = math.log(0.75) - math.log(0.25)
+    expected = 1.0 / (1.0 + math.exp(-gap / 3.0))
+    assert prob == pytest.approx(expected, abs=1e-9)
 
     # logprobs were requested and decoding constrained to a single token.
     assert captured["logprobs"] is True

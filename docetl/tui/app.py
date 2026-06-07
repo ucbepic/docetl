@@ -640,6 +640,8 @@ def _render_score_bar(hist: list[int], threshold: float | None) -> Text:
     t.append(pad + label, style="dim")
     for i, count in enumerate(hist):
         level = int(count / peak * (len(_HIST_CHARS) - 1))
+        if count > 0 and level == 0:
+            level = 1
         bin_center = (i + 0.5) / n_bins
         if threshold is not None and threshold >= 0.01 and bin_center >= threshold:
             t.append(_HIST_CHARS[level], style="green")

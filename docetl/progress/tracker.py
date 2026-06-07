@@ -109,11 +109,26 @@ class ProgressTracker:
                 self._current.phase = label
         self._notify()
 
+    def freeze_grid(self) -> None:
+        """Lock the grid to show all items as done.
+
+        Called when the cascade proxy phase finishes so the grid stays
+        filled while the oracle phase runs with its own completed/total.
+        """
+        with self._lock:
+            op = self._current
+            if op is not None:
+                op.grid_complete = True
+                op.grid_total = op.total
+        self._notify()
+
     def clear_phase(self) -> None:
         """Drop the live sub-phase label once a multi-phase op finishes."""
         with self._lock:
             if self._current is not None:
                 self._current.phase = None
+                self._current.grid_complete = False
+                self._current.grid_total = None
         self._notify()
 
     def set_cascade_info(self, info: dict) -> None:

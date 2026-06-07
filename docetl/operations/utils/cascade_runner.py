@@ -152,28 +152,31 @@ class _CascadeProgress:
             self._tick()
 
     def tick_oracle(self) -> None:
-        """Signal an oracle call. Updates the phase label on the first call
-        so the TUI shows which model is active; the grid stays filled from
-        the proxy phase (oracle operates on already-scored items)."""
+        """Signal an oracle call.
+
+        On first call, freezes the grid (dots stay green from proxy) and
+        starts a new phase for the ops-list progress counter. Each
+        subsequent call advances the oracle progress.
+        """
         if not self._oracle_started:
             self._oracle_started = True
             label = f"oracle ({self.oracle_model})"
+            oracle_total = min(self.n_items, self.label_budget)
             if self._tracker is not None:
-                self._tracker.set_phase_label(label)
+                self._tracker.freeze_grid()
+                self._tracker.set_phase(oracle_total, label=label)
             else:
                 self._close_bar()
                 from docetl.operations.utils.progress import RichLoopBar
 
-                total = min(self.n_items, self.label_budget)
                 self._bar = RichLoopBar(
-                    total=total,
+                    total=oracle_total,
                     desc=f"Cascade {label}",
                     console=self.console,
                     leave=False,
                 )
                 self._bar.__enter__()
-        if self._bar is not None and self._oracle_started:
-            self._bar.update()
+        self._tick()
 
     def _tick(self) -> None:
         if self._tracker is not None:

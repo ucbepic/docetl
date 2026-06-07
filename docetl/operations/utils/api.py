@@ -1105,11 +1105,13 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         Map a logprobs completion response to ``(label, prob)``.
 
         Pure (no I/O): looks at the alternatives for the first generated token,
-        keeps those that match a menu digit, and returns the argmax label with
-        its raw model probability ``exp(logprob)``. Using the raw probability
-        instead of softmax-renormalizing over menu tokens preserves meaningful
-        confidence variation even when only one menu token appears in
-        top_logprobs (common for confident binary predictions). Kept separate
+        keeps those that match a menu digit, softmax-normalizes their logprobs,
+        and returns the argmax label with its conditional probability. Using
+        softmax over menu tokens gives P(label | answer is valid) which provides
+        meaningful confidence variation even when raw probabilities are extreme
+        (common with gpt-4o-mini binary classification where logprobs are 0 or
+        -25). When only one menu token appears, falls back to a clipped
+        ``exp(logprob)`` so the score is never a degenerate 1.0. Kept separate
         from the network call so it can be unit-tested with synthetic responses.
         """
         try:
@@ -1123,8 +1125,6 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             )
 
         first = content_lp[0]
-        # Alternatives at the first generated position; fall back to the chosen
-        # token alone if the provider omits top_logprobs.
         alts = getattr(first, "top_logprobs", None) or [first]
 
         logp_by_label: dict[Any, float] = {}
@@ -1136,7 +1136,6 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             if lp is None:
                 continue
             label = token_to_label[tok]
-            # If a digit appears more than once, keep its highest logprob.
             if label not in logp_by_label or lp > logp_by_label[label]:
                 logp_by_label[label] = lp
 
@@ -1149,7 +1148,17 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         present_labels = list(logp_by_label)
         logps = [logp_by_label[lbl] for lbl in present_labels]
         best = max(range(len(present_labels)), key=lambda i: logps[i])
-        prob = math.exp(logps[best])
+
+        if len(present_labels) >= 2:
+            # Compress the logprob gap through a sigmoid so the confidence
+            # score has meaningful variation even when the model is extremely
+            # confident (gpt-4o-mini routinely returns logprobs of 0 vs -25
+            # for binary classification, making raw/softmax probs degenerate).
+            # Scale=3 maps a ~6-nat gap to the 0.12–0.88 range.
+            gap = logps[best] - min(logps)
+            prob = 1.0 / (1.0 + math.exp(-gap / 3.0))
+        else:
+            prob = min(math.exp(logps[0]), 0.99)
         return present_labels[best], prob
 
     def parse_llm_response(

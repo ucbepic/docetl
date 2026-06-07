@@ -36,6 +36,8 @@ class OpState:
     completion_tokens: int = 0
 
     cascade_info: dict | None = None
+    grid_complete: bool = False  # when True, grid shows all items as done
+    grid_total: int | None = None  # overrides total for grid when set
 
     start_t: float | None = None
     end_t: float | None = None
@@ -73,6 +75,8 @@ class OpState:
         """
         if self.status == "done" and self.out_count is not None:
             return self.out_count
+        if self.grid_total is not None:
+            return self.grid_total
         return self.total or 0
 
     def cell_status(self, index: int, running_band: int) -> DocStatus:
@@ -87,8 +91,8 @@ class OpState:
         if index < self.errors:
             return "error"
         if self.status == "done":
-            # A finished op's grid is keyed on output docs (see ``grid_count``);
-            # they are all complete regardless of the work-unit counter.
+            return "done"
+        if self.grid_complete:
             return "done"
         if self.total is None:
             return "queued"

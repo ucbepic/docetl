@@ -171,8 +171,8 @@ def test_cascade_progress_ticks_tracker(cascade_cache):
         assert snap.phase is None
         assert api.proxy_calls == 8
         assert api.oracle_calls > 0
-        assert snap.completed == 8  # single phase fills to n_items
-        assert snap.total == 8  # n_items, not label_budget
+        assert snap.completed == api.oracle_calls  # oracle phase completed
+        assert snap.total == 5  # oracle phase total = label_budget
     finally:
         set_active_tracker(None)
 

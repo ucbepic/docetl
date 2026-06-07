@@ -211,13 +211,11 @@ class OpContainer:
         )
         self.config = op_config
 
-        # Remove old scan children from the container map
         self.runner.op_container_map = {
             k: v for k, v in self.runner.op_container_map.items()
             if k not in [self.children[0].name, self.children[1].name]
         }
 
-        # Rewire children as scans of the new dataset names
         step = self.step_name
         for idx, ds_name in enumerate([new_left_name, new_right_name]):
             self.children[idx].config = {
@@ -226,7 +224,6 @@ class OpContainer:
             self.children[idx].name = f"{step}/scan_{ds_name}"
             self.runner.op_container_map[f"{step}/scan_{ds_name}"] = self.children[idx]
 
-        # Determine which side changed and insert new steps there
         left_changed = new_left_name != self.kwargs["left_name"]
         insertion_point = self.children[0] if left_changed else self.children[1]
         self.kwargs["left_name"] = new_left_name

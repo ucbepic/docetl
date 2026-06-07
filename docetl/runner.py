@@ -95,17 +95,9 @@ class DSLRunner:
 
     @classproperty
     def schema(cls):
-        # Accessing the schema loads all operations, so only do this
-        # when we actually need it...
-        # Yes, this means DSLRunner.schema isn't really accessible to
-        # static type checkers. But it /is/ available for dynamic
-        # checking, and for generating json schema.
-
         OpType = functools.reduce(
             lambda a, b: a | b, [op.schema for op in get_operations().values()]
         )
-        # More pythonic implementation of the above, but only works in python 3.11:
-        # OpType = Union[*[op.schema for op in get_operations().values()]]
 
         class Pipeline(BaseModel):
             config: dict[str, Any] | None
@@ -114,8 +106,6 @@ class DSLRunner:
             retrievers: dict[str, Any] | None
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
-            # When true (and stdout is a TTY), launch the full-screen interactive
-            # progress view for this run (requires the optional ``tui`` extra).
             interactive_ui: bool = False
 
         return Pipeline
@@ -263,7 +253,6 @@ class DSLRunner:
                     raise ValueError(
                         f"Retriever '{name}' missing required key '{key}'."
                     )
-            # Defaults
             rconf.setdefault("query", {"top_k": 5})
             rconf.setdefault("build_index", "if_missing")
 
@@ -289,21 +278,15 @@ class DSLRunner:
     def syntax_check(self):
         self.console.log("[yellow]Checking operations...[/yellow]")
 
-        # Just validate that it's a json file if specified
         self.get_output_path()
         current = self.last_op_container
 
         try:
-            # Walk the last op container to check syntax
-            op_containers = []
-            if self.last_op_container:
-                op_containers = [self.last_op_container]
-
+            op_containers = [self.last_op_container] if self.last_op_container else []
             while op_containers:
                 current = op_containers.pop(0)
                 syntax_result = current.syntax_check()
                 self.console.log(syntax_result, end="")
-                # Add all children to the queue
                 op_containers.extend(current.children)
         except Exception as e:
             raise ValueError(
@@ -364,9 +347,6 @@ class DSLRunner:
         return True
 
     def load_run_save(self) -> float:
-        # Route to the interactive TUI if requested and supported. The TUI runs
-        # this same method again on a worker thread with ``_tui_active`` set, so
-        # the actual execution path below is shared.
         if self._should_use_tui():
             try:
                 from docetl.tui.app import run_with_tui
@@ -381,8 +361,6 @@ class DSLRunner:
                 return run_with_tui(self)
 
         output_path = self.get_output_path(require=True)
-
-        # Print the query plan
         self.print_query_plan()
 
         start_time = time.time()

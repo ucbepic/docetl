@@ -34,7 +34,6 @@ from docetl.schemas import (
 
 class Pipeline:
 
-    # Maps operation type strings to their Pydantic schema classes.
     _OP_TYPE_REGISTRY: dict[str, type] = {
         "map": MapOp,
         "resolve": ResolveOp,
@@ -85,22 +84,15 @@ class Pipeline:
         self.rate_limits = rate_limits
         self.optimizer_config = optimizer_config
 
-        # Add other kwargs to self.other_config
         self.other_config = kwargs
 
         self._load_env()
 
-    # ------------------------------------------------------------------
-    # Typed accessors
-    # ------------------------------------------------------------------
-
     @property
     def ops_by_name(self) -> dict[str, OpType]:
-        """Return a dict mapping operation name → typed operation object."""
         return {op.name: op for op in self.operations}
 
     def get_step_for_op(self, op_name: str) -> PipelineStep:
-        """Return the step that contains *op_name*."""
         for step in self.steps:
             for entry in step.operations:
                 name = entry if isinstance(entry, str) else list(entry.keys())[0]
@@ -108,18 +100,8 @@ class Pipeline:
                     return step
         raise KeyError(f"Operation {op_name!r} not found in any step")
 
-    # ------------------------------------------------------------------
-    # Construction from raw dicts (YAML configs)
-    # ------------------------------------------------------------------
-
     @classmethod
     def from_dict(cls, config: dict[str, Any], name: str | None = None) -> "Pipeline":
-        """Build a ``Pipeline`` from a raw YAML-style config dict.
-
-        This is the canonical way to go from untyped dicts to typed objects.
-        Unknown operation types are kept as raw dicts so the round-trip is
-        lossless even for plugin operation types.
-        """
         datasets = {}
         for ds_name, ds_cfg in config.get("datasets", {}).items():
             datasets[ds_name] = Dataset(**ds_cfg)
@@ -153,7 +135,6 @@ class Pipeline:
             elif isinstance(tool_cfg, dict):
                 parsing_tools.append(ParsingTool(**tool_cfg))
 
-        # Collect remaining top-level keys as other_config
         known_keys = {
             "datasets", "operations", "pipeline", "default_model",
             "parsing_tools", "rate_limits", "optimizer_config",

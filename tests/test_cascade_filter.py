@@ -213,6 +213,13 @@ def test_cascade_stores_per_item_data_on_tracker():
 
         for score in ci["item_proxy_scores"]:
             assert 0.0 <= score <= 1.0
+
+        assert "item_proxy_labels" in ci
+        assert len(ci["item_proxy_labels"]) == len(data)
+        for lbl in ci["item_proxy_labels"]:
+            assert lbl in (True, False)
+
+        assert ci["is_binary"] is True
     finally:
         set_active_tracker(None)
 

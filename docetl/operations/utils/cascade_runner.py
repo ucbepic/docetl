@@ -273,6 +273,8 @@ class CascadeMixin:
         oracle_cost: float = 0.0,
         proxy_scores: list[float] | None = None,
         escalated: list[bool] | None = None,
+        proxy_labels: list | None = None,
+        is_binary: bool = True,
     ) -> None:
         """Log a cost/escalation summary and stash stats for programmatic use."""
         self.cascade_stats = stats
@@ -316,6 +318,9 @@ class CascadeMixin:
                 info["item_escalated"] = escalated
             if proxy_scores is not None:
                 info["item_proxy_scores"] = proxy_scores
+            if proxy_labels is not None:
+                info["item_proxy_labels"] = proxy_labels
+            info["is_binary"] = is_binary
             tracker.set_cascade_info(info)
 
         name = self.config.get("name", "?")
@@ -450,19 +455,24 @@ class CascadeMixin:
             with cache as c:
                 cached = c.get(key)
             if cached is not None:
-                if len(cached) == 5:
+                pscores = plabels = None
+                cached_binary = True
+                if len(cached) == 7:
+                    result, total_cost, pc, oc, pscores, plabels, cached_binary = cached
+                elif len(cached) == 5:
                     result, total_cost, pc, oc, pscores = cached
                 elif len(cached) == 4:
                     result, total_cost, pc, oc = cached
-                    pscores = None
                 else:
                     result, total_cost = cached
-                    pc, oc, pscores = 0.0, 0.0, None
+                    pc, oc = 0.0, 0.0
                 self._report_cascade(
                     op_label, result.stats, total_cost, True,
                     proxy_cost=pc, oracle_cost=oc,
                     proxy_scores=pscores,
                     escalated=result.escalated,
+                    proxy_labels=plabels,
+                    is_binary=cached_binary,
                 )
                 return result, total_cost
 
@@ -499,7 +509,9 @@ class CascadeMixin:
         # Mutable accumulator; the engine drives the adapters sequentially.
         cost = {"proxy": 0.0, "oracle": 0.0}
         proxy_scores_live: list[float] = []
+        proxy_labels_live: list = []
         oracle_model = self.config.get("model", self.default_model)
+        is_binary = positive_label is not None
         progress = _CascadeProgress(
             self.console,
             n_items=len(items),
@@ -517,7 +529,8 @@ class CascadeMixin:
                     spec.proxy_model, render_messages(item), proxy_labels
                 )
                 cost["proxy"] += c
-                if positive_label is not None:
+                proxy_labels_live.append(lbl)
+                if is_binary:
                     p_pos = prob if lbl == positive_label else (1.0 - prob)
                 else:
                     p_pos = prob
@@ -542,8 +555,11 @@ class CascadeMixin:
             proxy_cost=cost["proxy"], oracle_cost=cost["oracle"],
             proxy_scores=cascade.proxy_scores,
             escalated=result.escalated,
+            proxy_labels=proxy_labels_live,
+            is_binary=is_binary,
         )
 
         with cache as c:
-            c.set(key, (result, total_cost, cost["proxy"], cost["oracle"], cascade.proxy_scores))
+            c.set(key, (result, total_cost, cost["proxy"], cost["oracle"],
+                        cascade.proxy_scores, proxy_labels_live, is_binary))
         return result, total_cost

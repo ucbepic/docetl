@@ -119,18 +119,25 @@ class DSLRunner(ConfigWrapper):
 
         Args:
             config: A raw YAML-style config dict **or** a ``docetl.api.Pipeline``
-                instance.  When a ``Pipeline`` is passed, it becomes the canonical
-                typed representation and the raw dict is derived from it.
+                instance.  When a ``Pipeline`` is passed it is used directly;
+                when a dict is passed it is converted via ``Pipeline.from_dict``.
+                Either way, ``self.pipeline`` holds the typed representation and
+                ``self.config`` holds the raw dict (for backward compat with
+                ConfigWrapper and code that still reads it).
             max_threads (int, optional): Maximum number of threads to use. Defaults to None.
         """
         from docetl.api import Pipeline as PipelineCls
 
         if isinstance(config, PipelineCls):
-            self.pipeline: PipelineCls | None = config
+            self.pipeline: PipelineCls = config
             config_dict = config._to_dict()
         else:
             config_dict = config
-            self.pipeline = None
+            self.pipeline = PipelineCls.from_dict(config_dict)
+
+        # Keep the raw operations list for _op_map so that checkpoint hashes
+        # match regardless of whether Pipeline was passed or dict was passed.
+        self._raw_ops_list = config_dict.get("operations", [])
 
         super().__init__(
             config_dict,
@@ -151,7 +158,7 @@ class DSLRunner(ConfigWrapper):
         self._initialize_state()
         self._setup_parsing_tools()
         self._setup_retrievers()
-        self._build_operation_graph(config_dict)
+        self._build_operation_graph()
         self._compute_operation_hashes()
 
         # Run initial validation
@@ -162,9 +169,7 @@ class DSLRunner(ConfigWrapper):
     def _initialize_state(self) -> None:
         """Initialize basic runner state and datasets"""
         self.datasets = {}
-        self.intermediate_dir = (
-            self.config.get("pipeline", {}).get("output", {}).get("intermediate_dir")
-        )
+        self.intermediate_dir = self.pipeline.output.intermediate_dir
 
     def _setup_parsing_tools(self) -> None:
         """Set up parsing tools from configuration"""
@@ -197,26 +202,25 @@ class DSLRunner(ConfigWrapper):
 
             self.retrievers[name] = LanceDBRetriever(self, name, rconf)
 
-    def _build_operation_graph(self, config: dict) -> None:
-        """Build the DAG of operations from configuration"""
-        self.config = config
+    def _build_operation_graph(self) -> None:
+        """Build the DAG of operations from ``self.pipeline``."""
         self.op_container_map = {}
         self.last_op_container = None
-        self._op_map = {op["name"]: op for op in config.get("operations", [])}
+        self._op_map = {op["name"]: op for op in self._raw_ops_list}
 
-        for step in self.config["pipeline"]["steps"]:
-            self._validate_step(step)
+        for step in self.pipeline.steps:
+            step_dict = {k: v for k, v in step.dict().items() if v is not None}
+            self._validate_step(step_dict)
 
-            if step.get("input"):
-                self._add_scan_operation(step)
-            elif step["operations"] and isinstance(step["operations"][0], dict):
-                self._add_equijoin_operation(step)
+            if step.input:
+                self._add_scan_operation(step_dict)
+            elif step.operations and isinstance(step.operations[0], dict):
+                self._add_equijoin_operation(step_dict)
             else:
-                # No input specified and not an equijoin: use synthetic empty dataset [{}]
-                self._add_empty_scan_operation(step)
+                self._add_empty_scan_operation(step_dict)
 
-            self._add_step_operations(step)
-            self._add_step_boundary(step)
+            self._add_step_operations(step_dict)
+            self._add_step_boundary(step_dict)
 
     def _validate_step(self, step: dict) -> None:
         """Validate step configuration"""
@@ -346,31 +350,31 @@ class DSLRunner(ConfigWrapper):
         self.last_op_container = step_boundary
 
     def _compute_operation_hashes(self) -> None:
-        """Compute hashes for operations to enable caching"""
-        op_map = {op["name"]: op for op in self.config["operations"]}
+        """Compute hashes for operations to enable caching."""
         self.step_op_hashes = defaultdict(dict)
 
-        for step in self.config["pipeline"]["steps"]:
-            for idx, op in enumerate(step["operations"]):
-                op_name = op if isinstance(op, str) else list(op.keys())[0]
+        for step in self.pipeline.steps:
+            for idx, entry in enumerate(step.operations):
+                op_name = entry if isinstance(entry, str) else list(entry.keys())[0]
 
                 all_ops_until_and_including_current = (
-                    [op_map[prev_op] for prev_op in step["operations"][:idx]]
-                    + [op_map[op_name]]
-                    + [self.config.get("system_prompt", {})]
+                    [self._op_map[prev] for prev in step.operations[:idx]
+                     if isinstance(prev, str)]
+                    + [self._op_map[op_name]]
+                    + [self.pipeline.other_config.get("system_prompt", {})]
                 )
 
                 for op_cfg in all_ops_until_and_including_current:
-                    if "model" not in op_cfg:
+                    if isinstance(op_cfg, dict) and "model" not in op_cfg:
                         op_cfg["model"] = self.default_model
 
                 all_ops_str = json.dumps(all_ops_until_and_including_current)
-                self.step_op_hashes[step["name"]][op_name] = hashlib.sha256(
+                self.step_op_hashes[step.name][op_name] = hashlib.sha256(
                     all_ops_str.encode()
                 ).hexdigest()
 
     def get_output_path(self, require=False):
-        output_path = self.config.get("pipeline", {}).get("output", {}).get("path")
+        output_path = self.pipeline.output.path or None
         if output_path:
             if not (
                 output_path.lower().endswith(".json")
@@ -523,18 +527,17 @@ class DSLRunner(ConfigWrapper):
         Used to pre-populate the interactive progress view so all operations are
         visible (as ``queued``) before execution begins.
         """
-        op_map = {op["name"]: op for op in self.config.get("operations", [])}
+        ops_by_name = self.pipeline.ops_by_name
         ops: list[tuple[str, str, str, str | None]] = []
-        for step in self.config["pipeline"]["steps"]:
-            step_name = step["name"]
-            for entry in step["operations"]:
+        for step in self.pipeline.steps:
+            for entry in step.operations:
                 op_name = entry if isinstance(entry, str) else list(entry.keys())[0]
-                op_cfg = op_map.get(op_name, {})
-                op_type = op_cfg.get("type", "?")
+                typed_op = ops_by_name.get(op_name)
+                op_type = typed_op.type if typed_op else "?"
                 if op_type in ("scan", "step_boundary"):
                     continue
-                model = op_cfg.get("model", self.default_model)
-                ops.append((step_name, f"{step_name}/{op_name}", op_type, model))
+                model = getattr(typed_op, "model", None) or self.default_model
+                ops.append((step.name, f"{step.name}/{op_name}", op_type, model))
         return ops
 
     def _should_use_tui(self) -> bool:
@@ -644,33 +647,31 @@ class DSLRunner(ConfigWrapper):
         datasets = {}
         self.console.rule("[bold]Loading Datasets[/bold]")
 
-        for name, dataset_config in self.config.get("datasets", {}).items():
-            if dataset_config["type"] == "file":
+        for name, ds in self.pipeline.datasets.items():
+            ds_type = ds.type if hasattr(ds, "type") else ds.get("type")
+            ds_path = ds.path if hasattr(ds, "path") else ds.get("path")
+            ds_parsing = (ds.parsing if hasattr(ds, "parsing") else ds.get("parsing")) or []
+
+            if ds_type == "file":
                 datasets[name] = Dataset(
-                    self,
-                    "file",
-                    dataset_config["path"],
-                    source="local",
-                    parsing=dataset_config.get("parsing", []),
+                    self, "file", ds_path, source="local",
+                    parsing=ds_parsing,
                     user_defined_parsing_tool_map=self.parsing_tool_map,
                 )
                 self.console.log(
-                    f"[green]✓[/green] Loaded dataset '{name}' from {dataset_config['path']}"
+                    f"[green]✓[/green] Loaded dataset '{name}' from {ds_path}"
                 )
-            elif dataset_config["type"] == "memory":
+            elif ds_type == "memory":
                 datasets[name] = Dataset(
-                    self,
-                    "memory",
-                    dataset_config["path"],
-                    source="local",
-                    parsing=dataset_config.get("parsing", []),
+                    self, "memory", ds_path, source="local",
+                    parsing=ds_parsing,
                     user_defined_parsing_tool_map=self.parsing_tool_map,
                 )
                 self.console.log(
                     f"[green]✓[/green] Loaded dataset '{name}' from in-memory data"
                 )
             else:
-                raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
+                raise ValueError(f"Unsupported dataset type: {ds_type}")
 
         self.datasets = {
             name: (
@@ -690,18 +691,17 @@ class DSLRunner(ConfigWrapper):
         """
         self.get_output_path(require=True)
 
-        output_config = self.config["pipeline"]["output"]
-        if output_config["type"] == "file":
-            # Create the directory if it doesn't exist
-            if os.path.dirname(output_config["path"]):
-                os.makedirs(os.path.dirname(output_config["path"]), exist_ok=True)
-            if output_config["path"].lower().endswith(".json"):
-                with open(output_config["path"], "w") as file:
+        out = self.pipeline.output
+        if out.type == "file":
+            if os.path.dirname(out.path):
+                os.makedirs(os.path.dirname(out.path), exist_ok=True)
+            if out.path.lower().endswith(".json"):
+                with open(out.path, "w") as file:
                     json.dump(data, file, indent=2)
             else:  # CSV
                 import csv
 
-                with open(output_config["path"], "w", newline="") as file:
+                with open(out.path, "w", newline="") as file:
                     writer = csv.DictWriter(file, fieldnames=data[0].keys())
                     limited_data = [
                         {k: d.get(k, None) for k in data[0].keys()} for d in data
@@ -709,11 +709,11 @@ class DSLRunner(ConfigWrapper):
                     writer.writeheader()
                     writer.writerows(limited_data)
             self.console.log(
-                f"[green]✓[/green] Saved to [dim]{output_config['path']}[/dim]\n"
+                f"[green]✓[/green] Saved to [dim]{out.path}[/dim]\n"
             )
         else:
             raise ValueError(
-                f"Unsupported output type: {output_config['type']}. Supported types: file"
+                f"Unsupported output type: {out.type}. Supported types: file"
             )
 
     def _load_from_checkpoint_if_exists(
@@ -840,16 +840,10 @@ class DSLRunner(ConfigWrapper):
     ) -> tuple[str, float, list[dict[str, Any]], list[dict[str, Any]]]:
         self.load()
 
-        # Augment the kwargs with the runner's config if not already provided
-        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
-            "litellm_kwargs", {}
-        )
-        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "rewrite_agent_model", "gpt-5.1"
-        )
-        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "judge_agent_model", "gpt-4o-mini"
-        )
+        opt_cfg = self.pipeline.optimizer_config or {}
+        kwargs["litellm_kwargs"] = opt_cfg.get("litellm_kwargs", {})
+        kwargs["rewrite_agent_model"] = opt_cfg.get("rewrite_agent_model", "gpt-5.1")
+        kwargs["judge_agent_model"] = opt_cfg.get("judge_agent_model", "gpt-4o-mini")
 
         builder = Optimizer(self, **kwargs)
         self.optimizer = builder
@@ -868,16 +862,10 @@ class DSLRunner(ConfigWrapper):
 
         self.load()
 
-        # Augment the kwargs with the runner's config if not already provided
-        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
-            "litellm_kwargs", {}
-        )
-        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "rewrite_agent_model", "gpt-5.1"
-        )
-        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "judge_agent_model", "gpt-4o-mini"
-        )
+        opt_cfg = self.pipeline.optimizer_config or {}
+        kwargs["litellm_kwargs"] = opt_cfg.get("litellm_kwargs", {})
+        kwargs["rewrite_agent_model"] = opt_cfg.get("rewrite_agent_model", "gpt-5.1")
+        kwargs["judge_agent_model"] = opt_cfg.get("judge_agent_model", "gpt-4o-mini")
 
         save_path = kwargs.get("save_path", None)
         # Pop the save_path from kwargs
@@ -951,7 +939,7 @@ class DSLRunner(ConfigWrapper):
         oc_kwargs = {
             "runner": self,
             "config": op_config,
-            "default_model": self.config["default_model"],
+            "default_model": self.default_model,
             "max_threads": self.max_threads,
             "console": self.console,
             "status": self.status,

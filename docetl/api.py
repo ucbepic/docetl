@@ -244,7 +244,10 @@ class Pipeline:
         for step_cfg in config.get("pipeline", {}).get("steps", []):
             steps.append(PipelineStep(**{k: v for k, v in step_cfg.items() if v is not None}))
 
-        output = PipelineOutput(**config.get("pipeline", {}).get("output", {}))
+        output_cfg = config.get("pipeline", {}).get("output", {})
+        output_cfg.setdefault("type", "file")
+        output_cfg.setdefault("path", "")
+        output = PipelineOutput(**output_cfg)
 
         parsing_tools = []
         for tool_cfg in config.get("parsing_tools", []) or []:
@@ -497,22 +500,23 @@ class Pipeline:
         """
         d = {
             "datasets": {
-                name: dataset.dict() for name, dataset in self.datasets.items()
+                name: (dataset.model_dump() if hasattr(dataset, "model_dump") else dataset.dict())
+                for name, dataset in self.datasets.items()
             },
             "operations": [
-                {k: v for k, v in op.dict().items() if v is not None}
+                op.model_dump(exclude_none=True, exclude_unset=True)
                 for op in self.operations
             ],
             "pipeline": {
                 "steps": [
-                    {k: v for k, v in step.dict().items() if v is not None}
+                    {k: v for k, v in step.model_dump().items() if v is not None}
                     for step in self.steps
                 ],
-                "output": self.output.dict(),
+                "output": self.output.model_dump(),
             },
             "default_model": self.default_model,
             "parsing_tools": (
-                [tool.dict() for tool in self.parsing_tools]
+                [tool.model_dump() for tool in self.parsing_tools]
                 if self.parsing_tools
                 else None
             ),

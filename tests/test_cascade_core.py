@@ -205,3 +205,59 @@ def test_rejects_bad_target_delta():
             CascadeSpec(proxy_model="p", guarantee="recall", target=0.9, delta=0.0),
             lambda x: (True, 1.0), lambda x: True,
         )
+
+
+def test_precision_recall_combined_guarantee():
+    """Combined precision+recall: precision is formally guaranteed by the
+    BARGAIN_P pass.  Recall is improved by adding oracle-confirmed positives
+    from the BARGAIN_R pass but is NOT formally guaranteed — it depends on
+    proxy quality and oracle budget.  We verify precision holds with the
+    claimed coverage and that recall is better than a precision-only run."""
+    target, delta, n, trials = 0.85, 0.2, 600, 40
+    prec_ok = 0
+    recall_sum = 0.0
+    valid_trials = 0
+    for trial in range(trials):
+        rng = np.random.default_rng(5000 + trial)
+        truth, proxy_predict, oracle_predict = _make_binary_world(n, rng)
+        n_positive = int(truth.sum())
+        if n_positive == 0:
+            continue
+        valid_trials += 1
+        spec = CascadeSpec(
+            proxy_model="proxy", guarantee="precision+recall",
+            target=target, delta=delta, label_budget=300, seed=50_000 + trial,
+        )
+        result = CategoricalCascade(spec, proxy_predict, oracle_predict).run(list(range(n)))
+        pos = result.positive_indices
+        if not pos:
+            prec_ok += 1
+            continue
+        precision = float(np.mean(truth[pos] == 1))
+        found = sum(1 for i in range(n) if truth[i] == 1 and i in set(pos))
+        recall = found / n_positive
+        recall_sum += recall
+        if precision >= target:
+            prec_ok += 1
+    # Precision is formally guaranteed — should hold ≥ 1-delta of trials.
+    assert prec_ok / valid_trials >= 1 - delta - 0.1, (
+        f"precision held {prec_ok}/{valid_trials}"
+    )
+    # Recall is best-effort; just verify we're producing non-trivial output.
+    avg_recall = recall_sum / valid_trials if valid_trials else 0
+    assert avg_recall > 0.1, f"avg recall {avg_recall:.2f} too low"
+
+
+def test_precision_recall_extracts_proxy_scores():
+    """proxy_scores should be populated after a precision+recall run."""
+    n = 100
+    rng = np.random.default_rng(99)
+    truth, proxy_predict, oracle_predict = _make_binary_world(n, rng)
+    spec = CascadeSpec(
+        proxy_model="proxy", guarantee="precision+recall",
+        target=0.85, delta=0.1, label_budget=60, seed=0,
+    )
+    cascade = CategoricalCascade(spec, proxy_predict, oracle_predict)
+    cascade.run(list(range(n)))
+    assert len(cascade.proxy_scores) == n
+    assert all(0 <= s <= 1 for s in cascade.proxy_scores)

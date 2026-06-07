@@ -25,7 +25,7 @@ from docetl.progress.tracker import active_tracker
 if TYPE_CHECKING:
     from docetl.operations.utils.progress import RichLoopBar
 
-_GUARANTEES = ("accuracy", "precision", "recall")
+_GUARANTEES = ("accuracy", "precision", "recall", "precision+recall")
 
 # Default guarantee when the cascade block omits ``guarantee`` (per operator).
 CASCADE_DEFAULT_GUARANTEE: dict[str, str] = {
@@ -48,7 +48,7 @@ def format_cascade_plan_lines(
     target = cfg["target"]
     delta = cfg.get("delta", 0.05)
     budget = cfg.get("label_budget", 400)
-    if guarantee in ("recall", "precision"):
+    if guarantee in ("recall", "precision", "precision+recall"):
         oracle_hint = f"≤{budget} oracle labels"
     else:
         oracle_hint = "escalated items"
@@ -86,8 +86,8 @@ class CascadeConfig(BaseModel):
     def _check_guarantee(self):
         if self.guarantee is not None and self.guarantee not in _GUARANTEES:
             raise ValueError(
-                "cascade.guarantee must be 'accuracy', 'precision', or "
-                f"'recall'; got '{self.guarantee}'"
+                f"cascade.guarantee must be one of {_GUARANTEES}; "
+                f"got '{self.guarantee}'"
             )
         return self
 
@@ -238,6 +238,7 @@ class CascadeMixin:
         *,
         proxy_cost: float = 0.0,
         oracle_cost: float = 0.0,
+        proxy_scores: list[float] | None = None,
     ) -> None:
         """Log a cost/escalation summary and stash stats for programmatic use."""
         self.cascade_stats = stats
@@ -247,6 +248,14 @@ class CascadeMixin:
         cfg = self._cascade_cfg()
         proxy_model = cfg["proxy_model"]
         oracle_model = self.config.get("model", getattr(self, "default_model", "?"))
+
+        score_hist = None
+        if proxy_scores:
+            n_bins = 20
+            score_hist = [0] * n_bins
+            for s in proxy_scores:
+                b = min(int(s * n_bins), n_bins - 1)
+                score_hist[b] += 1
 
         tracker = active_tracker()
         if tracker is not None:
@@ -264,12 +273,13 @@ class CascadeMixin:
                 "proxy_cost": proxy_cost,
                 "oracle_cost": oracle_cost,
                 "threshold": stats.threshold,
+                "score_hist": score_hist,
                 "cached": cached_hit,
             })
 
         name = self.config.get("name", "?")
         target_pct = f"{stats.target:.0%}"
-        is_calibrated = stats.guarantee in ("precision", "recall")
+        is_calibrated = stats.guarantee in ("precision", "recall", "precision+recall")
 
         lines = [
             f"[bold magenta]Cascade[/bold magenta] {op_label} "
@@ -304,6 +314,11 @@ class CascadeMixin:
                 lines.append(
                     f"           [dim]threshold[/dim] [yellow]{stats.threshold:.3f}[/yellow] "
                     f"proxy confidence"
+                )
+        else:
+            if is_calibrated:
+                lines.append(
+                    f"           [dim]threshold[/dim] [dim]all positives oracle-verified[/dim]"
                 )
         if is_calibrated:
             lines.append(
@@ -396,7 +411,7 @@ class CascadeMixin:
             positive_label=positive_label,
             negative_label=negative_label,
         )
-        if guarantee in ("precision", "recall") and spec.label_budget < 50:
+        if guarantee in ("precision", "recall", "precision+recall") and spec.label_budget < 50:
             fallback = (
                 "keep everything (no filtering)"
                 if guarantee == "recall"
@@ -409,7 +424,7 @@ class CascadeMixin:
                 f"confidence, causing the cascade to {fallback}. Consider "
                 f"label_budget ≥ 100."
             )
-        elif guarantee in ("precision", "recall") and spec.label_budget < len(items) * 0.05:
+        elif guarantee in ("precision", "recall", "precision+recall") and spec.label_budget < len(items) * 0.05:
             self.console.log(
                 f"[bold yellow]Warning:[/bold yellow] cascade label_budget="
                 f"{spec.label_budget} is small relative to {len(items)} items "
@@ -445,7 +460,8 @@ class CascadeMixin:
                 progress.tick_oracle()
                 return lbl
 
-            result = CategoricalCascade(spec, proxy_predict, _oracle).run(items)
+            cascade = CategoricalCascade(spec, proxy_predict, _oracle)
+            result = cascade.run(items)
         finally:
             progress.finish()
 
@@ -453,6 +469,7 @@ class CascadeMixin:
         self._report_cascade(
             op_label, result.stats, total_cost, False,
             proxy_cost=cost["proxy"], oracle_cost=cost["oracle"],
+            proxy_scores=cascade.proxy_scores,
         )
 
         with cache as c:

@@ -560,47 +560,94 @@ def _render_cascade_info(info: dict) -> Text:
     t.append("\ncascade\n", style="bold magenta")
     proxy_cost = info.get("proxy_cost", 0)
     oracle_cost = info.get("oracle_cost", 0)
-    is_calibrated = info["guarantee"] in ("precision", "recall")
+    is_calibrated = info["guarantee"] in ("precision", "recall", "precision+recall")
     t.append(
-        f"  proxy:      {info['proxy_model']}  "
+        f"  proxy   {info['proxy_model']}  "
         f"{info['proxy_calls']:,} scored  ${proxy_cost:.4f}\n",
         style="cyan",
     )
     if is_calibrated:
         budget = info.get("label_budget", "?")
         t.append(
-            f"  oracle:     {info['oracle_model']}  "
+            f"  oracle  {info['oracle_model']}  "
             f"{info['oracle_calls']:,} sampled (budget {budget})  "
             f"${oracle_cost:.4f}\n",
             style="cyan",
         )
     else:
         t.append(
-            f"  oracle:     {info['oracle_model']}  "
+            f"  oracle  {info['oracle_model']}  "
             f"{info['oracle_calls']:,} escalated  ${oracle_cost:.4f}\n",
             style="cyan",
         )
     guarantee = info["guarantee"]
     target = info["target"]
-    t.append(f"  guarantee:  {guarantee} ≥ {target:.0%}", style="yellow")
+    t.append(f"  {guarantee} ≥ {target:.0%}", style="yellow")
     t.append(f"  δ={info['delta']}\n", style="grey70")
     threshold = info.get("threshold")
     if threshold is not None:
         if threshold < 0.01:
-            t.append(
-                "  threshold:  none found — all items kept\n", style="bold yellow"
-            )
+            t.append("  threshold  none found — all items kept\n", style="bold yellow")
         else:
-            t.append(
-                f"  threshold:  {threshold:.3f} proxy confidence\n", style="yellow"
-            )
+            t.append(f"  threshold  {threshold:.3f}\n", style="yellow")
+    elif is_calibrated:
+        t.append("  threshold  all positives oracle-verified\n", style="dim")
     if not is_calibrated:
         esc = info["escalation_rate"]
         served = info["served_by_proxy"]
-        t.append(f"  escalation: {esc:.0%}", style="red" if esc >= 0.5 else "green")
+        t.append(f"  escalation {esc:.0%}", style="red" if esc >= 0.5 else "green")
         t.append(f"  ({served:,} served by proxy)\n", style="grey70")
     if info.get("cached"):
         t.append("  (cached)\n", style="dim")
+
+    score_hist = info.get("score_hist")
+    if score_hist:
+        t.append_text(_render_score_bar(score_hist, threshold))
+
+    return t
+
+
+_HIST_CHARS = " ▁▂▃▄▅▆▇█"
+
+
+def _render_score_bar(hist: list[int], threshold: float | None) -> Text:
+    """Compact proxy score distribution with threshold marker.
+
+    Renders as two lines:
+      scores  ▁▃▅▇█▇▅▃▁▁▂▃▅▇█▆▃▂▁
+              0        ↑t=0.72    1
+    """
+    t = Text()
+    n_bins = len(hist)
+    peak = max(hist) or 1
+    pad = "  "
+    label = "scores  "
+
+    t.append(pad + label, style="dim")
+    for i, count in enumerate(hist):
+        level = int(count / peak * (len(_HIST_CHARS) - 1))
+        bin_center = (i + 0.5) / n_bins
+        if threshold is not None and threshold >= 0.01 and bin_center >= threshold:
+            t.append(_HIST_CHARS[level], style="green")
+        else:
+            t.append(_HIST_CHARS[level], style="grey50")
+    t.append("\n")
+
+    axis_pad = pad + " " * len(label)
+    if threshold is not None and threshold >= 0.01:
+        pos = int(threshold * n_bins)
+        pos = max(0, min(pos, n_bins - 1))
+        marker = f"↑t={threshold:.2f}"
+        before = max(0, pos)
+        after = max(0, n_bins - before - len(marker))
+        t.append(axis_pad, style="dim")
+        t.append(" " * before, style="dim")
+        t.append(marker, style="yellow")
+        t.append(" " * after + "\n", style="dim")
+    else:
+        t.append(axis_pad, style="dim")
+        t.append("0" + " " * (n_bins - 2) + "1\n", style="grey42")
+
     return t
 
 

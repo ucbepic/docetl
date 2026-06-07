@@ -173,6 +173,8 @@ class CategoricalCascade:
     See module docstring for the proxy/oracle callable contract.
     """
 
+    _VALID_GUARANTEES = ("accuracy", "precision", "recall", "precision+recall")
+
     def __init__(
         self,
         spec: CascadeSpec,
@@ -181,10 +183,10 @@ class CategoricalCascade:
         *,
         console=None,
     ):
-        if spec.guarantee not in ("accuracy", "precision", "recall"):
+        if spec.guarantee not in self._VALID_GUARANTEES:
             raise GuaranteeNotSupportedError(
                 f"unknown guarantee {spec.guarantee!r}; "
-                "expected 'accuracy', 'precision' or 'recall'"
+                f"expected one of {self._VALID_GUARANTEES}"
             )
         if not (0 < spec.target < 1):
             raise ValueError("target must be in (0, 1)")
@@ -194,6 +196,7 @@ class CategoricalCascade:
         self._proxy_predict = proxy_predict
         self._oracle_predict = oracle_predict
         self._console = console
+        self.proxy_scores: list[float] = []
 
     def run(self, items: list) -> CascadeResult:
         spec = self.spec
@@ -209,7 +212,7 @@ class CategoricalCascade:
             )
 
         positive_label = (
-            spec.positive_label if spec.guarantee in ("precision", "recall") else None
+            spec.positive_label if spec.guarantee != "accuracy" else None
         )
 
         proxy = _ProxyAdapter(
@@ -227,10 +230,32 @@ class CategoricalCascade:
             )
 
         if spec.guarantee == "accuracy":
-            return self._run_accuracy(items, proxy, oracle)
-        if spec.guarantee == "precision":
-            return self._run_precision(items, proxy, oracle)
-        return self._run_recall(items, proxy, oracle)
+            result = self._run_accuracy(items, proxy, oracle)
+        elif spec.guarantee == "precision":
+            result = self._run_precision(items, proxy, oracle)
+        elif spec.guarantee == "recall":
+            result = self._run_recall(items, proxy, oracle)
+        else:
+            result = self._run_precision_recall(items, proxy, oracle)
+
+        self.proxy_scores = self._extract_proxy_scores(proxy)
+        return result
+
+    @staticmethod
+    def _extract_proxy_scores(proxy) -> list[float]:
+        """Extract proxy confidence scores (P(positive)) in item order."""
+        if not proxy.preds_dict:
+            return []
+        max_idx = max(proxy.preds_dict.keys())
+        scores = []
+        for i in range(max_idx + 1):
+            entry = proxy.preds_dict.get(i)
+            if entry is None:
+                scores.append(0.5)
+                continue
+            pred, score = entry
+            scores.append(pred * score + (1 - pred) * (1 - score))
+        return scores
 
     def _make_stats(
         self, n_items: int, proxy, oracle, *, threshold: float | None = None
@@ -377,5 +402,82 @@ class CategoricalCascade:
             labels=result_labels,
             escalated=escalated,
             stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
+            positive_indices=sorted(positive_set),
+        )
+
+    # ------------------------------------------------------------------
+    # Combined precision+recall via union bound (delta/2 each).
+    #
+    # Precision is formally guaranteed by BARGAIN_P.  We then run
+    # BARGAIN_R to discover oracle-confirmed positives that the
+    # precision pass missed; adding verified true positives can only
+    # maintain or increase precision, so the guarantee is preserved.
+    # Recall is improved but not formally guaranteed — it depends on
+    # how many of the recall pass's positives were oracle-verified.
+    # ------------------------------------------------------------------
+    def _run_precision_recall(self, items, proxy, oracle) -> CascadeResult:
+        spec = self.spec
+        half_delta = spec.delta / 2
+        half_budget = max(1, spec.label_budget // 2)
+
+        # Precision pass — this set carries the formal guarantee.
+        prec_proxy = _ProxyAdapter(self._proxy_predict, positive_label=spec.positive_label)
+        prec_oracle = _OracleAdapter(self._oracle_predict, positive_label=spec.positive_label)
+        bargain_p = BARGAIN_P(
+            prec_proxy, prec_oracle,
+            delta=half_delta, target=spec.target, budget=half_budget,
+            M=spec.n_thresholds, eta=0, seed=None,
+        )
+        prec_pos = set(int(i) for i in bargain_p.process(items))
+
+        # Recall pass — used to find additional true positives.
+        recall_proxy = _ProxyAdapter(self._proxy_predict, positive_label=spec.positive_label)
+        recall_oracle = _OracleAdapter(self._oracle_predict, positive_label=spec.positive_label)
+        bargain_r = BARGAIN_R(
+            recall_proxy, recall_oracle,
+            delta=half_delta, target=spec.target, budget=half_budget, beta=0, seed=None,
+        )
+        recall_pos = set(int(i) for i in bargain_r.process(items))
+
+        # Start from the precision-guaranteed set and add oracle-confirmed
+        # positives from the recall pass.  Adding verified true positives
+        # never decreases precision (TP/(TP+FP) is monotone in TP).
+        positive_set = prec_pos.copy()
+        for idx in recall_pos - prec_pos:
+            label = recall_oracle.preds_dict.get(idx)
+            if label is None:
+                label = prec_oracle.preds_dict.get(idx)
+            if label == 1:
+                positive_set.add(idx)
+
+        result_labels = [
+            spec.positive_label if i in positive_set else spec.negative_label
+            for i in range(len(items))
+        ]
+        all_oracle = set(recall_oracle.preds_dict.keys()) | set(prec_oracle.preds_dict.keys())
+        escalated = [i in all_oracle for i in range(len(items))]
+        total_oracle = len(all_oracle)
+
+        p_threshold = self._compute_threshold(prec_proxy, prec_oracle, prec_pos)
+        r_threshold = self._compute_threshold(recall_proxy, recall_oracle, recall_pos)
+
+        proxy.preds_dict.update(recall_proxy.preds_dict)
+        proxy.preds_dict.update(prec_proxy.preds_dict)
+
+        stats = CascadeStats(
+            n_items=len(items),
+            proxy_calls=prec_proxy.n_calls(),
+            oracle_calls=total_oracle,
+            escalation_rate=total_oracle / len(items) if items else 0.0,
+            guarantee="precision+recall",
+            target=spec.target,
+            delta=spec.delta,
+            label_budget=spec.label_budget,
+            threshold=p_threshold,
+        )
+        return CascadeResult(
+            labels=result_labels,
+            escalated=escalated,
+            stats=stats,
             positive_indices=sorted(positive_set),
         )

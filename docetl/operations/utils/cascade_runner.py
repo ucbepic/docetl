@@ -78,7 +78,7 @@ class CascadeConfig(BaseModel):
 
     proxy_model: str
     guarantee: Optional[str] = None
-    target: float = Field(..., gt=0, le=1)
+    target: float = Field(..., gt=0, lt=1)
     delta: float = Field(0.05, gt=0, lt=1)
     label_budget: int = Field(400, gt=0)
 
@@ -454,17 +454,7 @@ class CascadeMixin:
             with cache as c:
                 cached = c.get(key)
             if cached is not None:
-                pscores = plabels = None
-                cached_binary = True
-                if len(cached) == 7:
-                    result, total_cost, pc, oc, pscores, plabels, cached_binary = cached
-                elif len(cached) == 5:
-                    result, total_cost, pc, oc, pscores = cached
-                elif len(cached) == 4:
-                    result, total_cost, pc, oc = cached
-                else:
-                    result, total_cost = cached
-                    pc, oc = 0.0, 0.0
+                result, total_cost, pc, oc, pscores, plabels, _ = cached
                 self._report_cascade(
                     op_label, result.stats, total_cost, True,
                     proxy_cost=pc, oracle_cost=oc,
@@ -520,8 +510,16 @@ class CascadeMixin:
             proxy_scores=proxy_scores_live,
         )
         try:
+            # Cache proxy predictions by item identity so precision+recall
+            # (which runs two BARGAIN passes over the same items) doesn't
+            # double the LLM calls, cost, or label/score accumulation.
+            _proxy_cache: dict[int, tuple] = {}
 
             def proxy_predict(item):
+                key_id = id(item)
+                cached = _proxy_cache.get(key_id)
+                if cached is not None:
+                    return cached
                 lbl, prob, c = self.runner.api._classify_with_logprob_with_cost(
                     spec.proxy_model, render_messages(item), proxy_labels
                 )
@@ -530,6 +528,7 @@ class CascadeMixin:
                 p_pos = prob if lbl == positive_label else (1.0 - prob)
                 proxy_scores_live.append(p_pos)
                 progress.tick_proxy()
+                _proxy_cache[key_id] = (lbl, prob)
                 return lbl, prob
 
             def _oracle(item):

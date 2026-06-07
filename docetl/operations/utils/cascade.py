@@ -34,10 +34,6 @@ from typing import Any, Callable, Hashable, Optional
 
 import numpy as np
 
-from BARGAIN.bounds.betting_bounds import (
-    test_if_true_mean_is_above_m as _seq_test_above,
-    test_if_true_mean_is_below_m as _seq_test_below,
-)
 from BARGAIN.models.AbstractModels import Oracle as _BargainOracle, Proxy as _BargainProxy
 from BARGAIN.process.BARGAIN_A import BARGAIN_A
 from BARGAIN.process.BARGAIN_P import BARGAIN_P

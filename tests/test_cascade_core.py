@@ -8,12 +8,15 @@ the claimed coverage 1 - delta across many trials.
 import numpy as np
 import pytest
 
+from BARGAIN.bounds.betting_bounds import (
+    test_if_true_mean_is_above_m as _seq_test_above,
+    test_if_true_mean_is_below_m as _seq_test_below,
+)
+
 from docetl.operations.utils.cascade import (
     CascadeSpec,
     CategoricalCascade,
     GuaranteeNotSupportedError,
-    _seq_test_above,
-    _seq_test_below,
 )
 
 

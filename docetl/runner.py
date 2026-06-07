@@ -49,6 +49,13 @@ from docetl.optimizer import Optimizer
 from . import schemas
 from .utils import classproperty
 
+# Avoid circular import — Pipeline is only needed for isinstance checks
+# and from_dict calls, so import lazily or use TYPE_CHECKING.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from docetl.api import Pipeline as PipelineType
+
 load_dotenv()
 
 
@@ -106,15 +113,27 @@ class DSLRunner(ConfigWrapper):
     def json_schema(cls):
         return cls.schema.model_json_schema()
 
-    def __init__(self, config: dict, max_threads: int | None = None, **kwargs):
+    def __init__(self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs):
         """
-        Initialize the DSLRunner with a YAML configuration file.
+        Initialize the DSLRunner with a config dict or a typed ``Pipeline`` object.
 
         Args:
+            config: A raw YAML-style config dict **or** a ``docetl.api.Pipeline``
+                instance.  When a ``Pipeline`` is passed, it becomes the canonical
+                typed representation and the raw dict is derived from it.
             max_threads (int, optional): Maximum number of threads to use. Defaults to None.
         """
+        from docetl.api import Pipeline as PipelineCls
+
+        if isinstance(config, PipelineCls):
+            self.pipeline: PipelineCls | None = config
+            config_dict = config._to_dict()
+        else:
+            config_dict = config
+            self.pipeline = None
+
         super().__init__(
-            config,
+            config_dict,
             base_name=kwargs.pop("base_name", None),
             yaml_file_suffix=kwargs.pop("yaml_file_suffix", None),
             max_threads=max_threads,
@@ -132,7 +151,7 @@ class DSLRunner(ConfigWrapper):
         self._initialize_state()
         self._setup_parsing_tools()
         self._setup_retrievers()
-        self._build_operation_graph(config)
+        self._build_operation_graph(config_dict)
         self._compute_operation_hashes()
 
         # Run initial validation

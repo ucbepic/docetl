@@ -551,6 +551,131 @@ def test_resolve_pipeline(
     assert isinstance(cost, float)
 
 
+def test_from_dict_round_trip(temp_input_file, temp_output_file, temp_intermediate_dir):
+    """Pipeline.from_dict should produce a Pipeline whose _to_dict matches the input."""
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "docs": {"type": "file", "path": temp_input_file},
+        },
+        "operations": [
+            {
+                "name": "analyze",
+                "type": "map",
+                "prompt": "Analyze: {{ input.text }}",
+                "output": {"schema": {"sentiment": "string"}},
+            },
+            {
+                "name": "summarize",
+                "type": "reduce",
+                "reduce_key": "group",
+                "prompt": "Summarize: {% for item in inputs %}{{ item.text }}{% endfor %}",
+                "output": {"schema": {"summary": "string"}},
+            },
+        ],
+        "pipeline": {
+            "steps": [
+                {"name": "step1", "input": "docs", "operations": ["analyze"]},
+                {"name": "step2", "input": "step1", "operations": ["summarize"]},
+            ],
+            "output": {
+                "type": "file",
+                "path": temp_output_file,
+                "intermediate_dir": temp_intermediate_dir,
+            },
+        },
+    }
+
+    pipeline = Pipeline.from_dict(config, name="test_rt")
+
+    assert pipeline.name == "test_rt"
+    assert pipeline.default_model == "gpt-4o-mini"
+    assert len(pipeline.operations) == 2
+    assert len(pipeline.steps) == 2
+
+    # ops_by_name accessor
+    by_name = pipeline.ops_by_name
+    assert "analyze" in by_name
+    assert "summarize" in by_name
+    assert by_name["analyze"].type == "map"
+    assert by_name["summarize"].type == "reduce"
+
+    # get_step_for_op
+    assert pipeline.get_step_for_op("analyze").name == "step1"
+    assert pipeline.get_step_for_op("summarize").name == "step2"
+
+    # Round-trip: from_dict → _to_dict should preserve operations and steps
+    rt = pipeline._to_dict()
+    assert len(rt["operations"]) == 2
+    assert len(rt["pipeline"]["steps"]) == 2
+    rt_op_names = {op["name"] for op in rt["operations"]}
+    assert rt_op_names == {"analyze", "summarize"}
+
+
+def test_from_dict_with_equijoin(temp_output_file, temp_intermediate_dir):
+    """from_dict should handle equijoin operations and dict-style step operations."""
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "left": {"type": "file", "path": "left.json"},
+            "right": {"type": "file", "path": "right.json"},
+        },
+        "operations": [
+            {
+                "name": "my_join",
+                "type": "equijoin",
+                "comparison_prompt": "Compare {{ left.id }} with {{ right.id }}",
+                "embedding_model": "text-embedding-3-small",
+            },
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "join_step",
+                    "operations": [{"my_join": {"left": "left", "right": "right"}}],
+                },
+            ],
+            "output": {"type": "file", "path": temp_output_file},
+        },
+    }
+
+    pipeline = Pipeline.from_dict(config)
+    assert len(pipeline.operations) == 1
+    assert pipeline.ops_by_name["my_join"].type == "equijoin"
+    # The step should have the dict-form operation reference preserved
+    step_ops = pipeline.steps[0].operations
+    assert isinstance(step_ops[0], dict)
+    assert "my_join" in step_ops[0]
+
+
+def test_dsrunner_accepts_pipeline(temp_input_file, temp_output_file, temp_intermediate_dir):
+    """DSLRunner should accept a Pipeline object directly."""
+    from docetl.runner import DSLRunner
+
+    pipeline = Pipeline(
+        name="test_typed",
+        datasets={"docs": Dataset(type="file", path=temp_input_file)},
+        operations=[
+            MapOp(
+                name="sentiment",
+                type="map",
+                prompt="Classify sentiment: {{ input.text }}",
+                output={"schema": {"sentiment": "string"}},
+            ),
+        ],
+        steps=[PipelineStep(name="s1", input="docs", operations=["sentiment"])],
+        output=PipelineOutput(
+            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
+        ),
+        default_model="gpt-4o-mini",
+    )
+
+    runner = DSLRunner(pipeline, max_threads=4)
+    assert runner.pipeline is pipeline
+    assert runner.default_model == "gpt-4o-mini"
+    assert "sentiment" in runner._op_map
+
+
 def test_equijoin_pipeline(
     left_data, right_data, temp_output_file, temp_intermediate_dir
 ):

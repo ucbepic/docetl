@@ -138,6 +138,25 @@ class Pipeline:
     steps, and output settings.
     """
 
+    # Maps operation type strings to their Pydantic schema classes.
+    _OP_TYPE_REGISTRY: dict[str, type] = {
+        "map": MapOp,
+        "resolve": ResolveOp,
+        "reduce": ReduceOp,
+        "parallel_map": ParallelMapOp,
+        "filter": FilterOp,
+        "equijoin": EquijoinOp,
+        "split": SplitOp,
+        "gather": GatherOp,
+        "unnest": UnnestOp,
+        "cluster": ClusterOp,
+        "sample": SampleOp,
+        "code_map": CodeMapOp,
+        "code_reduce": CodeReduceOp,
+        "code_filter": CodeFilterOp,
+        "extract": ExtractOp,
+    }
+
     def __init__(
         self,
         name: str,
@@ -174,6 +193,85 @@ class Pipeline:
         self.other_config = kwargs
 
         self._load_env()
+
+    # ------------------------------------------------------------------
+    # Typed accessors
+    # ------------------------------------------------------------------
+
+    @property
+    def ops_by_name(self) -> dict[str, OpType]:
+        """Return a dict mapping operation name → typed operation object."""
+        return {op.name: op for op in self.operations}
+
+    def get_step_for_op(self, op_name: str) -> PipelineStep:
+        """Return the step that contains *op_name*."""
+        for step in self.steps:
+            for entry in step.operations:
+                name = entry if isinstance(entry, str) else list(entry.keys())[0]
+                if name == op_name:
+                    return step
+        raise KeyError(f"Operation {op_name!r} not found in any step")
+
+    # ------------------------------------------------------------------
+    # Construction from raw dicts (YAML configs)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_dict(cls, config: dict[str, Any], name: str | None = None) -> "Pipeline":
+        """Build a ``Pipeline`` from a raw YAML-style config dict.
+
+        This is the canonical way to go from untyped dicts to typed objects.
+        Unknown operation types are kept as raw dicts so the round-trip is
+        lossless even for plugin operation types.
+        """
+        datasets = {}
+        for ds_name, ds_cfg in config.get("datasets", {}).items():
+            datasets[ds_name] = Dataset(**ds_cfg)
+
+        operations: list[OpType] = []
+        for op_cfg in config.get("operations", []):
+            op_type = op_cfg.get("type")
+            schema_cls = cls._OP_TYPE_REGISTRY.get(op_type)
+            if schema_cls is not None:
+                filtered = {k: v for k, v in op_cfg.items() if v is not None}
+                operations.append(schema_cls(**filtered))
+            else:
+                # Unknown / plugin operation type — store as-is via MapOp
+                # with extra fields preserved through Pydantic's extra="allow"
+                operations.append(MapOp(**{k: v for k, v in op_cfg.items() if v is not None}))
+
+        steps = []
+        for step_cfg in config.get("pipeline", {}).get("steps", []):
+            steps.append(PipelineStep(**{k: v for k, v in step_cfg.items() if v is not None}))
+
+        output = PipelineOutput(**config.get("pipeline", {}).get("output", {}))
+
+        parsing_tools = []
+        for tool_cfg in config.get("parsing_tools", []) or []:
+            if isinstance(tool_cfg, ParsingTool):
+                parsing_tools.append(tool_cfg)
+            elif isinstance(tool_cfg, dict):
+                parsing_tools.append(ParsingTool(**tool_cfg))
+
+        # Collect remaining top-level keys as other_config
+        known_keys = {
+            "datasets", "operations", "pipeline", "default_model",
+            "parsing_tools", "rate_limits", "optimizer_config",
+        }
+        other = {k: v for k, v in config.items() if k not in known_keys}
+
+        return cls(
+            name=name or "pipeline",
+            datasets=datasets,
+            operations=operations,
+            steps=steps,
+            output=output,
+            parsing_tools=parsing_tools,
+            default_model=config.get("default_model"),
+            rate_limits=config.get("rate_limits"),
+            optimizer_config=config.get("optimizer_config", {}),
+            **other,
+        )
 
     def _load_env(self):
         import os
@@ -332,9 +430,8 @@ class Pipeline:
         Returns:
             float: The total cost of running the pipeline.
         """
-        config = self._to_dict()
         runner = DSLRunner(
-            config,
+            self,
             base_name=os.path.join(os.getcwd(), self.name),
             yaml_file_suffix=self.name,
             max_threads=max_threads,
@@ -363,9 +460,8 @@ class Pipeline:
                 print(f"{model}: {usage['prompt_tokens']} in, {usage['completion_tokens']} out")
             ```
         """
-        config = self._to_dict()
         runner = DSLRunner(
-            config,
+            self,
             base_name=os.path.join(os.getcwd(), self.name),
             yaml_file_suffix=self.name,
             max_threads=max_threads,
@@ -429,61 +525,19 @@ class Pipeline:
 
     def _update_from_dict(self, config: dict[str, Any]):
         """
-        Update the Pipeline object from a dictionary representation.
+        Update this Pipeline's fields from a raw config dict.
 
-        Args:
-            config (dict[str, Any]): Dictionary representation of the Pipeline.
+        Delegates to ``from_dict`` so the type-dispatch logic lives in one place.
         """
-        self.datasets = {
-            name: Dataset(
-                type=dataset["type"],
-                source=dataset["source"],
-                path=dataset["path"],
-                parsing=dataset.get("parsing"),
-            )
-            for name, dataset in config["datasets"].items()
-        }
-        self.operations = []
-        for op in config["operations"]:
-            op_type = op.pop("type")
-            if op_type == "map":
-                self.operations.append(MapOp(**op, type=op_type))
-            elif op_type == "resolve":
-                self.operations.append(ResolveOp(**op, type=op_type))
-            elif op_type == "reduce":
-                self.operations.append(ReduceOp(**op, type=op_type))
-            elif op_type == "parallel_map":
-                self.operations.append(ParallelMapOp(**op, type=op_type))
-            elif op_type == "filter":
-                self.operations.append(FilterOp(**op, type=op_type))
-            elif op_type == "equijoin":
-                self.operations.append(EquijoinOp(**op, type=op_type))
-            elif op_type == "split":
-                self.operations.append(SplitOp(**op, type=op_type))
-            elif op_type == "gather":
-                self.operations.append(GatherOp(**op, type=op_type))
-            elif op_type == "unnest":
-                self.operations.append(UnnestOp(**op, type=op_type))
-            elif op_type == "cluster":
-                self.operations.append(ClusterOp(**op, type=op_type))
-            elif op_type == "sample":
-                self.operations.append(SampleOp(**op, type=op_type))
-            elif op_type == "code_map":
-                self.operations.append(CodeMapOp(**op, type=op_type))
-            elif op_type == "code_reduce":
-                self.operations.append(CodeReduceOp(**op, type=op_type))
-            elif op_type == "code_filter":
-                self.operations.append(CodeFilterOp(**op, type=op_type))
-            elif op_type == "extract":
-                self.operations.append(ExtractOp(**op, type=op_type))
-        self.steps = [PipelineStep(**step) for step in config["pipeline"]["steps"]]
-        self.output = PipelineOutput(**config["pipeline"]["output"])
-        self.default_model = config.get("default_model")
-        self.parsing_tools = (
-            [ParsingTool(**tool) for tool in config.get("parsing_tools", [])]
-            if config.get("parsing_tools")
-            else []
-        )
+        other = Pipeline.from_dict(config, name=self.name)
+        self.datasets = other.datasets
+        self.operations = other.operations
+        self.steps = other.steps
+        self.output = other.output
+        self.default_model = other.default_model
+        self.parsing_tools = other.parsing_tools
+        self.optimizer_config = other.optimizer_config
+        self.other_config = other.other_config
 
 
 # Export the main classes and functions for easy import

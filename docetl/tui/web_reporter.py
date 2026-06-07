@@ -126,7 +126,7 @@ class _Broadcaster:
 
     def _build_event(self, state) -> dict:
         ops = []
-        new_docs = []
+        all_docs = []
         for op in state.ops:
             ops.append({
                 "name": op.name,
@@ -140,19 +140,17 @@ class _Broadcaster:
                 "cost": op.cost,
                 "elapsed": op.elapsed,
             })
-            already = self._sent_docs.get(op.name, 0)
-            for i, doc in enumerate(op.outputs[already:], start=already):
-                new_docs.append({
+            for i, doc in enumerate(op.outputs):
+                all_docs.append({
                     "op_name": op.name,
                     "op_type": op.op_type,
                     "doc_index": i,
                     "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
                 })
-            self._sent_docs[op.name] = len(op.outputs)
 
         return {
             "ops": ops,
-            "new_docs": new_docs,
+            "all_docs": all_docs,
             "total_cost": state.total_cost,
             "elapsed": state.elapsed,
             "finished": state.finished,
@@ -262,218 +260,733 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 <title>DocETL Monitor</title>
 <style>
   :root {
-    --bg: hsl(211 100% 98%);
-    --fg: hsl(211 5% 10%);
+    --background: hsl(211 40% 99%);
+    --foreground: hsl(211 5% 0%);
+    --card: hsl(211 25% 97%);
+    --card-foreground: hsl(211 5% 10%);
+    --popover: hsl(211 40% 99%);
+    --popover-foreground: hsl(211 100% 0%);
     --primary: hsl(211 100% 50%);
-    --primary-fg: #fff;
-    --muted: hsl(211 20% 94%);
-    --muted-fg: hsl(211 5% 40%);
-    --border: hsl(211 20% 86%);
-    --card: #fff;
-    --card-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-    --success: hsl(152 69% 31%);
-    --warning: hsl(38 92% 50%);
-    --destructive: hsl(346 87% 44%);
-    --radius: 8px;
+    --primary-foreground: hsl(0 0% 100%);
+    --secondary: hsl(211 30% 70%);
+    --muted: hsl(173 30% 92%);
+    --muted-foreground: hsl(211 5% 35%);
+    --accent: hsl(173 30% 90%);
+    --accent-foreground: hsl(211 5% 10%);
+    --destructive: hsl(0 100% 30%);
+    --border: hsl(211 30% 82%);
+    --ring: hsl(211 100% 50%);
+    --radius: 0.5rem;
+    --chart-2: hsl(173 58% 39%);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; font-size: 14px;
-         background: var(--bg); color: var(--fg); display: flex; flex-direction: column; height: 100vh; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px; background: var(--background); color: var(--foreground);
+    display: flex; flex-direction: column; height: 100vh;
+  }
 
-  header { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 24px;
-           display: flex; align-items: center; gap: 16px; flex-wrap: wrap; box-shadow: var(--card-shadow); }
-  header h1 { font-size: 16px; color: var(--primary); font-weight: 700; white-space: nowrap; }
-  .stats { color: var(--muted-fg); font-size: 13px; display: flex; gap: 16px; }
-  .stats .cost { color: var(--success); font-weight: 600; }
+  /* Top bar */
+  .topbar {
+    background: white; border-bottom: 1px solid var(--border);
+    padding: 8px 16px; display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / .05); flex-shrink: 0;
+  }
+  .topbar-title { font-size: 15px; font-weight: 600; color: var(--foreground); }
+  .topbar-sep { width: 1px; height: 20px; background: var(--border); }
+  .topbar-stat { font-size: 13px; color: var(--muted-foreground); }
+  .topbar-stat b { font-weight: 600; color: var(--foreground); }
+  .topbar-cost b { color: hsl(152 69% 31%); }
+  .topbar-spacer { flex: 1; }
+  .topbar-fb { display: flex; gap: 6px; }
+  .topbar-fb input {
+    width: 280px; background: var(--background); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--foreground); padding: 5px 10px;
+    font-family: inherit; font-size: 13px; transition: border-color .15s, box-shadow .15s;
+  }
+  .topbar-fb input:focus {
+    border-color: var(--primary); outline: none;
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--radius); font-family: inherit; font-size: 13px;
+    font-weight: 500; cursor: pointer; white-space: nowrap;
+    padding: 5px 14px; transition: background .15s, border-color .15s;
+    border: 1px solid var(--border); background: white; color: var(--foreground);
+  }
+  .btn:hover { background: var(--accent); }
+  .btn-primary {
+    background: var(--primary); color: var(--primary-foreground);
+    border-color: var(--primary);
+  }
+  .btn-primary:hover { background: hsl(211 100% 42%); }
+  .btn-destructive {
+    border-color: var(--destructive); color: var(--destructive);
+  }
+  .btn-destructive:hover { background: hsl(0 100% 30% / .06); }
 
-  .pipeline-fb { display: flex; gap: 8px; flex: 1; min-width: 280px; }
-  .pipeline-fb input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
-                        color: var(--fg); padding: 7px 12px; font-family: inherit; font-size: 13px; }
-  .pipeline-fb input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px hsla(211,100%,50%,.15); }
+  /* Operations strip */
+  .ops-strip {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 10px 16px; display: flex; gap: 6px; flex-wrap: wrap;
+    align-items: center; flex-shrink: 0;
+  }
+  .op-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px 4px 8px; border-radius: 999px; font-size: 12px;
+    font-weight: 500; border: 1px solid var(--border); background: white;
+    position: relative; overflow: hidden;
+  }
+  .op-chip[data-status="done"] { border-color: hsl(152 69% 55%); background: hsl(152 69% 97%); }
+  .op-chip[data-status="running"] { border-color: hsl(211 100% 70%); background: hsl(211 100% 97%); }
+  .op-chip[data-status="error"] { border-color: var(--destructive); background: hsl(0 100% 97%); }
+  .op-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .op-dot.queued { background: var(--border); }
+  .op-dot.running { background: var(--primary); animation: pulse 1.5s infinite; }
+  .op-dot.done { background: hsl(152 69% 40%); }
+  .op-dot.error { background: var(--destructive); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  .op-name { color: var(--foreground); }
+  .op-pct { color: var(--muted-foreground); font-size: 11px; }
+  .op-cost { color: hsl(152 69% 31%); font-size: 11px; font-weight: 600; }
+  .op-progress {
+    position: absolute; bottom: 0; left: 0; height: 2px;
+    background: var(--primary); transition: width .4s ease;
+  }
 
-  .btn { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); color: var(--fg);
-         padding: 7px 16px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500;
-         white-space: nowrap; transition: background .15s, border-color .15s; }
-  .btn:hover { background: var(--muted); }
-  .btn.danger { border-color: var(--destructive); color: var(--destructive); }
-  .btn.danger:hover { background: hsl(346 87% 44% / .08); }
-  .btn.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
-  .btn.primary:hover { background: hsl(211 100% 42%); }
+  /* Main content area */
+  .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 
-  .main { display: flex; flex: 1; overflow: hidden; }
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 0; padding: 0 16px; background: white;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .tab {
+    padding: 8px 16px; font-size: 13px; font-weight: 500;
+    color: var(--muted-foreground); cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s; background: none; border-top: none;
+    border-left: none; border-right: none; font-family: inherit;
+  }
+  .tab:hover { color: var(--foreground); }
+  .tab.active { color: var(--foreground); border-bottom-color: var(--primary); }
 
-  .sidebar { width: 260px; min-width: 220px; background: var(--card); border-right: 1px solid var(--border);
-             padding: 16px; overflow-y: auto; }
-  .sidebar h2 { font-size: 11px; text-transform: uppercase; color: var(--muted-fg); margin-bottom: 10px;
-                letter-spacing: .6px; font-weight: 600; }
-  .op { padding: 10px 12px; border-radius: var(--radius); margin-bottom: 4px; transition: background .1s; }
-  .op:hover { background: var(--muted); }
-  .op .name { font-weight: 600; font-size: 13px; }
-  .op .meta { font-size: 12px; color: var(--muted-fg); margin-top: 3px; }
-  .op .meta .cost { color: var(--success); font-weight: 600; }
-  .op.running { border-left: 3px solid var(--warning); }
-  .op.done { border-left: 3px solid var(--success); }
-  .op.error { border-left: 3px solid var(--destructive); }
-  .op.queued { border-left: 3px solid var(--border); }
+  /* Table view */
+  .table-wrap { flex: 1; overflow: auto; }
+  .data-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    table-layout: fixed;
+  }
+  .data-table th {
+    position: sticky; top: 0; z-index: 2; background: var(--card);
+    text-align: left; font-weight: 500; color: var(--muted-foreground);
+    border-bottom: 1px solid var(--border); vertical-align: top;
+    padding: 0;
+  }
+  .col-header { padding: 6px 10px; }
+  .col-header-name {
+    display: flex; align-items: center; gap: 4px; font-size: 12px;
+    cursor: pointer; user-select: none;
+  }
+  .col-header-name:hover { color: var(--foreground); }
+  .sort-icon { width: 12px; height: 12px; opacity: .5; flex-shrink: 0; }
+  .col-header-name:hover .sort-icon { opacity: .8; }
+  .col-stats {
+    font-size: 10px; color: var(--muted-foreground); margin-top: 2px;
+    display: flex; justify-content: space-between;
+  }
+  .col-histogram { height: 48px; margin-top: 4px; display: flex; align-items: flex-end; gap: 1px; }
+  .hist-bar {
+    flex: 1; background: var(--chart-2); border-radius: 2px 2px 0 0;
+    min-width: 0; transition: opacity .15s; cursor: default; position: relative;
+  }
+  .hist-bar:hover { opacity: .75; }
 
-  .content { flex: 1; overflow-y: auto; padding: 20px 24px; }
-  .content h2 { font-size: 11px; text-transform: uppercase; color: var(--muted-fg); margin-bottom: 14px;
-                letter-spacing: .6px; font-weight: 600; }
+  .data-table td {
+    padding: 8px 10px; border-bottom: 1px solid hsl(211 30% 92%);
+    vertical-align: top; color: var(--card-foreground); overflow: hidden;
+    text-overflow: ellipsis; max-height: 120px;
+  }
+  .data-table tr { transition: background .1s; }
+  .data-table tbody tr:hover { background: hsl(211 40% 97%); }
+  .data-table tbody tr.selected { background: hsl(211 60% 95%); }
 
-  .doc-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-              margin-bottom: 14px; box-shadow: var(--card-shadow); overflow: hidden;
-              animation: fadeIn .3s ease-out; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  .doc-header { padding: 12px 16px; border-bottom: 1px solid var(--border);
-                display: flex; justify-content: space-between; align-items: center; }
-  .doc-header .label { font-weight: 600; color: var(--primary); font-size: 13px; }
-  .doc-header .op-tag { font-size: 11px; color: var(--muted-fg); background: var(--muted);
-                        padding: 2px 10px; border-radius: 999px; font-weight: 500; }
-  .doc-fields { padding: 14px 16px; }
-  .field { margin-bottom: 8px; line-height: 1.5; }
-  .field .key { color: var(--primary); font-weight: 600; font-size: 13px; }
-  .field .val { color: var(--fg); white-space: pre-wrap; word-break: break-word; font-size: 13px; }
-  .doc-fb { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px;
-            background: hsl(211 100% 98% / .5); }
-  .doc-fb input { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-                  color: var(--fg); padding: 6px 12px; font-family: inherit; font-size: 13px; }
-  .doc-fb input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px hsla(211,100%,50%,.15); }
-  .fb-sent { color: var(--success); font-size: 12px; padding: 7px 0; font-weight: 500; }
+  .cell-text { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+  .cell-num { font-variant-numeric: tabular-nums; }
 
-  .banner { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-            padding: 20px 24px; margin-bottom: 16px; text-align: center; box-shadow: var(--card-shadow); }
-  .banner.done { border-color: var(--success); }
-  .banner .big { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .col-idx { width: 44px; text-align: center; color: var(--muted-foreground); font-size: 12px; }
+  .col-op { width: 120px; }
+  .col-fb { width: 44px; text-align: center; }
+  .fb-icon {
+    width: 28px; height: 28px; border-radius: var(--radius); border: 1px solid transparent;
+    background: none; cursor: pointer; display: inline-flex; align-items: center;
+    justify-content: center; color: var(--muted-foreground); transition: all .15s;
+    font-family: inherit; padding: 0;
+  }
+  .fb-icon:hover { border-color: var(--border); background: var(--accent); color: var(--primary); }
+  .fb-icon.has-fb { color: hsl(152 69% 40%); }
 
-  footer { background: var(--card); border-top: 1px solid var(--border); padding: 8px 24px;
-           font-size: 12px; color: var(--muted-fg); display: flex; gap: 20px; }
+  /* Feedback row */
+  .fb-row td { padding: 0 !important; border-bottom: 1px solid var(--border) !important; }
+  .fb-inline {
+    display: flex; gap: 8px; padding: 8px 10px; background: hsl(211 40% 98%);
+    align-items: center;
+  }
+  .fb-inline input {
+    flex: 1; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 5px 10px; font-family: inherit; font-size: 13px; background: white;
+    color: var(--foreground); transition: border-color .15s, box-shadow .15s;
+  }
+  .fb-inline input:focus {
+    border-color: var(--primary); outline: none;
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
+  }
+  .fb-sent-msg { color: hsl(152 69% 31%); font-size: 12px; font-weight: 500; padding: 10px; }
 
-  .progress-bar { height: 4px; background: var(--muted); border-radius: 2px; margin-top: 6px; overflow: hidden; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), hsl(270 80% 60%));
-                   border-radius: 2px; transition: width .3s ease; }
+  /* Histogram view */
+  .viz-panel { flex: 1; overflow: auto; padding: 16px; }
+  .viz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .viz-card {
+    background: white; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; box-shadow: 0 1px 3px 0 rgb(0 0 0 / .05);
+  }
+  .viz-card-title { font-size: 13px; font-weight: 600; color: var(--foreground); margin-bottom: 2px; }
+  .viz-card-sub { font-size: 11px; color: var(--muted-foreground); margin-bottom: 10px; }
+  .viz-chart { height: 100px; display: flex; align-items: flex-end; gap: 2px; }
+  .viz-bar {
+    flex: 1; background: var(--chart-2); border-radius: 3px 3px 0 0;
+    min-width: 0; position: relative; cursor: default; transition: opacity .15s;
+  }
+  .viz-bar:hover { opacity: .7; }
+  .viz-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+  .viz-label { font-size: 10px; color: var(--muted-foreground); }
+
+  /* Tooltip */
+  .tt {
+    position: fixed; z-index: 100; pointer-events: none;
+    background: white; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 6px 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1); font-size: 12px;
+    color: var(--foreground); max-width: 250px; opacity: 0;
+    transition: opacity .12s;
+  }
+  .tt.show { opacity: 1; }
+  .tt-label { color: var(--muted-foreground); font-size: 11px; }
+  .tt-val { font-weight: 600; }
+
+  /* Status bar */
+  .statusbar {
+    background: white; border-top: 1px solid var(--border);
+    padding: 5px 16px; font-size: 12px; color: var(--muted-foreground);
+    display: flex; gap: 16px; flex-shrink: 0; align-items: center;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    display: inline-block; margin-right: 4px;
+  }
+  .status-dot.live { background: hsl(152 69% 40%); animation: pulse 1.5s infinite; }
+  .status-dot.done { background: hsl(152 69% 40%); }
+  .status-dot.off { background: var(--destructive); }
+
+  /* Completion banner */
+  .complete-banner {
+    background: hsl(152 69% 97%); border: 1px solid hsl(152 69% 75%);
+    border-radius: var(--radius); padding: 12px 16px; margin: 12px 16px 0;
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+  }
+  .complete-banner b { color: hsl(152 69% 28%); }
+
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>DocETL Monitor</h1>
-  <div class="stats">
-    <span>Cost: <span class="cost" id="h-cost">$0</span></span>
-    <span>Time: <span id="h-time">0s</span></span>
-    <span>Ops: <span id="h-ops">0/0</span></span>
-  </div>
-  <div class="pipeline-fb">
-    <input type="text" id="pipeline-fb-input" placeholder="Pipeline-level feedback (e.g. 'prompts are too aggressive')"
+<div class="topbar">
+  <span class="topbar-title">DocETL</span>
+  <div class="topbar-sep"></div>
+  <span class="topbar-stat topbar-cost">Cost: <b id="h-cost">$0</b></span>
+  <span class="topbar-stat">Time: <b id="h-time">0s</b></span>
+  <span class="topbar-stat">Ops: <b id="h-ops">0/0</b></span>
+  <span class="topbar-spacer"></span>
+  <div class="topbar-fb">
+    <input type="text" id="pipeline-fb-input"
+           placeholder="Pipeline feedback…"
            onkeydown="if(event.key==='Enter')sendPipelineFeedback()">
-    <button class="btn primary" onclick="sendPipelineFeedback()">Send Feedback</button>
+    <button class="btn btn-primary" onclick="sendPipelineFeedback()">Send</button>
   </div>
-  <button class="btn danger" id="kill-btn" onclick="killPipeline()">Stop Pipeline</button>
-</header>
+  <button class="btn btn-destructive" id="kill-btn" onclick="killPipeline()">Stop Pipeline</button>
+</div>
+
+<div class="ops-strip" id="ops-strip"></div>
 
 <div class="main">
-  <div class="sidebar">
-    <h2>Operations</h2>
-    <div id="ops-list"></div>
+  <div class="tabs">
+    <button class="tab active" data-tab="table" onclick="switchTab('table')">Table</button>
+    <button class="tab" data-tab="visualize" onclick="switchTab('visualize')">Visualize</button>
   </div>
-  <div class="content" id="content">
-    <h2>Document Outputs</h2>
-    <div id="docs-list"></div>
+
+  <div id="complete-banner" class="complete-banner hidden">
+    <b>Pipeline Complete</b>
+    <span id="complete-summary"></span>
+  </div>
+
+  <div id="tab-table" class="table-wrap">
+    <table class="data-table" id="data-table">
+      <thead id="table-head"></thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <div id="tab-visualize" class="viz-panel hidden">
+    <div class="viz-grid" id="viz-grid"></div>
   </div>
 </div>
 
-<footer>
-  <span id="f-status">Connecting…</span>
-  <span id="f-feedback">Feedback: 0 items</span>
-</footer>
+<div class="statusbar">
+  <span><span class="status-dot live" id="status-dot"></span> <span id="f-status">Connecting…</span></span>
+  <span id="f-rows">0 rows</span>
+  <span id="f-feedback">Feedback: 0</span>
+</div>
+
+<div class="tt" id="tooltip"></div>
 
 <script>
-const opsList = document.getElementById('ops-list');
-const docsList = document.getElementById('docs-list');
 let allDocs = [];
+let columns = [];
+let columnStats = {};
+let sortCol = null;
+let sortDir = 'asc';
+let expandedRow = -1;
 let finished = false;
 let killed = false;
+let seenDocKeys = new Set();
+let currentTab = 'table';
 
 function fmtCost(c) {
   if (c <= 0) return '$0';
   if (c < 0.01) return '<$0.01';
   return '$' + c.toFixed(2);
 }
-
 function fmtDur(s) {
   s = Math.round(s);
   if (s < 60) return s + 's';
   const m = Math.floor(s / 60), r = s % 60;
   if (m < 60) return m + 'm ' + r + 's';
-  const h = Math.floor(m / 60);
-  return h + 'h ' + (m % 60) + 'm';
+  return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+}
+function escHtml(s) {
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
 }
 
+/* --- Operations strip --- */
 function updateOps(ops) {
   const doneCount = ops.filter(o => o.status === 'done').length;
   document.getElementById('h-ops').textContent = doneCount + '/' + ops.length;
-
-  opsList.innerHTML = '';
+  const strip = document.getElementById('ops-strip');
+  strip.innerHTML = '';
   ops.forEach(op => {
-    const el = document.createElement('div');
-    el.className = 'op ' + op.status;
-    const glyph = {done:'✓', running:'◐', error:'✗', queued:'○'}[op.status] || '○';
-    let meta = '';
+    const chip = document.createElement('div');
+    chip.className = 'op-chip';
+    chip.dataset.status = op.status;
+    let pctText = '';
+    let pctWidth = 0;
     if (op.total) {
-      const pct = Math.round(100 * op.completed / op.total);
-      meta += op.completed + '/' + op.total + ' (' + pct + '%)';
+      pctWidth = Math.round(100 * op.completed / op.total);
+      pctText = pctWidth + '%';
     }
-    if (op.cost > 0) meta += (meta ? ' &middot; ' : '') + '<span class="cost">' + fmtCost(op.cost) + '</span>';
-    if (op.elapsed >= 1) meta += (meta ? ' &middot; ' : '') + fmtDur(op.elapsed);
-    if (op.errors) meta += ' &middot; <span style="color:var(--destructive)">!' + op.errors + '</span>';
-
-    let progress = '';
+    let inner = '<span class="op-dot ' + op.status + '"></span>';
+    inner += '<span class="op-name">' + op.op_type + ':' + op.name.split('/').pop() + '</span>';
+    if (pctText) inner += '<span class="op-pct">' + pctText + '</span>';
+    if (op.cost > 0) inner += '<span class="op-cost">' + fmtCost(op.cost) + '</span>';
     if (op.status === 'running' && op.total) {
-      const pct = Math.round(100 * op.completed / op.total);
-      progress = '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>';
+      inner += '<span class="op-progress" style="width:' + pctWidth + '%"></span>';
     }
-
-    el.innerHTML = '<div class="name">' + glyph + ' ' + op.op_type + ':' + op.name.split('/').pop() + '</div>' +
-                   (meta ? '<div class="meta">' + meta + '</div>' : '') + progress;
-    opsList.appendChild(el);
+    chip.innerHTML = inner;
+    strip.appendChild(chip);
   });
 }
 
-function addDocs(docs) {
-  docs.forEach(doc => {
-    allDocs.push(doc);
-    const idx = allDocs.length - 1;
-    const card = document.createElement('div');
-    card.className = 'doc-card';
-    card.id = 'doc-' + idx;
+/* --- Column stats (matching playground logic) --- */
+function computeColumnStats(colKey) {
+  const vals = allDocs.map(d => d.fields[colKey]).filter(v => v != null);
+  if (!vals.length) return null;
 
-    let fieldsHtml = '';
-    for (const [k, v] of Object.entries(doc.fields)) {
-      const val = typeof v === 'string' ? v : JSON.stringify(v);
-      fieldsHtml += '<div class="field"><span class="key">' + escHtml(k) + ': </span><span class="val">' + escHtml(val) + '</span></div>';
+  const first = vals[0];
+  let type = 'string-words';
+  if (typeof first === 'number') type = 'number';
+  else if (typeof first === 'boolean') type = 'boolean';
+  else if (Array.isArray(first)) type = 'array';
+  else if (typeof first === 'string') {
+    const sample = vals.slice(0, 5).filter(v => typeof v === 'string');
+    type = sample.length > 0 && sample.every(v => !/\s/.test(v.trim())) ? 'string-chars' : 'string-words';
+  }
+
+  const numeric = vals.map(v => {
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    if (typeof v === 'number') return v;
+    if (Array.isArray(v)) return v.length;
+    if (typeof v === 'string') return type === 'string-chars' ? v.trim().length : v.trim().split(/\s+/).length;
+    return JSON.stringify(v).split(/\s+/).length;
+  });
+
+  const min = Math.min(...numeric);
+  const max = Math.max(...numeric);
+  const avg = numeric.reduce((a, b) => a + b, 0) / numeric.length;
+
+  const valueCounts = {};
+  vals.forEach(v => {
+    const key = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    valueCounts[key] = (valueCounts[key] || 0) + 1;
+  });
+  const distinctCount = Object.keys(valueCounts).length;
+  const isLowCardinality = distinctCount < vals.length * 0.5;
+
+  const sortedValueCounts = Object.entries(valueCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([value, count]) => ({ value, count }));
+
+  if (type === 'boolean') {
+    return { type, min, max, avg, distribution: [numeric.filter(v => v === 0).length, numeric.filter(v => v === 1).length],
+             bucketSize: 1, distinctCount, totalCount: vals.length, isLowCardinality: true, sortedValueCounts };
+  }
+  if (min === max) {
+    return { type, min, max, avg, distribution: [numeric.length], bucketSize: 1,
+             distinctCount, totalCount: vals.length, isLowCardinality, sortedValueCounts };
+  }
+
+  const nBuckets = 7;
+  const bucketSize = type === 'number' ? (max - min) / nBuckets : Math.ceil((max - min) / nBuckets);
+  const distribution = new Array(nBuckets).fill(0);
+  numeric.forEach(v => {
+    const idx = Math.min(Math.floor((v - min) / bucketSize), nBuckets - 1);
+    distribution[idx]++;
+  });
+
+  return { type, min, max, avg, distribution, bucketSize, distinctCount, totalCount: vals.length,
+           isLowCardinality, sortedValueCounts };
+}
+
+function recomputeStats() {
+  columnStats = {};
+  columns.forEach(col => { columnStats[col] = computeColumnStats(col); });
+}
+
+/* --- Histogram rendering --- */
+function unitLabel(type) {
+  return { number: '', array: ' items', boolean: '', 'string-chars': ' chars', 'string-words': ' words' }[type] || '';
+}
+
+function renderHistogram(stats, container, tall) {
+  const h = tall ? 100 : 48;
+  const barClass = tall ? 'viz-bar' : 'hist-bar';
+  container.innerHTML = '';
+  container.style.height = h + 'px';
+  if (!stats) return;
+
+  if (stats.isLowCardinality) {
+    const items = stats.sortedValueCounts.slice(0, 10);
+    const maxC = Math.max(...items.map(d => d.count));
+    items.forEach(d => {
+      const bar = document.createElement('div');
+      bar.className = barClass;
+      bar.style.height = Math.max(2, (d.count / maxC) * h) + 'px';
+      bar.dataset.ttLabel = d.value;
+      bar.dataset.ttVal = d.count + ' (' + ((d.count / stats.totalCount) * 100).toFixed(1) + '%)';
+      container.appendChild(bar);
+    });
+  } else {
+    const maxC = Math.max(...stats.distribution);
+    const u = unitLabel(stats.type);
+    stats.distribution.forEach((count, i) => {
+      const bar = document.createElement('div');
+      bar.className = barClass;
+      bar.style.height = Math.max(2, (count / maxC) * h) + 'px';
+      const lo = Math.round(stats.min + i * stats.bucketSize);
+      const hi = Math.round(stats.min + (i + 1) * stats.bucketSize);
+      bar.dataset.ttLabel = lo + ' – ' + hi + u;
+      bar.dataset.ttVal = count + ' (' + ((count / stats.totalCount) * 100).toFixed(1) + '%)';
+      container.appendChild(bar);
+    });
+  }
+}
+
+/* --- Tooltip --- */
+const tooltip = document.getElementById('tooltip');
+document.addEventListener('mouseover', e => {
+  const bar = e.target.closest('[data-tt-label]');
+  if (bar) {
+    tooltip.innerHTML = '<div class="tt-label">' + escHtml(bar.dataset.ttLabel) + '</div><div class="tt-val">' + escHtml(bar.dataset.ttVal) + '</div>';
+    tooltip.classList.add('show');
+  }
+});
+document.addEventListener('mousemove', e => {
+  if (tooltip.classList.contains('show')) {
+    tooltip.style.left = (e.clientX + 12) + 'px';
+    tooltip.style.top = (e.clientY - 8) + 'px';
+  }
+});
+document.addEventListener('mouseout', e => {
+  if (e.target.closest('[data-tt-label]')) tooltip.classList.remove('show');
+});
+
+/* --- Table rendering --- */
+function discoverColumns() {
+  const seen = new Set();
+  const cols = [];
+  allDocs.forEach(doc => {
+    for (const k of Object.keys(doc.fields)) {
+      if (!seen.has(k)) { seen.add(k); cols.push(k); }
+    }
+  });
+  return cols;
+}
+
+function getSortedIndices() {
+  const indices = allDocs.map((_, i) => i);
+  if (!sortCol) return indices;
+  indices.sort((a, b) => {
+    let va = allDocs[a].fields[sortCol];
+    let vb = allDocs[b].fields[sortCol];
+    if (va == null) return -1;
+    if (vb == null) return 1;
+    if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va;
+    va = String(va); vb = String(vb);
+    return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  return indices;
+}
+
+function renderTableHead() {
+  const thead = document.getElementById('table-head');
+  thead.innerHTML = '';
+  const tr = document.createElement('tr');
+
+  // Row number column
+  const thIdx = document.createElement('th');
+  thIdx.className = 'col-idx';
+  thIdx.innerHTML = '<div class="col-header"><span style="font-size:11px">#</span></div>';
+  tr.appendChild(thIdx);
+
+  // Operation column
+  const thOp = document.createElement('th');
+  thOp.className = 'col-op';
+  thOp.innerHTML = '<div class="col-header"><span class="col-header-name" style="font-size:12px">operation</span></div>';
+  tr.appendChild(thOp);
+
+  // Data columns
+  columns.forEach(col => {
+    const th = document.createElement('th');
+    const stats = columnStats[col];
+    const isSorted = sortCol === col;
+    const arrow = !isSorted ? '↕' : (sortDir === 'asc' ? '↑' : '↓');
+
+    let statsHtml = '';
+    if (stats) {
+      if (stats.isLowCardinality) {
+        statsHtml = '<div class="col-stats"><span>' + stats.distinctCount + ' distinct</span></div>';
+      } else {
+        statsHtml = '<div class="col-stats"><span>' + Math.round(stats.min) + '</span><span>avg ' + Math.round(stats.avg) + '</span><span>' + Math.round(stats.max) + '</span></div>';
+      }
     }
 
-    card.innerHTML =
-      '<div class="doc-header">' +
-        '<span class="label">Document #' + (doc.doc_index + 1) + '</span>' +
-        '<span class="op-tag">' + doc.op_type + ':' + doc.op_name.split('/').pop() + '</span>' +
-      '</div>' +
-      '<div class="doc-fields">' + fieldsHtml + '</div>' +
-      '<div class="doc-fb" id="fb-row-' + idx + '">' +
-        '<input type="text" placeholder="Feedback on this output…" id="fb-input-' + idx + '" onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + idx + ')">' +
-        '<button class="btn" onclick="sendDocFeedback(' + idx + ')">Send</button>' +
+    th.innerHTML =
+      '<div class="col-header">' +
+        '<div class="col-header-name" onclick="toggleSort(\'' + escHtml(col) + '\')">' +
+          '<span class="sort-icon">' + arrow + '</span>' +
+          '<span>' + escHtml(col) + '</span>' +
+        '</div>' +
+        statsHtml +
+        '<div class="col-histogram" id="hist-' + escHtml(col) + '"></div>' +
       '</div>';
-    docsList.appendChild(card);
+    tr.appendChild(th);
   });
-  const content = document.getElementById('content');
-  content.scrollTop = content.scrollHeight;
+
+  // Feedback column
+  const thFb = document.createElement('th');
+  thFb.className = 'col-fb';
+  thFb.innerHTML = '<div class="col-header"><span style="font-size:11px">fb</span></div>';
+  tr.appendChild(thFb);
+
+  thead.appendChild(tr);
+
+  // Render histograms
+  columns.forEach(col => {
+    const container = document.getElementById('hist-' + col);
+    if (container) renderHistogram(columnStats[col], container, false);
+  });
 }
 
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+function renderTableBody() {
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+  const sorted = getSortedIndices();
+
+  sorted.forEach(idx => {
+    const doc = allDocs[idx];
+    const tr = document.createElement('tr');
+    if (idx === expandedRow) tr.classList.add('selected');
+
+    // Row number
+    const tdIdx = document.createElement('td');
+    tdIdx.className = 'col-idx';
+    tdIdx.textContent = doc.doc_index + 1;
+    tr.appendChild(tdIdx);
+
+    // Operation
+    const tdOp = document.createElement('td');
+    tdOp.className = 'col-op';
+    tdOp.innerHTML = '<span style="font-size:12px;color:var(--muted-foreground)">' + escHtml(doc.op_type + ':' + doc.op_name.split('/').pop()) + '</span>';
+    tr.appendChild(tdOp);
+
+    // Data cells
+    columns.forEach(col => {
+      const td = document.createElement('td');
+      const val = doc.fields[col];
+      if (val == null) {
+        td.innerHTML = '<span style="color:var(--muted-foreground);font-style:italic">—</span>';
+      } else if (typeof val === 'number') {
+        td.className = 'cell-num';
+        td.textContent = val;
+      } else {
+        td.className = 'cell-text';
+        const s = typeof val === 'string' ? val : JSON.stringify(val);
+        td.textContent = s.length > 300 ? s.slice(0, 300) + ' …' : s;
+      }
+      tr.appendChild(td);
+    });
+
+    // Feedback button
+    const tdFb = document.createElement('td');
+    tdFb.className = 'col-fb';
+    const fbBtn = document.createElement('button');
+    fbBtn.className = 'fb-icon' + (doc._fbSent ? ' has-fb' : '');
+    fbBtn.innerHTML = doc._fbSent ? '✓' : '✎';
+    fbBtn.title = doc._fbSent ? 'Feedback sent' : 'Give feedback';
+    fbBtn.onclick = (e) => { e.stopPropagation(); toggleFeedbackRow(idx); };
+    tdFb.appendChild(fbBtn);
+    tr.appendChild(tdFb);
+
+    tr.onclick = () => toggleFeedbackRow(idx);
+    tbody.appendChild(tr);
+
+    // Feedback expansion row
+    if (idx === expandedRow) {
+      const fbTr = document.createElement('tr');
+      fbTr.className = 'fb-row';
+      const fbTd = document.createElement('td');
+      fbTd.colSpan = columns.length + 3;
+      if (doc._fbSent) {
+        fbTd.innerHTML = '<div class="fb-sent-msg">✓ Feedback sent: "' + escHtml(doc._fbText) + '"</div>';
+      } else {
+        fbTd.innerHTML =
+          '<div class="fb-inline">' +
+            '<input type="text" placeholder="Feedback on this output…" id="fb-input-' + idx + '" ' +
+              'onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + idx + ')">' +
+            '<button class="btn" onclick="sendDocFeedback(' + idx + ')">Send</button>' +
+          '</div>';
+      }
+      fbTr.appendChild(fbTd);
+      tbody.appendChild(fbTr);
+      // Focus input
+      setTimeout(() => {
+        const inp = document.getElementById('fb-input-' + idx);
+        if (inp) inp.focus();
+      }, 0);
+    }
+  });
 }
 
+function toggleSort(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortCol = col;
+    sortDir = 'asc';
+  }
+  renderTableHead();
+  renderTableBody();
+}
+
+function toggleFeedbackRow(idx) {
+  expandedRow = expandedRow === idx ? -1 : idx;
+  renderTableBody();
+}
+
+/* --- Visualize tab --- */
+function renderVizPanel() {
+  const grid = document.getElementById('viz-grid');
+  grid.innerHTML = '';
+  columns.forEach(col => {
+    const stats = columnStats[col];
+    if (!stats) return;
+    const card = document.createElement('div');
+    card.className = 'viz-card';
+    const u = unitLabel(stats.type);
+    let sub = stats.isLowCardinality
+      ? stats.distinctCount + ' distinct values · ' + stats.totalCount + ' total'
+      : 'min ' + Math.round(stats.min) + u + ' · avg ' + Math.round(stats.avg) + u + ' · max ' + Math.round(stats.max) + u;
+    card.innerHTML =
+      '<div class="viz-card-title">' + escHtml(col) + '</div>' +
+      '<div class="viz-card-sub">' + sub + '</div>' +
+      '<div class="viz-chart" id="vizchart-' + escHtml(col) + '"></div>' +
+      '<div class="viz-labels" id="vizlabels-' + escHtml(col) + '"></div>';
+    grid.appendChild(card);
+
+    const chartEl = document.getElementById('vizchart-' + col);
+    renderHistogram(stats, chartEl, true);
+
+    const labelsEl = document.getElementById('vizlabels-' + col);
+    if (stats.isLowCardinality) {
+      const top = stats.sortedValueCounts.slice(0, 3);
+      labelsEl.innerHTML = top.map(d => '<span class="viz-label">' + escHtml(d.value.length > 12 ? d.value.slice(0, 12) + '…' : d.value) + '</span>').join('');
+    } else {
+      labelsEl.innerHTML = '<span class="viz-label">' + Math.round(stats.min) + u + '</span><span class="viz-label">' + Math.round(stats.max) + u + '</span>';
+    }
+  });
+}
+
+/* --- Tabs --- */
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('tab-table').classList.toggle('hidden', tab !== 'table');
+  document.getElementById('tab-visualize').classList.toggle('hidden', tab !== 'visualize');
+  if (tab === 'visualize') renderVizPanel();
+}
+
+/* --- Data sync --- */
+function syncDocs(docs) {
+  let changed = false;
+  docs.forEach(doc => {
+    const key = doc.op_name + ':' + doc.doc_index;
+    if (!seenDocKeys.has(key)) {
+      seenDocKeys.add(key);
+      allDocs.push(doc);
+      changed = true;
+    }
+  });
+  if (!changed) return;
+
+  const newCols = discoverColumns();
+  const colsChanged = newCols.length !== columns.length || newCols.some((c, i) => c !== columns[i]);
+  columns = newCols;
+  recomputeStats();
+
+  renderTableHead();
+  renderTableBody();
+  if (currentTab === 'visualize') renderVizPanel();
+
+  document.getElementById('f-rows').textContent = allDocs.length + ' row' + (allDocs.length === 1 ? '' : 's');
+
+  // Auto-scroll to bottom
+  const tw = document.getElementById('tab-table');
+  tw.scrollTop = tw.scrollHeight;
+}
+
+/* --- Feedback --- */
 function sendDocFeedback(idx) {
   const input = document.getElementById('fb-input-' + idx);
   const text = input.value.trim();
@@ -482,10 +995,11 @@ function sendDocFeedback(idx) {
   fetch('/feedback/doc', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({op_name: doc.op_name, doc_index: doc.doc_index, doc_snapshot: doc.fields, text: text})
+    body: JSON.stringify({ op_name: doc.op_name, doc_index: doc.doc_index, doc_snapshot: doc.fields, text: text })
   });
-  const row = document.getElementById('fb-row-' + idx);
-  row.innerHTML = '<span class="fb-sent">✓ Feedback sent: “' + escHtml(text) + '”</span>';
+  doc._fbSent = true;
+  doc._fbText = text;
+  renderTableBody();
 }
 
 function sendPipelineFeedback() {
@@ -495,20 +1009,20 @@ function sendPipelineFeedback() {
   fetch('/feedback/pipeline', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({text: text})
+    body: JSON.stringify({ text: text })
   });
   input.value = '';
-  input.placeholder = '✓ Sent! Type more feedback…';
+  input.placeholder = 'Sent! Type more…';
 }
 
 function killPipeline() {
-  const reason = prompt('Reason for stopping the pipeline (optional):') || '';
+  const reason = prompt('Reason for stopping (optional):') || '';
   if (killed) return;
   killed = true;
   fetch('/kill', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({reason: reason})
+    body: JSON.stringify({ reason: reason })
   });
   const btn = document.getElementById('kill-btn');
   btn.textContent = 'Stopping…';
@@ -516,28 +1030,33 @@ function killPipeline() {
   btn.style.opacity = '0.5';
 }
 
+/* --- SSE --- */
 const evtSource = new EventSource('/events');
 evtSource.onmessage = function(e) {
   const data = JSON.parse(e.data);
   updateOps(data.ops);
-  if (data.new_docs.length) addDocs(data.new_docs);
+  syncDocs(data.all_docs);
   document.getElementById('h-cost').textContent = fmtCost(data.total_cost);
   document.getElementById('h-time').textContent = fmtDur(data.elapsed);
-  document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count + ' item' + (data.feedback_count === 1 ? '' : 's');
-  document.getElementById('f-status').textContent = data.finished ? 'Pipeline complete' : 'Running';
+  document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
+  document.getElementById('f-status').textContent = data.finished ? 'Complete' : 'Running';
 
   if (data.finished && !finished) {
     finished = true;
-    const banner = document.createElement('div');
-    banner.className = 'banner done';
-    banner.innerHTML = '<div class="big" style="color:var(--success)">✓ Pipeline Complete</div>' +
-                       '<div style="color:var(--muted-fg)">' + fmtCost(data.total_cost) + ' &middot; ' + fmtDur(data.elapsed) + '</div>';
-    docsList.prepend(banner);
-    document.getElementById('kill-btn').style.display = 'none';
+    const dot = document.getElementById('status-dot');
+    dot.classList.remove('live');
+    dot.classList.add('done');
+    const banner = document.getElementById('complete-banner');
+    banner.classList.remove('hidden');
+    document.getElementById('complete-summary').textContent = fmtCost(data.total_cost) + ' · ' + fmtDur(data.elapsed) + ' · ' + allDocs.length + ' outputs';
+    document.getElementById('kill-btn').classList.add('hidden');
   }
 };
 evtSource.onerror = function() {
   document.getElementById('f-status').textContent = 'Disconnected';
+  const dot = document.getElementById('status-dot');
+  dot.classList.remove('live');
+  dot.classList.add('off');
 };
 </script>
 </body>

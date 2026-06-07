@@ -295,10 +295,16 @@ class CascadeMixin:
             f"≥ {target_pct}[/yellow]  [dim]δ={stats.delta}[/dim]"
         )
         if stats.threshold is not None:
-            lines.append(
-                f"           [dim]threshold[/dim] [yellow]{stats.threshold:.3f}[/yellow] "
-                f"proxy confidence"
-            )
+            if stats.threshold < 0.01:
+                lines.append(
+                    f"           [dim]threshold[/dim] [bold yellow]none found[/bold yellow] "
+                    f"— proxy could not confidently separate items"
+                )
+            else:
+                lines.append(
+                    f"           [dim]threshold[/dim] [yellow]{stats.threshold:.3f}[/yellow] "
+                    f"proxy confidence"
+                )
         if is_calibrated:
             lines.append(
                 f"           [dim]result[/dim]   {stats.n_items - served_by_proxy} "

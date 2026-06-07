@@ -586,7 +586,14 @@ def _render_cascade_info(info: dict) -> Text:
     t.append(f"  δ={info['delta']}\n", style="grey70")
     threshold = info.get("threshold")
     if threshold is not None:
-        t.append(f"  threshold:  {threshold:.3f} proxy confidence\n", style="yellow")
+        if threshold < 0.01:
+            t.append(
+                "  threshold:  none found — all items kept\n", style="bold yellow"
+            )
+        else:
+            t.append(
+                f"  threshold:  {threshold:.3f} proxy confidence\n", style="yellow"
+            )
     if not is_calibrated:
         esc = info["escalation_rate"]
         served = info["served_by_proxy"]

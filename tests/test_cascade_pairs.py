@@ -49,7 +49,8 @@ def _build(cls, config):
     op.runner = runner
     op.config = config
     op.default_model = "gpt-4o"
-    op.console = SimpleNamespace(log=lambda *a, **k: None)
+    import io
+    op.console = SimpleNamespace(log=lambda *a, **k: None, file=io.StringIO())
     op.bypass_cache = False
     op.max_threads = 4
     return op, api

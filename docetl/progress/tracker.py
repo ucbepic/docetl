@@ -16,6 +16,10 @@ import uuid
 from .events import OpState, RunState
 
 
+class PipelineKilled(Exception):
+    """Raised when the user kills the pipeline via the feedback UI."""
+
+
 class ProgressTracker:
     """Collects structured progress from a running pipeline.
 
@@ -30,6 +34,7 @@ class ProgressTracker:
         # Subscribers are called (outside the lock) after each mutation so the
         # TUI can request a redraw promptly rather than only polling.
         self._subscribers: list = []
+        self.kill_requested = False
 
     # -- subscription ----------------------------------------------------
     def subscribe(self, callback) -> None:

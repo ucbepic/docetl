@@ -336,6 +336,103 @@ def test_filter_summary_reports_dropped():
     assert "dropped: 8" in "".join(str(x) for x in get_profile("filter").summary(f))
 
 
+def test_kill_requested_raises_in_progress_bar():
+    """When kill_requested is set, RichLoopBar.update() raises PipelineKilled."""
+    from docetl.progress.tracker import PipelineKilled
+
+    t = ProgressTracker()
+    set_active_tracker(t)
+    try:
+        t.op_start("op", "map", None, total=10)
+        from docetl.operations.utils.progress import RichLoopBar
+
+        bar = RichLoopBar.__new__(RichLoopBar)
+        bar.tqdm = None
+        bar.update(1)  # fine
+        t.kill_requested = True
+        with pytest.raises(PipelineKilled):
+            bar.update(1)
+    finally:
+        t.kill_requested = False
+        set_active_tracker(None)
+
+
+def test_feedback_store():
+    from docetl.tui.web_reporter import FeedbackStore
+
+    fb = FeedbackStore()
+    assert not fb.has_any
+    fb.add_pipeline_feedback("too aggressive")
+    assert fb.has_any
+    fb.add_doc_feedback("classify", 3, {"cat": "billing"}, "should be refund")
+    d = fb.to_dict()
+    assert len(d["pipeline_feedback"]) == 1
+    assert d["pipeline_feedback"][0]["feedback"] == "too aggressive"
+    assert len(d["doc_feedback"]) == 1
+    assert d["doc_feedback"][0]["operation"] == "classify"
+    assert d["doc_feedback"][0]["doc_snapshot"] == {"cat": "billing"}
+    assert not d["killed"]
+
+    fb.kill_reason = "bad outputs"
+    d = fb.to_dict()
+    assert d["killed"]
+    assert d["kill_reason"] == "bad outputs"
+
+
+def test_web_reporter_serves_html():
+    """The web server should serve the HTML page and accept feedback POSTs."""
+    import json
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from docetl.tui.web_reporter import FeedbackStore, _Broadcaster, _make_handler
+
+    t = ProgressTracker()
+    t.pipeline_start([("s", "s/op", "map", None)])
+    fb = FeedbackStore()
+    bc = _Broadcaster(t, fb)
+    handler = _make_handler(t, fb, bc)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    port = server.server_address[1]
+    import threading
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        # GET / should return HTML
+        resp = urllib.request.urlopen(f"http://localhost:{port}/")
+        html = resp.read().decode()
+        assert "DocETL Monitor" in html
+
+        # GET /state should return JSON
+        resp = urllib.request.urlopen(f"http://localhost:{port}/state")
+        state = json.loads(resp.read())
+        assert len(state["ops"]) == 1
+        assert state["ops"][0]["status"] == "queued"
+
+        # POST /feedback/pipeline
+        req = urllib.request.Request(
+            f"http://localhost:{port}/feedback/pipeline",
+            data=json.dumps({"text": "needs work"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
+        assert fb.pipeline_feedback[0]["feedback"] == "needs work"
+
+        # POST /kill
+        req = urllib.request.Request(
+            f"http://localhost:{port}/kill",
+            data=json.dumps({"reason": "bad"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
+        assert t.kill_requested
+        assert fb.kill_reason == "bad"
+    finally:
+        t.kill_requested = False
+        server.shutdown()
+
+
 def test_log_reporter_emits_progress():
     """The log reporter should emit progress lines for running and done ops."""
     from docetl.tui.log_reporter import _LogReporter

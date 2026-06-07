@@ -88,6 +88,9 @@ class RichLoopBar:
             tracker.tick(n)
             if cost > 0:
                 tracker.tick_cost(cost)
+            if tracker.kill_requested:
+                from docetl.progress.tracker import PipelineKilled
+                raise PipelineKilled("Pipeline killed by user")
 
 
 def rich_as_completed(

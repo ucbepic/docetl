@@ -555,9 +555,9 @@ class DSLRunner(ConfigWrapper):
             else:
                 return run_with_tui(self)
         elif ui_mode == "log":
-            from docetl.tui.log_reporter import run_with_log_reporter
+            from docetl.tui.web_reporter import run_with_web_ui
 
-            return run_with_log_reporter(self)
+            return run_with_web_ui(self)
 
         output_path = self.get_output_path(require=True)
 

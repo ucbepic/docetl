@@ -49,20 +49,6 @@ class StageType(Enum):
     END = "end"
 
 
-def get_stage_description(stage_type: StageType) -> str:
-    if stage_type == StageType.SAMPLE_RUN:
-        return "Running samples..."
-    elif stage_type == StageType.SHOULD_OPTIMIZE:
-        return "Checking if optimization is needed..."
-    elif stage_type == StageType.CANDIDATE_PLANS:
-        return "Generating candidate plans..."
-    elif stage_type == StageType.EVALUATION_RESULTS:
-        return "Evaluating candidate plans..."
-    elif stage_type == StageType.END:
-        return "Optimization complete!"
-    raise ValueError(f"Unknown stage type: {stage_type}")
-
-
 class CapturedOutput:
     def __init__(self) -> None:
         self.optimizer_output: dict[str, dict[StageType, Any]] = {}

@@ -9,7 +9,7 @@ from rich.status import Status
 from rich.style import StyleType
 from rich.traceback import install
 
-from docetl.utils import StageType, get_stage_description
+from docetl.utils import StageType
 
 install(show_locals=False)
 
@@ -127,21 +127,6 @@ class ThreadSafeConsole(Console):
 
     def post_optimizer_status(self, stage: StageType):
         self.optimizer_statuses.append((stage, time.time()))
-
-    def get_optimizer_progress(self) -> tuple[str, float]:
-        if len(self.optimizer_statuses) == 0:
-            return ("Optimization starting...", 0)
-
-        if (
-            len(self.optimizer_statuses) > 0
-            and self.optimizer_statuses[-1][0] == StageType.END
-        ):
-            return (get_stage_description(StageType.END), 1)
-
-        num_stages = len(StageType) - 1
-        num_completed = len([s for s in self.optimizer_statuses if s[1]]) - 1
-        current_stage = self.optimizer_statuses[-1][0]
-        return (get_stage_description(current_stage), num_completed / num_stages)
 
     def print(self, *args, **kwargs):
         super().print(*args, **kwargs)

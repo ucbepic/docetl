@@ -47,41 +47,40 @@ def _create_router(console, fallback_models: list, router_type: str) -> Any | No
         return None
 
     model_list = []
-    fallback_model_names = []
-    for fallback_config in fallback_models:
-        if isinstance(fallback_config, dict):
-            model_name = fallback_config.get("model_name")
-            litellm_params = fallback_config.get("litellm_params", {})
-        elif isinstance(fallback_config, str):
-            model_name = fallback_config
-            litellm_params = {}
+    names = []
+    for cfg in fallback_models:
+        if isinstance(cfg, dict):
+            name, params = cfg.get("model_name"), cfg.get("litellm_params", {})
+        elif isinstance(cfg, str):
+            name, params = cfg, {}
         else:
             continue
-        if not model_name:
+        if not name:
             continue
-        litellm_params_with_model = litellm_params.copy()
-        litellm_params_with_model["model"] = model_name
-        model_list.append({"model_name": model_name, "litellm_params": litellm_params_with_model})
-        fallback_model_names.append(model_name)
+        model_list.append({
+            "model_name": name,
+            "litellm_params": {**params, "model": name},
+        })
+        names.append(name)
 
     if not model_list:
         return None
     try:
-        router_kwargs = {"model_list": model_list}
-        if len(fallback_model_names) > 1:
-            fallbacks = []
-            for i, model_name in enumerate(fallback_model_names):
-                if i < len(fallback_model_names) - 1:
-                    fallbacks.append({model_name: fallback_model_names[i + 1:]})
-            router_kwargs["fallbacks"] = fallbacks
-        router = Router(**router_kwargs)
+        kwargs = {"model_list": model_list}
+        if len(names) > 1:
+            kwargs["fallbacks"] = [
+                {names[i]: names[i + 1:]} for i in range(len(names) - 1)
+            ]
+        router = Router(**kwargs)
         console.log(
-            f"[green]Created LiteLLM {router_type} Router with {len(model_list)} fallback model(s) in order: {', '.join(fallback_model_names)}[/green]"
+            f"[green]Created LiteLLM {router_type} Router with "
+            f"{len(model_list)} fallback model(s): {', '.join(names)}[/green]"
         )
         return router
     except Exception as e:
         console.log(
-            f"[yellow]Warning: Failed to create LiteLLM {router_type} Router: {e}. Fallback models will be ignored.[/yellow]"
+            f"[yellow]Warning: Failed to create LiteLLM {router_type} Router: {e}. "
+            f"Fallback models will be ignored.[/yellow]"
         )
         return None
 

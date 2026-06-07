@@ -1,27 +1,4 @@
-"""
-The DSLRunner module implements a declarative pipeline execution engine with a pull-based
-evaluation model. Key architectural decisions include:
-
-Design Patterns:
-- Pull-based DAG: Operations are lazily evaluated only when their outputs are needed,
-  enabling efficient resource utilization and caching
-- Dependency Injection: Operations receive their dependencies through a standardized interface,
-  making the system modular and testable
-- Builder Pattern: Pipeline construction is separated from execution, allowing validation
-  and optimization before runtime
-
-Core Features:
-- Transparent Caching: Automatic checkpointing and reuse of intermediate results
-- Cost Tracking: Built-in tracking of operation costs for optimization
-- Schema Validation: Type checking and schema validation at both build and runtime
-- Extensible Operations: New operations can be added by implementing the operation interface
-
-The architecture prioritizes:
-1. Separation of Concerns: Building, validation, and execution are distinct phases
-2. Flexibility: Support for both streaming and batch processing patterns
-3. Observability: Rich logging and cost tracking throughout execution
-4. Performance: Lazy evaluation and caching optimize resource usage
-"""
+"""Pipeline execution engine with pull-based DAG evaluation."""
 
 from __future__ import annotations
 
@@ -65,27 +42,6 @@ load_dotenv()
 
 
 class DSLRunner:
-    """
-    DSLRunner orchestrates pipeline execution by building and traversing a DAG of OpContainers.
-    The runner uses a two-phase approach:
-
-    1. Build Phase:
-       - Parses YAML config into a DAG of OpContainers
-       - Each operation becomes a node connected to its dependencies
-       - Special handling for equijoins which have two parent nodes
-       - Validates operation syntax and schema compatibility
-
-    2. Execution Phase:
-       - Starts from the final operation and pulls data through the DAG
-       - Handles caching/checkpointing of intermediate results
-       - Tracks costs and execution metrics
-       - Manages dataset loading and result persistence
-
-    The separation between build and execution phases allows for:
-    - Pipeline validation before any execution
-    - Cost estimation and optimization
-    - Partial pipeline execution for testing
-    """
 
     @classproperty
     def schema(cls):
@@ -521,9 +477,6 @@ class DSLRunner:
         return True
 
     def load_run_save(self) -> float:
-        """
-        Execute the entire pipeline defined in the configuration.
-        """
         # Route to the interactive TUI if requested and supported. The TUI runs
         # this same method again on a worker thread with ``_tui_active`` set, so
         # the actual execution path below is shared.
@@ -600,54 +553,24 @@ class DSLRunner:
         return self.total_cost
 
     def load(self) -> None:
-        """
-        Load all datasets defined in the configuration.
-        """
-        datasets = {}
+        """Load all datasets defined in the pipeline config."""
         self.console.rule("[bold]Loading Datasets[/bold]")
+        self.datasets = {}
 
         for name, ds in self.pipeline.datasets.items():
-            ds_type = ds.type if hasattr(ds, "type") else ds.get("type")
-            ds_path = ds.path if hasattr(ds, "path") else ds.get("path")
-            ds_parsing = (ds.parsing if hasattr(ds, "parsing") else ds.get("parsing")) or []
-
-            if ds_type == "file":
-                datasets[name] = Dataset(
-                    self, "file", ds_path, source="local",
-                    parsing=ds_parsing,
-                    user_defined_parsing_tool_map=self.parsing_tool_map,
-                )
-                self.console.log(
-                    f"[green]✓[/green] Loaded dataset '{name}' from {ds_path}"
-                )
-            elif ds_type == "memory":
-                datasets[name] = Dataset(
-                    self, "memory", ds_path, source="local",
-                    parsing=ds_parsing,
-                    user_defined_parsing_tool_map=self.parsing_tool_map,
-                )
-                self.console.log(
-                    f"[green]✓[/green] Loaded dataset '{name}' from in-memory data"
-                )
-            else:
-                raise ValueError(f"Unsupported dataset type: {ds_type}")
-
-        self.datasets = {
-            name: (
-                dataset
-                if isinstance(dataset, Dataset)
-                else Dataset(self, "memory", dataset)
+            parsing = ds.parsing or []
+            self.datasets[name] = Dataset(
+                self, ds.type, ds.path, source="local",
+                parsing=parsing,
+                user_defined_parsing_tool_map=self.parsing_tool_map,
             )
-            for name, dataset in datasets.items()
-        }
-        # Always register a synthetic empty dataset for pipelines without input data
+            label = ds.path if ds.type == "file" else "in-memory data"
+            self.console.log(f"[green]✓[/green] Loaded dataset '{name}' from {label}")
+
         self.datasets["__empty__"] = Dataset(self, "memory", [{}])
         self.console.log()
 
     def save(self, data: list[dict]) -> None:
-        """
-        Save the final output of the pipeline.
-        """
         self.get_output_path(require=True)
 
         out = self.pipeline.output
@@ -792,22 +715,6 @@ class DSLRunner:
         return_instance: bool = False,
         is_build: bool = False,
     ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation, float]:
-        """
-        Run a single operation based on its configuration.
-
-        This method creates an instance of the appropriate operation class and executes it.
-        It also updates the total operation cost.
-
-        Args:
-            op_config (dict[str, Any]): The configuration of the operation to run.
-            input_data (list[dict[str, Any]]): The input data for the operation.
-            return_instance (bool, optional): If True, return the operation instance along with the output data.
-
-        Returns:
-            list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation, float]:
-            If return_instance is False, returns the output data.
-            If return_instance is True, returns a tuple of the output data, the operation instance, and the cost.
-        """
         operation_class = get_operation(op_config["type"])
 
         oc_kwargs = {
@@ -838,15 +745,6 @@ class DSLRunner:
     def _flush_partial_results(
         self, operation_name: str, batch_index: int, data: list[dict]
     ) -> None:
-        """
-        Save partial (batch-level) results from an operation to a directory named
-        '<operation_name>_batches' inside the intermediate directory.
-
-        Args:
-            operation_name (str): The name of the operation, e.g. 'extract_medications'.
-            batch_index (int): Zero-based index of the batch.
-            data (list[dict]): Batch results to write to disk.
-        """
         if self.checkpoints:
             path = self.checkpoints.flush_batch(operation_name, batch_index, data)
         elif self.intermediate_dir:

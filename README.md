@@ -18,9 +18,7 @@ Define operations declaratively. DocETL handles chunking, validation, retries, a
 
 ## Why DocETL
 
-Processing documents with LLMs sounds simple until you actually try it at scale. Documents are too long for context windows. LLM outputs are inconsistent — the same entity appears as three different strings. A prompt that works on 10 documents silently degrades on 1,000. You end up writing the same retry logic, chunking code, and validation scaffolding for every project.
-
-DocETL handles all of that. You write prompts and schemas; it handles chunking long documents, validating and retrying bad outputs, resolving duplicate entities, and parallelizing across your dataset. When you're ready to push quality further, [MOAR](https://ucbepic.github.io/docetl/optimization/python-api/) automatically searches over model choices and prompt rewrites to optimize cost and accuracy.
+DocETL is a declarative query engine and optimizer for LLM-powered data processing. You define operations — map, reduce, filter, resolve, extract — and DocETL handles chunking, validation, retries, and parallelization. Its optimizer rewrites pipelines to improve accuracy and reduce cost, searching over model choices, prompt variations, and operation decompositions.
 
 <table>
 <tr>

@@ -1615,9 +1615,10 @@ def run_with_web_ui(runner: "DSLRunner") -> float:
     url = f"http://localhost:{port}"
     runner.console.log(f"[bold blue]Live monitor:[/bold blue] [link={url}]{url}[/link]")
     runner.console.log(
-        "[dim]Open in a browser to watch outputs and give feedback. "
-        "The pipeline is running…[/dim]"
+        "[dim]Opening browser… The pipeline is running.[/dim]"
     )
+    import webbrowser
+    webbrowser.open(url)
 
     cost = 0.0
     killed = False

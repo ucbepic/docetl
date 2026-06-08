@@ -47,11 +47,12 @@ def _build(cls, config):
     runner = SimpleNamespace(config={}, api=api, is_cancelled=False)
     op = cls.__new__(cls)
     op.runner = runner
+    config["bypass_cache"] = True
     op.config = config
     op.default_model = "gpt-4o"
     import io
     op.console = SimpleNamespace(log=lambda *a, **k: None, file=io.StringIO())
-    op.bypass_cache = False
+    op.bypass_cache = True
     op.max_threads = 4
     return op, api
 

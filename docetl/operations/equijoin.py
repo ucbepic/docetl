@@ -221,7 +221,7 @@ class EquijoinOperation(BaseOperation, CascadeMixin):
             )
             return bool(is_match_label), cost
 
-        result, cost = self._run_categorical_cascade(
+        result, cost = self._run_binary_cascade(
             items=pair_items,
             render_messages=render_messages,
             proxy_labels=[True, False],

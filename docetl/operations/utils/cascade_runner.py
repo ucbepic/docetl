@@ -37,13 +37,13 @@ CASCADE_DEFAULT_GUARANTEE: dict[str, str] = {
 
 
 def format_cascade_plan_lines(
-    cascade: dict[str, Any] | BaseModel,
+    cascade: dict[str, Any],
     *,
     op_type: str,
     oracle_model: str,
 ) -> list[str]:
     """Rich-markup lines for the cascade block in the query-plan panel."""
-    cfg = cascade.model_dump() if isinstance(cascade, BaseModel) else cascade
+    cfg = cascade
     guarantee = cfg.get("guarantee") or CASCADE_DEFAULT_GUARANTEE.get(op_type, "recall")
     target = cfg["target"]
     delta = cfg.get("delta", 0.05)
@@ -61,6 +61,15 @@ def format_cascade_plan_lines(
             f"[dim]≥[/dim][yellow]{target:.0%}[/yellow]  [dim]δ={delta}[/dim]"
         ),
     ]
+
+
+def _build_score_hist(scores: list[float], n_bins: int = 20) -> list[int]:
+    """Bucket proxy confidence scores into a fixed-width histogram."""
+    hist = [0] * n_bins
+    for s in scores:
+        b = min(int(s * n_bins), n_bins - 1)
+        hist[b] += 1
+    return hist
 
 
 class CascadeConfig(BaseModel):
@@ -174,12 +183,7 @@ class _CascadeProgress:
                     "guarantee": self.guarantee,
                 }
                 if self._proxy_scores:
-                    n_bins = 20
-                    hist = [0] * n_bins
-                    for s in self._proxy_scores:
-                        b = min(int(s * n_bins), n_bins - 1)
-                        hist[b] += 1
-                    info["score_hist"] = hist
+                    info["score_hist"] = _build_score_hist(self._proxy_scores)
                     info["item_proxy_scores"] = list(self._proxy_scores)
                 self._tracker.set_cascade_info(info)
                 self._tracker.set_phase(oracle_total, label=label)
@@ -216,11 +220,18 @@ class _CascadeProgress:
 
 
 class CascadeMixin:
-    """Mixin giving an operation a ``_run_categorical_cascade`` helper.
+    """Mixin giving an operation a ``_run_binary_cascade`` helper.
 
     Relies on attributes provided by ``BaseOperation``: ``self.config``,
     ``self.runner`` (with ``.api``), and ``self.console``.
     """
+
+    def _oracle_model_name(self) -> str:
+        """The oracle model name, checking comparison_model (resolve/equijoin) first."""
+        return self.config.get(
+            "comparison_model",
+            self.config.get("model", getattr(self, "default_model", "?")),
+        )
 
     def _cascade_cfg(self) -> dict[str, Any]:
         """The cascade block as a plain dict (it may arrive as a dict or a
@@ -282,15 +293,9 @@ class CascadeMixin:
 
         cfg = self._cascade_cfg()
         proxy_model = cfg["proxy_model"]
-        oracle_model = self.config.get("model", getattr(self, "default_model", "?"))
+        oracle_model = self._oracle_model_name()
 
-        score_hist = None
-        if proxy_scores:
-            n_bins = 20
-            score_hist = [0] * n_bins
-            for s in proxy_scores:
-                b = min(int(s * n_bins), n_bins - 1)
-                score_hist[b] += 1
+        score_hist = _build_score_hist(proxy_scores) if proxy_scores else None
 
         tracker = active_tracker()
         if tracker is not None:
@@ -414,7 +419,7 @@ class CascadeMixin:
                     f"proxy saved almost no cost[/bold yellow]"
                 )
 
-    def _run_categorical_cascade(
+    def _run_binary_cascade(
         self,
         *,
         items: list,
@@ -498,7 +503,7 @@ class CascadeMixin:
         cost = {"proxy": 0.0, "oracle": 0.0}
         proxy_scores_live: list[float] = []
         proxy_labels_live: list = []
-        oracle_model = self.config.get("model", self.default_model)
+        oracle_model = self._oracle_model_name()
         progress = _CascadeProgress(
             self.console,
             n_items=len(items),
@@ -510,25 +515,28 @@ class CascadeMixin:
             proxy_scores=proxy_scores_live,
         )
         try:
-            # Cache proxy predictions by item identity so precision+recall
-            # (which runs two BARGAIN passes over the same items) doesn't
-            # double the LLM calls, cost, or label/score accumulation.
-            _proxy_cache: dict[int, tuple] = {}
+            # Cache proxy predictions by rendered message content so
+            # precision+recall (which runs two BARGAIN passes over the
+            # same items) doesn't double the LLM calls or cost.
+            # We can't use id(item) because BARGAIN wraps items in a
+            # numpy array, making object identity unreliable.
+            _proxy_cache: dict[str, tuple] = {}
 
             def proxy_predict(item):
-                key_id = id(item)
-                cached = _proxy_cache.get(key_id)
+                msgs = render_messages(item)
+                cache_key = msgs[0]["content"] if msgs else ""
+                cached = _proxy_cache.get(cache_key)
                 if cached is not None:
                     return cached
                 lbl, prob, c = self.runner.api._classify_with_logprob_with_cost(
-                    spec.proxy_model, render_messages(item), proxy_labels
+                    spec.proxy_model, msgs, proxy_labels
                 )
                 cost["proxy"] += c
                 proxy_labels_live.append(lbl)
                 p_pos = prob if lbl == positive_label else (1.0 - prob)
                 proxy_scores_live.append(p_pos)
                 progress.tick_proxy()
-                _proxy_cache[key_id] = (lbl, prob)
+                _proxy_cache[cache_key] = (lbl, prob)
                 return lbl, prob
 
             def _oracle(item):

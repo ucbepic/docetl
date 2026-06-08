@@ -338,22 +338,11 @@ class CategoricalCascade:
         return min_conf if min_conf != float("inf") else None
 
     # ------------------------------------------------------------------
-    # Precision guarantee via BARGAIN_P
+    # Shared helper for precision / recall (only the BARGAIN class differs)
     # ------------------------------------------------------------------
-    def _run_precision(self, items, proxy, oracle) -> CascadeResult:
-        bargain = BARGAIN_P(
-            proxy,
-            oracle,
-            delta=self.spec.delta,
-            target=self.spec.target,
-            budget=self.spec.label_budget,
-            M=self.spec.n_thresholds,
-            eta=0,
-            seed=None,
-        )
-
+    def _run_positive_set(self, items, bargain, proxy, oracle, label: str) -> CascadeResult:
         if self._console:
-            self._console.log("[dim]Cascade: determining precision threshold...[/dim]")
+            self._console.log(f"[dim]Cascade: determining {label} threshold...[/dim]")
 
         positive_indices = bargain.process(items)
         positive_set = set(int(i) for i in positive_indices)
@@ -375,44 +364,29 @@ class CategoricalCascade:
             stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
             positive_indices=sorted(positive_set),
         )
+
+    # ------------------------------------------------------------------
+    # Precision guarantee via BARGAIN_P
+    # ------------------------------------------------------------------
+    def _run_precision(self, items, proxy, oracle) -> CascadeResult:
+        bargain = BARGAIN_P(
+            proxy, oracle,
+            delta=self.spec.delta, target=self.spec.target,
+            budget=self.spec.label_budget, M=self.spec.n_thresholds,
+            eta=0, seed=None,
+        )
+        return self._run_positive_set(items, bargain, proxy, oracle, "precision")
 
     # ------------------------------------------------------------------
     # Recall guarantee via BARGAIN_R (beta=0 uniform path)
     # ------------------------------------------------------------------
     def _run_recall(self, items, proxy, oracle) -> CascadeResult:
         bargain = BARGAIN_R(
-            proxy,
-            oracle,
-            delta=self.spec.delta,
-            target=self.spec.target,
-            budget=self.spec.label_budget,
-            beta=0,
-            seed=None,
+            proxy, oracle,
+            delta=self.spec.delta, target=self.spec.target,
+            budget=self.spec.label_budget, beta=0, seed=None,
         )
-
-        if self._console:
-            self._console.log("[dim]Cascade: determining recall threshold...[/dim]")
-
-        positive_indices = bargain.process(items)
-        positive_set = set(int(i) for i in positive_indices)
-
-        if self._console:
-            self._console.log(
-                f"[dim]Cascade: {len(positive_set)} items classified as positive[/dim]"
-            )
-
-        result_labels = [
-            self.spec.positive_label if i in positive_set else self.spec.negative_label
-            for i in range(len(items))
-        ]
-        escalated = [i in oracle.preds_dict for i in range(len(items))]
-        threshold = self._compute_threshold(proxy, oracle, positive_set)
-        return CascadeResult(
-            labels=result_labels,
-            escalated=escalated,
-            stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
-            positive_indices=sorted(positive_set),
-        )
+        return self._run_positive_set(items, bargain, proxy, oracle, "recall")
 
     # ------------------------------------------------------------------
     # Combined precision+recall via union bound (delta/2 each).

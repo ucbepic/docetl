@@ -161,7 +161,7 @@ class FilterOperation(MapOperation, CascadeMixin):
                 parsed = response
             return bool(parsed.get(self._filter_key)), llm_result.total_cost
 
-        result, cost = self._run_categorical_cascade(
+        result, cost = self._run_binary_cascade(
             items=input_data,
             render_messages=render_messages,
             proxy_labels=[True, False],

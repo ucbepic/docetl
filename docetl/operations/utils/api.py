@@ -44,6 +44,17 @@ from .validation import (
 BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
 
 
+def _raise_with_provider_hint(model: str, exc: Exception) -> None:
+    """Re-raise with a hint to prefix the model name if it looks bare."""
+    if model not in BASIC_MODELS and "/" not in model:
+        raise ValueError(
+            "Note: You may also need to prefix your model name with the "
+            "provider, e.g. 'openai/gpt-4o-mini' or "
+            "'gemini/gemini-1.5-flash' to conform to LiteLLM API "
+            f"standards. Original error: {exc}"
+        ) from exc
+
+
 class OutputMode(Enum):
     """Enumeration of output modes for LLM calls."""
 
@@ -920,12 +931,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     **extra_litellm_kwargs,
                 )
             except Exception as e:
-                # Check that there's a prefix for the model name if it's not a basic model
-                if model not in BASIC_MODELS:
-                    if "/" not in model:
-                        raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
-                        )
+                _raise_with_provider_hint(model, e)
                 raise e
         elif tools is not None:
             try:
@@ -937,12 +943,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     **extra_litellm_kwargs,
                 )
             except Exception as e:
-                # Check that there's a prefix for the model name if it's not a basic model
-                if model not in BASIC_MODELS:
-                    if "/" not in model:
-                        raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
-                        )
+                _raise_with_provider_hint(model, e)
                 raise e
         else:
             try:
@@ -952,12 +953,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     **extra_litellm_kwargs,
                 )
             except Exception as e:
-                # Check that there's a prefix for the model name if it's not a basic model
-                if model not in BASIC_MODELS:
-                    if "/" not in model:
-                        raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
-                        )
+                _raise_with_provider_hint(model, e)
                 raise e
 
         return response
@@ -1079,14 +1075,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 **extra,
             )
         except Exception as e:
-            # Mirror the helpful provider-prefix hint used elsewhere.
-            if model not in BASIC_MODELS and "/" not in model:
-                raise ValueError(
-                    "Note: You may also need to prefix your model name with the "
-                    "provider, e.g. 'openai/gpt-4o-mini' or "
-                    "'gemini/gemini-1.5-flash' to conform to LiteLLM API "
-                    f"standards. Original error: {e}"
-                )
+            _raise_with_provider_hint(model, e)
             raise
 
         try:

@@ -531,7 +531,9 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     padding: 14px 16px; flex-shrink: 0;
     border-bottom: 1px solid hsl(211 20% 92%);
   }
-  .detail-header-title { font-size: 15px; font-weight: 600; flex: 1; }
+  .detail-header-title { font-size: 15px; font-weight: 600; flex: 1; display: flex; align-items: center; gap: 6px; }
+  .detail-row-of { font-size: 12px; color: var(--muted-foreground); font-weight: 400; }
+  .detail-hotkey-hint { font-size: 10px; color: var(--muted-foreground); opacity: .6; margin-left: 4px; }
   .detail-nav-btn {
     background: var(--card); border: none; border-radius: var(--radius);
     cursor: pointer; padding: 4px 10px; font-size: 14px;
@@ -733,9 +735,9 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 <div class="detail-panel" id="detail-panel">
   <div class="detail-header">
     <span class="detail-header-title" id="detail-title">Row</span>
-    <button class="detail-nav-btn" id="detail-prev" onclick="navigateRow(-1)">&#8592;</button>
-    <button class="detail-nav-btn" id="detail-next" onclick="navigateRow(1)">&#8594;</button>
-    <button class="detail-close" onclick="closeRowDetail()">&#215;</button>
+    <button class="detail-nav-btn" id="detail-prev" onclick="navigateRow(-1)" title="Previous row (← arrow)">&#8592;</button>
+    <button class="detail-nav-btn" id="detail-next" onclick="navigateRow(1)" title="Next row (→ arrow)">&#8594;</button>
+    <button class="detail-close" onclick="closeRowDetail()" title="Close (Esc)">&#215;</button>
   </div>
   <div class="detail-body" id="detail-body"></div>
   <div class="detail-fb" id="detail-fb"></div>
@@ -1190,11 +1192,13 @@ function renderDetailPanel() {
   const doc = allDocs[selectedRow];
   if (!doc) return;
 
-  document.getElementById('detail-title').textContent = 'Row ' + (doc.doc_index + 1);
-
-  // Nav button state
   const sorted = getSortedIndices();
   const curPos = sorted.indexOf(selectedRow);
+  document.getElementById('detail-title').innerHTML = 'Row ' + (doc.doc_index + 1) +
+    '<span class="detail-row-of">' + (curPos + 1) + ' of ' + sorted.length + '</span>' +
+    '<span class="detail-hotkey-hint">← → to navigate</span>';
+
+  // Nav button state
   document.getElementById('detail-prev').disabled = (curPos <= 0);
   document.getElementById('detail-next').disabled = (curPos >= sorted.length - 1);
 
@@ -1231,10 +1235,17 @@ function renderDetailPanel() {
   document.getElementById('detail-fb').innerHTML = fbHtml;
 }
 
-/* ESC to close detail panel */
+/* Hotkeys: ESC close, Left/Right arrows navigate rows (like playground) */
 document.addEventListener('keydown', function(e) {
+  if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
   if (e.key === 'Escape' && selectedRow !== null) {
     closeRowDetail();
+  } else if (e.key === 'ArrowLeft' && selectedRow !== null) {
+    e.preventDefault();
+    navigateRow(-1);
+  } else if (e.key === 'ArrowRight' && selectedRow !== null) {
+    e.preventDefault();
+    navigateRow(1);
   }
 });
 

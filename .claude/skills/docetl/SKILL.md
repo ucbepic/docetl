@@ -755,6 +755,80 @@ prompt: |
 ### Check intermediate results
 Look in `intermediate_dir` folder to debug each step.
 
+## Human-in-the-Loop Feedback Workflow
+
+When running a pipeline with the web UI (`docetl run pipeline.yaml`), a browser-based feedback UI launches automatically. Humans can watch outputs stream in, give per-document or pipeline-level feedback, and kill the pipeline. As the agent, you orchestrate the feedback loop.
+
+### Reading Feedback
+
+Feedback prints to stdout in real time as the human submits it:
+
+```
+[FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
+[FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
+```
+
+Monitor stdout for these lines while the pipeline runs. After the pipeline finishes, a `feedback.json` file is written with all collected feedback.
+
+### Sending Messages to the Human (Toasts)
+
+Send toast notifications to the web UI so the human sees your status or questions:
+
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I noticed 3 docs got negative feedback. Updating the prompt to add more detail.", "type": "info"}'
+```
+
+The `type` field can be `"info"`, `"success"`, `"warning"`, or `"error"`. The port is printed to stdout when the UI starts.
+
+### Feedback Loop Strategy
+
+When you receive feedback, follow this cycle:
+
+1. **Acknowledge** — Send a toast so the human knows you saw their feedback.
+2. **Diagnose** — Categorize the feedback:
+   - *Prompt quality*: outputs are wrong, vague, missing info, or in the wrong format.
+   - *Schema mismatch*: output fields don't match what the human expects.
+   - *Pipeline structure*: wrong operations, missing steps, or wrong order.
+   - *Data quality*: input data has issues the pipeline can't fix.
+3. **Propose a fix** — Send a toast describing what you plan to change and why. Wait briefly for the human to respond (they can send pipeline feedback to object).
+4. **Apply the fix** — Edit the YAML pipeline and/or prompts.
+5. **Re-run** — Execute the pipeline again so the human sees updated results.
+6. **Check** — Monitor for new feedback. If quality improves, send a success toast. If not, iterate.
+
+### Common Fix Patterns
+
+**Updating prompts** (most common fix for doc-level feedback):
+- Read the specific feedback and the current prompt in the YAML
+- Add concrete examples, clarify instructions, or constrain the output format
+- If multiple docs got similar feedback, address the pattern, not each individually
+
+**Asking the human to label more docs**:
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -d '{"text": "I see feedback on 2 docs but need more examples to understand the pattern. Could you review a few more docs and leave feedback?", "type": "info"}'
+```
+
+**Proposing pipeline changes** (for structural feedback):
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -d '{"text": "Based on your feedback, I think we need a filter step before summarize to remove irrelevant sections. I will update the pipeline — send feedback if you disagree.", "type": "warning"}'
+```
+
+**Confirming before big changes**:
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -d '{"text": "This would require changing the model from gpt-4o-mini to gpt-4o, which costs ~10x more. Should I proceed?", "type": "warning"}'
+```
+Wait for pipeline-level feedback from the human before proceeding.
+
+### When to Stop Iterating
+
+- The human sends positive pipeline feedback ("looks good", "ship it")
+- No new negative feedback after a re-run
+- The human kills the pipeline (you'll see `PipelineKilled` in the output)
+
 ## Quick Reference
 
 ```bash

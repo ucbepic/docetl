@@ -35,23 +35,41 @@ class FeedbackStore:
         self.doc_feedback: list[dict] = []
         self.pipeline_feedback: list[dict] = []
         self.kill_reason: str | None = None
+        self._agent_messages: list[dict] = []
+        self._agent_msg_counter = 0
+
+    def add_agent_message(self, text: str, msg_type: str = "info") -> int:
+        with self._lock:
+            self._agent_msg_counter += 1
+            msg = {"id": self._agent_msg_counter, "text": text, "type": msg_type,
+                   "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            self._agent_messages.append(msg)
+            return self._agent_msg_counter
+
+    def get_agent_messages_since(self, since_id: int) -> list[dict]:
+        with self._lock:
+            return [m for m in self._agent_messages if m["id"] > since_id]
 
     def add_doc_feedback(self, op_name: str, doc_index: int, doc_snapshot: dict, text: str):
+        entry = {
+            "operation": op_name,
+            "doc_index": doc_index,
+            "doc_snapshot": {k: v for k, v in doc_snapshot.items() if not k.startswith("_")},
+            "feedback": text,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
         with self._lock:
-            self.doc_feedback.append({
-                "operation": op_name,
-                "doc_index": doc_index,
-                "doc_snapshot": {k: v for k, v in doc_snapshot.items() if not k.startswith("_")},
-                "feedback": text,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            })
+            self.doc_feedback.append(entry)
+        print(f"[FEEDBACK:doc] op={op_name} doc_index={doc_index} | {text}", flush=True)
 
     def add_pipeline_feedback(self, text: str):
+        entry = {
+            "feedback": text,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
         with self._lock:
-            self.pipeline_feedback.append({
-                "feedback": text,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            })
+            self.pipeline_feedback.append(entry)
+        print(f"[FEEDBACK:pipeline] {text}", flush=True)
 
     def to_dict(self) -> dict:
         with self._lock:
@@ -155,6 +173,7 @@ class _Broadcaster:
             "elapsed": state.elapsed,
             "finished": state.finished,
             "feedback_count": len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback),
+            "agent_messages": self._feedback.get_agent_messages_since(0),
         }
 
 
@@ -179,6 +198,14 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
                 self._serve_sse()
             elif self.path == "/state":
                 self._json_response(broadcaster._build_event(tracker.snapshot()))
+            elif self.path.startswith("/messages"):
+                since = 0
+                if "?since=" in self.path:
+                    try:
+                        since = int(self.path.split("?since=")[1])
+                    except ValueError:
+                        pass
+                self._json_response({"messages": feedback.get_agent_messages_since(since)})
             else:
                 self.send_error(404)
 
@@ -204,6 +231,13 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
                 feedback.kill_reason = reason
                 tracker.kill_requested = True
                 self._json_response({"ok": True})
+
+            elif self.path == "/message":
+                msg_id = feedback.add_agent_message(
+                    body.get("text", ""),
+                    body.get("type", "info"),
+                )
+                self._json_response({"ok": True, "id": msg_id})
 
             else:
                 self.send_error(404)
@@ -493,6 +527,30 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .complete-banner b { color: hsl(152 69% 28%); }
 
+  /* Toast notifications */
+  .toast-container {
+    position: fixed; top: 60px; right: 16px; z-index: 50;
+    display: flex; flex-direction: column; gap: 8px; max-width: 380px;
+  }
+  .toast {
+    background: white; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    font-size: 13px; color: var(--foreground); line-height: 1.4;
+    animation: toastIn .3s ease-out;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .toast.info { border-left: 3px solid var(--primary); }
+  .toast.success { border-left: 3px solid hsl(152 69% 40%); }
+  .toast.warning { border-left: 3px solid hsl(38 92% 50%); }
+  .toast-body { flex: 1; }
+  .toast-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 2px; }
+  .toast-dismiss {
+    background: none; border: none; cursor: pointer; color: var(--muted-foreground);
+    font-size: 16px; line-height: 1; padding: 0; font-family: inherit;
+  }
+  .toast-dismiss:hover { color: var(--foreground); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
   .hidden { display: none !important; }
 </style>
 </head>
@@ -545,6 +603,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   <span id="f-feedback">Feedback: 0</span>
 </div>
 
+<div class="toast-container" id="toasts"></div>
 <div class="tt" id="tooltip"></div>
 
 <script>
@@ -1009,6 +1068,25 @@ function killPipeline() {
   btn.style.opacity = '0.5';
 }
 
+/* --- Toasts (agent messages) --- */
+let seenMsgIds = new Set();
+
+function showToast(msg) {
+  if (seenMsgIds.has(msg.id)) return;
+  seenMsgIds.add(msg.id);
+  const container = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (msg.type || 'info');
+  el.innerHTML =
+    '<div class="toast-body">' +
+      '<div class="toast-label">Agent</div>' +
+      '<div>' + escHtml(msg.text) + '</div>' +
+    '</div>' +
+    '<button class="toast-dismiss" onclick="this.parentElement.remove()">×</button>';
+  container.appendChild(el);
+  setTimeout(() => { if (el.parentElement) el.remove(); }, 15000);
+}
+
 /* --- SSE --- */
 const evtSource = new EventSource('/events');
 evtSource.onmessage = function(e) {
@@ -1019,6 +1097,10 @@ evtSource.onmessage = function(e) {
   document.getElementById('h-time').textContent = fmtDur(data.elapsed);
   document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
   document.getElementById('f-status').textContent = data.finished ? 'Complete' : 'Running';
+
+  if (data.agent_messages) {
+    data.agent_messages.forEach(msg => showToast(msg));
+  }
 
   if (data.finished && !finished) {
     finished = true;

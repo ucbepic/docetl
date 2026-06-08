@@ -156,6 +156,7 @@ Create a YAML file with this structure:
 
 ```yaml
 default_model: gpt-5-nano
+ui: "web"  # Always set when agent authors the pipeline
 
 system_prompt:
   dataset_description: <describe the data based on what you observed>
@@ -757,7 +758,18 @@ Look in `intermediate_dir` folder to debug each step.
 
 ## Human-in-the-Loop Feedback Workflow
 
-When running a pipeline with the web UI (`docetl run pipeline.yaml`), a browser-based feedback UI launches automatically. Humans can watch outputs stream in, give per-document or pipeline-level feedback, and kill the pipeline. As the agent, you orchestrate the feedback loop.
+**When an LLM agent authors a pipeline, always set `ui: "web"` in the pipeline YAML.** This opens a browser-based feedback UI where the human can watch outputs stream in, click on any operation to inspect its results, give per-document or pipeline-level feedback, and kill the pipeline. The agent orchestrates the feedback loop.
+
+```yaml
+# Add to pipeline YAML top level (next to default_model)
+ui: "web"       # Opens browser feedback UI automatically
+default_model: gpt-5-nano
+```
+
+Three modes:
+- `ui: "web"` — Browser-based feedback UI (use when agent runs the pipeline)
+- `ui: "tui"` — Terminal dashboard (use for manual CLI runs)
+- `ui: "none"` — No interactive UI (default)
 
 ### Reading Feedback
 

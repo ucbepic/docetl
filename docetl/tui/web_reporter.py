@@ -184,6 +184,8 @@ class _Broadcaster:
             "elapsed": state.elapsed,
             "finished": state.finished,
             "feedback_count": len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback),
+            "doc_feedback": [{"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
+                             for f in self._feedback.doc_feedback],
             "agent_messages": self._feedback.get_agent_messages_since(0),
         }
 
@@ -463,36 +465,126 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     vertical-align: top; color: var(--card-foreground); overflow: hidden;
     text-overflow: ellipsis; max-height: 120px;
   }
-  .data-table tr { transition: background .1s; }
+  .data-table tr { transition: background .1s; cursor: pointer; }
   .data-table tbody tr:hover { background: hsl(211 40% 97%); }
 
   .cell-text { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
   .cell-num { font-variant-numeric: tabular-nums; }
 
-  .col-idx { width: 40px; text-align: center; color: var(--muted-foreground); font-size: 12px; }
-  .col-op { width: 110px; }
-  .col-fb { min-width: 220px; width: 220px; }
-  .fb-cell { display: flex; align-items: center; gap: 4px; }
-  .fb-cell input {
-    flex: 1; border: none; border-radius: var(--radius);
-    padding: 4px 8px; font-family: inherit; font-size: 12px; background: transparent;
-    color: var(--foreground); transition: background .15s, box-shadow .15s;
+  .col-idx { width: 54px; text-align: center; color: var(--muted-foreground); font-size: 12px; }
+
+  /* Feedback dot indicator */
+  .fb-dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: hsl(152 69% 40%); margin-right: 4px; vertical-align: middle;
+    flex-shrink: 0;
   }
-  .fb-cell input:hover { background: hsl(211 30% 96%); }
-  .fb-cell input:focus {
+  .idx-cell-inner { display: flex; align-items: center; justify-content: center; gap: 2px; }
+
+  /* Column filter input */
+  .col-filter-wrap {
+    margin-top: 4px; display: flex; align-items: center; gap: 2px;
+  }
+  .col-filter {
+    width: 100%; border: none; border-radius: 3px;
+    padding: 3px 6px; font-family: inherit; font-size: 11px;
+    background: hsl(211 30% 96%); color: var(--foreground);
+    transition: background .15s, box-shadow .15s;
+  }
+  .col-filter:focus {
     outline: none; background: white;
     box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
   }
-  .fb-cell .fb-send {
-    padding: 3px 8px; font-size: 11px; border-radius: var(--radius);
-    border: none; background: var(--card); cursor: pointer;
-    color: var(--muted-foreground); font-family: inherit; transition: all .15s;
-    flex-shrink: 0; opacity: 0; pointer-events: none;
+  .col-filter-clear {
+    background: none; border: none; cursor: pointer; font-size: 13px;
+    color: var(--muted-foreground); padding: 0 2px; line-height: 1;
+    flex-shrink: 0; display: none;
   }
-  .fb-cell:focus-within .fb-send,
-  .fb-cell input:not(:placeholder-shown) ~ .fb-send { opacity: 1; pointer-events: auto; }
-  .fb-cell .fb-send:hover { background: var(--primary); color: white; }
-  .fb-sent-text { color: hsl(152 69% 31%); font-size: 12px; font-weight: 500; word-break: break-word; }
+  .col-filter-clear.active { display: inline-block; }
+  .col-filter-clear:hover { color: var(--foreground); }
+  .filter-toggle {
+    background: none; border: none; cursor: pointer; font-size: 11px;
+    color: var(--muted-foreground); padding: 0; margin-left: 4px;
+    opacity: .5; transition: opacity .15s;
+  }
+  .filter-toggle:hover { opacity: 1; }
+  .filter-toggle.active { opacity: 1; color: var(--primary); }
+
+  /* Row selected highlight */
+  .row-selected, .data-table tbody tr.row-selected:hover {
+    background: hsl(211 60% 95%);
+  }
+
+  /* Detail side panel */
+  .detail-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 400px;
+    background: white; z-index: 40;
+    box-shadow: -4px 0 20px rgba(0,0,0,.1);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .detail-panel.open { transform: translateX(0); }
+  .detail-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 16px; flex-shrink: 0;
+    border-bottom: 1px solid hsl(211 20% 92%);
+  }
+  .detail-header-title { font-size: 15px; font-weight: 600; flex: 1; }
+  .detail-nav-btn {
+    background: var(--card); border: none; border-radius: var(--radius);
+    cursor: pointer; padding: 4px 10px; font-size: 14px;
+    color: var(--muted-foreground); transition: background .15s;
+  }
+  .detail-nav-btn:hover { background: var(--accent); color: var(--foreground); }
+  .detail-nav-btn:disabled { opacity: .3; cursor: default; }
+  .detail-close {
+    background: none; border: none; cursor: pointer;
+    font-size: 20px; line-height: 1; color: var(--muted-foreground);
+    padding: 0 4px; font-family: inherit;
+  }
+  .detail-close:hover { color: var(--foreground); }
+  .detail-body {
+    flex: 1; overflow-y: auto; padding: 16px;
+  }
+  .detail-field { margin-bottom: 14px; }
+  .detail-field-key {
+    font-size: 11px; font-weight: 500; color: var(--muted-foreground);
+    margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em;
+  }
+  .detail-field-val {
+    font-size: 13px; color: var(--foreground); line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .detail-op-tag {
+    display: inline-block; font-size: 11px; color: var(--muted-foreground);
+    background: var(--card); border-radius: 3px; padding: 2px 8px;
+    margin-bottom: 12px;
+  }
+  .detail-fb {
+    border-top: 1px solid hsl(211 20% 92%);
+    padding: 14px 16px; flex-shrink: 0;
+  }
+  .detail-fb-label {
+    font-size: 11px; font-weight: 500; color: var(--muted-foreground);
+    margin-bottom: 6px; text-transform: uppercase; letter-spacing: .03em;
+  }
+  .detail-fb-sent {
+    font-size: 13px; color: hsl(152 69% 31%); font-weight: 500;
+    margin-bottom: 8px; line-height: 1.4;
+  }
+  .detail-fb-row { display: flex; gap: 6px; }
+  .detail-fb-input {
+    flex: 1; border: none; border-radius: var(--radius);
+    padding: 6px 10px; font-family: inherit; font-size: 13px;
+    background: var(--background); color: var(--foreground);
+    transition: box-shadow .15s;
+  }
+  .detail-fb-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
+  }
 
   /* Histogram view */
   .viz-panel { flex: 1; overflow: auto; padding: 16px; }
@@ -637,6 +729,18 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 <div class="toast-container" id="toasts"></div>
 <div class="tt" id="tooltip"></div>
 
+<!-- Detail side panel -->
+<div class="detail-panel" id="detail-panel">
+  <div class="detail-header">
+    <span class="detail-header-title" id="detail-title">Row</span>
+    <button class="detail-nav-btn" id="detail-prev" onclick="navigateRow(-1)">&#8592;</button>
+    <button class="detail-nav-btn" id="detail-next" onclick="navigateRow(1)">&#8594;</button>
+    <button class="detail-close" onclick="closeRowDetail()">&#215;</button>
+  </div>
+  <div class="detail-body" id="detail-body"></div>
+  <div class="detail-fb" id="detail-fb"></div>
+</div>
+
 <script>
 let allDocs = [];
 let columns = [];
@@ -647,6 +751,9 @@ let finished = false;
 let killed = false;
 let seenDocKeys = new Set();
 let currentTab = 'table';
+let selectedRow = null;
+let columnFilters = {};
+let filterVisible = {};
 
 function fmtCost(c) {
   if (c <= 0) return '$0';
@@ -839,6 +946,32 @@ document.addEventListener('mouseout', e => {
   if (e.target.closest('[data-tt-label]')) tooltip.classList.remove('show');
 });
 
+/* --- Column filters --- */
+function setColumnFilter(col, value) {
+  if (value) {
+    columnFilters[col] = value;
+  } else {
+    delete columnFilters[col];
+  }
+  renderTableBody();
+  if (selectedRow !== null) renderDetailPanel();
+}
+
+function getFilteredIndices() {
+  const indices = allDocs.map((_, i) => i);
+  const activeFilters = Object.entries(columnFilters);
+  if (!activeFilters.length) return indices;
+  return indices.filter(idx => {
+    const doc = allDocs[idx];
+    return activeFilters.every(([col, query]) => {
+      const val = doc.fields[col];
+      if (val == null) return false;
+      const s = typeof val === 'string' ? val : JSON.stringify(val);
+      return s.toLowerCase().includes(query.toLowerCase());
+    });
+  });
+}
+
 /* --- Table rendering --- */
 function discoverColumns() {
   const seen = new Set();
@@ -852,7 +985,7 @@ function discoverColumns() {
 }
 
 function getSortedIndices() {
-  const indices = allDocs.map((_, i) => i);
+  const indices = getFilteredIndices();
   if (!sortCol) return indices;
   indices.sort((a, b) => {
     let va = allDocs[a].fields[sortCol];
@@ -877,13 +1010,7 @@ function renderTableHead() {
   thIdx.innerHTML = '<div class="col-header"><span style="font-size:11px">#</span></div>';
   tr.appendChild(thIdx);
 
-  // Operation column
-  const thOp = document.createElement('th');
-  thOp.className = 'col-op';
-  thOp.innerHTML = '<div class="col-header"><span class="col-header-name" style="font-size:12px">operation</span></div>';
-  tr.appendChild(thOp);
-
-  // Data columns
+  // Data columns (no operation column)
   columns.forEach(col => {
     const th = document.createElement('th');
     const stats = columnStats[col];
@@ -910,23 +1037,30 @@ function renderTableHead() {
       }
     }
 
+    const fv = filterVisible[col];
+    const fc = columnFilters[col] || '';
+    const filterBtnCls = 'filter-toggle' + (fc ? ' active' : '');
+    const filterInputDisplay = fv || fc ? '' : ' style="display:none"';
+
     th.innerHTML =
       '<div class="col-header">' +
         '<div class="col-header-name" onclick="toggleSort(\'' + escHtml(col) + '\')">' +
           '<span class="sort-icon">' + arrow + '</span>' +
           '<span>' + escHtml(col) + '</span>' +
+          '<button class="' + filterBtnCls + '" onclick="event.stopPropagation();toggleFilterInput(\'' + escHtml(col) + '\')">&#128269;</button>' +
         '</div>' +
         statsHtml +
+        '<div class="col-filter-wrap" id="cfwrap-' + escHtml(col) + '"' + filterInputDisplay + '>' +
+          '<input class="col-filter" type="text" placeholder="Filter…" value="' + escHtml(fc) + '" ' +
+            'oninput="setColumnFilter(\'' + escHtml(col) + '\', this.value); updateFilterClear(\'' + escHtml(col) + '\')" ' +
+            'onclick="event.stopPropagation()">' +
+          '<button class="col-filter-clear' + (fc ? ' active' : '') + '" id="cfclear-' + escHtml(col) + '" ' +
+            'onclick="event.stopPropagation();clearColumnFilter(\'' + escHtml(col) + '\')">&#215;</button>' +
+        '</div>' +
         '<div class="col-histogram" id="hist-' + escHtml(col) + '"></div>' +
       '</div>';
     tr.appendChild(th);
   });
-
-  // Feedback column
-  const thFb = document.createElement('th');
-  thFb.className = 'col-fb';
-  thFb.innerHTML = '<div class="col-header"><span style="font-size:11px;color:var(--muted-foreground)">feedback</span></div>';
-  tr.appendChild(thFb);
 
   thead.appendChild(tr);
 
@@ -937,6 +1071,38 @@ function renderTableHead() {
   });
 }
 
+function toggleFilterInput(col) {
+  filterVisible[col] = !filterVisible[col];
+  var wrap = document.getElementById('cfwrap-' + col);
+  if (wrap) {
+    if (filterVisible[col] || columnFilters[col]) {
+      wrap.style.display = '';
+      var inp = wrap.querySelector('.col-filter');
+      if (inp) inp.focus();
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
+}
+
+function updateFilterClear(col) {
+  var btn = document.getElementById('cfclear-' + col);
+  if (btn) {
+    btn.classList.toggle('active', !!columnFilters[col]);
+  }
+}
+
+function clearColumnFilter(col) {
+  delete columnFilters[col];
+  var wrap = document.getElementById('cfwrap-' + col);
+  if (wrap) {
+    var inp = wrap.querySelector('.col-filter');
+    if (inp) inp.value = '';
+  }
+  updateFilterClear(col);
+  renderTableBody();
+}
+
 function renderTableBody() {
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = '';
@@ -945,20 +1111,23 @@ function renderTableBody() {
   sorted.forEach(idx => {
     const doc = allDocs[idx];
     const tr = document.createElement('tr');
+    if (selectedRow === idx) tr.className = 'row-selected';
+    tr.onclick = function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+      openRowDetail(idx);
+    };
 
-    // Row number
+    // Row number with feedback dot
     const tdIdx = document.createElement('td');
     tdIdx.className = 'col-idx';
-    tdIdx.textContent = doc.doc_index + 1;
+    const idxInner = '<div class="idx-cell-inner">' +
+      (doc._fbSent ? '<span class="fb-dot"></span>' : '') +
+      '<span>' + (doc.doc_index + 1) + '</span>' +
+    '</div>';
+    tdIdx.innerHTML = idxInner;
     tr.appendChild(tdIdx);
 
-    // Operation
-    const tdOp = document.createElement('td');
-    tdOp.className = 'col-op';
-    tdOp.innerHTML = '<span style="font-size:12px;color:var(--muted-foreground)">' + escHtml(doc.op_type + ':' + doc.op_name.split('/').pop()) + '</span>';
-    tr.appendChild(tdOp);
-
-    // Data cells
+    // Data cells (no operation column, no feedback column)
     columns.forEach(col => {
       const td = document.createElement('td');
       const val = doc.fields[col];
@@ -975,20 +1144,6 @@ function renderTableBody() {
       tr.appendChild(td);
     });
 
-    // Inline feedback cell
-    const tdFb = document.createElement('td');
-    tdFb.className = 'col-fb';
-    if (doc._fbSent) {
-      tdFb.innerHTML = '<span class="fb-sent-text" title="' + escHtml(doc._fbText) + '">✓ ' + escHtml(doc._fbText) + '</span>';
-    } else {
-      tdFb.innerHTML =
-        '<div class="fb-cell">' +
-          '<input type="text" placeholder="Feedback…" id="fb-input-' + idx + '" ' +
-            'onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + idx + ')">' +
-          '<button class="fb-send" onclick="sendDocFeedback(' + idx + ')">Send</button>' +
-        '</div>';
-    }
-    tr.appendChild(tdFb);
     tbody.appendChild(tr);
   });
 }
@@ -1003,6 +1158,85 @@ function toggleSort(col) {
   renderTableHead();
   renderTableBody();
 }
+
+/* --- Row detail panel --- */
+function openRowDetail(idx) {
+  selectedRow = idx;
+  renderDetailPanel();
+  document.getElementById('detail-panel').classList.add('open');
+  renderTableBody();
+}
+
+function closeRowDetail() {
+  selectedRow = null;
+  document.getElementById('detail-panel').classList.remove('open');
+  renderTableBody();
+}
+
+function navigateRow(delta) {
+  if (selectedRow === null) return;
+  const sorted = getSortedIndices();
+  const curPos = sorted.indexOf(selectedRow);
+  if (curPos === -1) return;
+  const newPos = curPos + delta;
+  if (newPos < 0 || newPos >= sorted.length) return;
+  selectedRow = sorted[newPos];
+  renderDetailPanel();
+  renderTableBody();
+}
+
+function renderDetailPanel() {
+  if (selectedRow === null) return;
+  const doc = allDocs[selectedRow];
+  if (!doc) return;
+
+  document.getElementById('detail-title').textContent = 'Row ' + (doc.doc_index + 1);
+
+  // Nav button state
+  const sorted = getSortedIndices();
+  const curPos = sorted.indexOf(selectedRow);
+  document.getElementById('detail-prev').disabled = (curPos <= 0);
+  document.getElementById('detail-next').disabled = (curPos >= sorted.length - 1);
+
+  // Body: operation tag + fields
+  let bodyHtml = '<div class="detail-op-tag">' + escHtml(doc.op_type + ':' + doc.op_name.split('/').pop()) + '</div>';
+  for (const key of Object.keys(doc.fields)) {
+    const val = doc.fields[key];
+    let displayVal;
+    if (val == null) {
+      displayVal = '<span style="color:var(--muted-foreground);font-style:italic">—</span>';
+    } else if (typeof val === 'string') {
+      displayVal = escHtml(val);
+    } else {
+      displayVal = escHtml(JSON.stringify(val, null, 2));
+    }
+    bodyHtml += '<div class="detail-field">' +
+      '<div class="detail-field-key">' + escHtml(key) + '</div>' +
+      '<div class="detail-field-val">' + displayVal + '</div>' +
+    '</div>';
+  }
+  document.getElementById('detail-body').innerHTML = bodyHtml;
+
+  // Feedback section
+  let fbHtml = '<div class="detail-fb-label">Feedback</div>';
+  if (doc._fbSent) {
+    fbHtml += '<div class="detail-fb-sent">' + escHtml(doc._fbText) + '</div>';
+  }
+  fbHtml += '<div class="detail-fb-row">' +
+    '<input class="detail-fb-input" type="text" id="detail-fb-input" placeholder="' + (doc._fbSent ? 'Update feedback…' : 'Add feedback…') + '" ' +
+      'value="' + (doc._fbSent ? escHtml(doc._fbText) : '') + '" ' +
+      'onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + selectedRow + ')">' +
+    '<button class="btn btn-primary" onclick="sendDocFeedback(' + selectedRow + ')">Send</button>' +
+  '</div>';
+  document.getElementById('detail-fb').innerHTML = fbHtml;
+}
+
+/* ESC to close detail panel */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && selectedRow !== null) {
+    closeRowDetail();
+  }
+});
 
 /* --- Visualize tab --- */
 function renderVizPanel() {
@@ -1058,6 +1292,7 @@ function syncDocs(docs) {
   renderTableHead();
   renderTableBody();
   if (currentTab === 'visualize') renderVizPanel();
+  if (selectedRow !== null) renderDetailPanel();
 
   document.getElementById('f-rows').textContent = allDocs.length + ' row' + (allDocs.length === 1 ? '' : 's');
 
@@ -1068,7 +1303,8 @@ function syncDocs(docs) {
 
 /* --- Feedback --- */
 function sendDocFeedback(idx) {
-  const input = document.getElementById('fb-input-' + idx);
+  var input = document.getElementById('detail-fb-input');
+  if (!input) return;
   const text = input.value.trim();
   if (!text) return;
   const doc = allDocs[idx];
@@ -1080,6 +1316,7 @@ function sendDocFeedback(idx) {
   doc._fbSent = true;
   doc._fbText = text;
   renderTableBody();
+  renderDetailPanel();
 }
 
 function sendPipelineFeedback() {
@@ -1186,6 +1423,23 @@ evtSource.onmessage = function(e) {
 
   if (data.agent_messages) {
     data.agent_messages.forEach(msg => showToast(msg));
+  }
+
+  // Sync external doc feedback (submitted via API, not through UI)
+  if (data.doc_feedback) {
+    let fbChanged = false;
+    data.doc_feedback.forEach(fb => {
+      const doc = allDocs.find(d => d.op_name === fb.op_name && d.doc_index === fb.doc_index);
+      if (doc && !doc._fbSent) {
+        doc._fbSent = true;
+        doc._fbText = fb.feedback;
+        fbChanged = true;
+      }
+    });
+    if (fbChanged) {
+      renderTableBody();
+      if (selectedRow !== null) renderDetailPanel();
+    }
   }
 
   if (data.finished && !finished) {

@@ -352,12 +352,9 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .op-cost { color: hsl(152 69% 31%); font-size: 11px; font-weight: 600; }
   .op-bar {
     position: absolute; bottom: 0; left: 0; height: 2px;
-    background: linear-gradient(90deg, var(--primary), hsl(173 58% 39%), var(--primary));
-    background-size: 200% 100%;
-    animation: shimmer 2s linear infinite;
-    transition: width .4s ease;
+    background: var(--primary); transition: width .6s ease;
+    border-radius: 0 1px 1px 0;
   }
-  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
   /* Main content area */
   .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }

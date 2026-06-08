@@ -542,9 +542,7 @@ class Frame:
 
     def optimize(
         self,
-        method: str = "moar",
         *,
-        # MOAR parameters
         eval_fn: Any = None,
         metric_key: str | None = None,
         models: list[str] | None = None,
@@ -553,38 +551,49 @@ class Frame:
         save_dir: str | None = None,
         exploration_weight: float = 1.414,
         dataset_path: str | None = None,
-        # V1 parameters
         max_threads: int | None = None,
-        resume: bool = False,
-        save_path: str | None = None,
-    ):
-        """Optimize this pipeline.
+    ) -> Frame:
+        """Optimize this pipeline and return an optimized Frame.
 
-        Returns a ``MOARResult`` for method='moar', or an optimized
-        ``Frame`` for method='v1'.
+        Uses MOAR (Multi-Objective Agentic Rewrites) to search over
+        model choices and prompt strategies. The best result from the
+        Pareto frontier is returned as a new Frame you can ``.collect()``
+        or ``.write_json()`` as usual.
+
+        Access the full search results (Pareto frontier, costs, all plans)
+        via ``frame.search_results`` after optimization.
         """
-        from docetl.api import Pipeline
+        from docetl.moar.optimizer import MOAROptimizer
 
-        pipeline = Pipeline.from_dict(self._build_config())
+        if eval_fn is None:
+            raise ValueError("eval_fn is required for optimization.")
+        if metric_key is None:
+            raise ValueError("metric_key is required for optimization.")
 
-        if method == "moar":
-            return pipeline.optimize(
-                method="moar", eval_fn=eval_fn, metric_key=metric_key,
-                models=models, agent_model=agent_model,
-                max_iterations=max_iterations, save_dir=save_dir,
-                exploration_weight=exploration_weight,
-                dataset_path=dataset_path,
-            )
-        elif method == "v1":
-            optimized = pipeline.optimize(
-                method="v1", max_threads=max_threads,
-                resume=resume, save_path=save_path,
-            )
-            return Frame.from_yaml(save_path) if save_path else optimized
-        else:
-            raise ValueError(
-                f"Unknown optimization method {method!r}. Use 'moar' or 'v1'."
-            )
+        result = MOAROptimizer(
+            pipeline=self._build_config(),
+            eval_fn=eval_fn, metric_key=metric_key,
+            models=models, agent_model=agent_model,
+            max_iterations=max_iterations, save_dir=save_dir,
+            exploration_weight=exploration_weight,
+            dataset_path=dataset_path,
+        ).optimize()
+
+        best = result.best()
+        if best is None:
+            raise RuntimeError("Optimization found no valid pipelines.")
+
+        optimized = Frame.from_yaml(best.yaml_path)
+        optimized._search_results = result
+        return optimized
+
+    @property
+    def search_results(self):
+        """Access MOAR search results after calling ``.optimize()``.
+
+        Returns ``None`` if this Frame was not created by optimization.
+        """
+        return getattr(self, "_search_results", None)
 
     # ── YAML loading ───────────────────────────────────────────────
 

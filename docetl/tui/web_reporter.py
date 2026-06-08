@@ -141,14 +141,6 @@ class _Broadcaster:
     def _push(self):
         state = self._tracker.snapshot()
         event = self._build_event(state)
-        if event["all_docs"]:
-            import sys
-            print(f"[web-ui] pushing {len(event['all_docs'])} docs from {event['all_docs'][0]['op_name']}", file=sys.stderr, flush=True)
-        else:
-            # Debug: show which ops exist and their output counts
-            import sys
-            parts = [f"{op.name}({op.status},out={len(op.outputs)})" for op in state.ops]
-            print(f"[web-ui] 0 docs; ops: {', '.join(parts)}", file=sys.stderr, flush=True)
         with self._lock:
             dead = []
             for q in self._subscribers:
@@ -1068,21 +1060,19 @@ function renderTableHead() {
   // Data columns (no operation column)
   columns.forEach(col => {
     const th = document.createElement('th');
+    const stats = columnStats[col];
     if (userColWidths[col]) {
       th.style.width = userColWidths[col] + 'px';
       th.style.minWidth = userColWidths[col] + 'px';
-    } else {
-      const stats = columnStats[col];
-      if (stats) {
-        if (stats.type === 'string-words' && !stats.isLowCardinality) {
-          th.style.minWidth = '200px';
-          th.style.width = stats.avg > 8 ? '300px' : '200px';
-        } else if (stats.type === 'number' || stats.isLowCardinality) {
-          th.style.minWidth = '80px';
-          th.style.width = '100px';
-        } else {
-          th.style.minWidth = '100px';
-        }
+    } else if (stats) {
+      if (stats.type === 'string-words' && !stats.isLowCardinality) {
+        th.style.minWidth = '200px';
+        th.style.width = stats.avg > 8 ? '300px' : '200px';
+      } else if (stats.type === 'number' || stats.isLowCardinality) {
+        th.style.minWidth = '80px';
+        th.style.width = '100px';
+      } else {
+        th.style.minWidth = '100px';
       }
     }
     const isSorted = sortCol === col;

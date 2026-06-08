@@ -782,18 +782,44 @@ curl -X POST http://localhost:<PORT>/message \
 
 The `type` field can be `"info"`, `"success"`, `"warning"`, or `"error"`. The port is printed to stdout when the UI starts.
 
+### Toasts with Action Buttons
+
+For decisions that need explicit user confirmation, add `actions` — the toast will show buttons the user must click:
+
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I updated the prompt to require quantitative results. Re-run the pipeline?", "type": "info", "actions": ["Confirm re-run", "Dismiss"]}'
+```
+
+Toasts with actions stay on screen until the user clicks a button. The response prints to stdout:
+
+```
+[TOAST:response] id=3 action=Confirm re-run
+```
+
+Use action toasts for:
+- Confirming re-runs after prompt changes
+- Approving pipeline structural changes (adding/removing operations)
+- Approving model upgrades that increase cost
+
+Use plain toasts (no actions) for:
+- Acknowledging feedback ("Got it, looking at this...")
+- Status updates ("Analyzing 5 feedback items...")
+- Asking for more feedback ("Could you review a few more docs?")
+
 ### Feedback Loop Strategy
 
 When you receive feedback, follow this cycle:
 
-1. **Acknowledge** — Send a toast so the human knows you saw their feedback.
+1. **Acknowledge** — Send a plain toast so the human knows you saw their feedback.
 2. **Diagnose** — Categorize the feedback:
    - *Prompt quality*: outputs are wrong, vague, missing info, or in the wrong format.
    - *Schema mismatch*: output fields don't match what the human expects.
    - *Pipeline structure*: wrong operations, missing steps, or wrong order.
    - *Data quality*: input data has issues the pipeline can't fix.
-3. **Propose a fix** — Send a toast describing what you plan to change and why. Wait briefly for the human to respond (they can send pipeline feedback to object).
-4. **Apply the fix** — Edit the YAML pipeline and/or prompts.
+3. **Propose a fix** — Send a toast with actions (e.g., `["Confirm re-run", "Dismiss"]`) describing what you plan to change. Wait for the `[TOAST:response]` line on stdout.
+4. **Apply the fix** — Only after confirmation, edit the YAML pipeline and/or prompts.
 5. **Re-run** — Execute the pipeline again so the human sees updated results.
 6. **Check** — Monitor for new feedback. If quality improves, send a success toast. If not, iterate.
 

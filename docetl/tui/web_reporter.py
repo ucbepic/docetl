@@ -38,13 +38,24 @@ class FeedbackStore:
         self._agent_messages: list[dict] = []
         self._agent_msg_counter = 0
 
-    def add_agent_message(self, text: str, msg_type: str = "info") -> int:
+    def add_agent_message(self, text: str, msg_type: str = "info",
+                          actions: list[str] | None = None) -> int:
         with self._lock:
             self._agent_msg_counter += 1
             msg = {"id": self._agent_msg_counter, "text": text, "type": msg_type,
+                   "actions": actions or [],
                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")}
             self._agent_messages.append(msg)
             return self._agent_msg_counter
+
+    def respond_to_message(self, msg_id: int, action: str):
+        with self._lock:
+            for m in self._agent_messages:
+                if m["id"] == msg_id:
+                    m["response"] = action
+                    m["actions"] = []
+                    break
+        print(f"[TOAST:response] id={msg_id} action={action}", flush=True)
 
     def get_agent_messages_since(self, since_id: int) -> list[dict]:
         with self._lock:
@@ -236,8 +247,16 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
                 msg_id = feedback.add_agent_message(
                     body.get("text", ""),
                     body.get("type", "info"),
+                    body.get("actions"),
                 )
                 self._json_response({"ok": True, "id": msg_id})
+
+            elif self.path == "/message/respond":
+                feedback.respond_to_message(
+                    body.get("id", 0),
+                    body.get("action", ""),
+                )
+                self._json_response({"ok": True})
 
             else:
                 self.send_error(404)
@@ -418,7 +437,6 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .data-table {
     width: 100%; border-collapse: collapse; font-size: 13px;
-    table-layout: fixed;
   }
   .data-table th {
     position: sticky; top: 0; z-index: 2; background: var(--card);
@@ -541,11 +559,27 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .toast.warning { }
   .toast-body { flex: 1; }
   .toast-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 2px; }
-  .toast-dismiss {
+  .toast-actions {
+    display: flex; gap: 6px; margin-top: 8px;
+  }
+  .toast-action {
+    padding: 4px 12px; font-size: 12px; font-weight: 500; border-radius: var(--radius);
+    border: none; cursor: pointer; font-family: inherit; transition: background .15s;
+  }
+  .toast-action.confirm {
+    background: var(--primary); color: white;
+  }
+  .toast-action.confirm:hover { background: hsl(211 100% 42%); }
+  .toast-action.dismiss {
+    background: var(--card); color: var(--muted-foreground);
+  }
+  .toast-action.dismiss:hover { background: hsl(211 20% 90%); }
+  .toast-responded { font-size: 11px; color: var(--muted-foreground); font-style: italic; margin-top: 4px; }
+  .toast-dismiss-x {
     background: none; border: none; cursor: pointer; color: var(--muted-foreground);
     font-size: 16px; line-height: 1; padding: 0; font-family: inherit;
   }
-  .toast-dismiss:hover { color: var(--foreground); }
+  .toast-dismiss-x:hover { color: var(--foreground); }
   @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
 
   .hidden { display: none !important; }
@@ -853,6 +887,17 @@ function renderTableHead() {
   columns.forEach(col => {
     const th = document.createElement('th');
     const stats = columnStats[col];
+    if (stats) {
+      if (stats.type === 'string-words' && !stats.isLowCardinality) {
+        th.style.minWidth = '200px';
+        th.style.width = stats.avg > 8 ? '300px' : '200px';
+      } else if (stats.type === 'number' || stats.isLowCardinality) {
+        th.style.minWidth = '80px';
+        th.style.width = '100px';
+      } else {
+        th.style.minWidth = '100px';
+      }
+    }
     const isSorted = sortCol === col;
     const arrow = !isSorted ? '↕' : (sortDir === 'asc' ? '↑' : '↓');
 
@@ -1069,19 +1114,63 @@ function killPipeline() {
 let seenMsgIds = new Set();
 
 function showToast(msg) {
-  if (seenMsgIds.has(msg.id)) return;
+  if (seenMsgIds.has(msg.id)) {
+    // Update existing toast if response came in
+    if (msg.response) {
+      const existing = document.getElementById('toast-' + msg.id);
+      if (existing) {
+        const actionsEl = existing.querySelector('.toast-actions');
+        if (actionsEl) {
+          actionsEl.innerHTML = '<div class="toast-responded">✓ ' + escHtml(msg.response) + '</div>';
+        }
+      }
+    }
+    return;
+  }
   seenMsgIds.add(msg.id);
   const container = document.getElementById('toasts');
   const el = document.createElement('div');
   el.className = 'toast ' + (msg.type || 'info');
+  el.id = 'toast-' + msg.id;
+
+  let actionsHtml = '';
+  if (msg.actions && msg.actions.length > 0) {
+    actionsHtml = '<div class="toast-actions">';
+    msg.actions.forEach(a => {
+      const cls = a.toLowerCase().includes('confirm') || a.toLowerCase().includes('run') || a.toLowerCase().includes('yes')
+        ? 'confirm' : 'dismiss';
+      actionsHtml += '<button class="toast-action ' + cls + '" onclick="respondToast(' + msg.id + ',\'' + escHtml(a) + '\')">' + escHtml(a) + '</button>';
+    });
+    actionsHtml += '</div>';
+  }
+
   el.innerHTML =
     '<div class="toast-body">' +
       '<div class="toast-label">Agent</div>' +
       '<div>' + escHtml(msg.text) + '</div>' +
+      actionsHtml +
     '</div>' +
-    '<button class="toast-dismiss" onclick="this.parentElement.remove()">×</button>';
+    '<button class="toast-dismiss-x" onclick="this.parentElement.remove()">×</button>';
   container.appendChild(el);
-  setTimeout(() => { if (el.parentElement) el.remove(); }, 15000);
+  if (!msg.actions || msg.actions.length === 0) {
+    setTimeout(() => { if (el.parentElement) el.remove(); }, 15000);
+  }
+}
+
+function respondToast(msgId, action) {
+  fetch('/message/respond', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: msgId, action: action}),
+  });
+  const el = document.getElementById('toast-' + msgId);
+  if (el) {
+    const actionsEl = el.querySelector('.toast-actions');
+    if (actionsEl) {
+      actionsEl.innerHTML = '<div class="toast-responded">✓ ' + escHtml(action) + '</div>';
+    }
+    setTimeout(() => { if (el.parentElement) el.remove(); }, 5000);
+  }
 }
 
 /* --- SSE --- */

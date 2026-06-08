@@ -1,27 +1,34 @@
+import inspect
+
 import pytest
 import json
 import tempfile
 import os
 import pandas as pd
+
+import docetl
+from docetl import _config
 from docetl.api import (
     Pipeline,
     Dataset,
-    CodeMapOp,
-    CodeReduceOp,
-    CodeFilterOp,
-    ExtractOp,
     MapOp,
     ReduceOp,
-    ParallelMapOp,
-    FilterOp,
     PipelineStep,
     PipelineOutput,
-    ResolveOp,
-    EquijoinOp,
+    ExtractOp,
 )
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+@pytest.fixture(autouse=True)
+def reset_default_model():
+    """Reset docetl._config.default_model before and after each test."""
+    original = _config.default_model
+    _config.default_model = None
+    yield
+    _config.default_model = original
 
 
 @pytest.fixture
@@ -49,16 +56,6 @@ def temp_input_file():
     os.unlink(tmp.name)
 
 
-@pytest.fixture(params=["file", "memory"])
-def temp_input_dataset(request, temp_input_file):
-    if request.param == "file":
-        return Dataset(type="file", path=temp_input_file)
-    else:
-        # this will be a DataFrame already
-        df = pd.read_json(temp_input_file)
-        return Dataset(type="memory", path=df)
-
-
 @pytest.fixture
 def temp_output_file():
     with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp:
@@ -74,19 +71,134 @@ def temp_intermediate_dir():
 
 
 @pytest.fixture
-def map_config():
-    return MapOp(
+def reduce_sample_data():
+    data = [
+        {"group": "A", "value": 10},
+        {"group": "B", "value": 20},
+        {"group": "A", "value": 15},
+        {"group": "B", "value": 25},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
+        json.dump(data, tmp)
+    yield tmp.name
+    os.unlink(tmp.name)
+
+
+@pytest.fixture
+def resolve_sample_data():
+    data = [
+        {"name": "John Doe"},
+        {"name": "Jane Smith"},
+        {"name": "Bob Johnson"},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
+        json.dump(data, tmp)
+    yield tmp.name
+    os.unlink(tmp.name)
+
+
+@pytest.fixture
+def left_data():
+    data = [
+        {"id": "1", "name": "John Doe"},
+        {"id": "2", "name": "Jane Smith"},
+        {"id": "3", "name": "Bob Johnson"},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
+        json.dump(data, tmp)
+    yield tmp.name
+    os.unlink(tmp.name)
+
+
+@pytest.fixture
+def right_data():
+    data = [
+        {"id": "1", "email": "john@example.com", "age": 30},
+        {"id": "2", "email": "jane@example.com", "age": 28},
+        {"id": "3", "email": "bob@example.com", "age": 35},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
+        json.dump(data, tmp)
+    yield tmp.name
+    os.unlink(tmp.name)
+
+
+# ── Frame construction / structure tests ──────────────────────────
+
+
+def test_frame_creation_from_json(temp_input_file):
+    """Frame built from read_json should have correct datasets and chaining."""
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = (
+        docetl.read_json(temp_input_file)
+        .map(
+            prompt="Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+            output={"schema": {"sentiment": "string"}},
+            model="gpt-4o-mini",
+        )
+        .reduce(
+            reduce_key="group",
+            prompt="Summarize the following group of values: {{ inputs }} Provide a total and any other relevant statistics.",
+            output={"schema": {"total": "number", "avg": "number"}},
+            model="gpt-4o-mini",
+        )
+    )
+
+    assert isinstance(frame, docetl.Frame)
+    assert len(frame._operations) == 2
+    assert len(frame._steps) == 2
+    assert frame._operations[0]["type"] == "map"
+    assert frame._operations[1]["type"] == "reduce"
+
+
+def test_frame_creation_from_list():
+    """Frame built from from_list should have correct datasets."""
+    docetl.default_model = "gpt-4o-mini"
+
+    data = [
+        {"text": "Hello", "group": "A"},
+        {"text": "World", "group": "B"},
+    ]
+    frame = docetl.from_list(data)
+
+    assert isinstance(frame, docetl.Frame)
+    assert frame._first_dataset == "data"
+    assert frame._datasets["data"]["type"] == "memory"
+    assert frame._datasets["data"]["path"] is data
+
+
+def test_frame_immutability(temp_input_file):
+    """Each operation should return a new Frame, leaving the original unchanged."""
+    docetl.default_model = "gpt-4o-mini"
+
+    base = docetl.read_json(temp_input_file)
+    mapped = base.map(
+        prompt="Analyze: {{ input.text }}",
+        output={"schema": {"sentiment": "string"}},
+    )
+
+    assert len(base._operations) == 0
+    assert len(base._steps) == 0
+    assert len(mapped._operations) == 1
+    assert len(mapped._steps) == 1
+    assert base is not mapped
+
+
+# ── Pipeline optimization (V1) — kept on Pipeline API ────────────
+
+
+def test_pipeline_optimization(
+    temp_input_file, temp_output_file, temp_intermediate_dir
+):
+    map_config = MapOp(
         name="sentiment_analysis",
         type="map",
         prompt="Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
         output={"schema": {"sentiment": "string"}},
         model="gpt-4o-mini",
     )
-
-
-@pytest.fixture
-def reduce_config():
-    return ReduceOp(
+    reduce_config = ReduceOp(
         name="group_summary",
         type="reduce",
         reduce_key="group",
@@ -95,139 +207,8 @@ def reduce_config():
         model="gpt-4o-mini",
     )
 
+    temp_input_dataset = Dataset(type="file", path=temp_input_file)
 
-@pytest.fixture
-def parallel_map_config():
-    return ParallelMapOp(
-        name="sentiment_and_word_count",
-        type="parallel_map",
-        prompts=[
-            {
-                "name": "sentiment",
-                "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
-                "output_keys": ["sentiment"],
-                "model": "gpt-4o-mini",
-            },
-            {
-                "name": "word_count",
-                "prompt": "Count the number of words in the following text: '{{ input.text }}'. Return the count as an integer.",
-                "output_keys": ["word_count"],
-                "model": "gpt-4o-mini",
-            },
-        ],
-        output={"schema": {"sentiment": "string", "word_count": "integer"}},
-    )
-
-
-@pytest.fixture
-def filter_config():
-    return FilterOp(
-        name="positive_sentiment_filter",
-        type="filter",
-        prompt="Is the sentiment of the following text positive? '{{ input.text }}'. Return true if positive, false otherwise.",
-        model="gpt-4o-mini",
-        output={"schema": {"filtered": "boolean"}},
-    )
-
-
-@pytest.fixture
-def resolve_config():
-    return ResolveOp(
-        name="name_email_resolver",
-        type="resolve",
-        blocking_keys=["name", "email"],
-        blocking_threshold=0.8,
-        comparison_prompt="Compare the following two entries and determine if they likely refer to the same person: Person 1: {{ input1 }} Person 2: {{ input2 }} Return true if they likely match, false otherwise.",
-        output={"schema": {"name": "string", "email": "string"}},
-        embedding_model="text-embedding-3-small",
-        comparison_model="gpt-4o-mini",
-        resolution_model="gpt-4o-mini",
-        resolution_prompt="Given the following list of similar entries, determine one common name and email. {{ inputs }}",
-    )
-
-
-@pytest.fixture
-def reduce_sample_data(temp_input_file):
-    data = [
-        {"group": "A", "value": 10},
-        {"group": "B", "value": 20},
-        {"group": "A", "value": 15},
-        {"group": "B", "value": 25},
-    ]
-    with open(temp_input_file, "w") as f:
-        json.dump(data, f)
-    return temp_input_file
-
-
-@pytest.fixture
-def resolve_sample_data(temp_input_file):
-    data = [
-        {"name": "John Doe"},
-        {"name": "Jane Smith"},
-        {"name": "Bob Johnson"},
-    ]
-    with open(temp_input_file, "w") as f:
-        json.dump(data, f)
-    return temp_input_file
-
-
-@pytest.fixture
-def left_data(temp_input_file):
-    data = [
-        {"id": "1", "name": "John Doe"},
-        {"id": "2", "name": "Jane Smith"},
-        {"id": "3", "name": "Bob Johnson"},
-    ]
-    with open(temp_input_file, "w") as f:
-        json.dump(data, f)
-    return temp_input_file
-
-
-@pytest.fixture
-def right_data(temp_input_file):
-    data = [
-        {"id": "1", "email": "john@example.com", "age": 30},
-        {"id": "2", "email": "jane@example.com", "age": 28},
-        {"id": "3", "email": "bob@example.com", "age": 35},
-    ]
-    with open(temp_input_file, "w") as f:
-        json.dump(data, f)
-    return temp_input_file
-
-
-def test_pipeline_creation(
-    map_config, reduce_config, temp_input_dataset, temp_output_file, temp_intermediate_dir
-):
-    pipeline = Pipeline(
-        name="test_pipeline",
-        datasets={"test_input": temp_input_dataset},
-        operations=[map_config, reduce_config],
-        steps=[
-            PipelineStep(
-                name="map_step", input="test_input", operations=["sentiment_analysis"]
-            ),
-            PipelineStep(
-                name="reduce_step", input="map_step", operations=["group_summary"]
-            ),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
-        system_prompt={
-            "dataset_description": "a collection of personal information records",
-            "persona": "a data analyst processing and summarizing personal information",
-        }
-    )
-
-    assert isinstance(pipeline, Pipeline)
-    assert len(pipeline.operations) == 2
-    assert len(pipeline.steps) == 2
-
-
-def test_pipeline_optimization(
-    map_config, reduce_config, temp_input_dataset, temp_output_file, temp_intermediate_dir
-):
     pipeline = Pipeline(
         name="test_pipeline",
         datasets={"test_input": temp_input_dataset},
@@ -252,7 +233,7 @@ def test_pipeline_optimization(
 
     optimized_pipeline = pipeline.optimize(
         method="v1",
-        max_threads=64
+        max_threads=64,
     )
 
     assert isinstance(optimized_pipeline, Pipeline)
@@ -260,32 +241,141 @@ def test_pipeline_optimization(
     assert len(optimized_pipeline.steps) == len(pipeline.steps)
 
 
-def test_pipeline_execution(
-    map_config, temp_input_dataset, temp_output_file, temp_intermediate_dir
-):
-    pipeline = Pipeline(
-        name="test_pipeline",
-        datasets={"test_input": temp_input_dataset},
-        operations=[map_config],
-        steps=[
-            PipelineStep(
-                name="map_step", input="test_input", operations=["sentiment_analysis"]
-            ),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
+# ── LLM execution tests via Frame API ────────────────────────────
+
+
+def test_map_execution(temp_input_file):
+    """Map operation via Frame API should execute and return results."""
+    docetl.default_model = "gpt-4o-mini"
+
+    results = (
+        docetl.read_json(temp_input_file)
+        .map(
+            prompt="Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+            output={"schema": {"sentiment": "string"}},
+            model="gpt-4o-mini",
+        )
+        .to_list()
     )
 
-    cost = pipeline.run(max_threads=4)
+    assert isinstance(results, list)
+    assert len(results) == 3
+    for item in results:
+        assert "sentiment" in item
 
-    assert isinstance(cost, float)
+
+def test_parallel_map_execution(temp_input_file):
+    """Parallel map via Frame API should execute and return results."""
+    docetl.default_model = "gpt-4o-mini"
+
+    results = (
+        docetl.read_json(temp_input_file)
+        .parallel_map(
+            prompts=[
+                {
+                    "name": "sentiment",
+                    "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+                    "output_keys": ["sentiment"],
+                    "model": "gpt-4o-mini",
+                },
+                {
+                    "name": "word_count",
+                    "prompt": "Count the number of words in the following text: '{{ input.text }}'. Return the count as an integer.",
+                    "output_keys": ["word_count"],
+                    "model": "gpt-4o-mini",
+                },
+            ],
+            output={"schema": {"sentiment": "string", "word_count": "integer"}},
+        )
+        .to_list()
+    )
+
+    assert isinstance(results, list)
+    assert len(results) == 3
 
 
-# -----------------------------
-# Code operations (SDK) tests
-# -----------------------------
+def test_filter_execution(temp_input_file):
+    """Filter via Frame API should execute and return results."""
+    docetl.default_model = "gpt-4o-mini"
+
+    results = (
+        docetl.read_json(temp_input_file)
+        .filter(
+            prompt="Is the sentiment of the following text positive? '{{ input.text }}'. Return true if positive, false otherwise.",
+            model="gpt-4o-mini",
+            output={"schema": {"filtered": "boolean"}},
+        )
+        .to_list()
+    )
+
+    assert isinstance(results, list)
+    # Should have filtered out some items
+    assert len(results) <= 3
+
+
+def test_reduce_execution(reduce_sample_data):
+    """Reduce via Frame API should execute and return results."""
+    docetl.default_model = "gpt-4o-mini"
+
+    results = (
+        docetl.read_json(reduce_sample_data)
+        .reduce(
+            reduce_key="group",
+            prompt="Summarize the following group of values: {{ inputs }} Provide a total and any other relevant statistics.",
+            output={"schema": {"total": "number", "avg": "number"}},
+            model="gpt-4o-mini",
+        )
+        .to_list()
+    )
+
+    assert isinstance(results, list)
+    assert len(results) == 2  # Two groups: A and B
+
+
+def test_resolve_execution(resolve_sample_data):
+    """Resolve via Frame API should execute and return results."""
+    docetl.default_model = "gpt-4o-mini"
+
+    results = (
+        docetl.read_json(resolve_sample_data)
+        .resolve(
+            blocking_keys=["name"],
+            blocking_threshold=0.8,
+            comparison_prompt="Compare the following two entries and determine if they likely refer to the same person: Person 1: {{ input1 }} Person 2: {{ input2 }} Return true if they likely match, false otherwise.",
+            output={"schema": {"name": "string"}},
+            embedding_model="text-embedding-3-small",
+            comparison_model="gpt-4o-mini",
+            resolution_model="gpt-4o-mini",
+            resolution_prompt="Given the following list of similar entries, determine one common name. {{ inputs }}",
+        )
+        .to_list()
+    )
+
+    assert isinstance(results, list)
+
+
+def test_equijoin_execution(left_data, right_data):
+    """Equijoin via Frame API should execute and return results."""
+    docetl.default_model = "gpt-4o-mini"
+
+    left = docetl.read_json(left_data)
+    right = docetl.read_json(right_data)
+
+    results = (
+        left.equijoin(
+            right,
+            comparison_prompt="Compare the following two entries and determine if they are the same id: Left: {{ left.id }} Right: {{ right.id }}",
+            embedding_model="text-embedding-3-small",
+            comparison_model="gpt-4o-mini",
+        )
+        .to_list()
+    )
+
+    assert isinstance(results, list)
+
+
+# ── Code operations via Frame API ─────────────────────────────────
+
 
 def _code_map_transform(doc: dict) -> dict:
     x = doc.get("x", 0)
@@ -301,149 +391,74 @@ def _code_reduce_transform(group: list[dict]) -> dict:
     return {"group_total": total}
 
 
-@pytest.fixture
-def code_input_file():
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
-        json.dump(
-            [
-                {"x": 1},
-                {"x": 2},
-                {"x": 3},
-            ],
-            tmp,
-        )
-    yield tmp.name
-    os.unlink(tmp.name)
+def _callable_to_code(fn) -> str:
+    """Convert a callable to the source-string format expected by code operations."""
+    src = inspect.getsource(fn)
+    return f"{src}\ntransform = {fn.__name__}"
 
 
-@pytest.fixture
-def code_filter_input_file():
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
-        json.dump(
-            [
-                {"id": 1, "keep": True},
-                {"id": 2, "keep": False},
-                {"id": 3, "keep": True},
-            ],
-            tmp,
-        )
-    yield tmp.name
-    os.unlink(tmp.name)
+def test_code_map_via_frame():
+    """code_map via Frame API should apply the transform function."""
+    docetl.default_model = "gpt-4o-mini"
 
-
-@pytest.fixture
-def code_reduce_input_file():
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmp:
-        json.dump(
-            [
-                {"group": "A", "value": 10},
-                {"group": "A", "value": 5},
-                {"group": "B", "value": 7},
-            ],
-            tmp,
-        )
-    yield tmp.name
-    os.unlink(tmp.name)
-
-
-def test_code_map_pipeline_callable(code_input_file, temp_output_file, temp_intermediate_dir):
-    pipeline = Pipeline(
-        name="test_code_map",
-        datasets={"input": Dataset(type="file", path=code_input_file)},
-        operations=[
-            CodeMapOp(
-                name="double_x",
-                type="code_map",
-                code=_code_map_transform,
-            )
-        ],
-        steps=[
-            PipelineStep(name="s1", input="input", operations=["double_x"]),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
+    data = [{"x": 1}, {"x": 2}, {"x": 3}]
+    results = (
+        docetl.from_list(data)
+        .code_map(code=_callable_to_code(_code_map_transform))
+        .to_list()
     )
 
-    cost = pipeline.run(max_threads=4)
-    assert isinstance(cost, float)
-
-    with open(temp_output_file, "r") as f:
-        data = json.load(f)
-    assert len(data) == 3
-    assert data[0]["double"] == 2
-    assert data[1]["double"] == 4
-    assert data[2]["double"] == 6
+    assert len(results) == 3
+    assert results[0]["double"] == 2
+    assert results[1]["double"] == 4
+    assert results[2]["double"] == 6
 
 
-def test_code_filter_pipeline_callable(code_filter_input_file, temp_output_file, temp_intermediate_dir):
-    pipeline = Pipeline(
-        name="test_code_filter",
-        datasets={"input": Dataset(type="file", path=code_filter_input_file)},
-        operations=[
-            CodeFilterOp(
-                name="keep_true",
-                type="code_filter",
-                code=_code_filter_transform,
-            )
-        ],
-        steps=[
-            PipelineStep(name="s1", input="input", operations=["keep_true"]),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
+def test_code_filter_via_frame():
+    """code_filter via Frame API should filter rows by the predicate."""
+    docetl.default_model = "gpt-4o-mini"
+
+    data = [
+        {"id": 1, "keep": True},
+        {"id": 2, "keep": False},
+        {"id": 3, "keep": True},
+    ]
+    results = (
+        docetl.from_list(data)
+        .code_filter(code=_callable_to_code(_code_filter_transform))
+        .to_list()
     )
 
-    cost = pipeline.run(max_threads=4)
-    assert isinstance(cost, float)
-
-    with open(temp_output_file, "r") as f:
-        data = json.load(f)
-    # Only ids 1 and 3 should be kept
-    kept_ids = sorted([d["id"] for d in data])
+    kept_ids = sorted([d["id"] for d in results])
     assert kept_ids == [1, 3]
 
 
-def test_code_reduce_pipeline_callable(code_reduce_input_file, temp_output_file, temp_intermediate_dir):
-    pipeline = Pipeline(
-        name="test_code_reduce",
-        datasets={"input": Dataset(type="file", path=code_reduce_input_file)},
-        operations=[
-            CodeReduceOp(
-                name="sum_by_group",
-                type="code_reduce",
-                code=_code_reduce_transform,
-                reduce_key="group",
-                pass_through=True,
-            )
-        ],
-        steps=[
-            PipelineStep(name="s1", input="input", operations=["sum_by_group"]),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
+def test_code_reduce_via_frame():
+    """code_reduce via Frame API should group and reduce."""
+    docetl.default_model = "gpt-4o-mini"
+
+    data = [
+        {"group": "A", "value": 10},
+        {"group": "A", "value": 5},
+        {"group": "B", "value": 7},
+    ]
+    results = (
+        docetl.from_list(data)
+        .code_reduce(code=_callable_to_code(_code_reduce_transform), reduce_key="group", pass_through=True)
+        .to_list()
     )
 
-    cost = pipeline.run(max_threads=4)
-    assert isinstance(cost, float)
-
-    with open(temp_output_file, "r") as f:
-        data = json.load(f)
-    # Expect one row per group
-    assert len(data) == 2
-    # Create a map from group -> total
-    totals = {d["group"]: d["group_total"] for d in data}
+    assert len(results) == 2
+    totals = {d["group"]: d["group_total"] for d in results}
     assert totals["A"] == 15
     assert totals["B"] == 7
 
 
+# ── ExtractOp export test ─────────────────────────────────────────
+
+
 def test_extractop_is_exported():
-    # Ensure ExtractOp is importable and constructible from API schemas
+    """Ensure ExtractOp is importable and constructible from API schemas."""
     op = ExtractOp(
         name="extract_sections",
         type="extract",
@@ -453,102 +468,8 @@ def test_extractop_is_exported():
     )
     assert op.type == "extract"
 
-def test_parallel_map_pipeline(
-    parallel_map_config, temp_input_file, temp_output_file, temp_intermediate_dir
-):
-    pipeline = Pipeline(
-        name="test_pipeline",
-        datasets={"test_input": Dataset(type="file", path=temp_input_file)},
-        operations=[parallel_map_config],
-        steps=[
-            PipelineStep(
-                name="parallel_map_step",
-                input="test_input",
-                operations=["sentiment_and_word_count"],
-            ),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
-    )
 
-    cost = pipeline.run(max_threads=4)
-
-    assert isinstance(cost, float)
-
-
-def test_filter_pipeline(
-    filter_config, temp_input_file, temp_output_file, temp_intermediate_dir
-):
-    pipeline = Pipeline(
-        name="test_pipeline",
-        datasets={"test_input": Dataset(type="file", path=temp_input_file)},
-        operations=[filter_config],
-        steps=[
-            PipelineStep(
-                name="filter_step",
-                input="test_input",
-                operations=["positive_sentiment_filter"],
-            ),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
-    )
-
-    cost = pipeline.run(max_threads=4)
-
-    assert isinstance(cost, float)
-
-
-def test_reduce_pipeline(
-    reduce_config, reduce_sample_data, temp_output_file, temp_intermediate_dir
-):
-    pipeline = Pipeline(
-        name="test_pipeline",
-        datasets={"test_input": Dataset(type="file", path=reduce_sample_data)},
-        operations=[reduce_config],
-        steps=[
-            PipelineStep(
-                name="reduce_step", input="test_input", operations=["group_summary"]
-            ),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
-    )
-
-    cost = pipeline.run(max_threads=4)
-
-    assert isinstance(cost, float)
-
-
-def test_resolve_pipeline(
-    resolve_config, resolve_sample_data, temp_output_file, temp_intermediate_dir
-):
-    pipeline = Pipeline(
-        name="test_pipeline",
-        datasets={"test_input": Dataset(type="file", path=resolve_sample_data)},
-        operations=[resolve_config],
-        steps=[
-            PipelineStep(
-                name="resolve_step",
-                input="test_input",
-                operations=["name_email_resolver"],
-            ),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
-    )
-
-    cost = pipeline.run(max_threads=4)
-
-    assert isinstance(cost, float)
+# ── Frame from_dict round-trip ────────────────────────────────────
 
 
 def test_from_dict_round_trip(temp_input_file, temp_output_file, temp_intermediate_dir):
@@ -604,7 +525,7 @@ def test_from_dict_round_trip(temp_input_file, temp_output_file, temp_intermedia
     assert pipeline.get_step_for_op("analyze").name == "step1"
     assert pipeline.get_step_for_op("summarize").name == "step2"
 
-    # Round-trip: from_dict → _to_dict should preserve operations and steps
+    # Round-trip: from_dict -> _to_dict should preserve operations and steps
     rt = pipeline._to_dict()
     assert len(rt["operations"]) == 2
     assert len(rt["pipeline"]["steps"]) == 2
@@ -648,6 +569,28 @@ def test_from_dict_with_equijoin(temp_output_file, temp_intermediate_dir):
     assert "my_join" in step_ops[0]
 
 
+# ── Frame collect returns DataFrame ───────────────────────────────
+
+
+def test_collect_returns_dataframe():
+    """Frame.collect() should return a pandas DataFrame."""
+    docetl.default_model = "gpt-4o-mini"
+
+    data = [{"x": 1}, {"x": 2}, {"x": 3}]
+    df = (
+        docetl.from_list(data)
+        .code_map(code=_callable_to_code(_code_map_transform))
+        .collect()
+    )
+
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == 3
+    assert list(df["double"]) == [2, 4, 6]
+
+
+# ── DSLRunner accepts Pipeline ───────────────────────────────────
+
+
 def test_dsrunner_accepts_pipeline(temp_input_file, temp_output_file, temp_intermediate_dir):
     """DSLRunner should accept a Pipeline object directly."""
     from docetl.runner import DSLRunner
@@ -674,47 +617,3 @@ def test_dsrunner_accepts_pipeline(temp_input_file, temp_output_file, temp_inter
     assert runner.pipeline is pipeline
     assert runner.default_model == "gpt-4o-mini"
     assert "sentiment" in runner._op_map
-
-
-def test_equijoin_pipeline(
-    left_data, right_data, temp_output_file, temp_intermediate_dir
-):
-    pipeline = Pipeline(
-        name="test_pipeline",
-        datasets={
-            "left": Dataset(type="file", path=left_data),
-            "right": Dataset(type="file", path=right_data),
-        },
-        operations=[
-            EquijoinOp(
-                name="user_data_join",
-                type="equijoin",
-                left="left",
-                right="right",
-                comparison_prompt="Compare the following two entries and determine if they are the same id: Left: {{ left.id }} Right: {{ right.id }}",
-                embedding_model="text-embedding-3-small",
-                comparison_model="gpt-4o-mini",
-            )
-        ],
-        steps=[
-            PipelineStep(
-                name="equijoin_step",
-                operations=[
-                    {
-                        "user_data_join": {
-                            "left": "left",
-                            "right": "right",
-                        }
-                    }
-                ],
-            ),
-        ],
-        output=PipelineOutput(
-            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
-        ),
-        default_model="gpt-4o-mini",
-    )
-
-    cost = pipeline.run(max_threads=4)
-
-    assert isinstance(cost, float)

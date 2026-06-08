@@ -46,6 +46,8 @@ class Frame:
         self._first_dataset = _first_dataset or next(iter(datasets), None)
         self._op_counter = _op_counter or {}
         self._extra_datasets = _extra_datasets or {}
+        self._total_cost: float = 0.0
+        self._token_usage: dict[str, dict[str, int]] = {}
 
     def _copy(self, **overrides) -> Frame:
         kw = dict(
@@ -509,34 +511,72 @@ class Frame:
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
         """Execute the pipeline and return results as a DataFrame."""
         import pandas as pd
-        data = self._execute(max_threads=max_threads)
-        return pd.DataFrame(data)
+        data, cost = self._execute(max_threads=max_threads)
+        df = pd.DataFrame(data)
+        df.attrs["_total_cost"] = cost
+        df.attrs["_token_usage"] = self._token_usage
+        return df
 
     def to_list(self, max_threads: int | None = None) -> list[dict]:
         """Execute the pipeline and return results as a list of dicts."""
-        return self._execute(max_threads=max_threads)
+        data, _ = self._execute(max_threads=max_threads)
+        return data
 
-    def _execute(self, max_threads: int | None = None) -> list[dict]:
+    def _execute(self, max_threads: int | None = None) -> tuple[list[dict], float]:
+        import time
+        from docetl.display import format_execution_summary
+
         runner = self._build_runner(max_threads=max_threads)
         runner.load()
         runner.console.rule("[bold]Pipeline Execution[/bold]")
+        start = time.time()
         output, _, _ = runner.last_op_container.next()
-        return output
+        elapsed = time.time() - start
 
-    def write_json(self, path: str, max_threads: int | None = None) -> None:
-        """Execute the pipeline and write results to a JSON file."""
-        runner = self._build_runner(output_path=path, max_threads=max_threads)
-        runner.load_run_save()
+        self._total_cost = runner.total_cost
+        self._token_usage = dict(runner.total_token_usage)
 
-    def write_csv(self, path: str, max_threads: int | None = None) -> None:
-        """Execute the pipeline and write results to a CSV file."""
-        runner = self._build_runner(output_path=path, max_threads=max_threads)
-        runner.load_run_save()
+        from rich.panel import Panel
+        summary = format_execution_summary(
+            runner.total_cost, elapsed, runner.total_token_usage,
+            runner.intermediate_dir, "",
+        )
+        runner.console.log(Panel(summary, title="Execution Summary"))
+        return output, runner.total_cost
 
-    def write_parquet(self, path: str, max_threads: int | None = None) -> None:
-        """Execute the pipeline and write results to a Parquet file."""
+    @property
+    def total_cost(self) -> float:
+        """Total cost of the last execution or optimization."""
+        return self._total_cost
+
+    @property
+    def token_usage(self) -> dict[str, dict[str, int]]:
+        """Token usage per model from the last execution."""
+        return self._token_usage
+
+    def write_json(self, path: str, max_threads: int | None = None) -> float:
+        """Execute the pipeline and write results to a JSON file. Returns total cost."""
         runner = self._build_runner(output_path=path, max_threads=max_threads)
-        runner.load_run_save()
+        cost = runner.load_run_save()
+        self._total_cost = cost
+        self._token_usage = dict(runner.total_token_usage)
+        return cost
+
+    def write_csv(self, path: str, max_threads: int | None = None) -> float:
+        """Execute the pipeline and write results to a CSV file. Returns total cost."""
+        runner = self._build_runner(output_path=path, max_threads=max_threads)
+        cost = runner.load_run_save()
+        self._total_cost = cost
+        self._token_usage = dict(runner.total_token_usage)
+        return cost
+
+    def write_parquet(self, path: str, max_threads: int | None = None) -> float:
+        """Execute the pipeline and write results to a Parquet file. Returns total cost."""
+        runner = self._build_runner(output_path=path, max_threads=max_threads)
+        cost = runner.load_run_save()
+        self._total_cost = cost
+        self._token_usage = dict(runner.total_token_usage)
+        return cost
 
     # ── optimization ───────────────────────────────────────────────
 
@@ -579,12 +619,15 @@ class Frame:
             dataset_path=dataset_path,
         ).optimize()
 
+        self._total_cost = result.total_search_cost
+
         best = result.best()
         if best is None:
             raise RuntimeError("Optimization found no valid pipelines.")
 
         optimized = Frame.from_yaml(best.yaml_path)
         optimized._search_results = result
+        optimized._total_cost = result.total_search_cost
         return optimized
 
     @property

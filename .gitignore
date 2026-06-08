@@ -86,3 +86,6 @@ reaction_index/
 !tests/tui_demo/*.json
 tests/tui_demo/*_output.json
 !docs/assets/progress-view/*.png
+
+# Generated cascade progress report (delivered as an artifact, not source)
+cascade-report.html

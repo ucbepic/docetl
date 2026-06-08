@@ -19,6 +19,7 @@ from docetl.progress.tracker import (
     active_tracker,
     set_active_tracker,
 )
+from docetl.config_wrapper import ConfigWrapper
 from docetl.tui.profiles import get_profile
 
 
@@ -81,6 +82,16 @@ def test_set_phase_resets_to_the_real_unit_count():
     assert op.total == 5 and op.completed == 0
 
 
+def test_set_phase_accepts_label_for_tui():
+    t = ProgressTracker()
+    t.op_start("op", "filter", None, total=100)
+    t.set_phase(40, label="proxy (gpt-4o-mini)")
+    op = t.snapshot().get("op")
+    assert op.total == 40 and op.completed == 0 and op.phase == "proxy (gpt-4o-mini)"
+    t.clear_phase()
+    assert t.snapshot().get("op").phase is None
+
+
 def test_add_outputs_streams_documents_during_run():
     # Finished docs are appended to the current op's sample as they complete,
     # so the detail pane can show them before the whole op finishes.
@@ -110,6 +121,13 @@ def test_active_tracker_hook():
     finally:
         set_active_tracker(None)
     assert active_tracker() is None
+
+
+def test_pipeline_label_from_yaml_path(tmp_path):
+    yaml_file = tmp_path / "filteronly.yaml"
+    yaml_file.write_text("default_model: gpt-4o-mini\n")
+    runner = ConfigWrapper.from_yaml(str(yaml_file))
+    assert runner.pipeline_label() == "filteronly.yaml"
 
 
 def test_should_use_tui_reads_top_level_flag(monkeypatch):
@@ -231,6 +249,44 @@ def test_done_cell_status_marks_errors_first():
     op.status, op.out_count, op.errors = "done", 4, 1
     assert op.cell_status(0, 0) == "error"
     assert op.cell_status(1, 0) == "done"
+
+
+def test_cell_cascade_role_distinguishes_proxy_and_oracle():
+    op = OpState("s", "s/f", "filter")
+    op.status = "done"
+    op.out_count = 3
+    op.cascade_info = {
+        "item_escalated": [False, True, False, True, False],
+        "item_proxy_scores": [0.9, 0.3, 0.85, 0.4, 0.95],
+        "kept_input_indices": [0, 1, 4],
+    }
+    assert op.cell_cascade_role(0) == "proxy"   # input 0, not escalated
+    assert op.cell_cascade_role(1) == "oracle"  # input 1, escalated
+    assert op.cell_cascade_role(2) == "proxy"   # input 4, not escalated
+    assert op.cell_cascade_role(3) is None      # out of range
+
+
+def test_cell_cascade_role_map_no_kept_indices():
+    """Map cascade: output index == input index (no filtering)."""
+    op = OpState("s", "s/m", "map")
+    op.status = "done"
+    op.out_count = 4
+    op.cascade_info = {
+        "item_escalated": [False, True, True, False],
+        "item_proxy_scores": [0.9, 0.6, 0.55, 0.95],
+    }
+    assert op.cell_cascade_role(0) == "proxy"
+    assert op.cell_cascade_role(1) == "oracle"
+    assert op.cell_cascade_role(2) == "oracle"
+    assert op.cell_cascade_role(3) == "proxy"
+    assert op.cell_cascade_role(4) is None
+
+
+def test_cell_cascade_role_returns_none_without_cascade():
+    op = OpState("s", "s/f", "filter")
+    op.status = "done"
+    op.out_count = 5
+    assert op.cell_cascade_role(0) is None
 
 
 def test_units_per_operator_type():

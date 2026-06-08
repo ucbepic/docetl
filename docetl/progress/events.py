@@ -26,6 +26,7 @@ class OpState:
 
     status: OpStatus = "queued"
     total: int | None = None  # total input docs (None until known)
+    phase: str | None = None  # live sub-phase label (e.g. cascade proxy/oracle)
     completed: int = 0
     errors: int = 0
     out_count: int | None = None  # output docs once finished
@@ -33,6 +34,10 @@ class OpState:
     cost: float = 0.0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+
+    cascade_info: dict | None = None
+    grid_complete: bool = False  # when True, grid shows all items as done
+    grid_total: int | None = None  # overrides total for grid when set
 
     start_t: float | None = None
     end_t: float | None = None
@@ -70,7 +75,29 @@ class OpState:
         """
         if self.status == "done" and self.out_count is not None:
             return self.out_count
+        if self.grid_total is not None:
+            return self.grid_total
         return self.total or 0
+
+    def cell_cascade_role(self, index: int) -> str | None:
+        """Return 'proxy' or 'oracle' for the given cell, or None."""
+        if not self.cascade_info:
+            return None
+        escalated = self.cascade_info.get("item_escalated")
+        if not escalated:
+            return None
+        input_idx = index
+        if self.status == "done" and self.out_count is not None:
+            kept = self.cascade_info.get("kept_input_indices")
+            if kept:
+                if index < len(kept):
+                    input_idx = kept[index]
+                else:
+                    return None
+            # No kept_input_indices → output index == input index (map cascade)
+        if input_idx < len(escalated):
+            return "oracle" if escalated[input_idx] else "proxy"
+        return None
 
     def cell_status(self, index: int, running_band: int) -> DocStatus:
         """Synthesize a per-document status for the dot grid.
@@ -84,8 +111,8 @@ class OpState:
         if index < self.errors:
             return "error"
         if self.status == "done":
-            # A finished op's grid is keyed on output docs (see ``grid_count``);
-            # they are all complete regardless of the work-unit counter.
+            return "done"
+        if self.grid_complete:
             return "done"
         if self.total is None:
             return "queued"
@@ -142,6 +169,7 @@ class RunState:
                     "type": op.op_type,
                     "model": op.model,
                     "status": op.status,
+                    "phase": op.phase,
                     "total": op.total,
                     "completed": op.completed,
                     "errors": op.errors,
@@ -149,6 +177,7 @@ class RunState:
                     "cost": op.cost,
                     "tokens": op.tokens,
                     "elapsed": op.elapsed,
+                    "cascade_info": op.cascade_info,
                 }
                 for op in self.ops
             ],

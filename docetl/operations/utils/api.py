@@ -2,6 +2,7 @@ import ast
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -41,6 +42,17 @@ from .validation import (
 )
 
 BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
+
+
+def _raise_with_provider_hint(model: str, exc: Exception) -> None:
+    """Re-raise with a hint to prefix the model name if it looks bare."""
+    if model not in BASIC_MODELS and "/" not in model:
+        raise ValueError(
+            "Note: You may also need to prefix your model name with the "
+            "provider, e.g. 'openai/gpt-4o-mini' or "
+            "'gemini/gemini-1.5-flash' to conform to LiteLLM API "
+            f"standards. Original error: {exc}"
+        ) from exc
 
 
 class OutputMode(Enum):
@@ -138,9 +150,9 @@ class APIWrapper(object):
             prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
             self.runner.total_token_usage[model]["prompt_tokens"] += prompt_tokens
-            self.runner.total_token_usage[model]["completion_tokens"] += (
-                completion_tokens
-            )
+            self.runner.total_token_usage[model][
+                "completion_tokens"
+            ] += completion_tokens
 
             # Track cached/cache-creation tokens if available
             cached = 0
@@ -919,12 +931,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     **extra_litellm_kwargs,
                 )
             except Exception as e:
-                # Check that there's a prefix for the model name if it's not a basic model
-                if model not in BASIC_MODELS:
-                    if "/" not in model:
-                        raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
-                        )
+                _raise_with_provider_hint(model, e)
                 raise e
         elif tools is not None:
             try:
@@ -936,12 +943,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     **extra_litellm_kwargs,
                 )
             except Exception as e:
-                # Check that there's a prefix for the model name if it's not a basic model
-                if model not in BASIC_MODELS:
-                    if "/" not in model:
-                        raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
-                        )
+                _raise_with_provider_hint(model, e)
                 raise e
         else:
             try:
@@ -951,15 +953,202 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     **extra_litellm_kwargs,
                 )
             except Exception as e:
-                # Check that there's a prefix for the model name if it's not a basic model
-                if model not in BASIC_MODELS:
-                    if "/" not in model:
-                        raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
-                        )
+                _raise_with_provider_hint(model, e)
                 raise e
 
         return response
+
+    def classify_with_logprob(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        labels: list[Any],
+        *,
+        system_prompt: str | None = None,
+        top_logprobs: int | None = None,
+        litellm_completion_kwargs: dict[str, Any] = {},
+    ) -> "tuple[Any, float]":
+        """
+        Single-token categorical classification with a calibrated confidence.
+
+        Thin wrapper over :meth:`_classify_with_logprob_with_cost` that drops the
+        cost component; see that method for the full contract. Returns
+        ``(label, prob)`` -- the predicted label and its confidence in
+        ``[0, 1]`` -- and is the cheap **proxy** path for model cascades (see
+        ``docetl/operations/utils/cascade.py``).
+        """
+        label, prob, _cost = self._classify_with_logprob_with_cost(
+            model,
+            messages,
+            labels,
+            system_prompt=system_prompt,
+            top_logprobs=top_logprobs,
+            litellm_completion_kwargs=litellm_completion_kwargs,
+        )
+        return label, prob
+
+    def _classify_with_logprob_with_cost(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        labels: list[Any],
+        *,
+        system_prompt: str | None = None,
+        top_logprobs: int | None = None,
+        litellm_completion_kwargs: dict[str, Any] = {},
+    ) -> "tuple[Any, float, float]":
+        """
+        Like :meth:`classify_with_logprob` but also returns the call's cost.
+
+        Renders ``labels`` as a single-token numeric menu (``1 = <label0>``
+        ...), asks the model to answer with just the menu number, requests
+        token logprobs, and maps the answer token's probability back to a
+        label. Cascade adapters use the returned cost for accounting; the
+        public wrapper drops it.
+
+        Rendering the labels as digits means booleans and enums both decode to
+        a single token regardless of the label text, so one logprob lookup
+        yields the answer. The returned probability is the softmax of the
+        chosen label over the menu tokens present in ``top_logprobs`` and lies
+        in ``[0, 1]``. Unlike the structured/tool paths, this uses
+        ``litellm.completion`` directly (no router fallback): proxies are
+        intentionally a single cheap model.
+
+        Returns:
+            ``(label, prob, cost)``.
+
+        Raises:
+            ValueError: if ``labels`` is empty or has more than 9 entries, or
+                the provider does not return usable logprobs for the answer.
+        """
+        if not labels:
+            raise ValueError("classify_with_logprob requires a non-empty label set")
+        # Digits 1..9 are a single token in common tokenizers; beyond that we
+        # cannot guarantee single-token decoding, which the logprob mapping
+        # relies on.
+        if len(labels) > 9:
+            raise ValueError(
+                "classify_with_logprob supports at most 9 labels (single-token "
+                f"menu); got {len(labels)}. Split the task or use the oracle path."
+            )
+
+        token_to_label = {str(i + 1): label for i, label in enumerate(labels)}
+        menu = "\n".join(f"{i + 1} = {label}" for i, label in enumerate(labels))
+        instruction = (
+            "Answer with ONLY the single number of the best option below -- no "
+            "words, no punctuation, just the digit.\n\n" + menu
+        )
+        sys_msg = system_prompt or (
+            "You are a precise classifier. Read the input and choose the single "
+            "best option from the menu."
+        )
+        call_messages = (
+            [{"role": "system", "content": sys_msg}]
+            + list(messages)
+            + [{"role": "user", "content": instruction}]
+        )
+
+        k = (
+            top_logprobs
+            if top_logprobs is not None
+            else min(max(len(labels) + 4, 10), 20)
+        )
+
+        extra = dict(litellm_completion_kwargs)
+        extra.setdefault("temperature", 0)
+        if "gpt-5" in model:
+            extra.pop("temperature", None)
+        if self.default_lm_api_base and "api_base" not in extra:
+            extra["api_base"] = self.default_lm_api_base
+
+        self.runner.blocking_acquire("llm_call", weight=1)
+        if self.runner.is_cancelled:
+            raise asyncio.CancelledError("Operation was cancelled")
+
+        try:
+            response = completion(
+                model=model,
+                messages=call_messages,
+                logprobs=True,
+                top_logprobs=k,
+                max_tokens=1,
+                **extra,
+            )
+        except Exception as e:
+            _raise_with_provider_hint(model, e)
+            raise
+
+        try:
+            cost = completion_cost(response)
+        except Exception:
+            cost = 0.0
+        self._track_token_usage(model, response)
+        label, prob = self._parse_logprob_response(response, token_to_label)
+        return label, prob, cost
+
+    @staticmethod
+    def _parse_logprob_response(
+        response: Any, token_to_label: dict[str, Any]
+    ) -> "tuple[Any, float]":
+        """
+        Map a logprobs completion response to ``(label, prob)``.
+
+        Pure (no I/O): looks at the alternatives for the first generated token,
+        keeps those that match a menu digit, softmax-normalizes their logprobs,
+        and returns the argmax label with its conditional probability. Using
+        softmax over menu tokens gives P(label | answer is valid) which provides
+        meaningful confidence variation even when raw probabilities are extreme
+        (common with gpt-4o-mini binary classification where logprobs are 0 or
+        -25). When only one menu token appears, falls back to a clipped
+        ``exp(logprob)`` so the score is never a degenerate 1.0. Kept separate
+        from the network call so it can be unit-tested with synthetic responses.
+        """
+        try:
+            content_lp = response.choices[0].logprobs.content
+        except (AttributeError, IndexError, TypeError):
+            content_lp = None
+        if not content_lp:
+            raise ValueError(
+                "Model did not return token logprobs; the cascade proxy path "
+                "requires a provider/model that supports `logprobs`."
+            )
+
+        first = content_lp[0]
+        alts = getattr(first, "top_logprobs", None) or [first]
+
+        logp_by_label: dict[Any, float] = {}
+        for alt in alts:
+            tok = (getattr(alt, "token", "") or "").strip()
+            if tok not in token_to_label:
+                continue
+            lp = getattr(alt, "logprob", None)
+            if lp is None:
+                continue
+            label = token_to_label[tok]
+            if label not in logp_by_label or lp > logp_by_label[label]:
+                logp_by_label[label] = lp
+
+        if not logp_by_label:
+            raise ValueError(
+                "Proxy answer did not match any menu option; got token "
+                f"{getattr(first, 'token', None)!r}."
+            )
+
+        present_labels = list(logp_by_label)
+        logps = [logp_by_label[lbl] for lbl in present_labels]
+        best = max(range(len(present_labels)), key=lambda i: logps[i])
+
+        if len(present_labels) >= 2:
+            # Compress the logprob gap through a sigmoid so the confidence
+            # score has meaningful variation even when the model is extremely
+            # confident (gpt-4o-mini routinely returns logprobs of 0 vs -25
+            # for binary classification, making raw/softmax probs degenerate).
+            # Scale=3 maps a ~6-nat gap to the 0.12–0.88 range.
+            gap = logps[best] - min(logps)
+            prob = 1.0 / (1.0 + math.exp(-gap / 3.0))
+        else:
+            prob = min(math.exp(logps[0]), 0.99)
+        return present_labels[best], prob
 
     def parse_llm_response(
         self,

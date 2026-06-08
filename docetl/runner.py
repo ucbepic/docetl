@@ -395,6 +395,25 @@ class DSLRunner(ConfigWrapper):
 
         self.console.log("[green]✓ All operations passed syntax check[/green]")
 
+    def _cascade_model_roles(self) -> dict[str, str]:
+        """Map model names to cascade roles for the execution-summary token table."""
+        roles: dict[str, str] = {}
+        default = self.config.get("default_model")
+        for op in self.config.get("operations", []):
+            cascade = op.get("cascade")
+            if not cascade:
+                continue
+            if isinstance(cascade, dict):
+                proxy = cascade.get("proxy_model")
+            else:
+                proxy = getattr(cascade, "proxy_model", None)
+            if proxy:
+                roles[proxy] = "cascade proxy"
+            oracle = op.get("model") or op.get("comparison_model") or default
+            if oracle:
+                roles[oracle] = "oracle"
+        return roles
+
     def print_query_plan(self, show_boundaries=False):
         """
         Print a visual representation of the entire query plan using indentation and arrows.
@@ -440,16 +459,34 @@ class DSLRunner(ConfigWrapper):
             step_name = op.name.split("/")[0]
             color = step_colors.get(step_name, "white")
             output.append(f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]")
-            output.append(f"{indent_str}Type: {op.config['type']}")
+            output.append(
+                f"{indent_str}[dim]type[/dim]  [cyan]{op.config['type']}[/cyan]"
+            )
 
             # Add schema if available
             if "output" in op.config and "schema" in op.config["output"]:
-                output.append(f"{indent_str}Output Schema:")
+                output.append(f"{indent_str}[dim]output[/dim]")
                 for field, field_type in op.config["output"]["schema"].items():
                     escaped_type = escape(str(field_type))
                     output.append(
-                        f"{indent_str}  {field}: [bright_white]{escaped_type}[/bright_white]"
+                        f"{indent_str}  [bright_white]{field}[/bright_white]"
+                        f" [dim]:[/dim] {escaped_type}"
                     )
+
+            if op.config.get("cascade"):
+                from docetl.operations.utils.cascade_runner import (
+                    format_cascade_plan_lines,
+                )
+
+                oracle_model = op.config.get(
+                    "model", self.config.get("default_model", "?")
+                )
+                for line in format_cascade_plan_lines(
+                    op.config["cascade"],
+                    op_type=op.config["type"],
+                    oracle_model=oracle_model,
+                ):
+                    output.append(f"{indent_str}{line}")
 
             # Add children
             if op.children:
@@ -576,6 +613,7 @@ class DSLRunner(ConfigWrapper):
         # Print execution summary
         token_usage_lines = ""
         if self.total_token_usage:
+            cascade_roles = self._cascade_model_roles()
             token_usage_lines = "\n[bold]Token Usage:[/bold]\n"
             total_prompt = 0
             total_completion = 0
@@ -587,17 +625,18 @@ class DSLRunner(ConfigWrapper):
                 total_prompt += prompt
                 total_completion += completion
                 total_cached += cached
-                line = f"  {model}: [cyan]{prompt:,}[/cyan] input"
+                role = cascade_roles.get(model)
+                model_label = f"{model} [dim]({role})[/dim]" if role else model
+                line = f"  {model_label}: [cyan]{prompt:,}[/cyan] input"
                 if cached:
                     line += f" ([dim]{cached:,} cached[/dim])"
                 line += f", [cyan]{completion:,}[/cyan] output"
                 token_usage_lines += line + "\n"
-            if len(self.total_token_usage) > 1:
-                total_line = f"  [bold]Total: [cyan]{total_prompt:,}[/cyan] input"
-                if total_cached:
-                    total_line += f" ([dim]{total_cached:,} cached[/dim])"
-                total_line += f", [cyan]{total_completion:,}[/cyan] output[/bold]"
-                token_usage_lines += total_line + "\n"
+            total_line = f"  [bold]Total: [cyan]{total_prompt:,}[/cyan] input"
+            if total_cached:
+                total_line += f" ([dim]{total_cached:,} cached[/dim])"
+            total_line += f", [cyan]{total_completion:,}[/cyan] output[/bold]"
+            token_usage_lines += total_line + "\n"
 
         summary = (
             f"Cost: [green]${self.total_cost:.2f}[/green]\n"

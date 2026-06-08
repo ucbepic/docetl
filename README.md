@@ -168,10 +168,12 @@ DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data 
 
 **DocWrangler** — UIST 2025, Best Paper Honorable Mention ([paper](https://arxiv.org/abs/2504.14764))
 
+*\*Co-first authors*
+
 ```bibtex
 @inproceedings{shankar2025docwrangler,
   title={Steering Semantic Data Processing With DocWrangler},
-  author={Shankar, Shreya and Chopra, Bhavya and Hasan, Mawil and Lee, Stephen and Hartmann, Bj{\"o}rn and Hellerstein, Joseph M and Parameswaran, Aditya G and Wu, Eugene},
+  author={Shankar*, Shreya and Chopra*, Bhavya and Hasan, Mawil and Lee, Stephen and Hartmann, Bj{\"o}rn and Hellerstein, Joseph M and Parameswaran, Aditya G and Wu, Eugene},
   booktitle={Proceedings of the ACM Symposium on User Interface Software and Technology (UIST)},
   year={2025}
 }

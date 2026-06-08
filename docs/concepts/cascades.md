@@ -1,4 +1,4 @@
-# Model Cascades
+# Model Cascades with BARGAIN
 
 Several DocETL operators issue an LLM call whose output is a single
 **binary** value — keep/drop or match/no-match:
@@ -14,11 +14,18 @@ need an expensive "oracle". A **model cascade** runs the proxy on everything,
 learns a confidence threshold on a small oracle-labeled sample, trusts the
 proxy above the threshold, and escalates the rest to the oracle — while
 preserving a **statistical guarantee** that holds with probability `1 - delta`
-for finite samples. This is the approach of
-[BARGAIN](https://github.com/ucbepic/BARGAIN); DocETL depends on the BARGAIN
-library directly for the statistical core (threshold learning and guarantee
-certification) and wraps it with thin adapters for each operator's
-proxy/oracle calls.
+for finite samples.
+
+This is the approach of **BARGAIN** ([paper](https://arxiv.org/abs/2509.02896),
+[code](https://github.com/ucbepic/BARGAIN)):
+
+> Sepanta Zeighami, Shreya Shankar, Aditya Parameswaran.
+> "Cut Costs, Not Accuracy: LLM-Powered Data Processing with Guarantees."
+> *SIGMOD 2026.*
+
+DocETL depends on the BARGAIN library directly for the statistical core
+(threshold learning and guarantee certification) and wraps it with thin
+adapters for each operator's proxy/oracle calls.
 
 The result: far fewer expensive calls, with a quality guarantee you choose.
 
@@ -42,6 +49,59 @@ Add an opt-in `cascade:` block to a supported operator. The operator's existing
     delta: 0.05                  # guarantee holds w.p. 1 - delta
     label_budget: 300            # max oracle calls spent learning the threshold
 ```
+
+## Parameters
+
+| Parameter | Type | Description | Default |
+|---|---|---|---|
+| `proxy_model` | string | The cheap model to use for the proxy pass (required) | — |
+| `guarantee` | string | Statistical guarantee to enforce (see [Guarantees](#guarantees)) | operator-specific (see below) |
+| `target` | float | Target value for the guarantee metric, in `(0, 1)` (required) | — |
+| `delta` | float | Failure probability; the guarantee holds with probability `1 - delta` | `0.05` |
+| `label_budget` | int | Maximum oracle calls spent learning the confidence threshold | `400` |
+
+The raw logprob threshold is deliberately **not** exposed — it is learned from
+the data, and exposing it would defeat the guarantee. You stay in metric-space.
+
+## Guarantees
+
+Pick the guarantee that matches the operator's intent:
+
+| Guarantee | What it means | Best for | BARGAIN procedure |
+|---|---|---|---|
+| `accuracy` | Output matches the oracle on ≥ `target` fraction of items | Any binary operator | BARGAIN_A |
+| `precision` | Of items returned positive, ≥ `target` are truly positive | `resolve` / `equijoin` (don't over-merge) | BARGAIN_P |
+| `recall` | Of truly-positive items, ≥ `target` are returned | `filter` (don't drop relevant docs) | BARGAIN_R |
+| `precision+recall` | Both precision and recall hold simultaneously at `target` | `resolve` / `equijoin` (don't over-merge AND don't miss matches) | BARGAIN_P + BARGAIN_R with union bound |
+
+**Default guarantee per operator** (applied when `guarantee` is omitted):
+
+| Operator | Default guarantee |
+|---|---|
+| `filter` | `recall` |
+| `resolve` | `precision` |
+| `equijoin` | `precision` |
+
+### precision+recall details
+
+The engine runs a precision pass and a recall pass (splitting δ/2 and
+`label_budget`/2 to each), then oracle-verifies items in the gap between
+the two thresholds. Total oracle calls are capped at `label_budget`; if
+the gap exceeds the remaining budget, items are verified in order of proxy
+confidence (most likely positives first) and recall becomes best-effort.
+Increase `label_budget` for stronger recall.
+
+For `precision+recall`, both passes share the same `target` value. If you need
+different targets (e.g. precision ≥ 0.95 but recall ≥ 0.8), run two separate
+operations — one with each guarantee.
+
+### Small-sample behavior
+
+If the oracle sample is too small to certify the `target` at the chosen `delta`,
+the engine errs toward the guarantee — escalating more items to the oracle (or
+keeping more items) — rather than silently violating it. That costs more oracle
+calls, so give `label_budget` enough room for a meaningful sample on small
+datasets.
 
 ## Complete example — run it end to end
 
@@ -133,51 +193,6 @@ from docetl import DSLRunner
 runner = DSLRunner.from_yaml("pipeline.yaml")
 runner.load_run_save()
 ```
-
-### Config knobs
-
-| Knob | Meaning | Default |
-|---|---|---|
-| `proxy_model` | the cheap model (required) | — |
-| `guarantee` | `accuracy` \| `precision` \| `recall` \| `precision+recall` | operator-specific (see below) |
-| `target` | threshold for that metric, in `(0, 1)` (required) | — |
-| `delta` | failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
-| `label_budget` | max oracle calls spent *learning* the threshold | `400` |
-
-The raw logprob threshold is deliberately **not** exposed — it is learned from
-the data, and exposing it would defeat the guarantee. You stay in metric-space.
-
-## Guarantees
-
-Pick the guarantee that matches the operator's intent:
-
-- **accuracy** — output matches the oracle on at least `target` fraction of
-  items. Works for any binary operator.
-- **precision** — of the items returned positive, at least `target` are truly
-  positive. Natural for **resolve / equijoin** (don't over-merge / over-join).
-- **recall** — of the truly-positive items, at least `target` are returned.
-  Natural for **filter** (don't drop relevant docs).
-- **precision+recall** — both precision and recall hold simultaneously at the
-  same `target`. Uses a union bound (δ/2 each) and oracle-verifies items in
-  the gap between the precision and recall thresholds. Total oracle calls are
-  capped at `label_budget`; if the gap exceeds the remaining budget, items are
-  verified in order of proxy confidence (most likely positives first) and recall
-  becomes best-effort. Increase `label_budget` for stronger recall. Useful for
-  **resolve / equijoin** when you want both "don't over-merge" and "don't miss
-  matches".
-
-If you omit `guarantee`, each operator applies its natural default:
-**filter → recall**, **resolve / equijoin → precision**.
-
-For `precision+recall`, both passes share the same `target` value. If you need
-different targets (e.g. precision ≥ 0.95 but recall ≥ 0.8), run two separate
-operations — one with each guarantee.
-
-If the oracle sample is too small to certify the `target` at the chosen `delta`,
-the engine errs toward the guarantee — escalating more items to the oracle (or
-keeping more items) — rather than silently violating it. That costs more oracle
-calls, so give `label_budget` enough room for a meaningful sample on small
-datasets.
 
 ## Per-operator examples
 

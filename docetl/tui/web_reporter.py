@@ -170,12 +170,11 @@ class _Broadcaster:
                 "elapsed": op.elapsed,
             })
 
-        # Show only the last operation's outputs (the pipeline result).
-        # Walk backwards to find the last op with outputs, or the last
-        # running/done op so streaming docs appear as they arrive.
+        # Show only the last operation that has outputs (the pipeline result).
+        # Walk backwards so we prefer later ops over earlier ones.
         target_op = None
         for op in reversed(state.ops):
-            if op.outputs or op.status == "running":
+            if op.outputs:
                 target_op = op
                 break
         all_docs = []

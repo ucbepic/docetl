@@ -10,7 +10,9 @@ Extract structured insights from customer reviews:
 
 ```python
 import pandas as pd
-from docetl import SemanticAccessor
+import docetl
+
+docetl.default_model = "gpt-4o-mini"
 
 # Load customer reviews
 df = pd.DataFrame({
@@ -20,9 +22,6 @@ df = pd.DataFrame({
         "Keyboard feels cheap and the screen is too dim"
     ]
 })
-
-# Configure semantic accessor
-df.semantic.set_config(default_model="gpt-4o-mini")
 
 # Extract structured insights
 result = df.semantic.map(

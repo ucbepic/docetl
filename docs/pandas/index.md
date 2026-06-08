@@ -27,7 +27,10 @@ The pandas integration provides a `.semantic` accessor that enables:
 
 ```python
 import pandas as pd
-from docetl import SemanticAccessor
+import docetl
+
+# Configure the default model
+docetl.default_model = "gpt-4o-mini"
 
 # Create a DataFrame
 df = pd.DataFrame({
@@ -37,9 +40,6 @@ df = pd.DataFrame({
         "Google announces Pixel 8 with enhanced camera features"
     ]
 })
-
-# Configure the semantic accessor
-df.semantic.set_config(default_model="gpt-4o-mini")
 
 # Extract structured information
 result = df.semantic.map(
@@ -59,22 +59,22 @@ print(f"Operation cost: ${result.semantic.total_cost}")
 
 ## Configuration
 
-Configure the semantic accessor with your preferred settings:
+Configure DocETL at the module level:
 
 ```python
-df.semantic.set_config(
-    default_model="gpt-4o-mini",  # Default LLM to use
-    max_threads=64,              # Maximum concurrent threads,
-    rate_limits={
-        "embedding_call": [
-            {"count": 1000, "per": 1, "unit": "second"}
-        ],
-        "llm_call": [
-            {"count": 1, "per": 1, "unit": "second"},
-            {"count": 10, "per": 5, "unit": "hour"}
-        ]
-    } 
-)
+import docetl
+
+docetl.default_model = "gpt-4o-mini"
+
+docetl.rate_limits = {
+    "embedding_call": [
+        {"count": 1000, "per": 1, "unit": "second"}
+    ],
+    "llm_call": [
+        {"count": 1, "per": 1, "unit": "second"},
+        {"count": 10, "per": 5, "unit": "hour"}
+    ]
+}
 ```
 
 !!! note "Pipeline Optimization"

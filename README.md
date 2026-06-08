@@ -14,10 +14,7 @@
 
 ## What is DocETL
 
-DocETL is a declarative query engine and optimizer for LLM-powered data processing.
-
-- **Query engine** — map, reduce, filter, resolve, extract, and more, each backed by LLM calls
-- **Optimizer** — rewrites pipelines by searching over models, prompts, and operation decompositions
+DocETL is a declarative query engine and optimizer for LLM-powered data processing. It provides high-level operations — map, reduce, filter, resolve, extract — each backed by LLM calls, and an optimizer that rewrites pipelines by searching over models, prompts, and operation decompositions.
 
 <table>
 <tr>

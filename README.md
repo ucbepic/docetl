@@ -16,11 +16,8 @@
 
 DocETL is a declarative query engine and optimizer for LLM-powered data processing.
 
-- **Operations on documents** — map, reduce, filter, resolve, extract, and more, each backed by LLM calls
-- **Long-document handling** — automatically splits documents that exceed context windows and reassembles results
-- **Output validation** — define expected schemas and rules; failed outputs are retried automatically
-- **Resolve** — deduplicate and normalize entities across documents
-- **Cost-accuracy optimizer** — rewrites pipelines by searching over models, prompts, and operation decompositions
+- **Query engine** — map, reduce, filter, resolve, extract, and more, each backed by LLM calls
+- **Optimizer** — rewrites pipelines by searching over models, prompts, and operation decompositions
 
 <table>
 <tr>

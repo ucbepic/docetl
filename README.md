@@ -33,8 +33,9 @@ Best for production code, notebooks, and scripting. [Full guide →](https://ucb
 import docetl
 
 docetl.default_model = "gpt-4o-mini"
+docetl.rate_limits = {"gpt-4o-mini": {"rpm": 500, "tpm": 200000}}
 
-df = (
+pipeline = (
     docetl.read_json("tickets.json")
     .map(
         prompt="Classify this support ticket: {{ input.text }}",
@@ -45,8 +46,10 @@ df = (
         prompt="Summarize these tickets: {% for t in inputs %}{{ t.text }}{% endfor %}",
         output={"schema": {"summary": "str"}},
     )
-    .collect()
 )
+
+df = pipeline.collect()
+print(f"Cost: ${pipeline.total_cost:.4f}")
 ```
 
 ---

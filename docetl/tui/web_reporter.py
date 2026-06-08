@@ -170,19 +170,12 @@ class _Broadcaster:
                 "elapsed": op.elapsed,
             })
 
-        # Show only the last operation that has outputs (the pipeline result).
-        # Walk backwards so we prefer later ops over earlier ones.
-        target_op = None
-        for op in reversed(state.ops):
-            if op.outputs:
-                target_op = op
-                break
         all_docs = []
-        if target_op is not None:
-            for i, doc in enumerate(target_op.outputs):
+        for op in state.ops:
+            for i, doc in enumerate(op.outputs):
                 all_docs.append({
-                    "op_name": target_op.name,
-                    "op_type": target_op.op_type,
+                    "op_name": op.name,
+                    "op_type": op.op_type,
                     "doc_index": i,
                     "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
                 })
@@ -407,8 +400,11 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .op-item {
     display: flex; align-items: center; gap: 6px;
     padding: 8px 14px; font-size: 12px; font-weight: 500;
-    position: relative; white-space: nowrap;
+    position: relative; white-space: nowrap; cursor: pointer;
+    border-radius: 6px; transition: background .15s;
   }
+  .op-item:hover { background: hsl(211 40% 95%); }
+  .op-item.op-selected { background: hsl(211 50% 92%); box-shadow: inset 0 -2px 0 var(--primary); }
   .op-dot {
     width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   }
@@ -466,7 +462,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .data-table th {
     position: sticky; top: 0; z-index: 2; background: var(--card);
     text-align: left; font-weight: 500; color: var(--muted-foreground);
-    vertical-align: top; padding: 0; position: relative; overflow: hidden;
+    vertical-align: top; padding: 0; overflow: hidden;
   }
   .col-resize {
     position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
@@ -795,6 +791,8 @@ let selectedRow = null;
 let columnFilters = {};
 let filterVisible = {};
 let lastResetToken = 0;
+let selectedOp = null;
+let lastOps = [];
 
 function fmtCost(c) {
   if (c <= 0) return '$0';
@@ -814,8 +812,20 @@ function escHtml(s) {
 
 /* --- Operations strip --- */
 function updateOps(ops) {
+  lastOps = ops;
   const doneCount = ops.filter(o => o.status === 'done').length;
   document.getElementById('h-ops').textContent = doneCount + '/' + ops.length;
+
+  // Auto-select last op with outputs if none selected yet
+  if (selectedOp === null) {
+    for (let i = ops.length - 1; i >= 0; i--) {
+      if (ops[i].status === 'done' || ops[i].status === 'running') {
+        selectedOp = ops[i].name;
+        break;
+      }
+    }
+  }
+
   const strip = document.getElementById('ops-strip');
   strip.innerHTML = '';
   ops.forEach((op, idx) => {
@@ -826,7 +836,9 @@ function updateOps(ops) {
       strip.appendChild(arrow);
     }
     const el = document.createElement('div');
-    el.className = 'op-item';
+    el.className = 'op-item' + (selectedOp === op.name ? ' op-selected' : '');
+    el.style.cursor = 'pointer';
+    el.onclick = function() { selectOp(op.name); };
     let pctWidth = 0;
     let parts = '<span class="op-dot ' + op.status + '"></span>';
     parts += '<span class="op-name">' + op.op_type + ':' + op.name.split('/').pop() + '</span>';
@@ -844,9 +856,29 @@ function updateOps(ops) {
   });
 }
 
+function selectOp(opName) {
+  selectedOp = opName;
+  columnFilters = {};
+  filterVisible = {};
+  sortCol = null;
+  selectedRow = null;
+  document.getElementById('detail-panel').classList.remove('open');
+  columns = discoverColumns();
+  recomputeStats();
+  renderTableHead();
+  renderTableBody();
+  if (currentTab === 'visualize') renderVizPanel();
+  updateOps(lastOps);
+  document.getElementById('f-rows').textContent = getVisibleDocs().length + ' row' + (getVisibleDocs().length === 1 ? '' : 's');
+}
+
+function getVisibleDocs() {
+  return allDocs.filter(d => d.op_name === selectedOp);
+}
+
 /* --- Column stats (matching playground logic) --- */
 function computeColumnStats(colKey) {
-  const vals = allDocs.map(d => d.fields[colKey]).filter(v => v != null);
+  const vals = allDocs.filter(d => !selectedOp || d.op_name === selectedOp).map(d => d.fields[colKey]).filter(v => v != null);
   if (!vals.length) return null;
 
   const first = vals[0];
@@ -1005,7 +1037,11 @@ function setColumnFilter(col, value) {
 }
 
 function getFilteredIndices() {
-  const indices = allDocs.map((_, i) => i);
+  const indices = [];
+  allDocs.forEach((doc, i) => {
+    if (selectedOp && doc.op_name !== selectedOp) return;
+    indices.push(i);
+  });
   const activeFilters = Object.entries(columnFilters);
   if (!activeFilters.length) return indices;
   return indices.filter(idx => {
@@ -1024,6 +1060,7 @@ function discoverColumns() {
   const seen = new Set();
   const cols = [];
   allDocs.forEach(doc => {
+    if (selectedOp && doc.op_name !== selectedOp) return;
     for (const k of Object.keys(doc.fields)) {
       if (!seen.has(k)) { seen.add(k); cols.push(k); }
     }
@@ -1358,21 +1395,7 @@ function switchTab(tab) {
 }
 
 /* --- Data sync --- */
-let currentSourceOp = null;
 function syncDocs(docs) {
-  // Detect when the source operation changes (e.g. resolve -> reduce)
-  // and clear the table so we only show the current op's outputs.
-  if (docs.length > 0) {
-    const newOp = docs[0].op_name;
-    if (currentSourceOp !== null && currentSourceOp !== newOp) {
-      allDocs = [];
-      seenDocKeys = new Set();
-      selectedRow = null;
-      document.getElementById('detail-panel').classList.remove('open');
-    }
-    currentSourceOp = newOp;
-  }
-
   let changed = false;
   docs.forEach(doc => {
     const key = doc.op_name + ':' + doc.doc_index;
@@ -1384,9 +1407,28 @@ function syncDocs(docs) {
   });
   if (!changed) return;
 
-  const newCols = discoverColumns();
-  const colsChanged = newCols.length !== columns.length || newCols.some((c, i) => c !== columns[i]);
-  columns = newCols;
+  // Auto-advance selectedOp to the last op that has outputs
+  let latestOpWithDocs = null;
+  if (lastOps.length) {
+    for (let i = lastOps.length - 1; i >= 0; i--) {
+      const opName = lastOps[i].name;
+      if (allDocs.some(d => d.op_name === opName)) {
+        latestOpWithDocs = opName;
+        break;
+      }
+    }
+  }
+  if (latestOpWithDocs && selectedOp !== latestOpWithDocs) {
+    selectedOp = latestOpWithDocs;
+    columnFilters = {};
+    filterVisible = {};
+    sortCol = null;
+    selectedRow = null;
+    document.getElementById('detail-panel').classList.remove('open');
+    updateOps(lastOps);
+  }
+
+  columns = discoverColumns();
   recomputeStats();
 
   renderTableHead();
@@ -1394,11 +1436,8 @@ function syncDocs(docs) {
   if (currentTab === 'visualize') renderVizPanel();
   if (selectedRow !== null) renderDetailPanel();
 
-  document.getElementById('f-rows').textContent = allDocs.length + ' row' + (allDocs.length === 1 ? '' : 's');
-
-  // Auto-scroll to bottom
-  const tw = document.getElementById('tab-table');
-  tw.scrollTop = tw.scrollHeight;
+  const visible = getVisibleDocs();
+  document.getElementById('f-rows').textContent = visible.length + ' row' + (visible.length === 1 ? '' : 's');
 }
 
 /* --- Feedback --- */
@@ -1539,6 +1578,7 @@ evtSource.onmessage = function(e) {
     columnStats = {};
     seenDocKeys = new Set();
     selectedRow = null;
+    selectedOp = null;
     finished = false;
     document.getElementById('detail-panel').classList.remove('open');
     document.getElementById('complete-banner').classList.add('hidden');
@@ -1584,7 +1624,7 @@ evtSource.onmessage = function(e) {
     dot.classList.add('done');
     const banner = document.getElementById('complete-banner');
     banner.classList.remove('hidden');
-    document.getElementById('complete-summary').textContent = fmtCost(data.total_cost) + ' · ' + fmtDur(data.elapsed) + ' · ' + allDocs.length + ' outputs';
+    document.getElementById('complete-summary').textContent = fmtCost(data.total_cost) + ' · ' + fmtDur(data.elapsed) + ' · ' + getVisibleDocs().length + ' outputs';
     document.getElementById('kill-btn').classList.add('hidden');
   }
 };

@@ -149,11 +149,14 @@ For more details on evaluation functions, see the [Evaluation Functions guide](e
     optimized = frame.optimize(
         eval_fn=evaluate,
         metric_key="medication_extraction_score",
-        models=None,              # auto-detect from API keys
-        agent_model=None,         # auto-select best available (or set docetl.agent_model)
-        max_iterations=20,        # search budget
-        save_dir=None,            # defaults to temp dir
-        exploration_weight=1.414, # UCB exploration constant
+        models=None,                 # auto-detect from API keys
+        agent_model=None,            # auto-select best available (or set docetl.agent_model)
+        max_iterations=20,           # search budget
+        save_dir=None,               # defaults to temp dir
+        exploration_weight=1.414,    # UCB exploration constant
+        dataset_path=None,           # sample dataset for optimization
+        max_threads=None,            # max concurrent LLM calls per run
+        max_concurrent_agents=3,     # parallel MCTS search agents
     )
     ```
 

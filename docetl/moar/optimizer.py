@@ -208,6 +208,7 @@ class MOAROptimizer:
         dataset_path: Optional[Union[str, Path]] = None,
         dataset_name: Optional[str] = None,
         max_threads: int | None = None,
+        max_concurrent_agents: int = 3,
     ):
         self.pipeline_path = self._resolve_pipeline(pipeline, save_dir)
         self.metric_key = metric_key
@@ -240,6 +241,7 @@ class MOAROptimizer:
             dataset_path, dataset_name
         )
         self._max_threads = max_threads
+        self._max_concurrent_agents = max_concurrent_agents
 
     def _resolve_pipeline(
         self,
@@ -404,6 +406,7 @@ class MOAROptimizer:
             custom_metric_key=self.metric_key,
             sample_dataset_path=self._dataset_path,
             max_threads=self._max_threads,
+            max_concurrent_agents=self._max_concurrent_agents,
         )
 
         moar.search()

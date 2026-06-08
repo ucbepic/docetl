@@ -609,6 +609,7 @@ class Frame:
         exploration_weight: float = 1.414,
         dataset_path: str | None = None,
         max_threads: int | None = None,
+        max_concurrent_agents: int = 3,
     ) -> Frame:
         """Optimize this pipeline and return an optimized Frame.
 
@@ -636,6 +637,7 @@ class Frame:
             exploration_weight=exploration_weight,
             dataset_path=dataset_path,
             max_threads=max_threads or _config.max_threads,
+            max_concurrent_agents=max_concurrent_agents,
         ).optimize()
 
         self._total_cost = result.total_search_cost

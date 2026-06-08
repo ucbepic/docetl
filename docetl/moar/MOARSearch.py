@@ -53,6 +53,7 @@ class MOARSearch:
         custom_metric_key: Optional[str] = None,
         sample_dataset_path: Optional[str] = None,
         max_threads: int | None = None,
+        max_concurrent_agents: int = 3,
     ):
         """
         Initialize the MOARSearch algorithm.
@@ -76,7 +77,7 @@ class MOARSearch:
         self.console = DOCETL_CONSOLE
         self.root = Node(root_yaml_path, c=exploration_constant, console=self.console)
         self.tree_lock = threading.RLock()
-        self.max_concurrent_agents = 3
+        self.max_concurrent_agents = max_concurrent_agents
         self.max_threads = max_threads
 
         # Start with base available actions

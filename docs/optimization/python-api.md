@@ -68,14 +68,30 @@ All parameters beyond `eval_fn` and `metric_key` are optional:
 ```python
 optimized = frame.optimize(
     eval_fn=evaluate,                    # Your evaluation function
-    metric_key="score",
+    metric_key="score",                  # Key in eval_fn's return dict to optimize
     models=["gpt-4o", "gpt-4o-mini"],   # Override auto-detection
     agent_model="gpt-4o",               # Override auto-selection (or set docetl.agent_model)
-    max_iterations=40,                   # Default: 20
-    save_dir="./moar_results",           # Default: temp dir
-    exploration_weight=1.414,            # UCB constant
+    max_iterations=40,                   # Search budget (default: 20)
+    save_dir="./moar_results",           # Where to save results (default: temp dir)
+    exploration_weight=1.414,            # UCB exploration constant
+    dataset_path="data/sample.json",     # Sample dataset for optimization (default: full dataset)
+    max_threads=8,                       # Max concurrent LLM calls per pipeline run
+    max_concurrent_agents=3,             # Parallel MCTS search agents (default: 3)
 )
 ```
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `eval_fn` | Callable that scores pipeline output. Takes a results file path and returns a dict of metrics. | **Required** |
+| `metric_key` | Which key from `eval_fn`'s return dict to use as the optimization metric. | **Required** |
+| `models` | List of LiteLLM model names to explore. | Auto-detected from API keys |
+| `agent_model` | Model for the MOAR rewrite agent. | Auto-selected best available (or `docetl.agent_model`) |
+| `max_iterations` | Number of MCTS search iterations. Higher = more exploration. | `20` |
+| `save_dir` | Directory to save optimized pipelines and results. | Temp directory |
+| `exploration_weight` | UCB exploration constant. Higher values explore more; lower values exploit. | `1.414` |
+| `dataset_path` | Path to a sample dataset for optimization (avoids optimizing on your full/test set). | Uses the pipeline's dataset |
+| `max_threads` | Max concurrent LLM calls for each pipeline execution during search. | `docetl.max_threads` or `cpu_count * 4` |
+| `max_concurrent_agents` | Number of parallel MCTS search agents. Each agent explores a different part of the search tree. | `3` |
 
 See the [Configuration Reference](moar/configuration.md) for details.
 

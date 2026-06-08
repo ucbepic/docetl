@@ -163,6 +163,8 @@ def run_moar_optimization(
     # Optional parameters
     exploration_weight = optimizer_config.get("exploration_weight", 1.414)
     build_first_layer = optimizer_config.get("build_first_layer", False)
+    max_concurrent_agents = optimizer_config.get("max_concurrent_agents", 3)
+    max_threads = optimizer_config.get("max_threads")
 
     # Resolve save directory (handle relative paths)
     save_dir = Path(save_dir)
@@ -216,6 +218,8 @@ def run_moar_optimization(
         build_first_layer=build_first_layer,
         custom_metric_key=metric_key,
         sample_dataset_path=dataset_path,  # Use the dataset_path (which may be from optimizer_config)
+        max_concurrent_agents=max_concurrent_agents,
+        max_threads=max_threads,
     )
 
     DOCETL_CONSOLE.log(

@@ -541,6 +541,117 @@ class Frame:
         runner = self._build_runner(output_path=path, max_threads=max_threads)
         runner.load_run_save()
 
+    # ── YAML loading ───────────────────────────────────────────────
+
+    @classmethod
+    def from_yaml(cls, path: str) -> Frame:
+        """Load a YAML pipeline config and return a Frame."""
+        import yaml
+
+        with open(path) as f:
+            config = yaml.safe_load(f)
+
+        if config.get("default_model"):
+            _config.default_model = config["default_model"]
+        if config.get("rate_limits"):
+            _config.rate_limits = config["rate_limits"]
+
+        datasets: dict[str, dict[str, Any]] = {}
+        first_ds: str | None = None
+        for name, ds in config.get("datasets", {}).items():
+            datasets[name] = ds
+            if first_ds is None:
+                first_ds = name
+
+        ops_by_name = {op["name"]: op for op in config.get("operations", [])}
+
+        operations: list[dict[str, Any]] = []
+        steps: list[dict[str, Any]] = []
+        last_step: str | None = None
+
+        for step_cfg in config.get("pipeline", {}).get("steps", []):
+            step: dict[str, Any] = {"name": step_cfg["name"], "operations": []}
+            if "input" in step_cfg and step_cfg["input"] is not None:
+                step["input"] = step_cfg["input"]
+
+            for op_ref in step_cfg.get("operations", []):
+                if isinstance(op_ref, str):
+                    if op_ref in ops_by_name:
+                        operations.append(ops_by_name[op_ref])
+                    step["operations"].append(op_ref)
+                elif isinstance(op_ref, dict):
+                    op_name = list(op_ref.keys())[0]
+                    if op_name in ops_by_name:
+                        operations.append(ops_by_name[op_name])
+                    step["operations"].append(op_ref)
+
+            steps.append(step)
+            last_step = step["name"]
+
+        return cls(
+            datasets, operations, steps,
+            _last_step=last_step, _first_dataset=first_ds,
+        )
+
+    # ── code generation ────────────────────────────────────────────
+
+    def to_python(self) -> str:
+        """Generate Python source that recreates this pipeline using the Frame API."""
+        ops_by_name = {op["name"]: op for op in self._operations}
+        lines: list[str] = ["import docetl", ""]
+
+        if _config.default_model:
+            lines.append(f"docetl.default_model = {repr(_config.default_model)}")
+            lines.append("")
+
+        # Determine the first dataset reader call
+        ds_items = list(self._datasets.items())
+        if not ds_items:
+            lines.append("frame = docetl.from_list([])")
+        elif len(ds_items) == 1:
+            ds_name, ds_cfg = ds_items[0]
+            lines.append(f"frame = (")
+            lines.append(f"    {_format_reader(ds_name, ds_cfg)}")
+        else:
+            ds_name, ds_cfg = ds_items[0]
+            lines.append(f"frame = (")
+            lines.append(f"    {_format_reader(ds_name, ds_cfg)}")
+
+        # Operations from steps
+        for step in self._steps:
+            step_ops = step.get("operations", [])
+            for op_ref in step_ops:
+                if isinstance(op_ref, str):
+                    op = ops_by_name.get(op_ref)
+                    if op is None:
+                        continue
+                    lines.append(_format_op_call(op))
+                elif isinstance(op_ref, dict):
+                    op_name = list(op_ref.keys())[0]
+                    join_cfg = op_ref[op_name]
+                    op = ops_by_name.get(op_name)
+                    if op is None:
+                        continue
+                    # For equijoin, we need the right dataset
+                    right_ds = join_cfg.get("right", "")
+                    if right_ds and right_ds in self._datasets:
+                        right_cfg = self._datasets[right_ds]
+                        lines.append(_format_equijoin_call(op, right_ds, right_cfg))
+                    else:
+                        lines.append(_format_equijoin_call(op, right_ds, None))
+
+        lines.append("    .collect()")
+        lines.append(")")
+        lines.append("")
+        return "\n".join(lines)
+
+
+# ── YAML to Python (standalone) ────────────────────────────────────
+
+def yaml_to_python(yaml_path: str) -> str:
+    """Convert a YAML pipeline config file to equivalent Python Frame code."""
+    return Frame.from_yaml(yaml_path).to_python()
+
 
 # ── reader entry points ────────────────────────────────────────────
 
@@ -574,3 +685,78 @@ def read_parquet(path: str, *, parsing: list[dict[str, str]] | None = None) -> F
 def from_list(data: list[dict], name: str = "data") -> Frame:
     """Create a Frame from an in-memory list of dicts."""
     return Frame({name: {"type": "memory", "path": data}}, _first_dataset=name)
+
+
+# ── codegen formatting helpers ─────────────────────────────────────
+
+_SKIP_KEYS = {"name", "type"}
+
+
+def _fmt(value: Any) -> str:
+    if isinstance(value, str) and "\n" in value:
+        return f'"""{value}"""'
+    return repr(value)
+
+
+def _format_reader(ds_name: str, ds_cfg: dict[str, Any]) -> str:
+    is_memory = ds_cfg.get("type") == "memory"
+    path = ds_cfg.get("path", "")
+
+    if is_memory:
+        return f"docetl.from_list({_fmt(path)}, name={repr(ds_name)})"
+
+    ext = os.path.splitext(str(path))[1].lower()
+    if ext == ".csv":
+        reader = "docetl.read_csv"
+    elif ext == ".parquet":
+        reader = "docetl.read_parquet"
+    else:
+        reader = "docetl.read_json"
+
+    parts = [repr(path)]
+    parsing = ds_cfg.get("parsing")
+    if parsing:
+        parts.append(f"parsing={_fmt(parsing)}")
+
+    return f"{reader}({', '.join(parts)})"
+
+
+def _format_op_call(op: dict[str, Any]) -> str:
+    op_type = op.get("type", "map")
+    parts: list[str] = [repr(op["name"])]
+    for k, v in op.items():
+        if k in _SKIP_KEYS or v is None:
+            continue
+        parts.append(f"{k}={_fmt(v)}")
+
+    joined = ", ".join(parts)
+    prefix = f"    .{op_type}("
+
+    if len(prefix) + len(joined) + 1 <= 100:
+        return f"{prefix}{joined})"
+
+    indent = " " * len(prefix)
+    formatted = f",\n{indent}".join(parts)
+    return f"{prefix}{formatted})"
+
+
+def _format_equijoin_call(
+    op: dict[str, Any], right_ds: str, right_cfg: dict[str, Any] | None,
+) -> str:
+    parts: list[str] = [repr(op["name"])]
+    if right_cfg:
+        parts.append(f"right={_format_reader(right_ds, right_cfg)}")
+    for k, v in op.items():
+        if k in _SKIP_KEYS or v is None:
+            continue
+        parts.append(f"{k}={_fmt(v)}")
+
+    joined = ", ".join(parts)
+    prefix = "    .equijoin("
+
+    if len(prefix) + len(joined) + 1 <= 100:
+        return f"{prefix}{joined})"
+
+    indent = " " * len(prefix)
+    formatted = f",\n{indent}".join(parts)
+    return f"{prefix}{formatted})"

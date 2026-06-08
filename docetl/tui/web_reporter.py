@@ -110,6 +110,7 @@ class _Broadcaster:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._sent_docs: dict[str, int] = {}  # op_name -> docs already sent
+        self._reset_counter = 0
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=50)
@@ -187,6 +188,7 @@ class _Broadcaster:
             "doc_feedback": [{"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
                              for f in self._feedback.doc_feedback],
             "agent_messages": self._feedback.get_agent_messages_since(0),
+            "reset_token": self._reset_counter,
         }
 
 
@@ -258,6 +260,13 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
                     body.get("id", 0),
                     body.get("action", ""),
                 )
+                self._json_response({"ok": True})
+
+            elif self.path == "/reset":
+                for op in tracker.snapshot().ops:
+                    op.outputs.clear()
+                broadcaster._reset_counter += 1
+                tracker._finished = False
                 self._json_response({"ok": True})
 
             else:
@@ -660,6 +669,13 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .toast.warning { }
   .toast-body { flex: 1; }
   .toast-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 2px; }
+  .toast-text { }
+  .toast-text.truncated { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .toast-expand {
+    font-size: 11px; color: var(--primary); cursor: pointer; border: none;
+    background: none; font-family: inherit; padding: 2px 0; margin-top: 2px;
+  }
+  .toast-expand:hover { text-decoration: underline; }
   .toast-actions {
     display: flex; gap: 6px; margin-top: 8px;
   }
@@ -763,6 +779,7 @@ let currentTab = 'table';
 let selectedRow = null;
 let columnFilters = {};
 let filterVisible = {};
+let lastResetToken = 0;
 
 function fmtCost(c) {
   if (c <= 0) return '$0';
@@ -1404,16 +1421,32 @@ function showToast(msg) {
     actionsHtml += '</div>';
   }
 
+  const isLong = msg.text.length > 100;
+  const textCls = isLong ? 'toast-text truncated' : 'toast-text';
+  const expandBtn = isLong ? '<button class="toast-expand" onclick="toggleToastExpand(this)">Show more</button>' : '';
+
   el.innerHTML =
     '<div class="toast-body">' +
       '<div class="toast-label">Agent</div>' +
-      '<div>' + escHtml(msg.text) + '</div>' +
+      '<div class="' + textCls + '">' + escHtml(msg.text) + '</div>' +
+      expandBtn +
       actionsHtml +
     '</div>' +
     '<button class="toast-dismiss-x" onclick="this.parentElement.remove()">×</button>';
   container.appendChild(el);
   if (!msg.actions || msg.actions.length === 0) {
     setTimeout(() => { if (el.parentElement) el.remove(); }, 15000);
+  }
+}
+
+function toggleToastExpand(btn) {
+  const textEl = btn.previousElementSibling;
+  if (textEl.classList.contains('truncated')) {
+    textEl.classList.remove('truncated');
+    btn.textContent = 'Show less';
+  } else {
+    textEl.classList.add('truncated');
+    btn.textContent = 'Show more';
   }
 }
 
@@ -1437,6 +1470,25 @@ function respondToast(msgId, action) {
 const evtSource = new EventSource('/events');
 evtSource.onmessage = function(e) {
   const data = JSON.parse(e.data);
+
+  // Detect table reset (e.g. re-run after confirm)
+  if (data.reset_token !== undefined && data.reset_token > lastResetToken) {
+    lastResetToken = data.reset_token;
+    allDocs = [];
+    columns = [];
+    columnStats = {};
+    seenDocKeys = new Set();
+    selectedRow = null;
+    finished = false;
+    document.getElementById('detail-panel').classList.remove('open');
+    document.getElementById('complete-banner').classList.add('hidden');
+    document.getElementById('kill-btn').classList.remove('hidden');
+    const dot = document.getElementById('status-dot');
+    dot.classList.remove('done'); dot.classList.add('live');
+    renderTableHead();
+    renderTableBody();
+  }
+
   updateOps(data.ops);
   syncDocs(data.all_docs);
   document.getElementById('h-cost').textContent = fmtCost(data.total_cost);

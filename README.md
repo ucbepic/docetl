@@ -10,9 +10,34 @@ Define operations declaratively. DocETL handles chunking, validation, retries, a
 [![Documentation](https://img.shields.io/badge/Docs-ucbepic.github.io/docetl-green)](https://ucbepic.github.io/docetl)
 [![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
 
-[Install](#install) · [Python API](#python-api-recommended) · [YAML](#yaml-low-code) · [DocWrangler UI](#docwrangler-ui) · [Docs](#documentation)
+[Why DocETL](#why-docetl) · [Install](#install) · [Python API](#python-api-recommended) · [YAML](#yaml-low-code) · [DocWrangler UI](#docwrangler-ui) · [Docs](#documentation)
 
 </div>
+
+---
+
+## Why DocETL
+
+Use DocETL when you need to **maximize correctness** for complex tasks over unstructured data.
+
+- **Map-reduce over documents** — classify, extract, summarize, then aggregate by group
+- **Long documents** — automatic splitting with context-preserving gather operations
+- **Entity resolution** — fuzzy deduplication across LLM-extracted fields
+- **Validation and retries** — define rules, operations automatically retry on failure
+- **Cost-accuracy optimization** — [MOAR](https://ucbepic.github.io/docetl/optimization/python-api/) explores model choices and prompt rewrites to find the Pareto frontier
+
+<table>
+<tr>
+<td width="50%">
+<strong>Progress TUI</strong><br>
+<img src="docs/assets/progress-view/tui-real-complete.png" alt="DocETL TUI" width="100%">
+</td>
+<td width="50%">
+<strong>DocWrangler UI</strong><br>
+<img src="docs/assets/tutorial/one-operation.png" alt="DocWrangler" width="100%">
+</td>
+</tr>
+</table>
 
 ---
 
@@ -94,31 +119,6 @@ docetl run pipeline.yaml
 ## DocWrangler UI
 
 Visual playground for interactive prompt development. Edit prompts, see results in real time. Try it at [docetl.org/playground](https://docetl.org/playground) or [run it locally](https://ucbepic.github.io/docetl/playground/).
-
----
-
-## Why DocETL
-
-Use DocETL when you need to **maximize correctness** for complex tasks over unstructured data.
-
-- **Map-reduce over documents** — classify, extract, summarize, then aggregate by group
-- **Long documents** — automatic splitting with context-preserving gather operations
-- **Entity resolution** — fuzzy deduplication across LLM-extracted fields
-- **Validation and retries** — define rules, operations automatically retry on failure
-- **Cost-accuracy optimization** — [MOAR](https://ucbepic.github.io/docetl/optimization/python-api/) explores model choices and prompt rewrites to find the Pareto frontier
-
-<table>
-<tr>
-<td width="50%">
-<strong>Progress TUI</strong><br>
-<img src="docs/assets/progress-view/tui-real-complete.png" alt="DocETL TUI" width="100%">
-</td>
-<td width="50%">
-<strong>DocWrangler UI</strong><br>
-<img src="docs/assets/tutorial/one-operation.png" alt="DocWrangler" width="100%">
-</td>
-</tr>
-</table>
 
 ---
 

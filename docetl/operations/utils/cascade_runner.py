@@ -72,6 +72,70 @@ def _build_score_hist(scores: list[float], n_bins: int = 20) -> list[int]:
     return hist
 
 
+def describe_cascade_stats(info: dict) -> dict[str, str]:
+    """Produce human-readable description strings from a cascade info dict.
+
+    Returns a dict with keys:
+        oracle_desc:     what the oracle did ("12 calibration + 3 gap-verified = 15 total (budget 300)")
+        threshold_desc:  threshold line ("0.847 proxy confidence" or "n/a — proxy not confident enough")
+        result_desc:     result/escalation line ("450 proxy-accepted + 50 calibration samples → 500 items")
+
+    Both the Rich console log (_report_cascade) and the TUI detail pane
+    (_render_cascade_info) use this so the wording stays in sync.
+    """
+    guarantee = info.get("guarantee", "")
+    is_calibrated = guarantee in ("precision", "recall", "precision+recall")
+    oracle_calls = info.get("oracle_calls", 0)
+    n_items = info.get("n_items", 0)
+    served_by_proxy = info.get("served_by_proxy", n_items - oracle_calls)
+    budget = info.get("label_budget", "?")
+    cal = info.get("calibration_calls", oracle_calls)
+    gap = info.get("gap_verified", 0)
+    threshold = info.get("threshold")
+
+    # Oracle description
+    if guarantee == "precision+recall" and gap > 0:
+        oracle_desc = (
+            f"{cal} calibration + {gap} gap-verified "
+            f"= {oracle_calls} total (budget {budget})"
+        )
+    elif is_calibrated:
+        oracle_desc = f"{oracle_calls} sampled for calibration (budget {budget})"
+    else:
+        oracle_desc = f"{oracle_calls} escalated"
+
+    # Threshold description
+    if threshold is not None and threshold >= 0.01:
+        threshold_desc = f"{threshold:.3f} proxy confidence"
+    elif is_calibrated:
+        threshold_desc = "n/a — proxy not confident enough"
+    else:
+        threshold_desc = "n/a"
+
+    # Result description
+    if guarantee == "precision+recall" and gap > 0:
+        result_desc = (
+            f"{n_items - served_by_proxy} proxy-accepted + {cal} calibration "
+            f"+ {gap} gap-verified → {n_items} items"
+        )
+    elif is_calibrated:
+        result_desc = (
+            f"{n_items - served_by_proxy} proxy-accepted "
+            f"+ {oracle_calls} calibration samples → {n_items} items"
+        )
+    else:
+        esc_rate = info.get("escalation_rate", 0)
+        result_desc = (
+            f"{esc_rate:.0%} escalation · {served_by_proxy}/{n_items} served by proxy"
+        )
+
+    return {
+        "oracle_desc": oracle_desc,
+        "threshold_desc": threshold_desc,
+        "result_desc": result_desc,
+    }
+
+
 class CascadeConfig(BaseModel):
     """Opt-in model-cascade configuration for an operator.
 
@@ -329,7 +393,18 @@ class CascadeMixin:
 
         name = self.config.get("name", "?")
         target_pct = f"{stats.target:.0%}"
-        is_calibrated = stats.guarantee in ("precision", "recall", "precision+recall")
+
+        descs = describe_cascade_stats({
+            "guarantee": stats.guarantee,
+            "oracle_calls": stats.oracle_calls,
+            "n_items": stats.n_items,
+            "served_by_proxy": served_by_proxy,
+            "label_budget": stats.label_budget,
+            "calibration_calls": stats.calibration_calls,
+            "gap_verified": stats.gap_verified,
+            "threshold": stats.threshold,
+            "escalation_rate": stats.escalation_rate,
+        })
 
         lines = [
             f"[bold magenta]Cascade[/bold magenta] {op_label} "
@@ -339,60 +414,24 @@ class CascadeMixin:
             f"           [dim]proxy[/dim]     [cyan]{proxy_model}[/cyan] "
             f"· {stats.proxy_calls} scored · [green]${proxy_cost:.4f}[/green]"
         )
-        if stats.guarantee == "precision+recall" and stats.gap_verified > 0:
-            lines.append(
-                f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
-                f"· {stats.calibration_calls} calibration + {stats.gap_verified} "
-                f"gap-verified = {stats.oracle_calls} total "
-                f"(budget {stats.label_budget}) · [green]${oracle_cost:.4f}[/green]"
-            )
-        elif is_calibrated:
-            lines.append(
-                f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
-                f"· {stats.oracle_calls} sampled for calibration "
-                f"(budget {stats.label_budget}) · [green]${oracle_cost:.4f}[/green]"
-            )
-        else:
-            lines.append(
-                f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
-                f"· {stats.oracle_calls} escalated · [green]${oracle_cost:.4f}[/green]"
-            )
+        lines.append(
+            f"           [dim]oracle[/dim]    [cyan]{oracle_model}[/cyan] "
+            f"· {descs['oracle_desc']} · [green]${oracle_cost:.4f}[/green]"
+        )
         lines.append(
             f"           [dim]guarantee[/dim] [yellow]{stats.guarantee} "
             f"≥ {target_pct}[/yellow]  [dim]δ={stats.delta}[/dim]"
         )
-        if stats.threshold is not None and stats.threshold >= 0.01:
-            lines.append(
-                f"           [dim]threshold[/dim] [yellow]{stats.threshold:.3f}[/yellow] "
-                f"proxy confidence"
-            )
-        elif is_calibrated:
-            lines.append(
-                f"           [dim]threshold[/dim] [dim]n/a — proxy not confident enough[/dim]"
-            )
+        lines.append(
+            f"           [dim]threshold[/dim] [yellow]{descs['threshold_desc']}[/yellow]"
+            if descs["threshold_desc"] != "n/a" and "n/a" not in descs["threshold_desc"]
+            else f"           [dim]threshold[/dim] [dim]{descs['threshold_desc']}[/dim]"
+        )
+        is_calibrated = stats.guarantee in ("precision", "recall", "precision+recall")
+        if is_calibrated:
+            lines.append(f"           [dim]result[/dim]   {descs['result_desc']}")
         else:
-            lines.append(
-                f"           [dim]threshold[/dim] [dim]n/a[/dim]"
-            )
-        if stats.guarantee == "precision+recall" and stats.gap_verified > 0:
-            lines.append(
-                f"           [dim]result[/dim]   {stats.n_items - served_by_proxy} "
-                f"proxy-accepted + {stats.calibration_calls} calibration + "
-                f"{stats.gap_verified} gap-verified "
-                f"→ {stats.n_items} items"
-            )
-        elif is_calibrated:
-            lines.append(
-                f"           [dim]result[/dim]   {stats.n_items - served_by_proxy} "
-                f"proxy-accepted + {stats.oracle_calls} calibration samples "
-                f"→ {stats.n_items} items"
-            )
-        else:
-            esc_pct = f"{stats.escalation_rate:.0%}"
-            lines.append(
-                f"           [dim]escalation[/dim] {esc_pct} "
-                f"· {served_by_proxy}/{stats.n_items} served by proxy"
-            )
+            lines.append(f"           [dim]escalation[/dim] {descs['result_desc']}")
         lines.append(
             f"           [dim]total cost[/dim] [green]${cost:.4f}[/green]"
         )

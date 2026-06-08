@@ -26,6 +26,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
+from docetl.operations.utils.cascade_runner import describe_cascade_stats
 from docetl.progress.events import OpState, RunState
 from docetl.progress.tracker import ProgressTracker, set_active_tracker
 from docetl.tui.profiles import get_profile
@@ -634,30 +635,12 @@ def _render_cascade_info(info: dict) -> Text:
     t.append("\n")
 
     if "oracle_calls" in info:
-        if guarantee == "precision+recall" and info.get("gap_verified", 0) > 0:
-            cal = info.get("calibration_calls", info["oracle_calls"])
-            gap = info.get("gap_verified", 0)
-            budget = info.get("label_budget", "?")
-            t.append(
-                f"  oracle  {info['oracle_model']}  "
-                f"{cal} cal + {gap} gap = {info['oracle_calls']:,}  "
-                f"(budget {budget})  ${oracle_cost:.4f}\n",
-                style="cyan",
-            )
-        elif is_calibrated:
-            budget = info.get("label_budget", "?")
-            t.append(
-                f"  oracle  {info['oracle_model']}  "
-                f"{info['oracle_calls']:,} sampled (budget {budget})  "
-                f"${oracle_cost:.4f}\n",
-                style="cyan",
-            )
-        else:
-            t.append(
-                f"  oracle  {info['oracle_model']}  "
-                f"{info['oracle_calls']:,} escalated  ${oracle_cost:.4f}\n",
-                style="cyan",
-            )
+        descs = describe_cascade_stats(info)
+        t.append(
+            f"  oracle  {info['oracle_model']}  "
+            f"{descs['oracle_desc']}  ${oracle_cost:.4f}\n",
+            style="cyan",
+        )
     elif info.get("oracle_model"):
         budget = info.get("label_budget", "?")
         t.append(
@@ -670,17 +653,20 @@ def _render_cascade_info(info: dict) -> Text:
         t.append(f"  {guarantee} ≥ {target:.0%}", style="yellow")
         t.append(f"  δ={info.get('delta', '?')}\n", style="grey70")
 
-    threshold = info.get("threshold")
-    if threshold is not None and threshold >= 0.01:
-        t.append(f"  threshold  {threshold:.3f}\n", style="yellow")
-    elif "oracle_calls" in info and is_calibrated:
-        t.append("  threshold  n/a — proxy not confident enough\n", style="dim")
+    if "oracle_calls" in info:
+        td = descs["threshold_desc"]
+        if "n/a" not in td:
+            t.append(f"  threshold  {td}\n", style="yellow")
+        elif is_calibrated:
+            t.append(f"  threshold  {td}\n", style="dim")
 
-    if not is_calibrated and "escalation_rate" in info:
-        esc = info["escalation_rate"]
-        served = info["served_by_proxy"]
-        t.append(f"  escalation {esc:.0%}", style="red" if esc >= 0.5 else "green")
-        t.append(f"  ({served:,} served by proxy)\n", style="grey70")
+        if is_calibrated:
+            pass  # result_desc already covers calibration items
+        elif "escalation_rate" in info:
+            esc = info["escalation_rate"]
+            t.append(f"  escalation {esc:.0%}", style="red" if esc >= 0.5 else "green")
+            served = info["served_by_proxy"]
+            t.append(f"  ({served:,} served by proxy)\n", style="grey70")
     if info.get("cached"):
         t.append("  (cached)\n", style="dim")
 
@@ -704,7 +690,7 @@ def _render_cascade_info(info: dict) -> Text:
 
     score_hist = info.get("score_hist")
     if score_hist:
-        t.append_text(_render_score_bar(score_hist, threshold))
+        t.append_text(_render_score_bar(score_hist, info.get("threshold")))
 
     return t
 

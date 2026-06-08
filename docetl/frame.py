@@ -487,27 +487,24 @@ class Frame:
 
     # ── terminal actions ───────────────────────────────────────────
 
-    def _build_runner(self, output_path: str = "", max_threads: int | None = None):
-        from docetl.runner import DSLRunner
-
+    def _build_config(self, output_path: str = "") -> dict[str, Any]:
         config: dict[str, Any] = {
-            "datasets": {},
+            "datasets": dict(self._datasets),
             "operations": self._operations,
             "pipeline": {
                 "steps": self._steps,
                 "output": {"type": "file", "path": output_path},
             },
         }
-
         if _config.default_model:
             config["default_model"] = _config.default_model
         if _config.rate_limits:
             config["rate_limits"] = _config.rate_limits
+        return config
 
-        for ds_name, ds_cfg in self._datasets.items():
-            config["datasets"][ds_name] = ds_cfg
-
-        return DSLRunner(config, max_threads=max_threads)
+    def _build_runner(self, output_path: str = "", max_threads: int | None = None):
+        from docetl.runner import DSLRunner
+        return DSLRunner(self._build_config(output_path), max_threads=max_threads)
 
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
         """Execute the pipeline and return results as a DataFrame."""
@@ -540,6 +537,54 @@ class Frame:
         """Execute the pipeline and write results to a Parquet file."""
         runner = self._build_runner(output_path=path, max_threads=max_threads)
         runner.load_run_save()
+
+    # ── optimization ───────────────────────────────────────────────
+
+    def optimize(
+        self,
+        method: str = "moar",
+        *,
+        # MOAR parameters
+        eval_fn: Any = None,
+        metric_key: str | None = None,
+        models: list[str] | None = None,
+        agent_model: str | None = None,
+        max_iterations: int = 20,
+        save_dir: str | None = None,
+        exploration_weight: float = 1.414,
+        dataset_path: str | None = None,
+        # V1 parameters
+        max_threads: int | None = None,
+        resume: bool = False,
+        save_path: str | None = None,
+    ):
+        """Optimize this pipeline.
+
+        Returns a ``MOARResult`` for method='moar', or an optimized
+        ``Frame`` for method='v1'.
+        """
+        from docetl.api import Pipeline
+
+        pipeline = Pipeline.from_dict(self._build_config())
+
+        if method == "moar":
+            return pipeline.optimize(
+                method="moar", eval_fn=eval_fn, metric_key=metric_key,
+                models=models, agent_model=agent_model,
+                max_iterations=max_iterations, save_dir=save_dir,
+                exploration_weight=exploration_weight,
+                dataset_path=dataset_path,
+            )
+        elif method == "v1":
+            optimized = pipeline.optimize(
+                method="v1", max_threads=max_threads,
+                resume=resume, save_path=save_path,
+            )
+            return Frame.from_yaml(save_path) if save_path else optimized
+        else:
+            raise ValueError(
+                f"Unknown optimization method {method!r}. Use 'moar' or 'v1'."
+            )
 
     # ── YAML loading ───────────────────────────────────────────────
 

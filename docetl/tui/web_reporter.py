@@ -156,7 +156,6 @@ class _Broadcaster:
 
     def _build_event(self, state) -> dict:
         ops = []
-        all_docs = []
         for op in state.ops:
             ops.append({
                 "name": op.name,
@@ -170,10 +169,21 @@ class _Broadcaster:
                 "cost": op.cost,
                 "elapsed": op.elapsed,
             })
-            for i, doc in enumerate(op.outputs):
+
+        # Show only the last operation's outputs (the pipeline result).
+        # Walk backwards to find the last op with outputs, or the last
+        # running/done op so streaming docs appear as they arrive.
+        target_op = None
+        for op in reversed(state.ops):
+            if op.outputs or op.status == "running":
+                target_op = op
+                break
+        all_docs = []
+        if target_op is not None:
+            for i, doc in enumerate(target_op.outputs):
                 all_docs.append({
-                    "op_name": op.name,
-                    "op_type": op.op_type,
+                    "op_name": target_op.name,
+                    "op_type": target_op.op_type,
                     "doc_index": i,
                     "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
                 })
@@ -1351,7 +1361,21 @@ function switchTab(tab) {
 }
 
 /* --- Data sync --- */
+let currentSourceOp = null;
 function syncDocs(docs) {
+  // Detect when the source operation changes (e.g. resolve -> reduce)
+  // and clear the table so we only show the current op's outputs.
+  if (docs.length > 0) {
+    const newOp = docs[0].op_name;
+    if (currentSourceOp !== null && currentSourceOp !== newOp) {
+      allDocs = [];
+      seenDocKeys = new Set();
+      selectedRow = null;
+      document.getElementById('detail-panel').classList.remove('open');
+    }
+    currentSourceOp = newOp;
+  }
+
   let changed = false;
   docs.forEach(doc => {
     const key = doc.op_name + ':' + doc.doc_index;

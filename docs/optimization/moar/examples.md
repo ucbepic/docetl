@@ -12,40 +12,30 @@ This example extracts medications from medical transcripts and evaluates extract
 ### Python API
 
 ```python
-import json
-from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+import docetl
 
-pipeline = Pipeline(
-    name="medication_extraction",
-    datasets={"transcripts": Dataset(type="file", path="workloads/medical/raw.json")},
-    operations=[
-        MapOp(
-            name="extract_medications",
-            type="map",
-            output={"schema": {"medication": "list[str]"}},
-            prompt=(
-                "Analyze the following transcript of a conversation between a doctor and a patient:\n"
-                "{{ input.src }}\n"
-                "Extract and list all medications mentioned in the transcript.\n"
-                "If no medications are mentioned, return an empty list."
-            ),
-        ),
-    ],
-    steps=[PipelineStep(name="medication_extraction", input="transcripts", operations=["extract_medications"])],
-    output=PipelineOutput(type="file", path="workloads/medical/extracted_medications_results.json"),
-    default_model="gpt-4o-mini",
+docetl.default_model = "gpt-4o-mini"
+
+frame = (
+    docetl.read_json("workloads/medical/raw.json")
+    .map(
+        prompt="""Analyze the following transcript of a conversation between a doctor and a patient:
+        {{ input.src }}
+        Extract and list all medications mentioned in the transcript.
+        If no medications are mentioned, return an empty list.""",
+        output={"schema": {"medication": "list[str]"}},
+    )
 )
 
 # Define evaluation function
-def evaluate_medications(results_path):
-    with open(results_path) as f:
-        output = json.load(f)
+@docetl.register_eval
+def evaluate_medications(results):
     correct = sum(
-        1 for r in output
+        1 for r in results
         for med in r.get("medication", [])
         if str(med).lower().strip() in r.get("src", "").lower()
     )
-    total = sum(len(r.get("medication", [])) for r in output)
+    total = sum(len(r.get("medication", [])) for r in results)
     return {
         "medication_extraction_score": correct,
         "total_extracted": total,
@@ -53,18 +43,17 @@ def evaluate_medications(results_path):
     }
 
 # Optimize — only eval_fn and metric_key are required
-result = pipeline.optimize(
+optimized = frame.optimize(
     eval_fn=evaluate_medications,
     metric_key="medication_extraction_score",
 )
 
-# Run the best pipeline
-best = result.best()
-print(f"Accuracy: {best.accuracy}, Cost: ${best.cost:.4f}")
-best.run()
+# Run the optimized pipeline
+df = optimized.collect()
+print(f"Cost: ${optimized.total_cost:.4f}")
 
-# Or explore the full frontier
-for plan in result.frontier:
+# Explore the Pareto frontier
+for plan in optimized.search_results.frontier:
     print(f"Cost: ${plan.cost:.4f}, Accuracy: {plan.accuracy}")
 ```
 

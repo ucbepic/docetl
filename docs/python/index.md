@@ -1,86 +1,192 @@
 # Python API
 
-The DocETL Python API provides a programmatic way to define, optimize, and run document processing pipelines. This approach offers an alternative to the YAML configuration method, allowing for more dynamic and flexible pipeline construction.
+DocETL's Python API lets you build, run, and optimize LLM-powered data pipelines with chainable operations — similar to PySpark or pandas.
 
-## Overview
-
-The Python API consists of several classes:
-
-- Dataset: Represents a dataset with a type and path.
-- Various operation classes (e.g., MapOp, ReduceOp, FilterOp) for different types of data processing steps.
-- PipelineStep: Represents a step in the pipeline with input and operations.
-- Pipeline: The main class for defining and running a complete document processing pipeline.
-- PipelineOutput: Defines the output configuration for the pipeline.
-
-## Example Usage
-
-Here's an example of how to use the Python API to create and run a simple document processing pipeline:
+## Quick Start
 
 ```python
-from docetl.api import Pipeline, Dataset, MapOp, ReduceOp, PipelineStep, PipelineOutput
+import docetl
 
-# Define datasets
-datasets = {
-    "my_dataset": Dataset(type="file", path="input.json", parsing=[{"input_key": "file_path", "function": "txt_to_string", "output_key": "content"}]),
-}
+docetl.default_model = "gpt-4o-mini"
 
-# Note that the parsing is applied to the `file_path` key in each item of the dataset,
-# and the result is stored in the `content` key.
-
-# Define operations
-operations = [
-    MapOp(
-        name="process",
-        type="map",
-        prompt="Determine what type of document this is: {{ input.content }}",
-        output={"schema": {"document_type": "string"}}
-    ),
-    ReduceOp(
-        name="summarize",
-        type="reduce",
-        reduce_key="document_type",
-        prompt="Summarize the processed contents: {% for item in inputs %}{{ item.content }} {% endfor %}",
-        output={"schema": {"summary": "string"}}
+results = (
+    docetl.read_json("input.json")
+    .map(
+        prompt="Classify this document: {{ input.text }}",
+        output={"schema": {"category": "string"}},
     )
-]
-
-# Define pipeline steps
-steps = [
-    PipelineStep(name="process_step", input="my_dataset", operations=["process"]),
-    PipelineStep(name="summarize_step", input="process_step", operations=["summarize"])
-]
-
-# Define pipeline output
-output = PipelineOutput(type="file", path="output.json")
-
-# Create the pipeline
-pipeline = Pipeline(
-    name="example_pipeline",
-    datasets=datasets,
-    operations=operations,
-    steps=steps,
-    output=output,
-    default_model="gpt-4o-mini"
+    .filter(prompt="Is this document about technology? {{ input.text }}")
+    .reduce(
+        reduce_key="category",
+        prompt="Summarize these documents: {% for item in inputs %}{{ item.text }}{% endfor %}",
+        output={"schema": {"summary": "string"}},
+    )
+    .collect()
 )
 
-# Optimize the pipeline
-optimized_pipeline = pipeline.optimize()
-
-# Run the optimized pipeline
-result = optimized_pipeline.run() # Saves the result to the output path
-
-print(f"Pipeline execution completed. Total cost: ${result:.2f}")
+print(results)  # pandas DataFrame
 ```
 
-This example demonstrates how to create a simple pipeline that processes input documents and then summarizes the processed content. The pipeline is optimized before execution to improve performance.
+## Configuration
+
+Set global defaults as module-level attributes:
+
+```python
+import docetl
+
+# Model selection
+docetl.default_model = "gpt-4o-mini"
+docetl.agent_model = "gpt-4o"                          # model for optimizer rewrites
+docetl.fallback_models = ["gpt-4o", "gpt-4o-mini"]     # fallback chain on failure
+docetl.fallback_embedding_models = ["text-embedding-3-small"]
+
+# Execution
+docetl.max_threads = 64            # concurrent threads (default: cpu_count * 4)
+docetl.bypass_cache = True         # skip LLM cache
+docetl.intermediate_dir = ".cache" # intermediate results directory
+
+# Rate limiting
+docetl.rate_limits = {
+    "llm_call": [{"count": 10, "per": 1, "unit": "second"}]
+}
+```
+
+## Reading Data
+
+```python
+# From files
+frame = docetl.read_json("data.json")
+frame = docetl.read_csv("data.csv")
+frame = docetl.read_parquet("data.parquet")
+
+# From memory
+frame = docetl.from_list([
+    {"text": "First document", "id": 1},
+    {"text": "Second document", "id": 2},
+])
+
+# From a YAML pipeline
+frame = docetl.Frame.from_yaml("pipeline.yaml")
+```
+
+## Operations
+
+All operations return a new `Frame` (immutable). Chain them freely:
+
+```python
+frame = docetl.read_json("input.json")
+
+# LLM-powered operations
+frame = frame.map(prompt="...", output={"schema": {"field": "type"}})
+frame = frame.parallel_map(prompt="...", output={"schema": {"field": "type"}})
+frame = frame.filter(prompt="...", output={"schema": {"keep": "bool"}})
+frame = frame.reduce(reduce_key="col", prompt="...", output={"schema": {"result": "str"}})
+frame = frame.resolve(comparison_prompt="...", output={"schema": {"resolved": "str"}})
+frame = frame.extract(prompt="...", output={"schema": {"extracted": "str"}})
+
+# Joining two datasets
+right = docetl.read_json("other.json")
+frame = frame.equijoin(right, comparison_prompt="...")
+
+# Structural operations (no LLM calls)
+frame = frame.split(split_key="text", method="token_count", method_kwargs={"num_tokens": 500})
+frame = frame.gather(content_key="chunk", doc_id_key="doc_id", order_key="chunk_num")
+frame = frame.unnest(unnest_key="items")
+frame = frame.cluster(embedding_keys=["text"])
+frame = frame.sample(samples={"category": {"n": 5}}, random=True)
+
+# Code operations (Python functions, no LLM)
+frame = frame.code_map(code="def transform(doc): return {'word_count': len(doc['text'].split())}")
+frame = frame.code_filter(code="def keep(doc): return len(doc['text']) > 100")
+frame = frame.code_reduce(reduce_key="category", code="def aggregate(items): ...")
+```
+
+## Terminal Actions
+
+Terminal actions execute the pipeline:
+
+```python
+# Collect as DataFrame
+df = frame.collect()
+
+# Collect as list of dicts
+data = frame.to_list()
+
+# Write directly to file
+frame.write_json("output.json")
+frame.write_csv("output.csv")
+frame.write_parquet("output.parquet")
+```
+
+## Cost & Token Tracking
+
+After execution, cost and token usage are available:
+
+```python
+df = frame.collect()
+
+# On the Frame object
+print(f"Cost: ${frame.total_cost:.4f}")
+print(f"Tokens: {frame.token_usage}")
+
+# Also stored on the DataFrame
+print(f"Cost: ${df.attrs['_total_cost']:.4f}")
+```
+
+Write methods return the cost directly:
+
+```python
+cost = frame.write_json("output.json")
+print(f"Cost: ${cost:.4f}")
+```
+
+## Optimization
+
+Optimize a pipeline with [MOAR](../optimization/moar.md) (Multi-Objective Agentic Rewrites):
+
+```python
+import docetl
+
+@docetl.register_eval
+def my_eval(results):
+    # score the pipeline output
+    return {"accuracy": compute_accuracy(results)}
+
+optimized = (
+    docetl.read_json("input.json")
+    .map(prompt="...", output={"schema": {"summary": "str"}})
+    .optimize(
+        eval_fn=my_eval,
+        metric_key="accuracy",
+        models=["gpt-4o-mini", "gpt-4o"],
+        max_iterations=20,
+        save_dir="optimization_results",
+    )
+)
+
+# Run the optimized pipeline
+df = optimized.collect()
+
+# Inspect search results
+print(optimized.search_results.to_df())
+print(optimized.search_results.best())
+print(optimized.search_results.cheapest())
+```
+
+## Code Generation
+
+Generate Python source from a Frame or convert a YAML pipeline:
+
+```python
+# From a Frame
+code = frame.to_python()
+print(code)
+
+# From a YAML file
+code = docetl.yaml_to_python("pipeline.yaml")
+print(code)
+```
 
 ## API Reference
 
-For a complete reference of all available classes and their methods, please refer to the [API Reference](../api-reference/python.md).
-
-The API Reference provides detailed information about each class, including:
-
-- Available parameters
-- Method signatures
-- Return types
-- Usage examples
+For the complete reference of all operation parameters, see the [API Reference](../api-reference/python.md).

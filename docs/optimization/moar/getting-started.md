@@ -9,22 +9,16 @@ Start with a standard DocETL pipeline. You can define it in Python or YAML.
 === "Python"
 
     ```python
-    from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+    import docetl
 
-    pipeline = Pipeline(
-        name="medication_extraction",
-        datasets={"transcripts": Dataset(type="file", path="data/transcripts.json")},
-        operations=[
-            MapOp(
-                name="extract_medications",
-                type="map",
-                output={"schema": {"medication": "list[str]"}},
-                prompt="Extract all medications mentioned in: {{ input.src }}",
-            ),
-        ],
-        steps=[PipelineStep(name="extraction", input="transcripts", operations=["extract_medications"])],
-        output=PipelineOutput(type="file", path="results.json"),
-        default_model="gpt-4o-mini",
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = (
+        docetl.read_json("data/transcripts.json")
+        .map(
+            prompt="Extract all medications mentioned in: {{ input.src }}",
+            output={"schema": {"medication": "list[str]"}},
+        )
     )
     ```
 
@@ -140,10 +134,10 @@ For more details on evaluation functions, see the [Evaluation Functions guide](e
 
 === "Python API (recommended)"
 
-    `pipeline.optimize()` is the single entry point. Pass your evaluation function and the metric key — everything else has smart defaults.
+    `frame.optimize()` is the single entry point. Pass your evaluation function and the metric key — everything else has smart defaults. It returns an optimized `Frame` you can `.collect()` or `.write_json()`.
 
     ```python
-    result = pipeline.optimize(
+    optimized = frame.optimize(
         eval_fn=evaluate,
         metric_key="medication_extraction_score",
     )
@@ -152,11 +146,11 @@ For more details on evaluation functions, see the [Evaluation Functions guide](e
     All optional parameters:
 
     ```python
-    result = pipeline.optimize(
+    optimized = frame.optimize(
         eval_fn=evaluate,
         metric_key="medication_extraction_score",
         models=None,              # auto-detect from API keys
-        agent_model=None,         # auto-select best available
+        agent_model=None,         # auto-select best available (or set docetl.agent_model)
         max_iterations=20,        # search budget
         save_dir=None,            # defaults to temp dir
         exploration_weight=1.414, # UCB exploration constant
@@ -188,28 +182,30 @@ For more details on evaluation functions, see the [Evaluation Functions guide](e
 
 === "Python API"
 
-    `optimize()` returns a `MOARResult` object. Results are runnable pipelines, not just data points:
+    `optimize()` returns an optimized `Frame`. Access the full search results via `.search_results`:
 
     ```python
-    # Get the best pipeline by accuracy
-    best = result.best()       # Returns an OptimizedPipeline
-    print(f"Accuracy: {best.accuracy}, Cost: ${best.cost:.4f}")
-    best.run()                 # Execute the optimized pipeline
+    # Run the optimized pipeline
+    df = optimized.collect()
+    print(f"Execution cost: ${optimized.total_cost:.4f}")
 
-    # Get the cheapest pipeline on the frontier
-    cheap = result.cheapest()  # Returns an OptimizedPipeline
-    cheap.run()
+    # Access the MOAR search results
+    results = optimized.search_results
+
+    # Best pipeline by accuracy
+    best = results.best()
+    print(f"Accuracy: {best.accuracy}, Cost: ${best.cost:.4f}")
+
+    # Cheapest pipeline on the frontier
+    cheap = results.cheapest()
 
     # View all frontier solutions
-    for plan in result.frontier:
-        print(f"Accuracy: {plan.accuracy}, Cost: ${plan.cost:.4f}, On frontier: {plan.on_frontier}")
+    for plan in results.frontier:
+        print(f"Accuracy: {plan.accuracy}, Cost: ${plan.cost:.4f}")
 
     # Get a DataFrame of all explored plans
-    df = result.to_df()
-    print(df)
+    print(results.to_df())
     ```
-
-    Each `OptimizedPipeline` has `.pipeline` (DSLRunner), `.cost`, `.accuracy`, `.yaml_path`, `.on_frontier`, and `.run()`.
 
 === "CLI"
 

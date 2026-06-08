@@ -1,136 +1,109 @@
 # Optimizing Pipelines with the Python API
 
-Use `pipeline.optimize()` to find cost-accuracy trade-offs for your pipeline. MOAR explores different configurations (models, validation steps, operation rewrites) and returns a frontier of optimized pipelines.
+Use `.optimize()` to find cost-accuracy trade-offs for your pipeline. MOAR explores different configurations (models, validation steps, operation rewrites) and returns a frontier of optimized pipelines.
 
 ## Quick Example
 
 ```python
-from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+import docetl
 
-import json
-from docetl.api import Pipeline, Dataset, MapOp, PipelineStep, PipelineOutput
+docetl.default_model = "gpt-4o-mini"
 
-pipeline = Pipeline(
-    name="medication_extraction",
-    datasets={"transcripts": Dataset(type="file", path="medical_transcripts.json")},
-    operations=[
-        MapOp(
-            name="extract_medications",
-            type="map",
-            output={"schema": {"medication": "list[str]"}},
-            prompt="Analyze the transcript: {{ input.src }}\nList all medications mentioned.",
-        ),
-    ],
-    steps=[PipelineStep(name="extraction", input="transcripts", operations=["extract_medications"])],
-    output=PipelineOutput(type="file", path="medication_summaries.json"),
-    default_model="gpt-4o-mini",
+frame = (
+    docetl.read_json("medical_transcripts.json")
+    .map(
+        prompt="Analyze the transcript: {{ input.src }}\nList all medications mentioned.",
+        output={"schema": {"medication": "list[str]"}},
+    )
 )
 
 # Define your evaluation function
-def evaluate(results_path):
-    with open(results_path) as f:
-        output = json.load(f)
+@docetl.register_eval
+def evaluate(results):
     correct = sum(
-        1 for r in output
+        1 for r in results
         for med in r.get("medication", [])
         if med.lower() in r.get("src", "").lower()
     )
     return {"medication_extraction_score": correct}
 
 # Optimize — models auto-detected from API keys
-result = pipeline.optimize(
+optimized = frame.optimize(
     eval_fn=evaluate,
     metric_key="medication_extraction_score",
 )
 
-# Run the best pipeline
-best = result.best()
-print(f"Best accuracy: {best.accuracy}, cost: ${best.cost:.4f}")
-best.run()
+# Run the optimized pipeline
+df = optimized.collect()
+print(f"Cost: ${optimized.total_cost:.4f}")
 
-# Or inspect all options as a DataFrame
-df = result.to_df()
-print(df)
+# Inspect the Pareto frontier
+print(optimized.search_results.to_df())
 ```
 
 ## Evaluation Function
 
-Pass any callable that reads the results file and returns a dict of metrics:
+Pass any callable that takes the results list and returns a dict of metrics:
 
 ```python
-def evaluate(results_path):
-    with open(results_path) as f:
-        output = json.load(f)
-
+@docetl.register_eval
+def evaluate(results):
     correct = sum(
-        1 for r in output
+        1 for r in results
         for med in r.get("medication", [])
         if med.lower() in r.get("src", "").lower()
     )
     return {"medication_extraction_score": correct}
 
-result = pipeline.optimize(eval_fn=evaluate, metric_key="medication_extraction_score")
-```
-
-If you need access to the original dataset, use a two-argument signature — the dataset path is passed automatically:
-
-```python
-def evaluate(dataset_path, results_path):
-    with open(results_path) as f:
-        output = json.load(f)
-    with open(dataset_path) as f:
-        dataset = json.load(f)
-    # compare output to dataset...
-    return {"score": computed_score}
+optimized = frame.optimize(eval_fn=evaluate, metric_key="medication_extraction_score")
 ```
 
 !!! tip "File paths for CLI"
-    The CLI still uses file-based evaluation via `@register_eval`. See the [Evaluation Functions guide](moar/evaluation.md) for that workflow.
+    The CLI uses file-based evaluation via `@register_eval`. See the [Evaluation Functions guide](moar/evaluation.md) for that workflow.
 
 ## Configuration Options
 
 All parameters beyond `eval_fn` and `metric_key` are optional:
 
 ```python
-result = pipeline.optimize(
+optimized = frame.optimize(
     eval_fn=evaluate,                    # Your evaluation function
     metric_key="score",
     models=["gpt-4o", "gpt-4o-mini"],   # Override auto-detection
-    agent_model="gpt-4o",                # Override auto-selection
+    agent_model="gpt-4o",               # Override auto-selection (or set docetl.agent_model)
     max_iterations=40,                   # Default: 20
     save_dir="./moar_results",           # Default: temp dir
     exploration_weight=1.414,            # UCB constant
-    method="moar",                       # Default; use "v1" for legacy
 )
 ```
-
-!!! tip "Legacy V1 Optimizer"
-    To use the legacy V1 optimizer instead of MOAR, pass `method="v1"`:
-    ```python
-    optimized_pipeline = pipeline.optimize(method="v1")
-    ```
 
 See the [Configuration Reference](moar/configuration.md) for details.
 
 ## Working with Results
 
 ```python
-result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
+optimized = frame.optimize(eval_fn=evaluate, metric_key="score")
+
+# The optimized frame is ready to run
+df = optimized.collect()
+
+# Access the full MOAR search results
+results = optimized.search_results
 
 # Best accuracy on the frontier
-best = result.best()
-best.run()
+best = results.best()
+print(f"Best accuracy: {best.accuracy}, cost: ${best.cost:.4f}")
 
 # Cheapest option on the frontier
-cheap = result.cheapest()
-cheap.run()
+cheap = results.cheapest()
+print(f"Cheapest cost: ${cheap.cost:.4f}, accuracy: {cheap.accuracy:.4f}")
 
 # Browse the full frontier
-for plan in result.frontier:
+for plan in results.frontier:
     print(f"Cost: ${plan.cost:.4f}, Accuracy: {plan.accuracy:.4f}")
 
 # Analyze as a DataFrame
-df = result.to_df()
+print(results.to_df())
 ```
 
 See [Understanding Results](moar/results.md) for more details.

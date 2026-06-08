@@ -28,11 +28,67 @@ DocETL is a tool for creating and executing LLM-powered data processing pipeline
 
 ## ⚡ Getting Started
 
-To get started with DocETL:
+DocETL supports two ways to define pipelines:
 
-1. Install the package (see [installation](installation.md) for detailed instructions)
-2. Define your pipeline in a YAML file. Want to use an LLM like ChatGPT or Claude to help you write your pipeline? See [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy paste into ChatGPT or Claude, before describing your task.
-3. Run your pipeline using the DocETL command-line interface
+### Python API (recommended)
+
+```python
+import docetl
+
+docetl.default_model = "gpt-4o-mini"
+
+results = (
+    docetl.read_json("input.json")
+    .map(prompt="Classify: {{ input.text }}", output={"schema": {"category": "str"}})
+    .reduce(reduce_key="category", prompt="Summarize: {{ inputs }}", output={"schema": {"summary": "str"}})
+    .collect()
+)
+```
+
+See the [Python API guide](python/index.md) for the full reference.
+
+### YAML (low-code)
+
+Define your pipeline declaratively, then run it from the CLI:
+
+```yaml
+default_model: gpt-4o-mini
+datasets:
+  docs:
+    type: file
+    path: input.json
+operations:
+  - name: classify
+    type: map
+    prompt: "Classify: {{ input.text }}"
+    output:
+      schema:
+        category: str
+pipeline:
+  steps:
+    - name: step1
+      input: docs
+      operations: [classify]
+  output:
+    type: file
+    path: output.json
+```
+
+```bash
+docetl run pipeline.yaml
+```
+
+See the [YAML tutorial](tutorial.md) for a complete walkthrough.
+
+### Pandas Integration
+
+For quick exploration on existing DataFrames, use the `.semantic` accessor:
+
+```python
+df.semantic.map(prompt="...", output={"schema": {"field": "str"}})
+```
+
+See the [Pandas integration guide](pandas/index.md) for details.
 
 !!! tip "Fastest Way: Claude Code"
     Clone this repo and run `claude` to use the built-in DocETL skill. Just describe your data processing task and Claude will create and run the pipeline for you. See [Quick Start (Claude Code)](quickstart-claude-code.md) for details.

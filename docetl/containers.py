@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from rich.panel import Panel
 
-from docetl.dataset import Dataset
+from docetl.dataset import DataLoader
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
 from docetl.optimizers import JoinOptimizer, MapOptimizer, ReduceOptimizer
@@ -456,7 +456,7 @@ class StepBoundary(OpContainer):
             is_build, sample_size_needed
         )
 
-        self.runner.datasets[self.step_name] = Dataset(
+        self.runner.datasets[self.step_name] = DataLoader(
             self, "memory", output_data
         )
         if not is_build:

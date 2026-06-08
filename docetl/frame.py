@@ -489,7 +489,6 @@ class Frame:
 
     def _build_runner(self, output_path: str = "", max_threads: int | None = None):
         from docetl.runner import DSLRunner
-        from docetl.schemas import Dataset as DatasetSchema
 
         config: dict[str, Any] = {
             "datasets": {},

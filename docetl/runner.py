@@ -15,7 +15,7 @@ from pyrate_limiter import BucketFullException, LimiterDelayException
 from rich.panel import Panel
 
 from docetl.console import get_console
-from docetl.dataset import Dataset, create_parsing_tool_map
+from docetl.dataset import DataLoader, create_parsing_tool_map
 from docetl.display import format_execution_summary, format_query_plan
 from docetl.graph_builder import build_operation_graph, compute_operation_hashes
 from docetl.operations import get_operation
@@ -363,7 +363,7 @@ class DSLRunner:
 
         for name, ds in self.pipeline.datasets.items():
             parsing = ds.parsing or []
-            self.datasets[name] = Dataset(
+            self.datasets[name] = DataLoader(
                 self, ds.type, ds.path, source="local",
                 parsing=parsing,
                 user_defined_parsing_tool_map=self.parsing_tool_map,
@@ -371,7 +371,7 @@ class DSLRunner:
             label = ds.path if ds.type == "file" else "in-memory data"
             self.console.log(f"[green]✓[/green] Loaded dataset '{name}' from {label}")
 
-        self.datasets["__empty__"] = Dataset(self, "memory", [{}])
+        self.datasets["__empty__"] = DataLoader(self, "memory", [{}])
         self.console.log()
 
     def save(self, data: list[dict]) -> None:

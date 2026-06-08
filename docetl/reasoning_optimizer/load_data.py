@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 import tiktoken
 from dotenv import load_dotenv
 
-from docetl.dataset import Dataset, create_parsing_tool_map
+from docetl.dataset import DataLoader, create_parsing_tool_map
 from docetl.utils import load_config
 
 
@@ -154,7 +154,7 @@ def load_input_doc(yaml_path):
     for name, dataset_config in datasets_config.items():
         doc_info += f"Dataset: {name}\n"
         try:
-            ds = Dataset(
+            ds = DataLoader(
                 runner=None,
                 type=dataset_config["type"],
                 path_or_data=dataset_config["path"],

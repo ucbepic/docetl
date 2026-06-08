@@ -30,7 +30,7 @@ def create_parsing_tool_map(
     return {tool.name: tool for tool in parsing_tools}
 
 
-class Dataset:
+class DataLoader:
     """
     A class representing a dataset with various loading and parsing capabilities.
 
@@ -205,7 +205,7 @@ class Dataset:
         Returns:
             str: A string representation of the Dataset object.
         """
-        return f"Dataset(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing={self.parsing})"
+        return f"DataLoader(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing={self.parsing})"
 
     def load(self) -> list[dict]:
         """

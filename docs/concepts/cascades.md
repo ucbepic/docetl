@@ -15,8 +15,10 @@ learns a confidence threshold on a small oracle-labeled sample, trusts the
 proxy above the threshold, and escalates the rest to the oracle — while
 preserving a **statistical guarantee** that holds with probability `1 - delta`
 for finite samples. This is the approach of
-[BARGAIN](https://github.com/ucbepic/BARGAIN); the statistical core is
-reimplemented in DocETL so it can run over any operator's proxy/oracle calls.
+[BARGAIN](https://github.com/ucbepic/BARGAIN); DocETL depends on the BARGAIN
+library directly for the statistical core (threshold learning and guarantee
+certification) and wraps it with thin adapters for each operator's
+proxy/oracle calls.
 
 The result: far fewer expensive calls, with a quality guarantee you choose.
 

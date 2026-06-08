@@ -53,32 +53,74 @@ Use DocETL when you need to **maximize correctness** for complex tasks over unst
 
 ## Three ways to build pipelines
 
-**Python API** — programmatic, composable, best for production:
+| | Best for | How it works |
+|---|---|---|
+| **[Python API](https://ucbepic.github.io/docetl/python/)** (recommended) | Production code, notebooks, scripting | Chain operations in Python — `read_json().map().reduce().collect()` |
+| **[YAML](https://ucbepic.github.io/docetl/tutorial/)** (low-code) | Config-driven workflows, no Python needed | Declare your pipeline in YAML, run with `docetl run pipeline.yaml` |
+| **[DocWrangler UI](https://ucbepic.github.io/docetl/playground/)** | Prompt development, exploration | Visual playground — edit prompts, see results in real time |
+
+<details>
+<summary>Python API example</summary>
 
 ```python
-frame = docetl.read_json("data.json").map(...).filter(...).reduce(...)
-df = frame.collect()
+import docetl
+
+docetl.default_model = "gpt-4o-mini"
+
+df = (
+    docetl.read_json("data.json")
+    .map(prompt="Classify: {{ input.text }}", output={"schema": {"category": "str"}})
+    .reduce(reduce_key="category", prompt="Summarize: {% for t in inputs %}{{ t.text }}{% endfor %}", output={"schema": {"summary": "str"}})
+    .collect()
+)
 ```
 
-**YAML** — declarative, good for config-driven workflows:
+</details>
+
+<details>
+<summary>YAML example</summary>
 
 ```yaml
+datasets:
+  tickets:
+    type: file
+    path: tickets.json
+
+default_model: gpt-4o-mini
+
 operations:
   - name: classify
     type: map
-    prompt: "Classify: {{ input.text }}"
+    prompt: "Classify this support ticket and assign a priority."
     output:
       schema:
         category: str
+        priority: str
+
+pipeline:
+  steps:
+    - name: triage
+      input: tickets
+      operations: [classify]
+  output:
+    type: file
+    path: output.json
 ```
 
 ```bash
 docetl run pipeline.yaml
 ```
 
-**DocWrangler UI** — interactive playground for prompt development at [docetl.org/playground](https://docetl.org/playground):
+</details>
+
+<details>
+<summary>DocWrangler UI</summary>
+
+Interactive playground at [docetl.org/playground](https://docetl.org/playground):
 
 ![DocWrangler](docs/assets/tutorial/one-operation.png)
+
+</details>
 
 ## Documentation
 
@@ -109,15 +151,42 @@ make tests-basic  # < $0.01 with OpenAI
 
 See the [DocWrangler Setup Guide](https://ucbepic.github.io/docetl/playground/) for running the UI locally.
 
-## Citation
+## Papers
 
 DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data Systems and Foundations](https://dsf.berkeley.edu/) group at UC Berkeley.
 
+**DocETL** — VLDB 2025 ([paper](https://arxiv.org/abs/2410.12189))
+
 ```bibtex
-@article{shankar2024docetl,
+@article{shankar2025docetl,
   title={DocETL: Agentic Query Rewriting and Evaluation for Complex Document Processing},
-  author={Shankar, Shreya and Zamfirescu-Pereira, J.D. and Hartmann, Björn and Parameswaran, Aditya G and Aiken, Alex},
-  journal={arXiv preprint arXiv:2410.12189},
-  year={2024}
+  author={Shankar, Shreya and Chambers, Tristan and Shah, Tarak and Parameswaran, Aditya G and Wu, Eugene},
+  journal={Proceedings of the VLDB Endowment},
+  volume={18},
+  number={9},
+  pages={3035--3048},
+  year={2025}
+}
+```
+
+**DocWrangler** — UIST 2025, Best Paper Honorable Mention ([paper](https://arxiv.org/abs/2504.14764))
+
+```bibtex
+@inproceedings{shankar2025docwrangler,
+  title={Steering Semantic Data Processing With DocWrangler},
+  author={Shankar, Shreya and Chopra, Bhavya and Hasan, Mawil and Lee, Stephen and Hartmann, Bj{\"o}rn and Hellerstein, Joseph M and Parameswaran, Aditya G and Wu, Eugene},
+  booktitle={Proceedings of the ACM Symposium on User Interface Software and Technology (UIST)},
+  year={2025}
+}
+```
+
+**MOAR** — VLDB 2026 ([paper](https://arxiv.org/abs/2512.02289))
+
+```bibtex
+@article{wei2026moar,
+  title={Multi-Objective Agentic Rewrites for Unstructured Data Processing},
+  author={Wei, Lindsey Linxi and Shankar, Shreya and Zeighami, Sepanta and Chung, Yeounoh and Ozcan, Fatma and Parameswaran, Aditya G},
+  journal={Proceedings of the VLDB Endowment},
+  year={2026}
 }
 ```

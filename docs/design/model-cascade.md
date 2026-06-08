@@ -109,14 +109,14 @@ is set:
 
 - **filter** (`filter.py`) — items = records; write-back via `_handle_result`.
   Cleanest vertical slice.
-- **resolve** (`resolve.py:172`) / **equijoin** (`equijoin.py`) — items =
+- **resolve** (`resolve.py`) / **equijoin** (`equijoin.py`) — items =
   candidate pairs *after existing blocking*; matched pairs feed the existing
   clustering / join.
 
 ### Confidence path (new LLM mechanism)
 
 DocETL currently calls models in `OutputMode.TOOLS` / `STRUCTURED_OUTPUT`
-(`api.py:724`), which don't surface usable logprobs. A dedicated path is
+(`api.py`), which don't surface usable logprobs. A dedicated path is
 needed for proxies:
 
 ```python

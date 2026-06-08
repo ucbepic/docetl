@@ -91,30 +91,36 @@ Run it from the command line:
 docetl run pipeline.yaml
 ```
 
-While the filter runs, the cascade prints a one-line summary of what it did:
+While the filter runs, the cascade prints a summary of what it did:
 
 ```text
-Cascade filter 'is_relevant': 1000 items | proxy 1000 + oracle 137
-(escalation 14%; 863 served by proxy) | guarantee=recall target=0.95
-delta=0.05 | cost=$0.42
+Cascade filter 'is_relevant'
+           proxy     gpt-4o-mini · 1000 scored · $0.0200
+           oracle    gpt-4o · 137 sampled for calibration (budget 300) · $0.4000
+           guarantee recall ≥ 95%  δ=0.05
+           threshold 0.847 proxy confidence
+           result    863 proxy-accepted + 137 calibration samples → 1000 items
+           total cost $0.4200
 ```
 
-How to read this: all 1000 documents were classified by the cheap proxy. The
-oracle was called on 137 of them — that single count covers everything the
-expensive model touched: the sample it labeled to learn the threshold **and**
-any escalated cases (the same pool, deduplicated). The other 863 documents were
-decided by the proxy alone. So `137 (oracle) + 863 (proxy) = 1000`, versus 1000
-oracle calls without the cascade. `label_budget: 300` is a ceiling on those
-oracle calls — here only 137 were needed. (Quality is measured against the
+How to read this: all 1000 documents were scored by the cheap proxy. The
+oracle was called on 137 of them to learn a confidence threshold (bounded by
+`label_budget: 300`). Items above the learned threshold (0.847) were decided
+by the proxy alone — 863 of the 1000. So `137 (oracle) + 863 (proxy) = 1000`,
+versus 1000 oracle calls without the cascade. (Quality is measured against the
 oracle's answers, treated as ground truth.)
 
 Re-running the identical pipeline reuses the cached result and makes no new
-model calls — the line below replays the originally-recorded cost:
+model calls — the summary replays the originally-recorded cost:
 
 ```text
-Cascade filter 'is_relevant' (cached): 1000 items | proxy 1000 + oracle 137
-(escalation 14%; 863 served by proxy) | guarantee=recall target=0.95
-delta=0.05 | cost=$0.42
+Cascade filter 'is_relevant' (cached)
+           proxy     gpt-4o-mini · 1000 scored · $0.0200
+           oracle    gpt-4o · 137 sampled for calibration (budget 300) · $0.4000
+           guarantee recall ≥ 95%  δ=0.05
+           threshold 0.847 proxy confidence
+           result    863 proxy-accepted + 137 calibration samples → 1000 items
+           total cost $0.4200
 ```
 
 ### Python API
@@ -235,13 +241,11 @@ DocETL cache) to force recomputation.
 
 ## Cost & escalation reporting
 
-When a cascade runs, the operation logs a one-line summary, e.g.:
-
-```
-Cascade filter 'is_relevant': 1000 items | proxy 1000 + oracle 137
-(escalation 14%; 863 served by proxy) | guarantee=recall target=0.95
-delta=0.05 | cost=$0.42
-```
+When a cascade runs, the operation logs a summary like the one shown in the
+[example above](#complete-example--run-it-end-to-end). The proxy line shows
+how many items were scored and at what cost; the oracle line shows the
+calibration/escalation count and cost; the result line shows the split between
+proxy-decided and oracle-decided items.
 
 The same numbers are available programmatically on the operation instance as
 `op.cascade_stats` (`n_items`, `proxy_calls`, `oracle_calls`,

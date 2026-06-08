@@ -73,6 +73,14 @@ class FeedbackStore:
             self.doc_feedback.append(entry)
         print(f"[FEEDBACK:doc] op={op_name} doc_index={doc_index} | {text}", flush=True)
 
+    def remove_doc_feedback(self, op_name: str, doc_index: int, feedback_index: int):
+        with self._lock:
+            matches = [i for i, f in enumerate(self.doc_feedback)
+                       if f["operation"] == op_name and f["doc_index"] == doc_index]
+            if 0 <= feedback_index < len(matches):
+                del self.doc_feedback[matches[feedback_index]]
+        print(f"[FEEDBACK:delete] op={op_name} doc_index={doc_index} fb_index={feedback_index}", flush=True)
+
     def add_pipeline_feedback(self, text: str):
         entry = {
             "feedback": text,
@@ -236,6 +244,14 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
                     body.get("doc_index", 0),
                     body.get("doc_snapshot", {}),
                     body.get("text", ""),
+                )
+                self._json_response({"ok": True})
+
+            elif self.path == "/feedback/doc/delete":
+                feedback.remove_doc_feedback(
+                    body.get("op_name", ""),
+                    body.get("doc_index", 0),
+                    body.get("feedback_index", 0),
                 )
                 self._json_response({"ok": True})
 
@@ -596,11 +612,19 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .detail-fb-card {
     background: hsl(152 60% 96%); border-radius: var(--radius);
-    padding: 10px 12px; margin-bottom: 10px;
+    padding: 10px 12px; margin-bottom: 8px;
+    display: flex; align-items: flex-start; gap: 8px;
   }
   .detail-fb-text {
     font-size: 13px; color: hsl(152 69% 26%); line-height: 1.5;
+    flex: 1; white-space: pre-wrap; word-break: break-word;
   }
+  .detail-fb-delete {
+    background: none; border: none; cursor: pointer;
+    color: hsl(152 30% 60%); font-size: 16px; line-height: 1;
+    padding: 0 2px; flex-shrink: 0; transition: color .15s;
+  }
+  .detail-fb-delete:hover { color: var(--destructive); }
   .detail-fb-row { display: flex; gap: 6px; align-items: flex-end; }
   .detail-fb-input {
     flex: 1; border: none; border-radius: var(--radius);
@@ -1214,7 +1238,7 @@ function renderTableBody() {
     const tdIdx = document.createElement('td');
     tdIdx.className = 'col-idx';
     const idxInner = '<div class="idx-cell-inner">' +
-      (doc._fbSent ? '<span class="fb-dot"></span>' : '') +
+      (doc._feedbacks && doc._feedbacks.length ? '<span class="fb-dot"></span>' : '') +
       '<span>' + (doc.doc_index + 1) + '</span>' +
     '</div>';
     tdIdx.innerHTML = idxInner;
@@ -1312,12 +1336,16 @@ function renderDetailPanel() {
   document.getElementById('detail-body').innerHTML = bodyHtml;
 
   // Feedback section
-  let fbHtml = '<div class="detail-fb-label">Feedback</div>';
-  if (doc._fbSent) {
-    fbHtml += '<div class="detail-fb-card"><div class="detail-fb-text">' + escHtml(doc._fbText) + '</div></div>';
-  }
+  const fbs = doc._feedbacks || [];
+  let fbHtml = '<div class="detail-fb-label">Feedback' + (fbs.length ? ' (' + fbs.length + ')' : '') + '</div>';
+  fbs.forEach((fb, fi) => {
+    fbHtml += '<div class="detail-fb-card">' +
+      '<div class="detail-fb-text">' + escHtml(fb) + '</div>' +
+      '<button class="detail-fb-delete" onclick="deleteDocFeedback(' + selectedRow + ',' + fi + ')" title="Delete">&#215;</button>' +
+    '</div>';
+  });
   fbHtml += '<div class="detail-fb-row">' +
-    '<textarea class="detail-fb-input" id="detail-fb-input" rows="1" placeholder="' + (doc._fbSent ? 'Update feedback…' : 'What do you think about this output?') + '" ' +
+    '<textarea class="detail-fb-input" id="detail-fb-input" rows="1" placeholder="Add feedback…" ' +
       'oninput="autoGrowTextarea(this)" ' +
       'onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendDocFeedback(' + selectedRow + ');}"></textarea>' +
     '<button class="btn btn-primary" onclick="sendDocFeedback(' + selectedRow + ')">Send</button>' +
@@ -1456,8 +1484,23 @@ function sendDocFeedback(idx) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ op_name: doc.op_name, doc_index: doc.doc_index, doc_snapshot: doc.fields, text: text })
   });
-  doc._fbSent = true;
-  doc._fbText = text;
+  if (!doc._feedbacks) doc._feedbacks = [];
+  doc._feedbacks.push(text);
+  input.value = '';
+  autoGrowTextarea(input);
+  renderTableBody();
+  renderDetailPanel();
+}
+
+function deleteDocFeedback(idx, fbIndex) {
+  const doc = allDocs[idx];
+  if (!doc || !doc._feedbacks) return;
+  fetch('/feedback/doc/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ op_name: doc.op_name, doc_index: doc.doc_index, feedback_index: fbIndex })
+  });
+  doc._feedbacks.splice(fbIndex, 1);
   renderTableBody();
   renderDetailPanel();
 }
@@ -1610,15 +1653,16 @@ evtSource.onmessage = function(e) {
     let fbChanged = false;
     data.doc_feedback.forEach(fb => {
       const doc = allDocs.find(d => d.op_name === fb.op_name && d.doc_index === fb.doc_index);
-      if (doc && !doc._fbSent) {
-        doc._fbSent = true;
-        doc._fbText = fb.feedback;
-        fbChanged = true;
+      if (doc) {
+        if (!doc._feedbacks) doc._feedbacks = [];
+        if (!doc._feedbacks.includes(fb.feedback)) {
+          doc._feedbacks.push(fb.feedback);
+          fbChanged = true;
+        }
       }
     });
     if (fbChanged) {
       renderTableBody();
-      if (selectedRow !== null) renderDetailPanel();
     }
   }
 

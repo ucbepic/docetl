@@ -152,6 +152,10 @@ This understanding is essential for writing specific, effective prompts.
 
 ## Step 3: Pipeline Structure
 
+DocETL supports two equivalent approaches. Use whichever the user prefers:
+
+### Option A: YAML (low-code)
+
 Create a YAML file with this structure:
 
 ```yaml
@@ -186,6 +190,42 @@ pipeline:
     path: "output.json"
     intermediate_dir: "intermediates"  # ALWAYS set this for debugging
 ```
+
+### Option B: Python Frame API
+
+The same pipeline as chainable Python calls:
+
+```python
+import docetl
+
+docetl.default_model = "gpt-5-nano"
+docetl.intermediate_dir = "intermediates"
+
+results = (
+    docetl.read_json("dataset.json")          # or read_csv(), from_list()
+    .map(
+        prompt="...",
+        output={"schema": {"field": "type"}},
+    )
+    .reduce(
+        reduce_key="category",
+        prompt="...",
+        output={"schema": {"summary": "string"}},
+    )
+    .collect()                                 # returns pandas DataFrame
+)
+
+# Cost and token tracking
+print(f"Cost: ${results.attrs['_total_cost']:.4f}")
+```
+
+**Key Frame API methods:**
+- Readers: `docetl.read_json()`, `docetl.read_csv()`, `docetl.read_parquet()`, `docetl.from_list()`
+- Operations: `.map()`, `.filter()`, `.reduce()`, `.resolve()`, `.equijoin()`, `.split()`, `.gather()`, `.unnest()`, `.code_map()`, `.code_filter()`, `.code_reduce()`
+- Terminal actions: `.collect()` (DataFrame), `.to_list()`, `.write_json()`, `.write_csv()`, `.write_parquet()`
+- Config: `docetl.default_model`, `docetl.max_threads`, `docetl.bypass_cache`, `docetl.rate_limits`, `docetl.intermediate_dir`, `docetl.agent_model`, `docetl.fallback_models`
+
+All operation parameters are the same between YAML and Python — just pass them as keyword arguments (e.g., `validate=["len(output['items']) >= 1"]`, `fold_prompt="..."`, `fold_batch_size=100`).
 
 ### Key Configuration
 
@@ -562,8 +602,20 @@ OPENAI_API_KEY=sk-...
 
 ### Test Run (Required)
 Add `sample: 10-20` to your first operation, then run:
+
+**YAML:**
 ```bash
 docetl run pipeline.yaml
+```
+
+**Python:**
+```python
+# Add sample=10 to the first operation for testing
+results = (
+    docetl.read_json("dataset.json")
+    .map(prompt="...", output={"schema": {"field": "type"}}, sample=10)
+    .collect()
+)
 ```
 
 **Inspect the test results before proceeding:**
@@ -603,7 +655,7 @@ Check intermediate results in the `intermediate_dir` folder to debug each step.
 
 Use MOAR optimizer to find the Pareto frontier of **cost vs. accuracy** tradeoffs. MOAR experiments with different pipeline rewrites and models to find optimal configurations.
 
-Add to pipeline YAML:
+**YAML approach** — add `optimizer_config` to the pipeline:
 
 ```yaml
 optimizer_config:
@@ -619,17 +671,28 @@ optimizer_config:
   model: gpt-5-nano
 ```
 
-Create evaluation file (`evaluate.py`):
-```python
-def evaluate(outputs: list[dict]) -> dict:
-    # Score the outputs (0-1 scale recommended)
-    correct = sum(1 for o in outputs if is_correct(o))
-    return {"score": correct / len(outputs)}
-```
-
-Run optimization:
 ```bash
 docetl build pipeline.yaml --optimizer moar
+```
+
+**Python approach** — call `.optimize()` on the Frame:
+
+```python
+@docetl.register_eval
+def evaluate(results):
+    correct = sum(1 for o in results if is_correct(o))
+    return {"score": correct / len(results)}
+
+optimized = frame.optimize(
+    eval_fn=evaluate,
+    metric_key="score",
+    models=["gpt-5-nano", "gpt-4o-mini", "gpt-4o"],
+    max_iterations=20,
+    save_dir="./optimization_results",
+)
+
+df = optimized.collect()
+print(optimized.search_results.to_df())  # Pareto frontier
 ```
 
 MOAR will produce multiple pipeline variants on the Pareto frontier - user can choose based on their cost/accuracy preferences.

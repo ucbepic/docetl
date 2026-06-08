@@ -15,15 +15,33 @@ Some common scenarios where the Split operation is valuable include:
 
 Here's an example of using the Split operation to divide customer support transcripts into manageable chunks:
 
-```yaml
-- name: split_transcript
-  type: split
-  split_key: transcript
-  method: token_count
-  method_kwargs:
-    num_tokens: 500
-    model: gpt-4o-mini
-```
+=== "YAML"
+
+    ```yaml
+    - name: split_transcript
+      type: split
+      split_key: transcript
+      method: token_count
+      method_kwargs:
+        num_tokens: 500
+        model: gpt-4o-mini
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("transcripts.json")
+    frame = frame.split(
+        split_key="transcript",
+        method="token_count",
+        method_kwargs={"num_tokens": 500, "model": "gpt-4o-mini"},
+    )
+    df = frame.collect()
+    ```
 
 This Split operation processes long customer support transcripts:
 

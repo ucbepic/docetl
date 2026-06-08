@@ -10,11 +10,35 @@ While traditional database joins rely on exact matches, real-world data often re
 
 Let's explore a practical example of using the Equijoin operation to match job candidates with suitable job postings based on skills and experience.
 
-```yaml
-- name: match_candidates_to_jobs
-  type: equijoin
-  comparison_prompt: |
-    Compare the following job candidate and job posting:
+=== "YAML"
+
+    ```yaml
+    - name: match_candidates_to_jobs
+      type: equijoin
+      comparison_prompt: |
+        Compare the following job candidate and job posting:
+
+        Candidate Skills: {{ left.skills }}
+        Candidate Experience: {{ left.years_experience }}
+
+        Job Required Skills: {{ right.required_skills }}
+        Job Desired Experience: {{ right.desired_experience }}
+
+        Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    candidates = docetl.read_json("candidates.json")
+    job_postings = docetl.read_json("job_postings.json")
+    frame = candidates.equijoin(
+        job_postings,
+        comparison_prompt="""Compare the following job candidate and job posting:
 
     Candidate Skills: {{ left.skills }}
     Candidate Experience: {{ left.years_experience }}
@@ -22,8 +46,10 @@ Let's explore a practical example of using the Equijoin operation to match job c
     Job Required Skills: {{ right.required_skills }}
     Job Desired Experience: {{ right.desired_experience }}
 
-    Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
-```
+    Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.""",
+    )
+    df = frame.collect()
+    ```
 
 This Equijoin operation matches job candidates to job postings:
 

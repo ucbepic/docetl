@@ -14,21 +14,46 @@ The Extract operation identifies and extracts specific sections of text from doc
 
 Here's a practical example of using the Extract operation to pull out key findings from research reports:
 
-```yaml
-- name: findings
-  type: extract
-  prompt: |
-    Extract all sections that discuss key findings, results, or conclusions from this research report.
+=== "YAML"
+
+    ```yaml
+    - name: findings
+      type: extract
+      prompt: |
+        Extract all sections that discuss key findings, results, or conclusions from this research report.
+        Focus on paragraphs that:
+        - Summarize experimental outcomes
+        - Present statistical results
+        - Describe discovered insights
+        - State conclusions drawn from the research
+        
+        Only extract the most important and substantive findings.
+      document_keys: ["report_text"]
+      model: "gpt-4.1-mini"
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4.1-mini"
+
+    frame = docetl.read_json("reports.json")
+    frame = frame.extract(
+        prompt="""Extract all sections that discuss key findings, results, or conclusions from this research report.
     Focus on paragraphs that:
     - Summarize experimental outcomes
     - Present statistical results
     - Describe discovered insights
     - State conclusions drawn from the research
-    
-    Only extract the most important and substantive findings.
-  document_keys: ["report_text"]
-  model: "gpt-4.1-mini"
-```
+
+    Only extract the most important and substantive findings.""",
+        document_keys=["report_text"],
+        model="gpt-4.1-mini",
+    )
+    df = frame.collect()
+    ```
 
 This operation converts text into a line-numbered format, uses an LLM to identify relevant content, and extracts the specified text ranges. The extracted content is added to the document with the suffix "_extracted_findings".
 

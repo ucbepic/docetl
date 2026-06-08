@@ -10,12 +10,46 @@ Map operations executed by LLMs may sometimes yield inconsistent results, even w
 
 Let's see a practical example of using the Resolve operation to standardize patient names extracted from medical transcripts.
 
-```yaml
-- name: standardize_patient_names
-  type: resolve
-  optimize: true
-  comparison_prompt: |
-    Compare the following two patient name entries:
+=== "YAML"
+
+    ```yaml
+    - name: standardize_patient_names
+      type: resolve
+      optimize: true
+      comparison_prompt: |
+        Compare the following two patient name entries:
+
+        Patient 1: {{ input1.patient_name }}
+        Date of Birth 1: {{ input1.date_of_birth }}
+
+        Patient 2: {{ input2.patient_name }}
+        Date of Birth 2: {{ input2.date_of_birth }}
+
+        Are these entries likely referring to the same patient? Consider name similarity and date of birth. Respond with "True" if they are likely the same patient, or "False" if they are likely different patients.
+      resolution_prompt: |
+        Standardize the following patient name entries into a single, consistent format:
+
+        {% for entry in inputs %}
+        Patient Name {{ loop.index }}: {{ entry.patient_name }}
+        {% endfor %}
+
+        Provide a single, standardized patient name that represents all the matched entries. Use the format "LastName, FirstName MiddleInitial" if available.
+      output:
+        schema:
+          patient_name: string
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("patients.json")
+    frame = frame.resolve(
+        optimize=True,
+        comparison_prompt="""Compare the following two patient name entries:
 
     Patient 1: {{ input1.patient_name }}
     Date of Birth 1: {{ input1.date_of_birth }}
@@ -23,19 +57,18 @@ Let's see a practical example of using the Resolve operation to standardize pati
     Patient 2: {{ input2.patient_name }}
     Date of Birth 2: {{ input2.date_of_birth }}
 
-    Are these entries likely referring to the same patient? Consider name similarity and date of birth. Respond with "True" if they are likely the same patient, or "False" if they are likely different patients.
-  resolution_prompt: |
-    Standardize the following patient name entries into a single, consistent format:
+    Are these entries likely referring to the same patient? Consider name similarity and date of birth. Respond with "True" if they are likely the same patient, or "False" if they are likely different patients.""",
+        resolution_prompt="""Standardize the following patient name entries into a single, consistent format:
 
     {% for entry in inputs %}
     Patient Name {{ loop.index }}: {{ entry.patient_name }}
     {% endfor %}
 
-    Provide a single, standardized patient name that represents all the matched entries. Use the format "LastName, FirstName MiddleInitial" if available.
-  output:
-    schema:
-      patient_name: string
-```
+    Provide a single, standardized patient name that represents all the matched entries. Use the format "LastName, FirstName MiddleInitial" if available.""",
+        output={"schema": {"patient_name": "string"}},
+    )
+    df = frame.collect()
+    ```
 
 This Resolve operation processes patient names to identify and standardize duplicates:
 

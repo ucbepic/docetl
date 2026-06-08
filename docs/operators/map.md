@@ -6,11 +6,54 @@ The Map operation in DocETL applies a specified transformation to each item in y
 
 Let's see a practical example of using the Map operation to analyze long-form news articles, extracting key information and generating insights.
 
-```yaml
-- name: analyze_news_article
-  type: map
-  prompt: |
-    Analyze the following news article:
+=== "YAML"
+
+    ```yaml
+    - name: analyze_news_article
+      type: map
+      prompt: |
+        Analyze the following news article:
+        "{{ input.article }}"
+
+        Provide the following information:
+        1. Main topic (1-3 words)
+        2. Summary (2-3 sentences)
+        3. Key entities mentioned (list up to 5, with brief descriptions)
+        4. Sentiment towards the main topic (positive, negative, or neutral)
+        5. Potential biases or slants in reporting (if any)
+        6. Relevant categories (e.g., politics, technology, environment; list up to 3)
+        7. Credibility score (1-10, where 10 is highly credible)
+
+      output:
+        schema:
+          main_topic: string
+          summary: string
+          key_entities: list[object]
+          sentiment: string
+          biases: list[string]
+          categories: list[string]
+          credibility_score: integer
+
+      model: gpt-4o-mini
+      validate:
+        - len(output["main_topic"].split()) <= 3
+        - len(output["key_entities"]) <= 5
+        - output["sentiment"] in ["positive", "negative", "neutral"]
+        - len(output["categories"]) <= 3
+        - 1 <= output["credibility_score"] <= 10
+      num_retries_on_validate_failure: 2
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("articles.json")
+    frame = frame.map(
+        prompt="""Analyze the following news article:
     "{{ input.article }}"
 
     Provide the following information:
@@ -20,27 +63,30 @@ Let's see a practical example of using the Map operation to analyze long-form ne
     4. Sentiment towards the main topic (positive, negative, or neutral)
     5. Potential biases or slants in reporting (if any)
     6. Relevant categories (e.g., politics, technology, environment; list up to 3)
-    7. Credibility score (1-10, where 10 is highly credible)
-
-  output:
-    schema:
-      main_topic: string
-      summary: string
-      key_entities: list[object]
-      sentiment: string
-      biases: list[string]
-      categories: list[string]
-      credibility_score: integer
-
-  model: gpt-4o-mini
-  validate:
-    - len(output["main_topic"].split()) <= 3
-    - len(output["key_entities"]) <= 5
-    - output["sentiment"] in ["positive", "negative", "neutral"]
-    - len(output["categories"]) <= 3
-    - 1 <= output["credibility_score"] <= 10
-  num_retries_on_validate_failure: 2
-```
+    7. Credibility score (1-10, where 10 is highly credible)""",
+        output={
+            "schema": {
+                "main_topic": "string",
+                "summary": "string",
+                "key_entities": "list[object]",
+                "sentiment": "string",
+                "biases": "list[string]",
+                "categories": "list[string]",
+                "credibility_score": "integer",
+            }
+        },
+        model="gpt-4o-mini",
+        validate=[
+            "len(output['main_topic'].split()) <= 3",
+            "len(output['key_entities']) <= 5",
+            "output['sentiment'] in ['positive', 'negative', 'neutral']",
+            "len(output['categories']) <= 3",
+            "1 <= output['credibility_score'] <= 10",
+        ],
+        num_retries_on_validate_failure=2,
+    )
+    df = frame.collect()
+    ```
 
 This Map operation processes long-form news articles to extract valuable insights:
 

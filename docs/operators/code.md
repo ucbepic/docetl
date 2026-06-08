@@ -21,18 +21,40 @@ The Code Map operation applies a Python function to each item in your input data
 
 ??? example "Example Code Map Operation"
 
-    ```yaml
-    - name: extract_keywords
-      type: code_map
-      code: |
-        def transform(doc) -> dict:
+    === "YAML"
+
+        ```yaml
+        - name: extract_keywords
+          type: code_map
+          code: |
+            def transform(doc) -> dict:
+                # Your transformation code here
+                keywords = doc['text'].lower().split()
+                return {
+                    'keywords': keywords,
+                    'keyword_count': len(keywords)
+                }
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gpt-4o-mini"
+
+        frame = docetl.read_json("documents.json")
+        frame = frame.code_map(
+            code="""def transform(doc) -> dict:
             # Your transformation code here
             keywords = doc['text'].lower().split()
             return {
                 'keywords': keywords,
                 'keyword_count': len(keywords)
-            }
-    ```
+            }""",
+        )
+        df = frame.collect()
+        ```
 
 The code must define a `transform` function that takes a single document as input and returns a dictionary of transformed values.
 
@@ -42,20 +64,44 @@ The Code Reduce operation aggregates multiple items into a single result using a
 
 ??? example "Example Code Reduce Operation"
 
-    ```yaml
-    - name: aggregate_stats
-      type: code_reduce
-      reduce_key: category
-      code: |
-        def transform(items) -> dict:
+    === "YAML"
+
+        ```yaml
+        - name: aggregate_stats
+          type: code_reduce
+          reduce_key: category
+          code: |
+            def transform(items) -> dict:
+                total = sum(item['value'] for item in items)
+                avg = total / len(items)
+                return {
+                    'total': total,
+                    'average': avg,
+                    'count': len(items)
+                }
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gpt-4o-mini"
+
+        frame = docetl.read_json("data.json")
+        frame = frame.code_reduce(
+            reduce_key="category",
+            code="""def transform(items) -> dict:
             total = sum(item['value'] for item in items)
             avg = total / len(items)
             return {
                 'total': total,
                 'average': avg,
                 'count': len(items)
-            }
-    ```
+            }""",
+        )
+        df = frame.collect()
+        ```
 
 The transform function for reduce operations takes a list of items as input and returns a single aggregated result.
 
@@ -65,14 +111,32 @@ The Code Filter operation allows you to filter items based on custom Python logi
 
 ??? example "Example Code Filter Operation"
 
-    ```yaml
-    - name: filter_valid_entries
-      type: code_filter  
-      code: |
-        def transform(doc) -> bool:
+    === "YAML"
+
+        ```yaml
+        - name: filter_valid_entries
+          type: code_filter  
+          code: |
+            def transform(doc) -> bool:
+                # Return True to keep the document, False to filter it out
+                return doc['score'] >= 0.5 and len(doc['text']) > 100
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gpt-4o-mini"
+
+        frame = docetl.read_json("entries.json")
+        frame = frame.code_filter(
+            code="""def transform(doc) -> bool:
             # Return True to keep the document, False to filter it out
-            return doc['score'] >= 0.5 and len(doc['text']) > 100
-    ```
+            return doc['score'] >= 0.5 and len(doc['text']) > 100""",
+        )
+        df = frame.collect()
+        ```
 
 The transform function should return True for items to keep and False for items to filter out.
 

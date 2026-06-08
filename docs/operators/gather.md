@@ -99,24 +99,52 @@ We extract headers from each chunk:
 
 Now, we apply the Gather operation:
 
-```yaml
-- name: context_gatherer
-  type: gather
-  content_key: agreement_text_chunk
-  doc_id_key: split_merger_agreement_id
-  order_key: split_merger_agreement_chunk_num
-  peripheral_chunks:
-    previous:
-      middle:
-        content_key: agreement_text_chunk_summary
-      tail:
-        content_key: agreement_text_chunk
-    next:
-      head:
-        count: 1
-        content_key: agreement_text_chunk
-  doc_header_key: headers
-```
+=== "YAML"
+
+    ```yaml
+    - name: context_gatherer
+      type: gather
+      content_key: agreement_text_chunk
+      doc_id_key: split_merger_agreement_id
+      order_key: split_merger_agreement_chunk_num
+      peripheral_chunks:
+        previous:
+          middle:
+            content_key: agreement_text_chunk_summary
+          tail:
+            content_key: agreement_text_chunk
+        next:
+          head:
+            count: 1
+            content_key: agreement_text_chunk
+      doc_header_key: headers
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("chunks.json")
+    frame = frame.gather(
+        content_key="agreement_text_chunk",
+        doc_id_key="split_merger_agreement_id",
+        order_key="split_merger_agreement_chunk_num",
+        peripheral_chunks={
+            "previous": {
+                "middle": {"content_key": "agreement_text_chunk_summary"},
+                "tail": {"content_key": "agreement_text_chunk"},
+            },
+            "next": {
+                "head": {"count": 1, "content_key": "agreement_text_chunk"},
+            },
+        },
+        doc_header_key="headers",
+    )
+    df = frame.collect()
+    ```
 
 ### Step 5: Analyze Chunks (Map operation after Gather)
 

@@ -14,23 +14,52 @@ Reduce operations are essential when you need to summarize or aggregate data acr
 
 Let's look at a practical example of using the Reduce operation to summarize customer feedback by department:
 
-```yaml
-- name: summarize_feedback
-  type: reduce
-  reduce_key: department
-  prompt: |
-    Summarize the customer feedback for the {{ inputs[0].department }} department:
+=== "YAML"
+
+    ```yaml
+    - name: summarize_feedback
+      type: reduce
+      reduce_key: department
+      prompt: |
+        Summarize the customer feedback for the {{ inputs[0].department }} department:
+
+        {% for item in inputs %}
+        Feedback {{ loop.index }}: {{ item.feedback }}
+        {% endfor %}
+
+        Provide a concise summary of the main points and overall sentiment.
+      output:
+        schema:
+          summary: string
+          sentiment: string
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("feedback.json")
+    frame = frame.reduce(
+        reduce_key="department",
+        prompt="""Summarize the customer feedback for the {{ inputs[0].department }} department:
 
     {% for item in inputs %}
     Feedback {{ loop.index }}: {{ item.feedback }}
     {% endfor %}
 
-    Provide a concise summary of the main points and overall sentiment.
-  output:
-    schema:
-      summary: string
-      sentiment: string
-```
+    Provide a concise summary of the main points and overall sentiment.""",
+        output={
+            "schema": {
+                "summary": "string",
+                "sentiment": "string",
+            }
+        },
+    )
+    df = frame.collect()
+    ```
 
 This Reduce operation processes customer feedback grouped by department:
 

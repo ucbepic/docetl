@@ -15,11 +15,43 @@ Filtering is crucial when you need to:
 
 Let's look at a practical example of using the Filter operation to identify high-impact news articles based on certain criteria.
 
-```yaml
-- name: filter_high_impact_articles
-  type: filter
-  prompt: |
-    Analyze the following news article:
+=== "YAML"
+
+    ```yaml
+    - name: filter_high_impact_articles
+      type: filter
+      prompt: |
+        Analyze the following news article:
+        Title: "{{ input.title }}"
+        Content: "{{ input.content }}"
+
+        Determine if this article is high-impact based on the following criteria:
+        1. Covers a significant global or national event
+        2. Has potential long-term consequences
+        3. Affects a large number of people
+        4. Is from a reputable source
+
+        Respond with 'true' if the article meets at least 3 of these criteria, otherwise respond with 'false'.
+
+      output:
+        schema:
+          is_high_impact: boolean
+
+      model: gpt-4-turbo
+      validate:
+        - isinstance(output["is_high_impact"], bool)
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4-turbo"
+
+    frame = docetl.read_json("articles.json")
+    frame = frame.filter(
+        prompt="""Analyze the following news article:
     Title: "{{ input.title }}"
     Content: "{{ input.content }}"
 
@@ -29,16 +61,13 @@ Let's look at a practical example of using the Filter operation to identify high
     3. Affects a large number of people
     4. Is from a reputable source
 
-    Respond with 'true' if the article meets at least 3 of these criteria, otherwise respond with 'false'.
-
-  output:
-    schema:
-      is_high_impact: boolean
-
-  model: gpt-4-turbo
-  validate:
-    - isinstance(output["is_high_impact"], bool)
-```
+    Respond with 'true' if the article meets at least 3 of these criteria, otherwise respond with 'false'.""",
+        output={"schema": {"is_high_impact": "boolean"}},
+        model="gpt-4-turbo",
+        validate=["isinstance(output['is_high_impact'], bool)"],
+    )
+    df = frame.collect()
+    ```
 
 This Filter operation processes news articles and determines whether they are "high-impact" based on specific criteria. Unlike a Map operation, which would process all articles and add an "is_high_impact" field to each, this Filter operation will only pass through articles that meet the criteria, effectively removing low-impact articles from the dataset.
 

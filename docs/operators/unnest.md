@@ -64,27 +64,64 @@ All other original key-value pairs from the input item are preserved in the outp
 
 Let's walk through an example of using the Unnest operation to prepare product reviews for detailed analysis.
 
-```yaml
-- name: extract_salient_quotes
-  type: map
-  prompt: |
-    For the following product review, extract up to 3 salient quotes that best represent the reviewer's opinion:
+=== "YAML"
+
+    ```yaml
+    - name: extract_salient_quotes
+      type: map
+      prompt: |
+        For the following product review, extract up to 3 salient quotes that best represent the reviewer's opinion:
+
+        {{ input.review_text }}
+
+        For each quote, provide the text and its sentiment (positive, negative, or neutral).
+      output:
+        schema:
+          salient_quotes: list[string]
+
+    - name: unnest_quotes
+      type: unnest
+      unnest_key: salient_quotes
+
+    - name: analyze_quote
+      type: map
+      prompt: |
+        Analyze the following quote from a product review:
+
+        Quote & information: {{ input.salient_quotes }}
+        Review text: {{ input.review_text }}
+
+        Provide a detailed analysis of the quote, including:
+        1. The specific aspect of the product being discussed
+        2. The strength of the sentiment (-5 to 5, where -5 is extremely negative and 5 is extremely positive)
+        3. Any key terms or phrases that stand out
+
+      output:
+        schema:
+          product_aspect: string
+          sentiment_strength: number
+          key_terms: list[string]
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("reviews.json")
+    frame = frame.map(
+        prompt="""For the following product review, extract up to 3 salient quotes that best represent the reviewer's opinion:
 
     {{ input.review_text }}
 
-    For each quote, provide the text and its sentiment (positive, negative, or neutral).
-  output:
-    schema:
-      salient_quotes: list[string]
-
-- name: unnest_quotes
-  type: unnest
-  unnest_key: salient_quotes
-
-- name: analyze_quote
-  type: map
-  prompt: |
-    Analyze the following quote from a product review:
+    For each quote, provide the text and its sentiment (positive, negative, or neutral).""",
+        output={"schema": {"salient_quotes": "list[string]"}},
+    )
+    frame = frame.unnest(unnest_key="salient_quotes")
+    frame = frame.map(
+        prompt="""Analyze the following quote from a product review:
 
     Quote & information: {{ input.salient_quotes }}
     Review text: {{ input.review_text }}
@@ -92,14 +129,17 @@ Let's walk through an example of using the Unnest operation to prepare product r
     Provide a detailed analysis of the quote, including:
     1. The specific aspect of the product being discussed
     2. The strength of the sentiment (-5 to 5, where -5 is extremely negative and 5 is extremely positive)
-    3. Any key terms or phrases that stand out
-
-  output:
-    schema:
-      product_aspect: string
-      sentiment_strength: number
-      key_terms: list[string]
-```
+    3. Any key terms or phrases that stand out""",
+        output={
+            "schema": {
+                "product_aspect": "string",
+                "sentiment_strength": "number",
+                "key_terms": "list[string]",
+            }
+        },
+    )
+    df = frame.collect()
+    ```
 
 This example demonstrates how the Unnest operation fits into a pipeline for analyzing product reviews:
 

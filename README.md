@@ -2,10 +2,6 @@
 
 # DocETL
 
-**LLM-powered data processing pipelines for complex document tasks.**
-
-Define operations declaratively. DocETL handles chunking, validation, retries, and cost-accuracy optimization.
-
 [![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
 [![Documentation](https://img.shields.io/badge/Docs-ucbepic.github.io/docetl-green)](https://ucbepic.github.io/docetl)
 [![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)

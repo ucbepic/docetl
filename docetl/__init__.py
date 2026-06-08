@@ -34,11 +34,27 @@ __all__ = [
     "read_parquet",
     "from_list",
     "yaml_to_python",
+    # config attrs
     "default_model",
+    "agent_model",
+    "fallback_models",
+    "fallback_embedding_models",
+    "max_threads",
+    "bypass_cache",
+    "intermediate_dir",
     "rate_limits",
 ]
 
-_CONFIG_ATTRS = {"default_model", "rate_limits"}
+_CONFIG_ATTRS = {
+    "default_model",
+    "agent_model",
+    "fallback_models",
+    "fallback_embedding_models",
+    "max_threads",
+    "bypass_cache",
+    "intermediate_dir",
+    "rate_limits",
+}
 
 
 class _Module(types.ModuleType):

@@ -10,13 +10,20 @@ from docetl.frame import Frame, read_json, read_csv, read_parquet, from_list
 
 
 class TestModuleConfig:
+    _ATTRS = (
+        "default_model", "agent_model", "max_threads", "bypass_cache",
+        "rate_limits", "fallback_models", "fallback_embedding_models",
+        "intermediate_dir",
+    )
+
     def setup_method(self):
-        _config.default_model = None
-        _config.rate_limits = None
+        self._saved = {a: getattr(_config, a) for a in self._ATTRS}
+        for a in self._ATTRS:
+            setattr(_config, a, None if a != "bypass_cache" else False)
 
     def teardown_method(self):
-        _config.default_model = None
-        _config.rate_limits = None
+        for a, v in self._saved.items():
+            setattr(_config, a, v)
 
     def test_set_default_model(self):
         docetl.default_model = "gpt-4o-mini"
@@ -26,6 +33,38 @@ class TestModuleConfig:
     def test_set_rate_limits(self):
         docetl.rate_limits = {"gpt-4o-mini": 100}
         assert docetl.rate_limits == {"gpt-4o-mini": 100}
+
+    def test_set_all_config_attrs(self):
+        docetl.agent_model = "gpt-4o"
+        docetl.max_threads = 32
+        docetl.bypass_cache = True
+        docetl.fallback_models = ["gpt-4o", "gpt-4o-mini"]
+        docetl.fallback_embedding_models = ["text-embedding-3-small"]
+        docetl.intermediate_dir = "/tmp/docetl"
+
+        assert docetl.agent_model == "gpt-4o"
+        assert docetl.max_threads == 32
+        assert docetl.bypass_cache is True
+        assert docetl.fallback_models == ["gpt-4o", "gpt-4o-mini"]
+        assert docetl.fallback_embedding_models == ["text-embedding-3-small"]
+        assert docetl.intermediate_dir == "/tmp/docetl"
+
+    def test_config_flows_to_build_config(self):
+        docetl.default_model = "gpt-4o"
+        docetl.bypass_cache = True
+        docetl.fallback_models = ["gpt-4o-mini"]
+        frame = from_list([{"x": 1}]).map(prompt="p", output={"schema": {"y": "str"}})
+        cfg = frame._build_config()
+        assert cfg["default_model"] == "gpt-4o"
+        assert cfg["bypass_cache"] is True
+        assert cfg["fallback_models"] == ["gpt-4o-mini"]
+
+    def test_max_threads_flows_to_runner(self):
+        docetl.default_model = "gpt-4o-mini"
+        docetl.max_threads = 16
+        frame = from_list([{"x": 1}]).map(prompt="p", output={"schema": {"y": "str"}})
+        runner = frame._build_runner()
+        assert runner.max_threads == 16
 
 
 class TestReaders:

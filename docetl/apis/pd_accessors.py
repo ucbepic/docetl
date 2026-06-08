@@ -48,13 +48,21 @@ class SemanticAccessor:
         that need runner access, like JoinOptimizer)."""
         from docetl.runner import DSLRunner
 
-        runner_config = {
+        runner_config: dict[str, Any] = {
             "default_model": _config.default_model or "gpt-4o-mini",
             "operations": [],
             "datasets": {},
             "pipeline": {"steps": []},
         }
-        runner = DSLRunner(runner_config, from_df_accessors=True)
+        if _config.rate_limits:
+            runner_config["rate_limits"] = _config.rate_limits
+        if _config.bypass_cache:
+            runner_config["bypass_cache"] = True
+        if _config.fallback_models:
+            runner_config["fallback_models"] = _config.fallback_models
+        if _config.fallback_embedding_models:
+            runner_config["fallback_embedding_models"] = _config.fallback_embedding_models
+        runner = DSLRunner(runner_config, max_threads=_config.max_threads, from_df_accessors=True)
 
         from docetl.operations import get_operation
         op_class = get_operation(config["type"])

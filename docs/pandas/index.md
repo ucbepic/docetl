@@ -64,8 +64,18 @@ Configure DocETL at the module level:
 ```python
 import docetl
 
+# Model selection
 docetl.default_model = "gpt-4o-mini"
+docetl.agent_model = "gpt-4o"                        # model for optimizer rewrites
+docetl.fallback_models = ["gpt-4o", "gpt-4o-mini"]   # fallback chain on failure
+docetl.fallback_embedding_models = ["text-embedding-3-small"]
 
+# Execution
+docetl.max_threads = 64            # concurrent threads (default: cpu_count * 4)
+docetl.bypass_cache = True         # skip LLM cache
+docetl.intermediate_dir = ".docetl_cache"  # where to store intermediate results
+
+# Rate limiting
 docetl.rate_limits = {
     "embedding_call": [
         {"count": 1000, "per": 1, "unit": "second"}

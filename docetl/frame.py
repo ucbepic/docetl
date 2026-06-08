@@ -490,23 +490,34 @@ class Frame:
     # ── terminal actions ───────────────────────────────────────────
 
     def _build_config(self, output_path: str = "") -> dict[str, Any]:
+        output_cfg: dict[str, Any] = {"type": "file", "path": output_path}
+        if _config.intermediate_dir:
+            output_cfg["intermediate_dir"] = _config.intermediate_dir
+
         config: dict[str, Any] = {
             "datasets": dict(self._datasets),
             "operations": self._operations,
             "pipeline": {
                 "steps": self._steps,
-                "output": {"type": "file", "path": output_path},
+                "output": output_cfg,
             },
         }
         if _config.default_model:
             config["default_model"] = _config.default_model
         if _config.rate_limits:
             config["rate_limits"] = _config.rate_limits
+        if _config.bypass_cache:
+            config["bypass_cache"] = True
+        if _config.fallback_models:
+            config["fallback_models"] = _config.fallback_models
+        if _config.fallback_embedding_models:
+            config["fallback_embedding_models"] = _config.fallback_embedding_models
         return config
 
     def _build_runner(self, output_path: str = "", max_threads: int | None = None):
         from docetl.runner import DSLRunner
-        return DSLRunner(self._build_config(output_path), max_threads=max_threads)
+        threads = max_threads or _config.max_threads
+        return DSLRunner(self._build_config(output_path), max_threads=threads)
 
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
         """Execute the pipeline and return results as a DataFrame."""
@@ -613,7 +624,8 @@ class Frame:
         result = MOAROptimizer(
             pipeline=self._build_config(),
             eval_fn=eval_fn, metric_key=metric_key,
-            models=models, agent_model=agent_model,
+            models=models,
+            agent_model=agent_model or _config.agent_model,
             max_iterations=max_iterations, save_dir=save_dir,
             exploration_weight=exploration_weight,
             dataset_path=dataset_path,
@@ -648,10 +660,16 @@ class Frame:
         with open(path) as f:
             config = yaml.safe_load(f)
 
-        if config.get("default_model"):
-            _config.default_model = config["default_model"]
-        if config.get("rate_limits"):
-            _config.rate_limits = config["rate_limits"]
+        _yaml_to_config = {
+            "default_model": "default_model",
+            "rate_limits": "rate_limits",
+            "bypass_cache": "bypass_cache",
+            "fallback_models": "fallback_models",
+            "fallback_embedding_models": "fallback_embedding_models",
+        }
+        for yaml_key, config_attr in _yaml_to_config.items():
+            if config.get(yaml_key) is not None:
+                setattr(_config, config_attr, config[yaml_key])
 
         datasets: dict[str, dict[str, Any]] = {}
         first_ds: str | None = None
@@ -697,8 +715,13 @@ class Frame:
         ops_by_name = {op["name"]: op for op in self._operations}
         lines: list[str] = ["import docetl", ""]
 
-        if _config.default_model:
-            lines.append(f"docetl.default_model = {repr(_config.default_model)}")
+        for attr in ("default_model", "agent_model", "max_threads", "bypass_cache",
+                      "rate_limits", "fallback_models", "fallback_embedding_models",
+                      "intermediate_dir"):
+            val = getattr(_config, attr, None)
+            if val is not None and val is not False:
+                lines.append(f"docetl.{attr} = {repr(val)}")
+        if lines[-1] != "":
             lines.append("")
 
         # Determine the first dataset reader call

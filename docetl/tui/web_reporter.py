@@ -553,7 +553,6 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .detail-header {
     display: flex; align-items: center; gap: 8px;
     padding: 14px 16px; flex-shrink: 0;
-    border-bottom: 1px solid hsl(211 20% 92%);
   }
   .detail-header-title { font-size: 15px; font-weight: 600; flex: 1; display: flex; align-items: center; gap: 6px; }
   .detail-row-of { font-size: 12px; color: var(--muted-foreground); font-weight: 400; }
@@ -589,8 +588,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     margin-bottom: 12px;
   }
   .detail-fb {
-    border-top: 1px solid hsl(211 20% 92%);
-    padding: 14px 16px; flex-shrink: 0;
+    padding: 0 16px 10px; flex-shrink: 0;
   }
   .detail-fb-label {
     font-size: 11px; font-weight: 500; color: var(--muted-foreground);
@@ -603,12 +601,13 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .detail-fb-text {
     font-size: 13px; color: hsl(152 69% 26%); line-height: 1.5;
   }
-  .detail-fb-row { display: flex; gap: 6px; }
+  .detail-fb-row { display: flex; gap: 6px; align-items: flex-end; }
   .detail-fb-input {
     flex: 1; border: none; border-radius: var(--radius);
     padding: 8px 12px; font-family: inherit; font-size: 13px;
     background: var(--background); color: var(--foreground);
-    transition: box-shadow .15s;
+    transition: box-shadow .15s; resize: none; overflow: hidden;
+    min-height: 38px; max-height: 120px; line-height: 1.5;
   }
   .detail-fb-input:focus {
     outline: none;
@@ -773,8 +772,8 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     <button class="detail-nav-btn" id="detail-next" onclick="navigateRow(1)" title="Next row (→ arrow)">&#8594;</button>
     <button class="detail-close" onclick="closeRowDetail()" title="Close (Esc)">&#215;</button>
   </div>
-  <div class="detail-body" id="detail-body"></div>
   <div class="detail-fb" id="detail-fb"></div>
+  <div class="detail-body" id="detail-body"></div>
 </div>
 
 <script>
@@ -808,6 +807,10 @@ function fmtDur(s) {
 }
 function escHtml(s) {
   const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+function autoGrowTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
 /* --- Operations strip --- */
@@ -1280,8 +1283,7 @@ function renderDetailPanel() {
 
   const sorted = getSortedIndices();
   const curPos = sorted.indexOf(selectedRow);
-  document.getElementById('detail-title').innerHTML = 'Row ' + (doc.doc_index + 1) +
-    '<span class="detail-row-of">' + (curPos + 1) + ' of ' + sorted.length + '</span>' +
+  document.getElementById('detail-title').innerHTML = '<span>' + (curPos + 1) + ' of ' + sorted.length + '</span>' +
     '<span class="detail-hotkey-hint">← → to navigate</span>';
 
   // Nav button state
@@ -1313,8 +1315,9 @@ function renderDetailPanel() {
     fbHtml += '<div class="detail-fb-card"><div class="detail-fb-text">' + escHtml(doc._fbText) + '</div></div>';
   }
   fbHtml += '<div class="detail-fb-row">' +
-    '<input class="detail-fb-input" type="text" id="detail-fb-input" placeholder="' + (doc._fbSent ? 'Update feedback…' : 'What do you think about this output?') + '" ' +
-      'onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + selectedRow + ')">' +
+    '<textarea class="detail-fb-input" id="detail-fb-input" rows="1" placeholder="' + (doc._fbSent ? 'Update feedback…' : 'What do you think about this output?') + '" ' +
+      'oninput="autoGrowTextarea(this)" ' +
+      'onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendDocFeedback(' + selectedRow + ');}"></textarea>' +
     '<button class="btn btn-primary" onclick="sendDocFeedback(' + selectedRow + ')">Send</button>' +
   '</div>';
   document.getElementById('detail-fb').innerHTML = fbHtml;

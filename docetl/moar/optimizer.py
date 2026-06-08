@@ -207,6 +207,7 @@ class MOAROptimizer:
         exploration_weight: float = 1.414,
         dataset_path: Optional[Union[str, Path]] = None,
         dataset_name: Optional[str] = None,
+        max_threads: int | None = None,
     ):
         self.pipeline_path = self._resolve_pipeline(pipeline, save_dir)
         self.metric_key = metric_key
@@ -238,6 +239,7 @@ class MOAROptimizer:
         self._dataset_path, self._dataset_name = self._resolve_dataset(
             dataset_path, dataset_name
         )
+        self._max_threads = max_threads
 
     def _resolve_pipeline(
         self,
@@ -401,6 +403,7 @@ class MOAROptimizer:
             build_first_layer=False,
             custom_metric_key=self.metric_key,
             sample_dataset_path=self._dataset_path,
+            max_threads=self._max_threads,
         )
 
         moar.search()

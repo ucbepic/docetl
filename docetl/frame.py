@@ -112,19 +112,19 @@ class Frame:
         model: str | None = None,
         optimize: bool | None = None,
         recursively_optimize: bool | None = None,
-        sample_size: int | None = None,
+        sample: int | None = None,
         tools: list[dict[str, Any]] | None = None,
-        validation_rules: list[str] | None = None,
+        validate: list[str] | None = None,
         num_retries_on_validate_failure: int | None = None,
         drop_keys: list[str] | None = None,
         timeout: int | None = None,
         enable_observability: bool | None = None,
-        batch_size: int | None = None,
+        max_batch_size: int | None = None,
         clustering_method: str | None = None,
         batch_prompt: str | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
         pdf_url_key: str | None = None,
-        flush_partial_result: bool | None = None,
+        flush_partial_results: bool | None = None,
         limit: int | None = None,
         calibrate: bool | None = None,
         num_calibration_docs: int | None = None,
@@ -133,16 +133,16 @@ class Frame:
         return self._append_op("map", name, {
             "prompt": prompt, "output": output, "model": model,
             "optimize": optimize, "recursively_optimize": recursively_optimize,
-            "sample_size": sample_size, "tools": tools,
-            "validation_rules": validation_rules,
+            "sample": sample, "tools": tools,
+            "validate": validate,
             "num_retries_on_validate_failure": num_retries_on_validate_failure,
             "drop_keys": drop_keys, "timeout": timeout,
             "enable_observability": enable_observability,
-            "batch_size": batch_size, "clustering_method": clustering_method,
+            "max_batch_size": max_batch_size, "clustering_method": clustering_method,
             "batch_prompt": batch_prompt,
             "litellm_completion_kwargs": litellm_completion_kwargs,
             "pdf_url_key": pdf_url_key,
-            "flush_partial_result": flush_partial_result,
+            "flush_partial_results": flush_partial_results,
             "limit": limit, "calibrate": calibrate,
             "num_calibration_docs": num_calibration_docs,
             **kwargs,
@@ -174,10 +174,10 @@ class Frame:
         model: str | None = None,
         optimize: bool | None = None,
         tools: list[dict[str, Any]] | None = None,
-        validation_rules: list[str] | None = None,
+        validate: list[str] | None = None,
         drop_keys: list[str] | None = None,
         timeout: int | None = None,
-        batch_size: int | None = None,
+        max_batch_size: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
         limit: int | None = None,
         **kwargs: Any,
@@ -185,8 +185,8 @@ class Frame:
         return self._append_op("filter", name, {
             "prompt": prompt, "output": output, "model": model,
             "optimize": optimize, "tools": tools,
-            "validation_rules": validation_rules, "drop_keys": drop_keys,
-            "timeout": timeout, "batch_size": batch_size,
+            "validate": validate, "drop_keys": drop_keys,
+            "timeout": timeout, "max_batch_size": max_batch_size,
             "litellm_completion_kwargs": litellm_completion_kwargs,
             "limit": limit, **kwargs,
         })
@@ -464,12 +464,16 @@ class Frame:
         name: str | None = None,
         *,
         code: str | None = None,
+        reduce_key: str | list[str] | None = None,
+        pass_through: bool | None = None,
         concurrent_thread_count: int | None = None,
         limit: int | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("code_reduce", name, {
-            "code": code, "concurrent_thread_count": concurrent_thread_count,
+            "code": code, "reduce_key": reduce_key,
+            "pass_through": pass_through,
+            "concurrent_thread_count": concurrent_thread_count,
             "limit": limit, **kwargs,
         })
 
@@ -539,6 +543,8 @@ class Frame:
 
         runner = self._build_runner(max_threads=max_threads)
         runner.load()
+        if runner.last_op_container is None:
+            raise ValueError("Pipeline has no operations to execute.")
         runner.console.rule("[bold]Pipeline Execution[/bold]")
         start = time.time()
         output, _, _ = runner.last_op_container.next()
@@ -629,6 +635,7 @@ class Frame:
             max_iterations=max_iterations, save_dir=save_dir,
             exploration_weight=exploration_weight,
             dataset_path=dataset_path,
+            max_threads=max_threads or _config.max_threads,
         ).optimize()
 
         self._total_cost = result.total_search_cost
@@ -863,9 +870,10 @@ def _format_op_call(op: dict[str, Any]) -> str:
 def _format_equijoin_call(
     op: dict[str, Any], right_ds: str, right_cfg: dict[str, Any] | None,
 ) -> str:
-    parts: list[str] = [repr(op["name"])]
+    parts: list[str] = []
     if right_cfg:
-        parts.append(f"right={_format_reader(right_ds, right_cfg)}")
+        parts.append(_format_reader(right_ds, right_cfg))
+    parts.append(repr(op["name"]))
     for k, v in op.items():
         if k in _SKIP_KEYS or v is None:
             continue

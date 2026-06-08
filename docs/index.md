@@ -1,4 +1,4 @@
-# 📜 DocETL: A System for Complex Document Processing
+# DocETL: A System for Complex Document Processing
 
 [![GitHub](https://img.shields.io/github/stars/ucbepic/docetl?style=social)](https://github.com/ucbepic/docetl)
 [![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
@@ -19,14 +19,14 @@ DocETL is a tool for creating and executing LLM-powered data processing pipeline
     - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
     - You have validation criteria and want tasks to automatically retry when the validation fails
 
-## 🚀 Features
+## Features
 
 - **Rich Suite of Operators**: Tailored for complex data processing, including specialized operators like "resolve" for entity resolution and "gather" for maintaining context when splitting documents.
 - **Low-Code Interface**: Define your pipeline and prompts easily using YAML. You have 100% control over the prompts.
 - **Flexible Processing**: Handle various document types and processing tasks across domains like law, medicine, and social sciences.
 - **Accuracy Optimization**: Our optimizer leverages LLM agents to experiment with different logically-equivalent rewrites of your pipeline and automatically selects the most accurate version. This includes finding limits of how many documents to process in a single reduce operation before the accuracy plateaus.
 
-## ⚡ Getting Started
+## Getting Started
 
 DocETL supports two ways to define pipelines:
 
@@ -93,7 +93,7 @@ See the [Pandas integration guide](pandas/index.md) for details.
 !!! tip "Fastest Way: Claude Code"
     Clone this repo and run `claude` to use the built-in DocETL skill. Just describe your data processing task and Claude will create and run the pipeline for you. See [Quick Start (Claude Code)](quickstart-claude-code.md) for details.
 
-## 🏛️ Project Origin
+## Project Origin
 
 DocETL was created by members of the EPIC Data Lab and Data Systems and Foundations group at UC Berkeley. The EPIC (Effective Programming, Interaction, and Computation with Data) Lab focuses on developing low-code and no-code interfaces for data work, powered by next-generation predictive programming techniques. DocETL is one of the projects that emerged from our research efforts to streamline complex document processing tasks.
 

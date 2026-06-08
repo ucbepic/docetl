@@ -52,6 +52,7 @@ class MOARSearch:
         build_first_layer: Optional[bool] = True,
         custom_metric_key: Optional[str] = None,
         sample_dataset_path: Optional[str] = None,
+        max_threads: int | None = None,
     ):
         """
         Initialize the MOARSearch algorithm.
@@ -76,6 +77,7 @@ class MOARSearch:
         self.root = Node(root_yaml_path, c=exploration_constant, console=self.console)
         self.tree_lock = threading.RLock()
         self.max_concurrent_agents = 3
+        self.max_threads = max_threads
 
         # Start with base available actions
         self.available_actions = set(available_actions)
@@ -1039,7 +1041,7 @@ class MOARSearch:
 
         try:
             # Step 1: Execute the plan (this will set node.cost)
-            node.execute_plan()
+            node.execute_plan(max_threads=self.max_threads)
         except Exception as e:
             self.console.log(
                 f"[yellow]Failed to execute plan for node {node.get_id()}: {str(e)}[/yellow]"

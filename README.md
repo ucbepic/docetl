@@ -1,4 +1,4 @@
-# 📜 DocETL: Powering Complex Document Processing Pipelines
+# DocETL: Powering Complex Document Processing Pipelines
 
 [![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
 [![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
@@ -12,29 +12,29 @@ DocETL is a tool for creating and executing data processing pipelines, especiall
 1. An interactive UI playground for iterative prompt engineering and pipeline development
 2. A Python package for running production pipelines from the command line or Python code
 
-> 💡 **Need Help Writing Your Pipeline?**  
+> **Need Help Writing Your Pipeline?**  
 > You can use **Claude Code** (recommended) to help you write your pipeline—see the quickstart: https://ucbepic.github.io/docetl/quickstart-claude-code/  
 > If you’d rather use ChatGPT or the Claude app, see [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy/paste before describing your task.
 
 
-### 🌟 Community Projects
+### Community Projects
 
 - [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
 - [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
 - [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
 
-### 📚 Educational Resources
+### Educational Resources
 
 - [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
 - [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
 - [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
 
 
-## 🚀 Getting Started
+## Getting Started
 
 There are two main ways to use DocETL:
 
-### 1. 🎮 DocWrangler, the Interactive UI Playground (Recommended for Development)
+### 1. DocWrangler, the Interactive UI Playground (Recommended for Development)
 
 [DocWrangler](https://docetl.org/playground) helps you iteratively develop your pipeline:
 - Experiment with different prompts and see results in real-time
@@ -49,7 +49,7 @@ DocWrangler is hosted at [docetl.org/playground](https://docetl.org/playground).
 
 See the [Playground Setup Guide](https://ucbepic.github.io/docetl/playground/) for detailed instructions.
 
-### 2. 📦 Python Package (For Production Use)
+### 2. Python Package (For Production Use)
 
 If you want to use DocETL as a Python package:
 
@@ -66,13 +66,13 @@ Create a `.env` file in your project directory:
 OPENAI_API_KEY=your_api_key_here  # Required for LLM operations (or the key for the LLM of your choice)
 ```
 
-> ⚠️ **Important: Two Different .env Files**
+> **Important: Two Different .env Files**
 > - **Root `.env`**: Used by the backend Python server that executes DocETL pipelines
 > - **`website/.env.local`**: Used by the frontend TypeScript code in DocWrangler (UI features like improve prompt and chatbot)
 
 To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
 
-### 2. 🎮 DocWrangler Setup
+### 3. DocWrangler Setup
 
 To run DocWrangler locally, you have two options:
 
@@ -222,7 +222,7 @@ make run-ui-dev
 
 5. Visit http://localhost:3000/playground to access the interactive UI.
 
-### 🛠️ Development Setup
+### Development Setup
 
 If you're planning to contribute or modify DocETL, you can verify your setup by running the test suite:
 

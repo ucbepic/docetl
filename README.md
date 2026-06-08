@@ -18,13 +18,9 @@ Define operations declaratively. DocETL handles chunking, validation, retries, a
 
 ## Why DocETL
 
-Use DocETL when you need to **maximize correctness** for complex tasks over unstructured data.
+Processing documents with LLMs sounds simple until you actually try it at scale. Documents are too long for context windows. LLM outputs are inconsistent — the same entity appears as three different strings. A prompt that works on 10 documents silently degrades on 1,000. You end up writing the same retry logic, chunking code, and validation scaffolding for every project.
 
-- **Map-reduce over documents** — classify, extract, summarize, then aggregate by group
-- **Long documents** — automatic splitting with context-preserving gather operations
-- **Entity resolution** — fuzzy deduplication across LLM-extracted fields
-- **Validation and retries** — define rules, operations automatically retry on failure
-- **Cost-accuracy optimization** — [MOAR](https://ucbepic.github.io/docetl/optimization/python-api/) explores model choices and prompt rewrites to find the Pareto frontier
+DocETL handles all of that. You write prompts and schemas; it handles chunking long documents, validating and retrying bad outputs, resolving duplicate entities, and parallelizing across your dataset. When you're ready to push quality further, [MOAR](https://ucbepic.github.io/docetl/optimization/python-api/) automatically searches over model choices and prompt rewrites to optimize cost and accuracy.
 
 <table>
 <tr>

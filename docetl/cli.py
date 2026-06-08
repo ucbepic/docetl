@@ -191,6 +191,21 @@ def run(
 
 
 @app.command()
+def serve():
+    """
+    Start a persistent feedback server for the web UI.
+
+    The server stays alive across multiple pipeline runs. When ``ui: "web"``
+    is set, ``docetl run`` will automatically push state to this server
+    instead of starting its own.  Agents can poll for feedback at any time
+    via ``GET http://localhost:<PORT>/feedback/poll``.
+    """
+    from docetl.tui.web_reporter import start_server
+
+    start_server()
+
+
+@app.command()
 def clear_cache():
     """
     Clear the LLM cache stored on disk.

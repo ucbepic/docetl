@@ -262,9 +262,28 @@ Many tasks only need a **single map operation**. Use good judgement:
 
 ## Operation Reference
 
-### Map Operation
+**Do not rely on hardcoded documentation below — always read the current docs from the repo.** Before writing any operation, read the relevant doc file:
 
-Applies an LLM transformation to each document independently.
+- **Map**: `docs/operators/map.md`
+- **Filter**: `docs/operators/filter.md`
+- **Reduce**: `docs/operators/reduce.md`
+- **Resolve**: `docs/operators/resolve.md`
+- **Split**: `docs/operators/split.md`
+- **Unnest**: `docs/operators/unnest.md`
+- **Code operations**: `docs/operators/code.md`
+- **Equijoin**: `docs/operators/equijoin.md`
+- **Retrievers**: `docs/retrievers.md`
+- **Pipelines**: `docs/concepts/pipelines.md`
+- **Schemas**: `docs/concepts/schemas.md`
+- **Optimization**: `docs/optimization/overview.md`
+- **Interactive progress (web UI)**: `docs/execution/interactive-progress.md`
+- **Running pipelines**: `docs/execution/running-pipelines.md`
+
+Read the doc file for the operation type you're about to use. The docs contain the full parameter reference, examples, and edge cases.
+
+### Quick Examples (for orientation only — check docs for current syntax)
+
+#### Map Operation
 
 ```yaml
 - name: extract_info
@@ -293,251 +312,33 @@ Applies an LLM transformation to each document independently.
 - `sample`: Process only N documents (for testing)
 - `limit`: Stop after producing N outputs
 
-### Filter Operation
+#### Filter
 
-Keeps or removes documents based on LLM criteria. Output schema must have exactly one boolean field.
+One boolean output field. Read `docs/operators/filter.md` for full syntax.
 
-```yaml
-- name: filter_relevant
-  type: filter
-  skip_on_error: true
-  prompt: |
-    Document: {{ input.text }}
+#### Reduce
 
-    Is this document relevant to climate change?
-    Respond true or false.
-  output:
-    schema:
-      is_relevant: boolean
-```
+Aggregates docs by key. **Always include `fold_prompt` and `fold_batch_size`** — the fold prompt must produce a clean standalone output (not "updated X" or "added Y"). Use `reduce_key: "_all"` to aggregate everything. Read `docs/operators/reduce.md`.
 
-### Reduce Operation
+#### Split
 
-Aggregates documents by a key using an LLM.
+Divides long text into chunks (no LLM). Read `docs/operators/split.md`.
 
-**Always include `fold_prompt` and `fold_batch_size`** for reduce operations. This handles cases where the group is too large to fit in context.
+#### Unnest
 
-```yaml
-- name: summarize_by_category
-  type: reduce
-  reduce_key: category  # use "_all" to aggregate everything
-  skip_on_error: true
-  prompt: |
-    Summarize these {{ inputs | length }} items for category "{{ inputs[0].category }}":
+Flattens list fields into rows (no LLM). Read `docs/operators/unnest.md`.
 
-    {% for item in inputs %}
-    - {{ item.title }}: {{ item.description }}
-    {% endfor %}
+#### Resolve
 
-    Provide a 2-3 sentence summary of the key themes.
-  fold_prompt: |
-    You have a summary based on previous items, and new items to incorporate.
+Pairwise deduplication. Set `optimize: true` and run `docetl build` for blocking rules (without blocking it's O(n²)). Uses `comparison_prompt` + `resolution_prompt`. Read `docs/operators/resolve.md`.
 
-    Previous summary (based on {{ output.item_count }} items):
-    {{ output.summary }}
+#### Code Operations
 
-    New items ({{ inputs | length }} more):
-    {% for item in inputs %}
-    - {{ item.title }}: {{ item.description }}
-    {% endfor %}
+Deterministic Python: `code_map`, `code_reduce`, `code_filter`. Each defines a `transform` function. Read `docs/operators/code.md`.
 
-    Write a NEW summary that covers ALL items (previous + new).
+#### Retrievers
 
-    IMPORTANT: Output a clean, standalone summary as if describing the entire dataset.
-    Do NOT mention "updated", "added", "new items", or reference the incremental process.
-  fold_batch_size: 100
-  output:
-    schema:
-      summary: string
-      item_count: int
-  validate:
-    - len(output["summary"].strip()) > 0
-  num_retries_on_validate_failure: 2
-```
-
-**Critical: Writing Good Fold Prompts**
-
-The `fold_prompt` is called repeatedly as batches are processed. Its output must:
-1. **Reflect ALL data seen so far**, not just the latest batch
-2. **Be a clean, standalone output** - no "updated X" or "added Y items" language
-3. **Match the same schema** as the initial `prompt` output
-
-Bad fold_prompt output: "Added 50 new projects. The updated summary now includes..."
-Good fold_prompt output: "Developers are building privacy-focused tools and local-first apps..."
-
-**Estimating `fold_batch_size`:**
-- **Use 100+ for most cases** - larger batches = fewer LLM calls = lower cost
-- For very long documents, reduce to 50-75
-- For short documents (tweets, titles), can use 150-200
-- Models like gpt-4o-mini have 128k context, so batch size is rarely the bottleneck
-
-**Key parameters:**
-- `reduce_key`: Field to group by (or list of fields, or `_all`)
-- `fold_prompt`: Template for incrementally adding items to existing output (required)
-- `fold_batch_size`: Number of items per fold iteration (required, use 100+)
-- `associative`: Set to `false` if order matters
-
-### Split Operation
-
-Divides long text into smaller chunks. No LLM call.
-
-```yaml
-- name: split_document
-  type: split
-  split_key: content
-  method: token_count  # or "delimiter"
-  method_kwargs:
-    num_tokens: 500
-    model: gpt-5-nano
-```
-
-**Output adds:**
-- `{split_key}_chunk`: The chunk content
-- `{op_name}_id`: Original document ID
-- `{op_name}_chunk_num`: Chunk number
-
-### Unnest Operation
-
-Flattens list fields into separate rows. No LLM call.
-
-```yaml
-- name: unnest_items
-  type: unnest
-  unnest_key: items  # field containing the list
-  keep_empty: false  # optional
-```
-
-**Example:** If a document has `items: ["a", "b", "c"]`, unnest creates 3 documents, each with `items: "a"`, `items: "b"`, `items: "c"`.
-
-### Resolve Operation
-
-Deduplicates and canonicalizes entities. Uses pairwise comparison.
-
-```yaml
-- name: dedupe_names
-  type: resolve
-  optimize: true  # let optimizer find blocking rules
-  skip_on_error: true
-  comparison_prompt: |
-    Are these the same person?
-
-    Person 1: {{ input1.name }} ({{ input1.email }})
-    Person 2: {{ input2.name }} ({{ input2.email }})
-
-    Respond true or false.
-  resolution_prompt: |
-    Standardize this person's name:
-
-    {% for entry in inputs %}
-    - {{ entry.name }}
-    {% endfor %}
-
-    Return the canonical name.
-  output:
-    schema:
-      name: string
-```
-
-**Important:** Set `optimize: true` and run `docetl build` to generate efficient blocking rules. Without blocking, this is O(n²).
-
-### Code Operations
-
-Deterministic Python transformations without LLM calls.
-
-**code_map:**
-```yaml
-- name: compute_stats
-  type: code_map
-  code: |
-    def transform(doc) -> dict:
-        return {
-            "word_count": len(doc["text"].split()),
-            "char_count": len(doc["text"])
-        }
-```
-
-**code_reduce:**
-```yaml
-- name: aggregate
-  type: code_reduce
-  reduce_key: category
-  code: |
-    def transform(items) -> dict:
-        total = sum(item["value"] for item in items)
-        return {"total": total, "count": len(items)}
-```
-
-**code_filter:**
-```yaml
-- name: filter_long
-  type: code_filter
-  code: |
-    def transform(doc) -> bool:
-        return len(doc["text"]) > 100
-
-```
-
-### Retrievers (LanceDB)
-
-Augment LLM operations with retrieved context from a LanceDB index. Useful for:
-- Finding related documents to compare against
-- Providing additional context for extraction/classification
-- Cross-referencing facts across a dataset
-
-**Define a retriever:**
-```yaml
-retrievers:
-  facts_index:
-    type: lancedb
-    dataset: extracted_facts  # dataset to index
-    index_dir: workloads/wiki/lance_index
-    build_index: if_missing  # if_missing | always | never
-    index_types: ["fts", "embedding"]  # or "hybrid"
-    fts:
-      index_phrase: "{{ input.fact }}: {{ input.source }}"
-      query_phrase: "{{ input.fact }}"
-    embedding:
-      model: openai/text-embedding-3-small
-      index_phrase: "{{ input.fact }}"
-      query_phrase: "{{ input.fact }}"
-    query:
-      mode: hybrid
-      top_k: 5
-```
-
-**Use in operations:**
-```yaml
-- name: find_conflicts
-  type: map
-  retriever: facts_index
-  prompt: |
-    Check if this fact conflicts with any retrieved facts:
-
-    Current fact: {{ input.fact }} (from {{ input.source }})
-
-    Related facts from other articles:
-    {{ retrieval_context }}
-
-    Return whether there's a genuine conflict.
-  output:
-    schema:
-      has_conflict: boolean
-```
-
-**Key points:**
-- `{{ retrieval_context }}` is injected into prompts automatically
-- Index is built on first use (when `build_index: if_missing`)
-- Supports full-text (`fts`), vector (`embedding`), or `hybrid` search
-- Use `save_retriever_output: true` to debug what was retrieved
-- **Can index intermediate outputs**: Retriever can index the output of a previous pipeline step, enabling patterns like "extract facts → index facts → retrieve similar facts for each"
-
-## Documentation Reference
-
-For detailed parameters, advanced features, and more examples, read the docs:
-- **Operations**: `docs/operators/` folder (map.md, reduce.md, filter.md, etc.)
-- **Concepts**: `docs/concepts/` folder (pipelines.md, operators.md, schemas.md)
-- **Examples**: `docs/examples/` folder
-- **Optimization**: `docs/optimization/` folder
+Augment operations with LanceDB retrieval context (`{{ retrieval_context }}`). Supports full-text, embedding, or hybrid search. Read `docs/retrievers.md`.
 
 ## Step 6: Environment Setup
 
@@ -772,16 +573,43 @@ Three modes:
 - `ui: "tui"` — Terminal dashboard (use for manual CLI runs)
 - `ui: "none"` — No interactive UI (default)
 
+### Starting the Feedback Server
+
+**Always start a persistent feedback server before running the pipeline.** This keeps the browser UI alive across multiple pipeline runs so the human can continuously review results and give feedback.
+
+```bash
+# Start the server in the background (run this ONCE at the start of the session)
+docetl serve &
+```
+
+This opens a browser and prints the server port. The server writes its port to `.docetl_server_port`. Subsequent `docetl run` commands with `ui: "web"` automatically detect the running server and push results to it — no restart, no broken browser connections.
+
+If you skip `docetl serve`, the pipeline will start an inline server that waits for the human to click **Done reviewing** before the command exits.
+
 ### Reading Feedback
 
-Feedback prints to stdout in real time as the human submits it:
+With a persistent server, poll for feedback at any time:
 
+```bash
+curl http://localhost:<PORT>/feedback/poll
+```
+
+This returns JSON with all collected feedback:
+```json
+{
+  "doc_feedback": [{"operation": "summarize", "doc_index": 3, "feedback": "...", "timestamp": "..."}],
+  "pipeline_feedback": [{"feedback": "...", "timestamp": "..."}],
+  "killed": false
+}
+```
+
+Feedback also prints to stdout in real time as the human submits it:
 ```
 [FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
 [FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
 ```
 
-Monitor stdout for these lines while the pipeline runs. After the pipeline finishes, a `feedback.json` file is written with all collected feedback.
+After each pipeline run, check the feedback endpoint (or read `_docetl_feedback.json`) to see what the human thought.
 
 ### Sending Messages to the Human (Toasts)
 
@@ -871,11 +699,22 @@ Wait for pipeline-level feedback from the human before proceeding.
 ## Quick Reference
 
 ```bash
-# Run pipeline
+# Start persistent feedback server (do this first for agent workflows)
+docetl serve &
+
+# Run pipeline (auto-connects to persistent server if running)
 docetl run pipeline.yaml
 
 # Run with more parallelism
 docetl run pipeline.yaml --max_threads 16
+
+# Poll for human feedback
+curl http://localhost:<PORT>/feedback/poll
+
+# Send a message/toast to the human
+curl -X POST http://localhost:<PORT>/message \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Updating prompt based on feedback...", "type": "info"}'
 
 # Optimize pipeline (cost/accuracy tradeoff)
 docetl build pipeline.yaml --optimizer moar

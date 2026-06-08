@@ -1,9 +1,14 @@
 """Web-based progress + feedback UI for non-interactive environments.
 
-Starts a lightweight HTTP server alongside the pipeline so a human can open a
-browser, watch outputs stream in, give per-document or pipeline-level feedback,
-and kill the pipeline if needed.  The agent reads feedback from stdout and from
-a JSON file written on exit.
+Supports two modes:
+
+1. **Inline** (default) — the pipeline process starts its own HTTP server,
+   runs the pipeline, and waits for human feedback before exiting.
+
+2. **Persistent server** — a long-lived ``docetl serve`` process runs
+   independently.  Each ``docetl run`` pushes state updates to it via HTTP.
+   The agent polls ``GET /feedback/poll`` for new feedback at any time.
+   The server survives across multiple pipeline runs.
 
 No external web framework required — uses Python's built-in http.server.
 """
@@ -17,11 +22,15 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TYPE_CHECKING
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from docetl.progress.tracker import PipelineKilled, ProgressTracker, set_active_tracker
 
 if TYPE_CHECKING:
     from docetl.runner import DSLRunner
+
+_PORT_FILE = ".docetl_server_port"
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +46,7 @@ class FeedbackStore:
         self.kill_reason: str | None = None
         self._agent_messages: list[dict] = []
         self._agent_msg_counter = 0
+        self.done_event = threading.Event()
 
     def add_agent_message(self, text: str, msg_type: str = "info",
                           actions: list[str] | None = None) -> int:
@@ -109,16 +119,23 @@ class FeedbackStore:
 # SSE state broadcaster
 # ---------------------------------------------------------------------------
 class _Broadcaster:
-    """Pushes state snapshots to SSE subscribers."""
+    """Pushes state snapshots to SSE subscribers.
 
-    def __init__(self, tracker: ProgressTracker, feedback: FeedbackStore):
+    Two modes:
+    * **local** — ``tracker`` is set; a background thread polls it every second.
+    * **remote** — ``tracker`` is ``None``; the pipeline pushes state via
+      ``accept_state()``.
+    """
+
+    def __init__(self, tracker: ProgressTracker | None, feedback: FeedbackStore):
         self._tracker = tracker
         self._feedback = feedback
         self._subscribers: list[queue.Queue] = []
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self._sent_docs: dict[str, int] = {}  # op_name -> docs already sent
+        self._sent_docs: dict[str, int] = {}
         self._reset_counter = 0
+        self._last_event: dict = {}
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=50)
@@ -134,11 +151,25 @@ class _Broadcaster:
                 pass
 
     def start(self):
+        if self._tracker is None:
+            return  # remote mode — no polling thread needed
         t = threading.Thread(target=self._loop, daemon=True)
         t.start()
 
     def stop(self):
         self._stop.set()
+
+    def accept_state(self, event: dict):
+        """Accept a state dict pushed by a remote pipeline process."""
+        event["feedback_count"] = len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback)
+        event["doc_feedback"] = [
+            {"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
+            for f in self._feedback.doc_feedback
+        ]
+        event["agent_messages"] = self._feedback.get_agent_messages_since(0)
+        event["reset_token"] = self._reset_counter
+        self._last_event = event
+        self._broadcast(event)
 
     def _loop(self):
         while not self._stop.is_set():
@@ -149,6 +180,10 @@ class _Broadcaster:
     def _push(self):
         state = self._tracker.snapshot()
         event = self._build_event(state)
+        self._last_event = event
+        self._broadcast(event)
+
+    def _broadcast(self, event: dict):
         with self._lock:
             dead = []
             for q in self._subscribers:
@@ -210,7 +245,7 @@ def _trunc(v, n=500) -> str:
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
-def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster: _Broadcaster):
+def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broadcaster: _Broadcaster):
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -222,7 +257,10 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
             elif self.path == "/events":
                 self._serve_sse()
             elif self.path == "/state":
-                self._json_response(broadcaster._build_event(tracker.snapshot()))
+                if tracker is not None:
+                    self._json_response(broadcaster._build_event(tracker.snapshot()))
+                else:
+                    self._json_response(broadcaster._last_event or {})
             elif self.path.startswith("/messages"):
                 since = 0
                 if "?since=" in self.path:
@@ -231,6 +269,10 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
                     except ValueError:
                         pass
                 self._json_response({"messages": feedback.get_agent_messages_since(since)})
+            elif self.path.startswith("/feedback/poll"):
+                self._json_response(feedback.to_dict())
+            elif self.path == "/health":
+                self._json_response({"ok": True})
             else:
                 self.send_error(404)
 
@@ -262,7 +304,8 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
             elif self.path == "/kill":
                 reason = body.get("reason", "")
                 feedback.kill_reason = reason
-                tracker.kill_requested = True
+                if tracker is not None:
+                    tracker.kill_requested = True
                 self._json_response({"ok": True})
 
             elif self.path == "/message":
@@ -280,11 +323,20 @@ def _make_handler(tracker: ProgressTracker, feedback: FeedbackStore, broadcaster
                 )
                 self._json_response({"ok": True})
 
+            elif self.path == "/done":
+                feedback.done_event.set()
+                self._json_response({"ok": True})
+
+            elif self.path == "/state/push":
+                broadcaster.accept_state(body)
+                self._json_response({"ok": True})
+
             elif self.path == "/reset":
-                for op in tracker.snapshot().ops:
-                    op.outputs.clear()
+                if tracker is not None:
+                    for op in tracker.snapshot().ops:
+                        op.outputs.clear()
+                    tracker._finished = False
                 broadcaster._reset_counter += 1
-                tracker._finished = False
                 self._json_response({"ok": True})
 
             else:
@@ -765,6 +817,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   <div id="complete-banner" class="complete-banner hidden">
     <b>Pipeline Complete</b>
     <span id="complete-summary"></span>
+    <button class="btn btn-primary" onclick="signalDone()" style="margin-left:auto;font-size:12px;">Done reviewing</button>
   </div>
 
   <div id="tab-table" class="table-wrap">
@@ -1518,6 +1571,11 @@ function sendPipelineFeedback() {
   input.placeholder = 'Sent! Type more…';
 }
 
+function signalDone() {
+  fetch('/done', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+  document.getElementById('complete-summary').textContent += ' — feedback sent!';
+}
+
 function killPipeline() {
   const reason = prompt('Reason for stopping (optional):') || '';
   if (killed) return;
@@ -1690,14 +1748,160 @@ evtSource.onerror = function() {
 
 
 # ---------------------------------------------------------------------------
+# Persistent server helpers
+# ---------------------------------------------------------------------------
+
+def _detect_server() -> int | None:
+    """Return the port of a running persistent server, or None."""
+    try:
+        with open(_PORT_FILE) as f:
+            port = int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return None
+    try:
+        req = Request(f"http://localhost:{port}/health")
+        with urlopen(req, timeout=1) as resp:
+            if resp.status == 200:
+                return port
+    except (URLError, OSError):
+        pass
+    try:
+        os.remove(_PORT_FILE)
+    except OSError:
+        pass
+    return None
+
+
+def _push_state_to_server(port: int, tracker: ProgressTracker):
+    """Background loop that pushes tracker state to a persistent server."""
+    while not getattr(tracker, "_push_stop", threading.Event()).is_set():
+        try:
+            state = tracker.snapshot()
+            ops = []
+            for op in state.ops:
+                ops.append({
+                    "name": op.name, "op_type": op.op_type, "model": op.model,
+                    "status": op.status, "total": op.total, "completed": op.completed,
+                    "errors": op.errors, "out_count": op.out_count,
+                    "cost": op.cost, "elapsed": op.elapsed,
+                })
+            all_docs = []
+            for op in state.ops:
+                for i, doc in enumerate(op.outputs):
+                    all_docs.append({
+                        "op_name": op.name, "op_type": op.op_type, "doc_index": i,
+                        "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
+                    })
+            event = {
+                "ops": ops, "all_docs": all_docs,
+                "total_cost": state.total_cost, "elapsed": state.elapsed,
+                "finished": state.finished,
+            }
+            body = json.dumps(event).encode()
+            req = Request(
+                f"http://localhost:{port}/state/push",
+                data=body,
+                headers={"Content-Type": "application/json"},
+            )
+            urlopen(req, timeout=2)
+        except (URLError, OSError):
+            pass
+        # Check kill requests from the server
+        try:
+            req = Request(f"http://localhost:{port}/feedback/poll")
+            with urlopen(req, timeout=1) as resp:
+                data = json.loads(resp.read())
+                if data.get("killed") and data.get("kill_reason") is not None:
+                    tracker.kill_requested = True
+        except (URLError, OSError):
+            pass
+        tracker._push_stop.wait(1.0)
+    # Final push
+    try:
+        state = tracker.snapshot()
+        ops = []
+        for op in state.ops:
+            ops.append({
+                "name": op.name, "op_type": op.op_type, "model": op.model,
+                "status": op.status, "total": op.total, "completed": op.completed,
+                "errors": op.errors, "out_count": op.out_count,
+                "cost": op.cost, "elapsed": op.elapsed,
+            })
+        all_docs = []
+        for op in state.ops:
+            for i, doc in enumerate(op.outputs):
+                all_docs.append({
+                    "op_name": op.name, "op_type": op.op_type, "doc_index": i,
+                    "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
+                })
+        event = {
+            "ops": ops, "all_docs": all_docs,
+            "total_cost": state.total_cost, "elapsed": state.elapsed,
+            "finished": True,
+        }
+        body = json.dumps(event).encode()
+        req = Request(
+            f"http://localhost:{port}/state/push",
+            data=body, headers={"Content-Type": "application/json"},
+        )
+        urlopen(req, timeout=2)
+    except (URLError, OSError):
+        pass
+
+
+def start_server(port: int = 0) -> int:
+    """Start a persistent feedback server.
+
+    Returns the port. Writes it to ``.docetl_server_port``.
+    The server runs until the process is killed.
+    """
+    existing = _detect_server()
+    if existing is not None:
+        print(f"Server already running on port {existing}")
+        return existing
+
+    feedback = FeedbackStore()
+    broadcaster = _Broadcaster(None, feedback)
+    broadcaster.start()
+
+    handler_cls = _make_handler(None, feedback, broadcaster)
+    server = ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
+    actual_port = server.server_address[1]
+
+    with open(_PORT_FILE, "w") as f:
+        f.write(str(actual_port))
+
+    url = f"http://localhost:{actual_port}"
+    print(f"DocETL feedback server running at {url}")
+    print(f"Port written to {_PORT_FILE}")
+    print("Press Ctrl+C to stop.")
+
+    import webbrowser
+    webbrowser.open(url)
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            os.remove(_PORT_FILE)
+        except OSError:
+            pass
+        server.shutdown()
+    return actual_port
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 def run_with_web_ui(runner: "DSLRunner") -> float:
     """Run the pipeline with a web-based progress + feedback UI.
 
-    Starts an HTTP server on a free port, prints the URL, runs the pipeline,
-    and writes any collected feedback to ``_docetl_feedback.json`` in the
-    working directory (and to stdout).
+    If a persistent server is running (started via ``docetl serve``), the
+    pipeline pushes state to it and returns immediately.  Otherwise it
+    starts an inline server, runs the pipeline, waits for human feedback,
+    then shuts down.
     """
     import threading
 
@@ -1709,8 +1913,75 @@ def run_with_web_ui(runner: "DSLRunner") -> float:
     runner.progress_tracker = tracker
     runner._tui_active = True
     set_active_tracker(tracker)
-
     tracker.pipeline_start(runner.list_pipeline_operations())
+
+    server_port = _detect_server()
+
+    if server_port is not None:
+        return _run_with_remote_server(runner, tracker, server_port)
+    else:
+        return _run_with_inline_server(runner, tracker)
+
+
+def _run_with_remote_server(runner: "DSLRunner", tracker: ProgressTracker, port: int) -> float:
+    """Push state to a persistent server. Returns immediately after pipeline."""
+    import threading
+
+    runner.console.log(
+        f"[bold blue]Using persistent server:[/bold blue] http://localhost:{port}"
+    )
+
+    # Reset the server UI for this new run
+    try:
+        req = Request(
+            f"http://localhost:{port}/reset",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(req, timeout=2)
+    except (URLError, OSError):
+        pass
+
+    tracker._push_stop = threading.Event()
+    push_thread = threading.Thread(
+        target=_push_state_to_server, args=(port, tracker), daemon=True
+    )
+    push_thread.start()
+
+    cost = 0.0
+    killed = False
+    try:
+        cost = runner.load_run_save()
+    except PipelineKilled:
+        killed = True
+        runner.console.log("[bold red]Pipeline killed by user.[/bold red]")
+        try:
+            tracker.pipeline_done()
+        except Exception:
+            pass
+    finally:
+        tracker._push_stop.set()
+        push_thread.join(timeout=5)
+        set_active_tracker(None)
+        runner.progress_tracker = None
+        runner._tui_active = False
+
+    runner.console.log(
+        f"[bold]Pipeline finished.[/bold] Feedback server still running at http://localhost:{port}"
+    )
+    runner.console.log(
+        f"[dim]Poll feedback: curl http://localhost:{port}/feedback/poll[/dim]"
+    )
+
+    if killed:
+        cost = runner.total_cost
+    return cost
+
+
+def _run_with_inline_server(runner: "DSLRunner", tracker: ProgressTracker) -> float:
+    """Start an inline server, run pipeline, wait for feedback, then shut down."""
+    import threading
 
     feedback = FeedbackStore()
     broadcaster = _Broadcaster(tracker, feedback)
@@ -1742,10 +2013,18 @@ def run_with_web_ui(runner: "DSLRunner") -> float:
         except Exception:
             pass
     finally:
-        broadcaster.stop()
         set_active_tracker(None)
         runner.progress_tracker = None
         runner._tui_active = False
+
+    # Keep the server + SSE alive so the user can review results and submit feedback.
+    runner.console.log(
+        "[bold]Pipeline finished.[/bold] Waiting for human feedback — "
+        "click [bold green]Done reviewing[/bold green] in the browser when ready."
+    )
+    feedback.done_event.wait(timeout=1800)
+
+    broadcaster.stop()
 
     # Write feedback
     if feedback.has_any:
@@ -1765,9 +2044,9 @@ def run_with_web_ui(runner: "DSLRunner") -> float:
         if killed and feedback.kill_reason:
             runner.console.log(f"  [kill reason] {feedback.kill_reason}")
         runner.console.log(f"[dim]Full feedback written to {fb_path}[/dim]")
+    else:
+        runner.console.log("[dim]No feedback submitted.[/dim]")
 
-    # Keep the server alive briefly so the browser can show the final state.
-    time.sleep(2)
     server.shutdown()
 
     if killed:

@@ -404,7 +404,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     border-radius: 6px; transition: background .15s;
   }
   .op-item:hover { background: hsl(211 40% 95%); }
-  .op-item.op-selected { background: hsl(211 50% 92%); box-shadow: inset 0 -2px 0 var(--primary); }
+  .op-item.op-selected { background: hsl(211 50% 93%); }
   .op-dot {
     width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   }
@@ -791,6 +791,7 @@ let columnFilters = {};
 let filterVisible = {};
 let lastResetToken = 0;
 let selectedOp = null;
+let userPickedOp = false;
 let lastOps = [];
 
 function fmtCost(c) {
@@ -860,6 +861,7 @@ function updateOps(ops) {
 }
 
 function selectOp(opName) {
+  userPickedOp = true;
   selectedOp = opName;
   columnFilters = {};
   filterVisible = {};
@@ -1410,25 +1412,25 @@ function syncDocs(docs) {
   });
   if (!changed) return;
 
-  // Auto-advance selectedOp to the last op that has outputs
-  let latestOpWithDocs = null;
-  if (lastOps.length) {
-    for (let i = lastOps.length - 1; i >= 0; i--) {
-      const opName = lastOps[i].name;
-      if (allDocs.some(d => d.op_name === opName)) {
-        latestOpWithDocs = opName;
-        break;
+  // Auto-advance selectedOp only if user hasn't manually picked one
+  if (!userPickedOp) {
+    let latestOpWithDocs = null;
+    if (lastOps.length) {
+      for (let i = lastOps.length - 1; i >= 0; i--) {
+        const opName = lastOps[i].name;
+        if (allDocs.some(d => d.op_name === opName)) {
+          latestOpWithDocs = opName;
+          break;
+        }
       }
     }
-  }
-  if (latestOpWithDocs && selectedOp !== latestOpWithDocs) {
-    selectedOp = latestOpWithDocs;
-    columnFilters = {};
-    filterVisible = {};
-    sortCol = null;
-    selectedRow = null;
-    document.getElementById('detail-panel').classList.remove('open');
-    updateOps(lastOps);
+    if (latestOpWithDocs && selectedOp !== latestOpWithDocs) {
+      selectedOp = latestOpWithDocs;
+      columnFilters = {};
+      filterVisible = {};
+      sortCol = null;
+      updateOps(lastOps);
+    }
   }
 
   columns = discoverColumns();
@@ -1437,7 +1439,6 @@ function syncDocs(docs) {
   renderTableHead();
   renderTableBody();
   if (currentTab === 'visualize') renderVizPanel();
-  if (selectedRow !== null) renderDetailPanel();
 
   const visible = getVisibleDocs();
   document.getElementById('f-rows').textContent = visible.length + ' row' + (visible.length === 1 ? '' : 's');
@@ -1582,6 +1583,7 @@ evtSource.onmessage = function(e) {
     seenDocKeys = new Set();
     selectedRow = null;
     selectedOp = null;
+    userPickedOp = false;
     finished = false;
     document.getElementById('detail-panel').classList.remove('open');
     document.getElementById('complete-banner').classList.add('hidden');

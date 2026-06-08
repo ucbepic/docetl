@@ -15,7 +15,7 @@ from .change_model_acc import ChangeModelAccDirective  # noqa: F401
 from .change_model_cost import ChangeModelCostDirective
 from .doc_summarization import DocSummarizationDirective
 from .isolating_subtasks import IsolatingSubtasksDirective
-# from .doc_compression import DocCompressionDirective
+from .doc_compression import DocCompressionDirective
 from .deterministic_doc_compression import DeterministicDocCompressionDirective
 from .reduce_gleaning import ReduceGleaningDirective
 from .reduce_chaining import ReduceChainingDirective
@@ -42,7 +42,7 @@ ALL_DIRECTIVES = [
     ChangeModelCostDirective(),
     DocSummarizationDirective(),
     IsolatingSubtasksDirective(),
-    # DocCompressionDirective(),
+    DocCompressionDirective(),
     DeterministicDocCompressionDirective(),
     OperatorFusionDirective(),
     DocumentChunkingDirective(),
@@ -62,7 +62,7 @@ ALL_DIRECTIVES = [
 ALL_COST_DIRECTIVES = [
     ReduceChainingDirective(),
     DocSummarizationDirective(),
-    # DocCompressionDirective(),
+    DocCompressionDirective(),
     DeterministicDocCompressionDirective(),
     DocumentChunkingTopKDirective(),
     OperatorFusionDirective(),
@@ -74,7 +74,7 @@ ALL_COST_DIRECTIVES = [
 
 DIRECTIVE_GROUPS = {
     "compression": [
-        # DocCompressionDirective(),
+        DocCompressionDirective(),
         DocSummarizationDirective(),
         DeterministicDocCompressionDirective(),
     ],
@@ -170,7 +170,7 @@ __all__ = [
     "ChangeModelDirective",
     "DocSummarizationDirective",
     "IsolatingSubtasksDirective",
-    # "DocCompressionDirective",
+    "DocCompressionDirective",
     "DeterministicDocCompressionDirective",
     "OperatorFusionDirective",
     "DocumentChunkingDirective",

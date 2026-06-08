@@ -452,12 +452,18 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .data-table {
     width: 100%; border-collapse: collapse; font-size: 13px;
+    table-layout: fixed;
   }
   .data-table th {
     position: sticky; top: 0; z-index: 2; background: var(--card);
     text-align: left; font-weight: 500; color: var(--muted-foreground);
-    vertical-align: top; padding: 0;
+    vertical-align: top; padding: 0; position: relative; overflow: hidden;
   }
+  .col-resize {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
+    cursor: col-resize; z-index: 3; user-select: none;
+  }
+  .col-resize:hover, .col-resize.active { background: var(--primary); opacity: .4; }
   .col-header { padding: 6px 10px; }
   .col-header-name {
     display: flex; align-items: center; gap: 4px; font-size: 12px;
@@ -1045,16 +1051,21 @@ function renderTableHead() {
   // Data columns (no operation column)
   columns.forEach(col => {
     const th = document.createElement('th');
-    const stats = columnStats[col];
-    if (stats) {
-      if (stats.type === 'string-words' && !stats.isLowCardinality) {
-        th.style.minWidth = '200px';
-        th.style.width = stats.avg > 8 ? '300px' : '200px';
-      } else if (stats.type === 'number' || stats.isLowCardinality) {
-        th.style.minWidth = '80px';
-        th.style.width = '100px';
-      } else {
-        th.style.minWidth = '100px';
+    if (userColWidths[col]) {
+      th.style.width = userColWidths[col] + 'px';
+      th.style.minWidth = userColWidths[col] + 'px';
+    } else {
+      const stats = columnStats[col];
+      if (stats) {
+        if (stats.type === 'string-words' && !stats.isLowCardinality) {
+          th.style.minWidth = '200px';
+          th.style.width = stats.avg > 8 ? '300px' : '200px';
+        } else if (stats.type === 'number' || stats.isLowCardinality) {
+          th.style.minWidth = '80px';
+          th.style.width = '100px';
+        } else {
+          th.style.minWidth = '100px';
+        }
       }
     }
     const isSorted = sortCol === col;
@@ -1090,7 +1101,8 @@ function renderTableHead() {
             'onclick="event.stopPropagation();clearColumnFilter(\'' + escHtml(col) + '\')">&#215;</button>' +
         '</div>' +
         '<div class="col-histogram" id="hist-' + escHtml(col) + '"></div>' +
-      '</div>';
+      '</div>' +
+      '<div class="col-resize" data-col="' + escHtml(col) + '"></div>';
     tr.appendChild(th);
   });
 
@@ -1277,6 +1289,33 @@ document.addEventListener('keydown', function(e) {
     navigateRow(1);
   }
 });
+
+/* --- Column resize --- */
+var userColWidths = {};
+(function() {
+  let resizing = null;
+  document.addEventListener('mousedown', function(e) {
+    if (!e.target.classList.contains('col-resize')) return;
+    e.preventDefault();
+    const th = e.target.parentElement;
+    const col = e.target.getAttribute('data-col');
+    const startX = e.clientX;
+    const startW = th.offsetWidth;
+    e.target.classList.add('active');
+    resizing = { th: th, handle: e.target, col: col, startX: startX, startW: startW };
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!resizing) return;
+    e.preventDefault();
+    const w = Math.max(50, resizing.startW + (e.clientX - resizing.startX));
+    resizing.th.style.width = w + 'px';
+    resizing.th.style.minWidth = w + 'px';
+    userColWidths[resizing.col] = w;
+  });
+  document.addEventListener('mouseup', function() {
+    if (resizing) { resizing.handle.classList.remove('active'); resizing = null; }
+  });
+})();
 
 /* --- Visualize tab --- */
 function renderVizPanel() {

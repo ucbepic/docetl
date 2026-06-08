@@ -164,8 +164,6 @@ DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data 
 
 **DocWrangler** — UIST 2025, Best Paper Honorable Mention ([paper](https://arxiv.org/abs/2504.14764))
 
-*\*Co-first authors*
-
 ```bibtex
 @inproceedings{shankar2025docwrangler,
   title={Steering Semantic Data Processing With DocWrangler},
@@ -177,8 +175,6 @@ DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data 
 
 **MOAR** — VLDB 2026 ([paper](https://arxiv.org/abs/2512.02289))
 
-*\*Co-first authors*
-
 ```bibtex
 @article{wei2026moar,
   title={Multi-Objective Agentic Rewrites for Unstructured Data Processing},
@@ -186,3 +182,5 @@ DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data 
   journal={Proceedings of the VLDB Endowment}, year={2026}
 }
 ```
+
+*\*Co-first authors*

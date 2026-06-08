@@ -403,8 +403,8 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .op-detail { color: var(--muted-foreground); font-size: 11px; }
   .op-cost { color: hsl(152 69% 31%); font-size: 11px; font-weight: 600; }
   .op-arrow {
-    color: var(--muted-foreground); font-size: 14px; display: flex; align-items: center;
-    padding: 0 2px; opacity: .4;
+    color: var(--foreground); font-size: 18px; display: flex; align-items: center;
+    padding: 0 6px;
   }
   .op-bar {
     position: absolute; bottom: 0; left: 0; height: 2px;

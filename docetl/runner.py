@@ -99,6 +99,9 @@ class DSLRunner(ConfigWrapper):
             # When true (and stdout is a TTY), launch the full-screen interactive
             # progress view for this run (requires the optional ``tui`` extra).
             interactive_ui: bool = False
+            # When true, launch the web-based feedback UI (designed for
+            # agent-orchestrated pipelines where a human supervises via browser).
+            from_agent: bool = False
 
         return Pipeline
 
@@ -520,14 +523,17 @@ class DSLRunner(ConfigWrapper):
     def _should_use_tui(self) -> str | None:
         """Decide which interactive progress mode to use for this run.
 
-        Returns ``"tui"`` for the full Textual dashboard, ``"log"`` for a
-        log-based reporter (non-TTY environments such as AI agents or CI),
-        or ``None`` to skip interactive progress entirely.
+        Returns ``"web"`` for the browser-based feedback UI (agent mode),
+        ``"tui"`` for the full Textual dashboard, ``"log"`` for a log-based
+        reporter (non-TTY environments), or ``None`` to skip interactive
+        progress entirely.
         """
         import sys
 
         if self._tui_active:
             return None
+        if self.config.get("from_agent", False):
+            return "web"
         if not self.config.get("interactive_ui", False):
             return None
         if sys.stdout.isatty() and sys.stdin.isatty():
@@ -542,7 +548,11 @@ class DSLRunner(ConfigWrapper):
         # TUI runs this same method again on a worker thread with ``_tui_active``
         # set, so the actual execution path below is shared.
         ui_mode = self._should_use_tui()
-        if ui_mode == "tui":
+        if ui_mode == "web":
+            from docetl.tui.web_reporter import run_with_web_ui
+
+            return run_with_web_ui(self)
+        elif ui_mode == "tui":
             try:
                 from docetl.tui.app import run_with_tui
             except ImportError:

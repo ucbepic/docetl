@@ -195,6 +195,56 @@ def test_should_use_tui_returns_log_for_non_tty(monkeypatch):
     assert runner._should_use_tui() == "log"
 
 
+def test_from_agent_flag_routes_to_web(monkeypatch):
+    """from_agent: True always routes to web UI regardless of TTY status."""
+    import sys
+
+    from docetl.runner import DSLRunner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
+
+    runner = DSLRunner(
+        {
+            "default_model": "gpt-4o-mini",
+            "operations": [],
+            "pipeline": {"steps": [], "output": {"path": "/tmp/x.json"}},
+            "from_agent": True,
+        },
+        max_threads=2,
+    )
+    assert runner._should_use_tui() == "web"
+
+    # from_agent takes precedence over interactive_ui
+    runner.config["interactive_ui"] = True
+    assert runner._should_use_tui() == "web"
+
+    # Without from_agent, falls back to interactive_ui behavior
+    runner.config["from_agent"] = False
+    assert runner._should_use_tui() == "tui"
+
+
+def test_from_agent_flag_non_tty(monkeypatch):
+    """from_agent: True routes to web even when not a TTY."""
+    import sys
+
+    from docetl.runner import DSLRunner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False, raising=False)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False, raising=False)
+
+    runner = DSLRunner(
+        {
+            "default_model": "gpt-4o-mini",
+            "operations": [],
+            "pipeline": {"steps": [], "output": {"path": "/tmp/x.json"}},
+            "from_agent": True,
+        },
+        max_threads=2,
+    )
+    assert runner._should_use_tui() == "web"
+
+
 def test_runstate_to_dict():
     s = RunState(run_id="abc")
     s.register(OpState("s", "s/op", "map", "m"))

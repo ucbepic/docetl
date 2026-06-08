@@ -402,6 +402,10 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .op-name { color: var(--foreground); }
   .op-detail { color: var(--muted-foreground); font-size: 11px; }
   .op-cost { color: hsl(152 69% 31%); font-size: 11px; font-weight: 600; }
+  .op-arrow {
+    color: var(--muted-foreground); font-size: 14px; display: flex; align-items: center;
+    padding: 0 2px; opacity: .4;
+  }
   .op-bar {
     position: absolute; bottom: 0; left: 0; height: 2px;
     background: var(--primary); transition: width .6s ease;
@@ -572,14 +576,17 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     font-size: 11px; font-weight: 500; color: var(--muted-foreground);
     margin-bottom: 6px; text-transform: uppercase; letter-spacing: .03em;
   }
-  .detail-fb-sent {
-    font-size: 13px; color: hsl(152 69% 31%); font-weight: 500;
-    margin-bottom: 8px; line-height: 1.4;
+  .detail-fb-card {
+    background: hsl(152 60% 96%); border-radius: var(--radius);
+    padding: 10px 12px; margin-bottom: 10px;
+  }
+  .detail-fb-text {
+    font-size: 13px; color: hsl(152 69% 26%); line-height: 1.5;
   }
   .detail-fb-row { display: flex; gap: 6px; }
   .detail-fb-input {
     flex: 1; border: none; border-radius: var(--radius);
-    padding: 6px 10px; font-family: inherit; font-size: 13px;
+    padding: 8px 12px; font-family: inherit; font-size: 13px;
     background: var(--background); color: var(--foreground);
     transition: box-shadow .15s;
   }
@@ -779,7 +786,13 @@ function updateOps(ops) {
   document.getElementById('h-ops').textContent = doneCount + '/' + ops.length;
   const strip = document.getElementById('ops-strip');
   strip.innerHTML = '';
-  ops.forEach(op => {
+  ops.forEach((op, idx) => {
+    if (idx > 0) {
+      const arrow = document.createElement('div');
+      arrow.className = 'op-arrow';
+      arrow.innerHTML = '&#8594;';
+      strip.appendChild(arrow);
+    }
     const el = document.createElement('div');
     el.className = 'op-item';
     let pctWidth = 0;
@@ -1224,11 +1237,10 @@ function renderDetailPanel() {
   // Feedback section
   let fbHtml = '<div class="detail-fb-label">Feedback</div>';
   if (doc._fbSent) {
-    fbHtml += '<div class="detail-fb-sent">' + escHtml(doc._fbText) + '</div>';
+    fbHtml += '<div class="detail-fb-card"><div class="detail-fb-text">' + escHtml(doc._fbText) + '</div></div>';
   }
   fbHtml += '<div class="detail-fb-row">' +
-    '<input class="detail-fb-input" type="text" id="detail-fb-input" placeholder="' + (doc._fbSent ? 'Update feedback…' : 'Add feedback…') + '" ' +
-      'value="' + (doc._fbSent ? escHtml(doc._fbText) : '') + '" ' +
+    '<input class="detail-fb-input" type="text" id="detail-fb-input" placeholder="' + (doc._fbSent ? 'Update feedback…' : 'What do you think about this output?') + '" ' +
       'onkeydown="if(event.key===\'Enter\')sendDocFeedback(' + selectedRow + ')">' +
     '<button class="btn btn-primary" onclick="sendDocFeedback(' + selectedRow + ')">Send</button>' +
   '</div>';

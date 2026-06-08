@@ -27,7 +27,7 @@ export OPENAI_API_KEY=your_key   # or any LLM provider key
 
 ## Python API (recommended)
 
-Best for production code, notebooks, and scripting. [Full guide →](https://ucbepic.github.io/docetl/python/)
+Best for production code, notebooks, and scripting. [Full guide](https://ucbepic.github.io/docetl/python/)
 
 ```python
 import docetl
@@ -56,7 +56,7 @@ print(f"Cost: ${pipeline.total_cost:.4f}")
 
 ## YAML (low-code)
 
-Declare your pipeline in a config file — no Python needed. [Tutorial →](https://ucbepic.github.io/docetl/tutorial/)
+Declare your pipeline in a config file — no Python needed. [Tutorial](https://ucbepic.github.io/docetl/tutorial/)
 
 ```yaml
 datasets:
@@ -95,8 +95,6 @@ docetl run pipeline.yaml
 
 Visual playground for interactive prompt development. Edit prompts, see results in real time. Try it at [docetl.org/playground](https://docetl.org/playground) or [run it locally](https://ucbepic.github.io/docetl/playground/).
 
-![DocWrangler](docs/assets/tutorial/one-operation.png)
-
 ---
 
 ## Why DocETL
@@ -109,7 +107,18 @@ Use DocETL when you need to **maximize correctness** for complex tasks over unst
 - **Validation and retries** — define rules, operations automatically retry on failure
 - **Cost-accuracy optimization** — [MOAR](https://ucbepic.github.io/docetl/optimization/python-api/) explores model choices and prompt rewrites to find the Pareto frontier
 
-![DocETL TUI](docs/assets/progress-view/tui-real-complete.png)
+<table>
+<tr>
+<td width="50%">
+<strong>Progress TUI</strong><br>
+<img src="docs/assets/progress-view/tui-real-complete.png" alt="DocETL TUI" width="100%">
+</td>
+<td width="50%">
+<strong>DocWrangler UI</strong><br>
+<img src="docs/assets/tutorial/one-operation.png" alt="DocWrangler" width="100%">
+</td>
+</tr>
+</table>
 
 ---
 

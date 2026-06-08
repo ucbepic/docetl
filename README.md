@@ -10,15 +10,21 @@ Define operations declaratively. DocETL handles chunking, validation, retries, a
 [![Documentation](https://img.shields.io/badge/Docs-ucbepic.github.io/docetl-green)](https://ucbepic.github.io/docetl)
 [![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
 
-[Why DocETL](#why-docetl) · [Install](#install) · [Python API](#python-api-recommended) · [YAML](#yaml-low-code) · [DocWrangler UI](#docwrangler-ui) · [Docs](#documentation)
+[What is DocETL](#what-is-docetl) · [Install](#install) · [Python API](#python-api-recommended) · [YAML](#yaml-low-code) · [DocWrangler UI](#docwrangler-ui) · [Docs](#documentation)
 
 </div>
 
 ---
 
-## Why DocETL
+## What is DocETL
 
-DocETL is a declarative query engine and optimizer for LLM-powered data processing. You define operations — map, reduce, filter, resolve, extract — and DocETL handles chunking, validation, retries, and parallelization. Its optimizer rewrites pipelines to improve accuracy and reduce cost, searching over model choices, prompt variations, and operation decompositions.
+DocETL is a declarative query engine and optimizer for LLM-powered data processing.
+
+- **Operations on documents** — map, reduce, filter, resolve, extract, and more, each backed by LLM calls
+- **Long-document handling** — automatically splits documents that exceed context windows and reassembles results
+- **Output validation** — define expected schemas and rules; failed outputs are retried automatically
+- **Entity resolution** — deduplicate entities across documents using LLM-based fuzzy matching
+- **Cost-accuracy optimizer** — rewrites pipelines by searching over models, prompts, and operation decompositions
 
 <table>
 <tr>

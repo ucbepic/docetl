@@ -1,7 +1,7 @@
 """Log-based progress reporter for non-interactive environments.
 
-When ``interactive_ui: True`` but stdout is not a TTY (e.g. running from an AI
-agent, CI, or a subprocess), the full Textual TUI cannot run.  This module
+When a progress UI is requested but stdout is not a TTY (e.g. running from
+CI or a subprocess), the full Textual TUI cannot run.  This module
 provides a lightweight alternative that prints structured progress lines **and
 document samples** to the console, so a human or AI agent can see what is being
 generated in real time and decide whether to intervene (Ctrl-C, edit, etc.).
@@ -162,8 +162,8 @@ class _LogReporter:
 def run_with_log_reporter(runner: "DSLRunner") -> float:
     """Execute the pipeline with log-based progress output.
 
-    Used when ``interactive_ui`` is requested but a full TUI cannot run
-    (e.g. non-TTY environment like an AI agent or CI).
+    Used when a progress UI is requested but a full TUI cannot run
+    (e.g. non-TTY environment like CI).
     """
     import threading
 

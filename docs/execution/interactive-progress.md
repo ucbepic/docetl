@@ -1,14 +1,19 @@
 # Interactive Progress View
 
-DocETL can show a full-screen, live progress dashboard in your terminal while a
-pipeline runs. It lets you watch each document complete, see cost and timing per
-operation, and click into any finished document to inspect its output, the
-prompt that produced it, and where it came from.
+DocETL can show a live progress dashboard while a pipeline runs. There are two
+modes — pick the one that fits your workflow:
+
+| Mode | Config | What it does |
+| --- | --- | --- |
+| **TUI** | `ui: "tui"` | Full-screen Textual terminal dashboard |
+| **Web** | `ui: "web"` | Browser-based feedback UI (designed for agent-orchestrated runs) |
 
 ![The progress view: steps and operations on the left, a grid of documents in
 the middle, and the selected document's detail on the right](../assets/progress-view/tui-real-complete.png)
 
 ## Turning it on
+
+### Terminal dashboard (`ui: "tui"`)
 
 First install the optional `tui` extra (it pulls in the
 [Textual](https://textual.textualize.io/) library used to draw the dashboard):
@@ -17,12 +22,11 @@ First install the optional `tui` extra (it pulls in the
 pip install "docetl[tui]"
 ```
 
-Then add `interactive_ui: true` at the top level of your config (next to
-`default_model`):
+Then add `ui: "tui"` at the top level of your config (next to `default_model`):
 
 ```yaml
 default_model: gpt-4.1-nano
-interactive_ui: true
+ui: "tui"
 
 pipeline:
   steps:
@@ -43,11 +47,31 @@ And run the pipeline the usual way:
 docetl run pipeline.yaml
 ```
 
-The dashboard only starts when you are in an interactive terminal. In a script,
-a CI job, or anywhere the output is piped, DocETL automatically falls back to its
-normal log output, so the flag is safe to leave on.
+### Web feedback UI (`ui: "web"`)
 
-## What you see
+When an AI agent creates and runs a pipeline, use `ui: "web"` to launch a
+browser-based feedback UI. This works regardless of whether stdout is a TTY:
+
+```yaml
+default_model: gpt-4.1-nano
+ui: "web"
+
+pipeline:
+  steps:
+    - name: themes
+      input: reviews
+      operations:
+        - extract_theme
+  output:
+    type: file
+    path: output.json
+```
+
+The server URL is printed to stdout when the pipeline starts. Open it in a
+browser to monitor progress, inspect outputs, and submit feedback on individual
+documents.
+
+## What you see (TUI mode)
 
 There are three panels:
 
@@ -63,7 +87,7 @@ There are three panels:
   here as soon as they finish, so you can inspect results while the run is still
   going.
 
-## Moving around
+## Moving around (TUI mode)
 
 | Key | Action |
 | --- | --- |

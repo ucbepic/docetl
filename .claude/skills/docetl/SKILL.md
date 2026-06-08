@@ -63,10 +63,11 @@ Work like a data analyst: **write → run → inspect → iterate**. Never write
 
 **Source Document Links:**
 - **Link aggregated results to source documents** - users should be able to drill down
-- Clickable links that open a modal/popup with source content
+- **Never use external links or file:// URLs** — all data must be self-contained in the HTML
+- Embed source data as a `<script>` JSON blob in the page, then use JavaScript onclick handlers to show modals
 - Modal should show: extracted fields + original source text
 - Original text can be collapsed by default with "Show original" toggle
-- Embed source data as JSON in the page for JavaScript access
+- **Never generate `<a href="...">` links to local files, APIs, or URLs that won't resolve** — use `onclick` handlers with inline data instead
 
 **Key principle:** The user should see results at every step. Don't proceed to the next phase until the current phase produces good results.
 

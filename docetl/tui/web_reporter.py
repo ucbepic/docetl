@@ -546,7 +546,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .detail-header-title { font-size: 15px; font-weight: 600; flex: 1; display: flex; align-items: center; gap: 6px; }
   .detail-row-of { font-size: 12px; color: var(--muted-foreground); font-weight: 400; }
-  .detail-hotkey-hint { font-size: 10px; color: var(--muted-foreground); opacity: .6; margin-left: 4px; }
+  .detail-hotkey-hint { font-size: 10px; color: var(--muted-foreground); opacity: .6; margin-left: 4px; pointer-events: none; }
   .detail-nav-btn {
     background: var(--card); border: none; border-radius: var(--radius);
     cursor: pointer; padding: 4px 10px; font-size: 14px;

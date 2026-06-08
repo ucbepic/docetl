@@ -179,10 +179,12 @@ DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data 
 
 **MOAR** — VLDB 2026 ([paper](https://arxiv.org/abs/2512.02289))
 
+*\*Co-first authors*
+
 ```bibtex
 @article{wei2026moar,
   title={Multi-Objective Agentic Rewrites for Unstructured Data Processing},
-  author={Wei, Lindsey Linxi and Shankar, Shreya and Zeighami, Sepanta and Chung, Yeounoh and Ozcan, Fatma and Parameswaran, Aditya G},
+  author={Wei*, Lindsey Linxi and Shankar*, Shreya and Zeighami, Sepanta and Chung, Yeounoh and Ozcan, Fatma and Parameswaran, Aditya G},
   journal={Proceedings of the VLDB Endowment}, year={2026}
 }
 ```

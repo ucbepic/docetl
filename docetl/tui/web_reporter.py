@@ -322,57 +322,54 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 
   /* Top bar */
   .topbar {
-    background: white; border-bottom: 1px solid var(--border);
+    background: white;
     padding: 8px 16px; display: flex; align-items: center; gap: 12px;
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / .05); flex-shrink: 0;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / .06); flex-shrink: 0;
   }
   .topbar-title { font-size: 15px; font-weight: 600; color: var(--foreground); }
-  .topbar-sep { width: 1px; height: 20px; background: var(--border); }
+  .topbar-sep { width: 1px; height: 20px; background: hsl(211 20% 90%); }
   .topbar-stat { font-size: 13px; color: var(--muted-foreground); }
   .topbar-stat b { font-weight: 600; color: var(--foreground); }
   .topbar-cost b { color: hsl(152 69% 31%); }
   .topbar-spacer { flex: 1; }
   .topbar-fb { display: flex; gap: 6px; }
   .topbar-fb input {
-    width: 280px; background: var(--background); border: 1px solid var(--border);
+    width: 280px; background: var(--background); border: none;
     border-radius: var(--radius); color: var(--foreground); padding: 5px 10px;
-    font-family: inherit; font-size: 13px; transition: border-color .15s, box-shadow .15s;
+    font-family: inherit; font-size: 13px; transition: box-shadow .15s;
   }
   .topbar-fb input:focus {
-    border-color: var(--primary); outline: none;
-    box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .15);
   }
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
     border-radius: var(--radius); font-family: inherit; font-size: 13px;
     font-weight: 500; cursor: pointer; white-space: nowrap;
     padding: 5px 14px; transition: background .15s, border-color .15s;
-    border: 1px solid var(--border); background: white; color: var(--foreground);
+    border: none; background: var(--card); color: var(--foreground);
   }
   .btn:hover { background: var(--accent); }
   .btn-primary {
     background: var(--primary); color: var(--primary-foreground);
-    border-color: var(--primary);
   }
   .btn-primary:hover { background: hsl(211 100% 42%); }
   .btn-destructive {
-    border-color: var(--destructive); color: var(--destructive);
+    color: var(--destructive); background: hsl(0 100% 30% / .06);
   }
-  .btn-destructive:hover { background: hsl(0 100% 30% / .06); }
+  .btn-destructive:hover { background: hsl(0 100% 30% / .1); }
 
   /* Operations strip */
   .ops-strip {
-    background: white; border-bottom: 1px solid var(--border);
+    background: white;
     padding: 0 16px; display: flex; gap: 0; align-items: stretch; flex-shrink: 0;
-    overflow-x: auto;
+    overflow-x: auto; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .04);
   }
   .op-item {
     display: flex; align-items: center; gap: 6px;
     padding: 8px 14px; font-size: 12px; font-weight: 500;
-    border-right: 1px solid hsl(211 30% 92%); position: relative;
-    white-space: nowrap;
+    position: relative; white-space: nowrap;
   }
-  .op-item:last-child { border-right: none; }
   .op-dot {
     width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   }
@@ -396,13 +393,13 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   /* Tabs */
   .tabs {
     display: flex; gap: 0; padding: 0 16px; background: white;
-    border-bottom: 1px solid var(--border); flex-shrink: 0;
+    flex-shrink: 0;
   }
   .tab {
     padding: 8px 16px; font-size: 13px; font-weight: 500;
-    color: var(--muted-foreground); cursor: pointer; border-bottom: 2px solid transparent;
-    transition: color .15s, border-color .15s; background: none; border-top: none;
-    border-left: none; border-right: none; font-family: inherit;
+    color: var(--muted-foreground); cursor: pointer; border: none;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s; background: none; font-family: inherit;
   }
   .tab:hover { color: var(--foreground); }
   .tab.active { color: var(--foreground); border-bottom-color: var(--primary); }
@@ -426,8 +423,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .data-table th {
     position: sticky; top: 0; z-index: 2; background: var(--card);
     text-align: left; font-weight: 500; color: var(--muted-foreground);
-    border-bottom: 1px solid var(--border); vertical-align: top;
-    padding: 0;
+    vertical-align: top; padding: 0;
   }
   .col-header { padding: 6px 10px; }
   .col-header-name {
@@ -445,7 +441,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .col-histogram svg { display: block; width: 100%; }
 
   .data-table td {
-    padding: 8px 10px; border-bottom: 1px solid hsl(211 30% 92%);
+    padding: 8px 10px;
     vertical-align: top; color: var(--card-foreground); overflow: hidden;
     text-overflow: ellipsis; max-height: 120px;
   }
@@ -460,32 +456,32 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .col-fb { min-width: 220px; width: 220px; }
   .fb-cell { display: flex; align-items: center; gap: 4px; }
   .fb-cell input {
-    flex: 1; border: 1px solid transparent; border-radius: var(--radius);
+    flex: 1; border: none; border-radius: var(--radius);
     padding: 4px 8px; font-family: inherit; font-size: 12px; background: transparent;
-    color: var(--foreground); transition: border-color .15s, background .15s;
+    color: var(--foreground); transition: background .15s, box-shadow .15s;
   }
-  .fb-cell input:hover { border-color: hsl(211 30% 88%); background: white; }
+  .fb-cell input:hover { background: hsl(211 30% 96%); }
   .fb-cell input:focus {
-    border-color: var(--primary); outline: none; background: white;
-    box-shadow: 0 0 0 2px hsl(211 100% 50% / .1);
+    outline: none; background: white;
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
   }
   .fb-cell .fb-send {
     padding: 3px 8px; font-size: 11px; border-radius: var(--radius);
-    border: 1px solid var(--border); background: white; cursor: pointer;
+    border: none; background: var(--card); cursor: pointer;
     color: var(--muted-foreground); font-family: inherit; transition: all .15s;
     flex-shrink: 0; opacity: 0; pointer-events: none;
   }
   .fb-cell:focus-within .fb-send,
   .fb-cell input:not(:placeholder-shown) ~ .fb-send { opacity: 1; pointer-events: auto; }
-  .fb-cell .fb-send:hover { background: var(--primary); color: white; border-color: var(--primary); }
+  .fb-cell .fb-send:hover { background: var(--primary); color: white; }
   .fb-sent-text { color: hsl(152 69% 31%); font-size: 12px; font-weight: 500; word-break: break-word; }
 
   /* Histogram view */
   .viz-panel { flex: 1; overflow: auto; padding: 16px; }
   .viz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
   .viz-card {
-    background: white; border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 14px; box-shadow: 0 1px 3px 0 rgb(0 0 0 / .05);
+    background: white; border: none; border-radius: var(--radius);
+    padding: 14px; box-shadow: 0 1px 4px 0 rgb(0 0 0 / .07);
   }
   .viz-card-title { font-size: 13px; font-weight: 600; color: var(--foreground); margin-bottom: 2px; }
   .viz-card-sub { font-size: 11px; color: var(--muted-foreground); margin-bottom: 10px; }
@@ -495,9 +491,9 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   /* Tooltip */
   .tt {
     position: fixed; z-index: 100; pointer-events: none;
-    background: white; border: 1px solid var(--border);
+    background: white; border: none;
     border-radius: var(--radius); padding: 6px 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.1); font-size: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.12); font-size: 12px;
     color: var(--foreground); max-width: 250px; opacity: 0;
     transition: opacity .12s;
   }
@@ -507,9 +503,10 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 
   /* Status bar */
   .statusbar {
-    background: white; border-top: 1px solid var(--border);
+    background: white;
     padding: 5px 16px; font-size: 12px; color: var(--muted-foreground);
     display: flex; gap: 16px; flex-shrink: 0; align-items: center;
+    box-shadow: 0 -1px 3px 0 rgb(0 0 0 / .04);
   }
   .status-dot {
     width: 6px; height: 6px; border-radius: 50%;
@@ -521,7 +518,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 
   /* Completion banner */
   .complete-banner {
-    background: hsl(152 69% 97%); border: 1px solid hsl(152 69% 75%);
+    background: hsl(152 69% 97%); border: none;
     border-radius: var(--radius); padding: 12px 16px; margin: 12px 16px 0;
     display: flex; align-items: center; gap: 10px; font-size: 13px;
   }
@@ -533,15 +530,15 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     display: flex; flex-direction: column; gap: 8px; max-width: 380px;
   }
   .toast {
-    background: white; border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 14px; box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    background: white; border: none; border-radius: var(--radius);
+    padding: 10px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
     font-size: 13px; color: var(--foreground); line-height: 1.4;
     animation: toastIn .3s ease-out;
     display: flex; gap: 8px; align-items: flex-start;
   }
-  .toast.info { border-left: 3px solid var(--primary); }
-  .toast.success { border-left: 3px solid hsl(152 69% 40%); }
-  .toast.warning { border-left: 3px solid hsl(38 92% 50%); }
+  .toast.info { }
+  .toast.success { }
+  .toast.warning { }
   .toast-body { flex: 1; }
   .toast-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 2px; }
   .toast-dismiss {

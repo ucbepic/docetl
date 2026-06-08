@@ -144,6 +144,31 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 | `sample`                  | Number of samples to use for the operation                                        | None                          |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls.                      | {}                            |
 | `bypass_cache`            | If true, bypass the cache for this operation.                                     | False                         |
+| `cascade`                 | Model cascade config for cost reduction on candidate pair comparisons (see below) | None                          |
+
+### Model Cascade (cost reduction)
+
+You can add a `cascade` block to run a cheap proxy model on all candidate pairs
+first and only escalate uncertain comparisons to the expensive oracle — with a
+statistical quality guarantee. This is especially effective when blocking produces
+many candidate pairs.
+
+```yaml
+cascade:
+  proxy_model: gpt-4o-mini
+  target: 0.9
+```
+
+| Parameter | Description | Default |
+|---|---|---|
+| `proxy_model` | The cheap model for the proxy pass (required) | — |
+| `guarantee` | `accuracy`, `precision`, `recall`, or `precision+recall` | `precision` |
+| `target` | Target value for the guarantee metric, in `(0, 1)` (required) | — |
+| `delta` | Failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
+| `label_budget` | Max oracle calls spent learning the threshold | `400` |
+
+See [Model Cascades with BARGAIN](../concepts/cascades.md) for full details,
+guarantee explanations, and examples.
 
 ## Best Practices
 

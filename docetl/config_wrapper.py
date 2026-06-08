@@ -26,19 +26,27 @@ class ConfigWrapper(object):
         base_name = yaml_file.rsplit(".", 1)[0]
         suffix = yaml_file.split("/")[-1].split(".")[0]
         config = load_config(yaml_file)
-        return cls(config, base_name=base_name, yaml_file_suffix=suffix, **kwargs)
+        return cls(
+            config,
+            base_name=base_name,
+            yaml_file_suffix=suffix,
+            yaml_file=yaml_file,
+            **kwargs,
+        )
 
     def __init__(
         self,
         config: dict,
         base_name: str | None = None,
         yaml_file_suffix: str | None = None,
+        yaml_file: str | None = None,
         max_threads: int | None = None,
         console: Console | None = None,
         **kwargs,
     ):
         self.config = config
         self.base_name = base_name
+        self.yaml_file = yaml_file
         self.yaml_file_suffix = yaml_file_suffix or datetime.datetime.now().strftime(
             "%Y%m%d_%H%M%S"
         )
@@ -73,14 +81,26 @@ class ConfigWrapper(object):
 
         # Store fallback configs
         self.fallback_models_config = self.config.get("fallback_models", [])
-        self.fallback_embedding_models_config = self.config.get("fallback_embedding_models", [])
+        self.fallback_embedding_models_config = self.config.get(
+            "fallback_embedding_models", []
+        )
         # Create base routers as instance variables (for fallback models only)
         self.router = self._create_router(self.fallback_models_config, "completion")
-        self.embedding_router = self._create_router(self.fallback_embedding_models_config, "embedding")
+        self.embedding_router = self._create_router(
+            self.fallback_embedding_models_config, "embedding"
+        )
         # Cache routers per operation model (operation model + fallbacks)
         self._router_cache: dict[str, Any] = {}
 
         self.api = APIWrapper(self)
+
+    def pipeline_label(self) -> str:
+        """Human-readable pipeline name for logs and the interactive UI."""
+        if self.yaml_file:
+            return os.path.basename(self.yaml_file)
+        if self.base_name:
+            return os.path.basename(self.base_name) + ".yaml"
+        return "DocETL pipeline"
 
     def _create_router(self, fallback_models: list, router_type: str) -> Any | None:
         """
@@ -107,7 +127,7 @@ class ConfigWrapper(object):
         # Build model list and fallbacks for Router
         model_list = []
         fallback_model_names = []
-        
+
         for fallback_config in fallback_models:
             if isinstance(fallback_config, dict):
                 model_name = fallback_config.get("model_name")
@@ -146,16 +166,16 @@ class ConfigWrapper(object):
             # Create Router with model_list and fallbacks parameter
             # fallbacks should be a list of dicts: [{"model1": ["fallback1", "fallback2"]}]
             router_kwargs = {"model_list": model_list}
-            
+
             # Build fallbacks list: each model falls back to the remaining models in order
             if len(fallback_model_names) > 1:
                 fallbacks = []
                 for i, model_name in enumerate(fallback_model_names):
                     # Each model falls back to the models after it in the list
                     if i < len(fallback_model_names) - 1:
-                        fallbacks.append({model_name: fallback_model_names[i + 1:]})
+                        fallbacks.append({model_name: fallback_model_names[i + 1 :]})
                 router_kwargs["fallbacks"] = fallbacks
-            
+
             router = Router(**router_kwargs)
             self.console.log(
                 f"[green]Created LiteLLM {router_type} Router with {len(model_list)} fallback model(s) in order: {', '.join(fallback_model_names)}[/green]"

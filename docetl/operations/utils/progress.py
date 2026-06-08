@@ -78,6 +78,11 @@ class RichLoopBar:
         if self.tqdm is not None:
             self.tqdm.close()
 
+    def set_description(self, desc: str) -> None:
+        self.description = desc
+        if self.tqdm is not None:
+            self.tqdm.set_description(desc)
+
     def update(self, n: int = 1, cost: float = 0.0) -> None:
         if self.tqdm is not None:
             self.tqdm.update(n)

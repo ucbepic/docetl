@@ -83,6 +83,34 @@ This example demonstrates how the Filter operation distinguishes between high-im
 
 See [map optional parameters](./map.md#optional-parameters) for additional configuration options, including `batch_prompt` and `max_batch_size`.
 
+### Model Cascade (cost reduction)
+
+You can add a `cascade` block to run a cheap proxy model on all items first and
+only escalate uncertain cases to the expensive oracle model — with a statistical
+quality guarantee. This can dramatically reduce cost on large datasets.
+
+```yaml
+- name: is_relevant
+  type: filter
+  model: gpt-4o
+  prompt: "Is this document about climate policy? {{ input.text }}"
+  output: { schema: { keep: "bool" } }
+  cascade:
+    proxy_model: gpt-4o-mini
+    target: 0.95
+```
+
+| Parameter | Description | Default |
+|---|---|---|
+| `proxy_model` | The cheap model for the proxy pass (required) | — |
+| `guarantee` | `accuracy`, `precision`, `recall`, or `precision+recall` | `recall` |
+| `target` | Target value for the guarantee metric, in `(0, 1)` (required) | — |
+| `delta` | Failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
+| `label_budget` | Max oracle calls spent learning the threshold | `400` |
+
+See [Model Cascades with BARGAIN](../concepts/cascades.md) for full details,
+guarantee explanations, and examples.
+
 ### Limiting filtered outputs
 
 `limit` behaves slightly differently for filter operations than for map operations. Because filter drops documents whose predicate evaluates to `false`, the limit counts only the documents that would be retained (i.e., the ones whose boolean output is `true`). DocETL will continue evaluating additional inputs until it has collected `limit` passing documents and then stop scheduling further LLM calls. This ensures you can request “the first N matches” without paying to score the entire dataset.

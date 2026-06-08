@@ -17,9 +17,9 @@ class PipelineBuilder:
         from docetl.builder import PipelineBuilder
 
         pipe = (
-            PipelineBuilder("my_pipeline", default_model="gpt-4o-mini")
-            .dataset("docs", type="file", path="input.json")
-            .output(type="file", path="output.json")
+            PipelineBuilder(default_model="gpt-4o-mini")
+            .dataset("docs", path="input.json")
+            .output("output.json")
             .map("summarize",
                  prompt="Summarize: {{ input.text }}",
                  output={"schema": {"summary": "string"}})
@@ -33,7 +33,6 @@ class PipelineBuilder:
 
     def __init__(
         self,
-        name: str = "pipeline",
         *,
         default_model: str | None = None,
         rate_limits: dict[str, int] | None = None,
@@ -41,7 +40,6 @@ class PipelineBuilder:
         parsing_tools: list[dict] | None = None,
         **kwargs: Any,
     ):
-        self._name = name
         self._default_model = default_model
         self._rate_limits = rate_limits
         self._optimizer_config = optimizer_config
@@ -64,19 +62,14 @@ class PipelineBuilder:
         self,
         name: str,
         *,
-        type: str = "file",
         path: str | None = None,
         data: list[dict] | None = None,
-        source: str = "local",
         parsing: list[dict[str, str]] | None = None,
     ) -> PipelineBuilder:
-        ds: dict[str, Any] = {"type": type, "source": source}
-        if type == "file":
-            ds["path"] = path or ""
-        elif type == "memory" and data is not None:
-            ds["path"] = data
-        elif path is not None:
-            ds["path"] = path
+        if data is not None:
+            ds: dict[str, Any] = {"type": "memory", "path": data}
+        else:
+            ds = {"type": "file", "path": path or ""}
         if parsing:
             ds["parsing"] = parsing
         self._datasets[name] = ds
@@ -86,12 +79,11 @@ class PipelineBuilder:
 
     def output(
         self,
-        *,
-        type: str = "file",
         path: str = "",
+        *,
         intermediate_dir: str | None = None,
     ) -> PipelineBuilder:
-        self._output_config = {"type": type, "path": path}
+        self._output_config = {"type": "file", "path": path}
         if intermediate_dir is not None:
             self._output_config["intermediate_dir"] = intermediate_dir
         return self
@@ -140,6 +132,12 @@ class PipelineBuilder:
             self._last_step_name = step["name"]
 
         return self
+
+    @property
+    def _pipeline_name(self) -> str:
+        if self._output_config and self._output_config.get("path"):
+            return os.path.splitext(os.path.basename(self._output_config["path"]))[0]
+        return "pipeline"
 
     # ── LLM operations ──────────────────────────────────────────────
 
@@ -566,7 +564,7 @@ class PipelineBuilder:
         output = PipelineOutput(**out_cfg)
 
         return Pipeline(
-            name=self._name,
+            name=self._pipeline_name,
             datasets=datasets,
             operations=ops_list,
             steps=steps,
@@ -599,7 +597,6 @@ class PipelineBuilder:
         extra = {k: v for k, v in config.items() if k not in known_keys}
 
         builder = cls(
-            name="pipeline",
             default_model=config.get("default_model"),
             rate_limits=config.get("rate_limits"),
             optimizer_config=config.get("optimizer_config"),
@@ -650,7 +647,7 @@ class PipelineBuilder:
         lines: list[str] = ["from docetl.builder import PipelineBuilder", ""]
 
         # Constructor
-        ctor = [repr(self._name)]
+        ctor: list[str] = []
         if self._default_model:
             ctor.append(f"default_model={repr(self._default_model)}")
         if self._rate_limits:
@@ -668,14 +665,33 @@ class PipelineBuilder:
         # Datasets
         for ds_name, ds_cfg in self._datasets.items():
             ds_parts = [repr(ds_name)]
+            is_memory = ds_cfg.get("type") == "memory"
             for k, v in ds_cfg.items():
-                ds_parts.append(f"{k}={_fmt(v)}")
+                if k in _DATASET_SKIP_KEYS:
+                    if k == "type":
+                        continue
+                    if k == "source" and v == "local":
+                        continue
+                if k == "path" and is_memory:
+                    ds_parts.append(f"data={_fmt(v)}")
+                elif k == "type":
+                    continue
+                else:
+                    ds_parts.append(f"{k}={_fmt(v)}")
             lines.append(f"    .dataset({', '.join(ds_parts)})")
 
         # Output
         if self._output_config:
-            out_parts = [f"{k}={_fmt(v)}" for k, v in self._output_config.items() if v is not None]
-            lines.append(f"    .output({', '.join(out_parts)})")
+            out_parts: list[str] = []
+            path = self._output_config.get("path", "")
+            if path:
+                out_parts.append(repr(path))
+            for k, v in self._output_config.items():
+                if k in ("type", "path") or v is None:
+                    continue
+                out_parts.append(f"{k}={_fmt(v)}")
+            if out_parts:
+                lines.append(f"    .output({', '.join(out_parts)})")
 
         # Steps → operation calls
         for step in self._steps:
@@ -719,6 +735,7 @@ def yaml_to_python(yaml_path: str) -> str:
 # ── formatting helpers ──────────────────────────────────────────────
 
 _SKIP_KEYS = {"name", "type"}
+_DATASET_SKIP_KEYS = {"type", "source"}
 
 
 def _fmt(value: Any) -> str:
@@ -729,7 +746,6 @@ def _fmt(value: Any) -> str:
 
 def _format_op_call(op: dict[str, Any]) -> str:
     op_type = op.get("type", "map")
-    method = op_type
 
     parts: list[str] = [repr(op["name"])]
     for k, v in op.items():
@@ -738,7 +754,7 @@ def _format_op_call(op: dict[str, Any]) -> str:
         parts.append(f"{k}={_fmt(v)}")
 
     joined = ", ".join(parts)
-    prefix = f"    .{method}("
+    prefix = f"    .{op_type}("
 
     if len(prefix) + len(joined) + 1 <= 100:
         return f"{prefix}{joined})"

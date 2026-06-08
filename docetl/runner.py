@@ -231,17 +231,16 @@ class DSLRunner:
 
     def get_output_path(self, require=False):
         output_path = self.pipeline.output.path or None
+        valid_exts = (".json", ".csv", ".parquet")
         if output_path:
-            if not (
-                output_path.lower().endswith(".json")
-                or output_path.lower().endswith(".csv")
-            ):
+            if not any(output_path.lower().endswith(ext) for ext in valid_exts):
                 raise ValueError(
-                    f"Output path '{output_path}' is not a JSON or CSV file. Please provide a path ending with '.json' or '.csv'."
+                    f"Output path '{output_path}' must end with one of {valid_exts}."
                 )
         elif require:
             raise ValueError(
-                "No output path specified in the configuration. Please provide an output path ending with '.json' or '.csv' in the configuration to use the save() method."
+                "No output path specified. Provide a path ending with "
+                f"one of {valid_exts} in the pipeline output configuration."
             )
 
         return output_path
@@ -385,6 +384,9 @@ class DSLRunner:
             if out.path.lower().endswith(".json"):
                 with open(out.path, "w") as file:
                     json.dump(data, file, indent=2)
+            elif out.path.lower().endswith(".parquet"):
+                import pandas as pd
+                pd.DataFrame(data).to_parquet(out.path, index=False)
             else:  # CSV
                 import csv
 

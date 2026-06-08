@@ -156,7 +156,7 @@ class Dataset:
         if self.type == "file":
             if not isinstance(path_or_data, str):
                 raise ValueError("For type 'file', path_or_data must be a string")
-            valid_extensions = (".json", ".csv")
+            valid_extensions = (".json", ".csv", ".parquet")
             if not path_or_data.lower().endswith(valid_extensions):
                 raise ValueError(f"Path must end with one of {valid_extensions}")
         elif self.type == "memory":
@@ -233,6 +233,8 @@ class Dataset:
             with open(self.path_or_data, "r") as f:
                 reader = csv.DictReader(f)
                 data = list(reader)
+        elif ext == ".parquet":
+            data = pd.read_parquet(self.path_or_data).to_dict(orient="records")
         else:
             raise ValueError(f"Unsupported file extension: {ext}")
 

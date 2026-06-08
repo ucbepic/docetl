@@ -115,12 +115,12 @@ def describe_cascade_stats(info: dict) -> dict[str, str]:
     # Result description
     if guarantee == "precision+recall" and gap > 0:
         result_desc = (
-            f"{n_items - served_by_proxy} proxy-accepted + {cal} calibration "
+            f"{served_by_proxy} proxy-accepted + {cal} calibration "
             f"+ {gap} gap-verified → {n_items} items"
         )
     elif is_calibrated:
         result_desc = (
-            f"{n_items - served_by_proxy} proxy-accepted "
+            f"{served_by_proxy} proxy-accepted "
             f"+ {oracle_calls} calibration samples → {n_items} items"
         )
     else:

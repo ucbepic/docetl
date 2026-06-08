@@ -187,6 +187,8 @@ class _CascadeProgress:
         status=None,
         proxy_scores: list[float] | None = None,
     ) -> None:
+        import threading
+        self._lock = threading.Lock()
         self.console = console
         self.n_items = n_items
         self.proxy_model = proxy_model
@@ -220,11 +222,12 @@ class _CascadeProgress:
 
     def tick_proxy(self) -> None:
         """Advance the grid by one item as a proxy response arrives."""
-        if self._oracle_started:
-            return
-        self._proxy_ticks += 1
-        if self._proxy_ticks <= self.n_items:
-            self._tick()
+        with self._lock:
+            if self._oracle_started:
+                return
+            self._proxy_ticks += 1
+            if self._proxy_ticks <= self.n_items:
+                self._tick()
 
     def tick_oracle(self) -> None:
         """Signal an oracle call.
@@ -233,36 +236,37 @@ class _CascadeProgress:
         starts a new phase for the ops-list progress counter. Each
         subsequent call advances the oracle progress.
         """
-        if not self._oracle_started:
-            self._oracle_started = True
-            label = f"oracle ({self.oracle_model})"
-            oracle_total = min(self.n_items, self.label_budget)
-            if self._tracker is not None:
-                self._tracker.freeze_grid()
-                info = {
-                    "proxy_model": self.proxy_model,
-                    "oracle_model": self.oracle_model,
-                    "proxy_calls": self._proxy_ticks,
-                    "label_budget": self.label_budget,
-                    "guarantee": self.guarantee,
-                }
-                if self._proxy_scores:
-                    info["score_hist"] = _build_score_hist(self._proxy_scores)
-                    info["item_proxy_scores"] = list(self._proxy_scores)
-                self._tracker.set_cascade_info(info)
-                self._tracker.set_phase(oracle_total, label=label)
-            else:
-                self._close_bar()
-                from docetl.operations.utils.progress import RichLoopBar
+        with self._lock:
+            if not self._oracle_started:
+                self._oracle_started = True
+                label = f"oracle ({self.oracle_model})"
+                oracle_total = min(self.n_items, self.label_budget)
+                if self._tracker is not None:
+                    self._tracker.freeze_grid()
+                    info = {
+                        "proxy_model": self.proxy_model,
+                        "oracle_model": self.oracle_model,
+                        "proxy_calls": self._proxy_ticks,
+                        "label_budget": self.label_budget,
+                        "guarantee": self.guarantee,
+                    }
+                    if self._proxy_scores:
+                        info["score_hist"] = _build_score_hist(self._proxy_scores)
+                        info["item_proxy_scores"] = list(self._proxy_scores)
+                    self._tracker.set_cascade_info(info)
+                    self._tracker.set_phase(oracle_total, label=label)
+                else:
+                    self._close_bar()
+                    from docetl.operations.utils.progress import RichLoopBar
 
-                self._bar = RichLoopBar(
-                    total=oracle_total,
-                    desc=f"Cascade {label}",
-                    console=self.console,
-                    leave=False,
-                )
-                self._bar.__enter__()
-        self._tick()
+                    self._bar = RichLoopBar(
+                        total=oracle_total,
+                        desc=f"Cascade {label}",
+                        console=self.console,
+                        leave=False,
+                    )
+                    self._bar.__enter__()
+            self._tick()
 
     def _tick(self) -> None:
         if self._tracker is not None:
@@ -538,8 +542,9 @@ class CascadeMixin:
                 f"guarantee may degrade — consider increasing label_budget."
             )
 
-        # Mutable accumulator; the engine drives the adapters sequentially.
+        import threading
         cost = {"proxy": 0.0, "oracle": 0.0}
+        _lock = threading.Lock()
         proxy_scores_live: list[float] = []
         proxy_labels_live: list = []
         oracle_model = self._oracle_model_name()
@@ -554,37 +559,38 @@ class CascadeMixin:
             proxy_scores=proxy_scores_live,
         )
         try:
-            # Cache proxy predictions by rendered message content so
-            # precision+recall (which runs two BARGAIN passes over the
-            # same items) doesn't double the LLM calls or cost.
-            # We can't use id(item) because BARGAIN wraps items in a
-            # numpy array, making object identity unreliable.
             _proxy_cache: dict[str, tuple] = {}
 
             def proxy_predict(item):
                 msgs = render_messages(item)
                 cache_key = msgs[0]["content"] if msgs else ""
-                cached = _proxy_cache.get(cache_key)
+                with _lock:
+                    cached = _proxy_cache.get(cache_key)
                 if cached is not None:
                     return cached
                 lbl, prob, c = self.runner.api._classify_with_logprob_with_cost(
                     spec.proxy_model, msgs, proxy_labels
                 )
-                cost["proxy"] += c
-                proxy_labels_live.append(lbl)
                 p_pos = prob if lbl == positive_label else (1.0 - prob)
-                proxy_scores_live.append(p_pos)
+                with _lock:
+                    cost["proxy"] += c
+                    proxy_labels_live.append(lbl)
+                    proxy_scores_live.append(p_pos)
+                    _proxy_cache[cache_key] = (lbl, prob)
                 progress.tick_proxy()
-                _proxy_cache[cache_key] = (lbl, prob)
                 return lbl, prob
 
             def _oracle(item):
                 lbl, c = oracle_predict(item)
-                cost["oracle"] += c
+                with _lock:
+                    cost["oracle"] += c
                 progress.tick_oracle()
                 return lbl
 
-            cascade = CategoricalCascade(spec, proxy_predict, _oracle)
+            cascade = CategoricalCascade(
+                spec, proxy_predict, _oracle,
+                max_threads=self.max_threads,
+            )
             result = cascade.run(items)
         finally:
             progress.finish()

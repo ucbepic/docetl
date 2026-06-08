@@ -29,6 +29,7 @@ Usage
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Callable, Hashable, Optional
 
@@ -56,11 +57,13 @@ class _ProxyAdapter(_BargainProxy):
         predict_fn: ProxyPredict,
         positive_label: Optional[Hashable] = None,
         console=None,
+        max_threads: int = 1,
     ):
         super().__init__(verbose=False)
         self._predict_fn = predict_fn
         self._positive_label = positive_label
         self._console = console
+        self._max_threads = max_threads
 
     def proxy_func(self, data_record):
         label, score = self._predict_fn(data_record)
@@ -69,12 +72,34 @@ class _ProxyAdapter(_BargainProxy):
         return label, score
 
     def get_preds_and_scores(self, indxs, data_records):
-        uncached = sum(1 for x in indxs if x not in self.preds_dict)
-        if self._console and uncached > 0:
+        uncached_work = [
+            (i, x, data_records[i])
+            for i, x in enumerate(indxs)
+            if x not in self.preds_dict
+        ]
+        if self._console and uncached_work:
             self._console.log(
-                f"[dim]Cascade: scoring {uncached} items with proxy...[/dim]"
+                f"[dim]Cascade: scoring {len(uncached_work)} items with proxy...[/dim]"
             )
-        return super().get_preds_and_scores(indxs, data_records)
+        if len(uncached_work) > 1 and self._max_threads > 1:
+            with ThreadPoolExecutor(max_workers=self._max_threads) as pool:
+                futs = {
+                    pool.submit(self.proxy_func, rec): idx
+                    for _, idx, rec in uncached_work
+                }
+                for fut in as_completed(futs):
+                    idx = futs[fut]
+                    self.preds_dict[idx] = fut.result()
+        else:
+            for _, idx, rec in uncached_work:
+                self.preds_dict[idx] = self.proxy_func(rec)
+
+        preds, scores = [], []
+        for x in indxs:
+            pred, score = self.preds_dict[x]
+            preds.append(pred)
+            scores.append(score)
+        return np.array(preds), np.array(scores)
 
     def n_calls(self) -> int:
         return len(self.preds_dict)
@@ -92,33 +117,63 @@ class _OracleAdapter(_BargainOracle):
         predict_fn: OraclePredict,
         positive_label: Optional[Hashable] = None,
         console=None,
+        max_threads: int = 1,
     ):
         super().__init__(verbose=False)
         self._predict_fn = predict_fn
         self._positive_label = positive_label
         self._console = console
+        self._max_threads = max_threads
 
-    def oracle_func(self, data_record, proxy_output):
+    def _label(self, data_record):
         raw_label = self._predict_fn(data_record)
         if self._positive_label is not None:
-            oracle_output = 1 if raw_label == self._positive_label else 0
-        else:
-            oracle_output = raw_label
+            return 1 if raw_label == self._positive_label else 0
+        return raw_label
+
+    def oracle_func(self, data_record, proxy_output):
+        oracle_output = self._label(data_record)
         is_correct = oracle_output == proxy_output
         return is_correct, oracle_output
 
     def get_pred(self, data_records, indxs=None):
-        if self._console and len(data_records) > 0:
-            uncached = (
-                sum(1 for i in range(len(data_records)) if indxs is None or indxs[i] not in self.preds_dict)
-                if indxs is not None
-                else len(data_records)
+        uncached_work = []
+        for i, record in enumerate(data_records):
+            idx = indxs[i] if indxs is not None else None
+            if idx is not None and idx in self.preds_dict:
+                continue
+            uncached_work.append((i, idx, record))
+
+        if self._console and uncached_work:
+            self._console.log(
+                f"[dim]Cascade: evaluating {len(uncached_work)} items with oracle...[/dim]"
             )
-            if uncached > 0:
-                self._console.log(
-                    f"[dim]Cascade: evaluating {uncached} items with oracle...[/dim]"
-                )
-        return super().get_pred(data_records, indxs)
+
+        if len(uncached_work) > 1 and self._max_threads > 1:
+            with ThreadPoolExecutor(max_workers=self._max_threads) as pool:
+                futs = {
+                    pool.submit(self._label, rec): (i, idx)
+                    for i, idx, rec in uncached_work
+                }
+                for fut in as_completed(futs):
+                    i, idx = futs[fut]
+                    oracle_output = fut.result()
+                    if idx is not None:
+                        self.preds_dict[idx] = oracle_output
+        else:
+            for i, idx, rec in uncached_work:
+                oracle_output = self._label(rec)
+                if idx is not None:
+                    self.preds_dict[idx] = oracle_output
+
+        preds = []
+        for i, record in enumerate(data_records):
+            idx = indxs[i] if indxs is not None else None
+            if idx is not None and idx in self.preds_dict:
+                preds.append(self.preds_dict[idx])
+            else:
+                preds.append(self._label(record))
+        return np.array(preds)
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +236,7 @@ class CategoricalCascade:
         oracle_predict: OraclePredict,
         *,
         console=None,
+        max_threads: int = 4,
     ):
         if spec.guarantee not in self._VALID_GUARANTEES:
             raise GuaranteeNotSupportedError(
@@ -195,6 +251,7 @@ class CategoricalCascade:
         self._proxy_predict = proxy_predict
         self._oracle_predict = oracle_predict
         self._console = console
+        self._max_threads = max_threads
         self.proxy_scores: list[float] = []
 
     def run(self, items: list) -> CascadeResult:
@@ -211,10 +268,12 @@ class CategoricalCascade:
             )
 
         proxy = _ProxyAdapter(
-            self._proxy_predict, positive_label=spec.positive_label, console=self._console
+            self._proxy_predict, positive_label=spec.positive_label,
+            console=self._console, max_threads=self._max_threads,
         )
         oracle = _OracleAdapter(
-            self._oracle_predict, positive_label=spec.positive_label, console=self._console
+            self._oracle_predict, positive_label=spec.positive_label,
+            console=self._console, max_threads=self._max_threads,
         )
 
         if self._console:
@@ -404,8 +463,14 @@ class CategoricalCascade:
         half_budget = max(1, spec.label_budget // 2)
 
         # Precision pass — formal precision guarantee on prec_pos.
-        prec_proxy = _ProxyAdapter(self._proxy_predict, positive_label=spec.positive_label)
-        prec_oracle = _OracleAdapter(self._oracle_predict, positive_label=spec.positive_label)
+        prec_proxy = _ProxyAdapter(
+            self._proxy_predict, positive_label=spec.positive_label,
+            max_threads=self._max_threads,
+        )
+        prec_oracle = _OracleAdapter(
+            self._oracle_predict, positive_label=spec.positive_label,
+            max_threads=self._max_threads,
+        )
         bargain_p = BARGAIN_P(
             prec_proxy, prec_oracle,
             delta=half_delta, target=spec.target, budget=half_budget,
@@ -414,8 +479,14 @@ class CategoricalCascade:
         prec_pos = set(int(i) for i in bargain_p.process(items))
 
         # Recall pass — formal recall guarantee on recall_pos.
-        recall_proxy = _ProxyAdapter(self._proxy_predict, positive_label=spec.positive_label)
-        recall_oracle = _OracleAdapter(self._oracle_predict, positive_label=spec.positive_label)
+        recall_proxy = _ProxyAdapter(
+            self._proxy_predict, positive_label=spec.positive_label,
+            max_threads=self._max_threads,
+        )
+        recall_oracle = _OracleAdapter(
+            self._oracle_predict, positive_label=spec.positive_label,
+            max_threads=self._max_threads,
+        )
         bargain_r = BARGAIN_R(
             recall_proxy, recall_oracle,
             delta=half_delta, target=spec.target, budget=half_budget, beta=0, seed=None,

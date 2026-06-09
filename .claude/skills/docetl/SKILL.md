@@ -597,20 +597,19 @@ docetl serve &
 
 This opens a browser and prints the server port. The port is saved to `.docetl_server_port`. All subsequent `docetl run` commands with `ui: "web"` automatically detect the server and push results to it — no restart, no broken browser connections.
 
-### Automatic Feedback Hook
+### Automatic Feedback Detection
 
-A PostToolUse hook (`.claude/hooks/poll-feedback.sh`) fires automatically after every `docetl run` command. It:
-1. Checks if a feedback server is running
-2. Polls for any human feedback already submitted
-3. If feedback exists, injects it into your context as `additionalContext`
-4. If no feedback yet, tells you to wait with `curl -s http://localhost:PORT/feedback/wait`
+A project hook (`.claude/hooks/poll-feedback.sh`) automatically checks the feedback server for new human feedback. It fires:
+- **After every Bash command** (PostToolUse)
+- **After every agent turn** (Stop event)
 
-**You will always be notified about feedback — never skip the wait step.** The `/feedback/wait` endpoint blocks until the human clicks "Done reviewing":
+The hook deduplicates — it only injects feedback you haven't seen yet. When new feedback arrives, it appears as `additionalContext` in your next turn automatically.
 
+**The human can submit feedback at any time** — not just right after a pipeline run. The hook catches it on your next turn.
+
+If you need to explicitly block until feedback arrives (e.g., right after a run):
 ```bash
 PORT=$(cat .docetl_server_port)
-docetl run pipeline.yaml
-# Hook fires automatically — if it says to wait, run:
 curl -s http://localhost:$PORT/feedback/wait
 ```
 

@@ -623,7 +623,7 @@ def _render_cascade_info(info: dict) -> Text:
     proxy_cost = info.get("proxy_cost", 0)
     oracle_cost = info.get("oracle_cost", 0)
     guarantee = info.get("guarantee", "")
-    is_calibrated = guarantee in ("precision", "recall", "precision+recall")
+    is_calibrated = guarantee in ("precision", "recall")
 
     t.append(
         f"  proxy   {info['proxy_model']}  "

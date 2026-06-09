@@ -62,19 +62,13 @@ engine.
 - **recall** — of the truly-positive items, at least `target` are returned.
   Natural for **filter** (don't drop relevant docs). `BARGAIN_R` (beta=0,
   the documented guarantee-preserving setting).
-- **precision+recall** — both precision and recall hold simultaneously at the
-  same `target`. Runs `BARGAIN_P` (δ/2, budget/2) and `BARGAIN_R` (δ/2,
-  budget/2), then oracle-verifies items in the gap between the two thresholds.
-  The oracle is perfect, so every TP in the gap is found (recall preserved)
-  and only verified TPs are added (precision preserved). Union bound gives
-  P(either fails) ≤ δ.
 
 The user-facing config knobs are exactly:
 
 | Knob | Meaning |
 |---|---|
 | `proxy_model` | the cheap model (oracle = operator's existing `model`) |
-| `guarantee` | `accuracy` \| `precision` \| `recall` \| `precision+recall` |
+| `guarantee` | `accuracy` \| `precision` \| `recall` |
 | `target` | threshold for that metric (0–1) |
 | `delta` | failure probability; guarantee holds w.p. `1 - delta` (default 0.05) |
 | `label_budget` | max oracle calls spent *learning* the threshold (P/R) |

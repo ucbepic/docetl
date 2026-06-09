@@ -24,6 +24,26 @@ from typing import Any
 from docetl import _config
 
 
+def _read_file(path: str) -> list[dict] | None:
+    """Read a JSON/CSV/Parquet file as a list of dicts.
+
+    Returns ``None`` for unsupported file types so callers can fall back.
+    """
+    lower = path.lower()
+    if lower.endswith(".json"):
+        import json
+        with open(path) as f:
+            return json.load(f)
+    elif lower.endswith(".csv"):
+        import csv
+        with open(path, newline="") as f:
+            return list(csv.DictReader(f))
+    elif lower.endswith(".parquet"):
+        import pandas as pd
+        return pd.read_parquet(path).to_dict(orient="records")
+    return None
+
+
 class Retriever:
     """A LanceDB retriever configuration. Pass to operations via ``retriever=``."""
 
@@ -126,7 +146,7 @@ class Frame:
             operations=self._operations + [op],
             steps=self._steps + [step],
             _last_step=step_name,
-            _op_counter=new_counter if name is None else dict(self._op_counter),
+            _op_counter=dict(new_counter),
             _retrievers=new_retrievers,
         )
         return new
@@ -605,14 +625,12 @@ class Frame:
         if not self._operations:
             data = self._load_input_data()[:max]
             df = pd.DataFrame(data)
-            print(df.to_string())
-            return df
-
-        sampled = self._copy(datasets=self._sample_datasets(max))
-        data, cost = sampled._execute(max_threads=max_threads)
-        df = pd.DataFrame(data)
-        df.attrs["_total_cost"] = cost
-        df.attrs["_token_usage"] = sampled._token_usage
+        else:
+            sampled = self._copy(datasets=self._sample_datasets(max))
+            data, cost = sampled._execute(max_threads=max_threads)
+            df = pd.DataFrame(data)
+            df.attrs["_total_cost"] = cost
+            df.attrs["_token_usage"] = sampled._token_usage
         print(df.to_string())
         return df
 
@@ -630,43 +648,24 @@ class Frame:
 
     def _load_input_data(self) -> list[dict]:
         """Load the primary input dataset without executing operations."""
-        import json
-
         ds = self._datasets.get(self._first_dataset, {})
         if ds.get("type") == "memory":
             return ds.get("path", [])
         elif ds.get("type") == "file":
-            path = ds.get("path", "")
-            if path.lower().endswith(".json"):
-                with open(path) as f:
-                    return json.load(f)
-            elif path.lower().endswith(".csv"):
-                import csv as csv_mod
-                with open(path, newline="") as f:
-                    return list(csv_mod.DictReader(f))
+            return _read_file(ds.get("path", "")) or []
         return []
 
     def _sample_datasets(self, n: int) -> dict[str, dict[str, Any]]:
         """Return a copy of the datasets dict with each dataset truncated to *n* rows."""
-        import json
-
         sampled = {}
         for name, ds in self._datasets.items():
             if ds.get("type") == "memory":
                 data = ds["path"][:n] if isinstance(ds.get("path"), list) else ds["path"]
                 sampled[name] = {**ds, "path": data}
             elif ds.get("type") == "file":
-                path = ds.get("path", "")
-                if path.lower().endswith(".json"):
-                    with open(path) as f:
-                        data = json.load(f)
+                data = _read_file(ds.get("path", ""))
+                if data is not None:
                     sampled[name] = {"type": "memory", "path": data[:n]}
-                elif path.lower().endswith(".csv"):
-                    import csv as csv_mod
-                    with open(path, newline="") as f:
-                        reader = csv_mod.DictReader(f)
-                        data = [row for _, row in zip(range(n), reader)]
-                    sampled[name] = {"type": "memory", "path": data}
                 else:
                     sampled[name] = ds
             else:
@@ -721,29 +720,24 @@ class Frame:
         """Token usage per model from the last execution."""
         return self._token_usage
 
-    def write_json(self, path: str, max_threads: int | None = None) -> float:
-        """Execute the pipeline and write results to a JSON file. Returns total cost."""
+    def _write(self, path: str, max_threads: int | None = None) -> float:
         runner = self._build_runner(output_path=path, max_threads=max_threads)
         cost = runner.load_run_save()
         self._total_cost = cost
         self._token_usage = dict(runner.total_token_usage)
         return cost
+
+    def write_json(self, path: str, max_threads: int | None = None) -> float:
+        """Execute the pipeline and write results to a JSON file. Returns total cost."""
+        return self._write(path, max_threads)
 
     def write_csv(self, path: str, max_threads: int | None = None) -> float:
         """Execute the pipeline and write results to a CSV file. Returns total cost."""
-        runner = self._build_runner(output_path=path, max_threads=max_threads)
-        cost = runner.load_run_save()
-        self._total_cost = cost
-        self._token_usage = dict(runner.total_token_usage)
-        return cost
+        return self._write(path, max_threads)
 
     def write_parquet(self, path: str, max_threads: int | None = None) -> float:
         """Execute the pipeline and write results to a Parquet file. Returns total cost."""
-        runner = self._build_runner(output_path=path, max_threads=max_threads)
-        cost = runner.load_run_save()
-        self._total_cost = cost
-        self._token_usage = dict(runner.total_token_usage)
-        return cost
+        return self._write(path, max_threads)
 
     # ── optimization ───────────────────────────────────────────────
 
@@ -865,6 +859,7 @@ class Frame:
         return cls(
             datasets, operations, steps,
             _last_step=last_step, _first_dataset=first_ds,
+            _retrievers=config.get("retrievers") or {},
         )
 
     def to_yaml(self, path: str | None = None) -> str:
@@ -873,15 +868,7 @@ class Frame:
         If *path* is given, also writes the YAML to that file.
         """
         import yaml
-        config = self._build_config()
-        config.pop("pipeline", None)
-
-        pipeline_cfg: dict[str, Any] = {
-            "steps": self._steps,
-            "output": {"type": "file", "path": "output.json"},
-        }
-        config["pipeline"] = pipeline_cfg
-
+        config = self._build_config(output_path="output.json")
         out = yaml.dump(config, default_flow_style=False, sort_keys=False)
         if path:
             with open(path, "w") as f:

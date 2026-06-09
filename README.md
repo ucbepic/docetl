@@ -19,8 +19,8 @@ DocETL is a declarative query engine and optimizer for LLM-powered data processi
 <table>
 <tr>
 <td width="50%">
-<strong>Progress TUI</strong><br>
-<img src="docs/assets/progress-view/tui-real-complete.png" alt="DocETL TUI" width="100%">
+<strong>CLI</strong><br>
+<img src="docs/assets/progress-view/tui-real-complete.png" alt="DocETL CLI" width="100%">
 </td>
 <td width="50%">
 <strong>DocWrangler UI</strong><br>

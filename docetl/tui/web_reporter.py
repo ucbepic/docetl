@@ -47,7 +47,6 @@ class FeedbackStore:
         self.kill_reason: str | None = None
         self._agent_messages: list[dict] = []
         self._agent_msg_counter = 0
-        self.done_event = threading.Event()
         # Truncate log at start of each session
         with open(_FEEDBACK_LOG, "w") as f:
             pass
@@ -309,16 +308,6 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                 self._json_response({"messages": feedback.get_agent_messages_since(since)})
             elif self.path.startswith("/feedback/poll"):
                 self._json_response(feedback.to_dict())
-            elif self.path.startswith("/feedback/wait"):
-                if not feedback.has_any:
-                    timeout = 1800
-                    if "?timeout=" in self.path:
-                        try:
-                            timeout = int(self.path.split("?timeout=")[1])
-                        except ValueError:
-                            pass
-                    feedback.done_event.wait(timeout=timeout)
-                self._json_response(feedback.to_dict())
             elif self.path == "/health":
                 self._json_response({"ok": True})
             else:
@@ -378,12 +367,6 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                 broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
-            elif self.path == "/done":
-                feedback.done_event.set()
-                feedback._log("[FEEDBACK:done] Human clicked Done reviewing")
-                broadcaster.rebroadcast()
-                self._json_response({"ok": True})
-
             elif self.path == "/state/push":
                 broadcaster.accept_state(body)
                 self._json_response({"ok": True})
@@ -397,7 +380,6 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     feedback.doc_feedback.clear()
                     feedback.pipeline_feedback.clear()
                     feedback.kill_reason = None
-                    feedback.done_event.clear()
                 with open(_FEEDBACK_LOG, "w"):
                     pass
                 broadcaster._reset_counter += 1
@@ -881,7 +863,6 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   <div id="complete-banner" class="complete-banner hidden">
     <b>Pipeline Complete</b>
     <span id="complete-summary"></span>
-    <button class="btn btn-primary" onclick="signalDone()" style="margin-left:auto;font-size:12px;">Done reviewing</button>
   </div>
 
   <div id="tab-table" class="table-wrap">
@@ -1635,11 +1616,6 @@ function sendPipelineFeedback() {
   input.placeholder = 'Sent! Type more…';
 }
 
-function signalDone() {
-  fetch('/done', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
-  document.getElementById('complete-summary').textContent += ' — feedback sent!';
-}
-
 function killPipeline() {
   const reason = prompt('Reason for stopping (optional):') || '';
   if (killed) return;
@@ -2110,37 +2086,28 @@ def _run_with_inline_server(runner: "DSLRunner", tracker: ProgressTracker) -> fl
         runner.progress_tracker = None
         runner._tui_active = False
 
-    # Keep the server + SSE alive so the user can review results and submit feedback.
-    runner.console.log(
-        "[bold]Pipeline finished.[/bold] Waiting for human feedback — "
-        "click [bold green]Done reviewing[/bold green] in the browser when ready."
-    )
-    feedback.done_event.wait(timeout=1800)
-
     broadcaster.stop()
 
-    # Write feedback
+    runner.console.log(
+        "[bold]Pipeline finished.[/bold] Review results in the browser "
+        "and submit feedback — it will appear in [dim].docetl_feedback.log[/dim]."
+    )
+
+    # Brief pause so the final SSE push reaches the browser before shutdown.
+    time.sleep(2)
+    server.shutdown()
+
     if feedback.has_any:
         fb_data = feedback.to_dict()
-        fb_path = os.path.join(os.getcwd(), "_docetl_feedback.json")
-        with open(fb_path, "w") as f:
-            json.dump(fb_data, f, indent=2)
         runner.console.log(f"\n[bold]Human feedback collected:[/bold]")
-        if feedback.pipeline_feedback:
-            for item in feedback.pipeline_feedback:
-                runner.console.log(f"  [pipeline] {item['feedback']}")
-        if feedback.doc_feedback:
-            for item in feedback.doc_feedback:
-                runner.console.log(
-                    f"  [doc] {item['operation']} #{item['doc_index']}: {item['feedback']}"
-                )
+        for item in feedback.pipeline_feedback:
+            runner.console.log(f"  [pipeline] {item['feedback']}")
+        for item in feedback.doc_feedback:
+            runner.console.log(
+                f"  [doc] {item['operation']} #{item['doc_index']}: {item['feedback']}"
+            )
         if killed and feedback.kill_reason:
             runner.console.log(f"  [kill reason] {feedback.kill_reason}")
-        runner.console.log(f"[dim]Full feedback written to {fb_path}[/dim]")
-    else:
-        runner.console.log("[dim]No feedback submitted.[/dim]")
-
-    server.shutdown()
 
     if killed:
         cost = runner.total_cost

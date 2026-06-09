@@ -597,12 +597,9 @@ Each feedback event appears as a line:
 [FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
 [FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
 [FEEDBACK:kill] User stopped the pipeline
-[FEEDBACK:done] Human clicked Done reviewing
 ```
 
-**When you see a `[FEEDBACK:...]` notification, act on it immediately.**
-
-**Do NOT use `/feedback/wait` or any blocking wait.** Feedback is also printed in the background subagent's stdout when it polls the server, so the subagent's completion output includes any feedback received during the run.
+**When you see a `[FEEDBACK:...]` notification, act on it immediately.** Feedback is also printed in the background subagent's stdout when it polls the server, so the subagent's completion output includes any feedback received during the run.
 
 To check feedback at any time without blocking:
 ```bash

@@ -384,9 +384,10 @@ Agent(
 
 ### Test Run (Required)
 1. Add `sample: 10-20` to your first operation
-2. Launch pipeline via subagent (the Monitor from session start catches feedback automatically)
-3. When the subagent finishes, inspect intermediate results
-4. Act on any feedback that arrived during or after the run
+2. Launch pipeline via subagent
+3. Start a Monitor on `<pipeline>.feedback.log` (next to the YAML — see "Watching for Feedback")
+4. When the subagent finishes, inspect intermediate results
+5. Act on any feedback that arrived during or after the run
 
 ### Full Run
 Once test results look good:
@@ -571,29 +572,37 @@ Three modes:
 - `ui: "tui"` — Terminal dashboard (use for manual CLI runs)
 - `ui: "none"` — No interactive UI (default)
 
+### How Agent ↔ Human Communication Works
+
+The protocol is two channels:
+
+1. **Human → agent: ONE log file.** Every human action in the web UI (doc feedback, pipeline feedback, kill, toast button clicks) is appended as one line to `<pipeline>.feedback.log`, **in the same directory as the pipeline YAML** (e.g. `comm_quality.yaml` → `comm_quality.feedback.log`). The pipeline prints the exact path on startup: `[FEEDBACK_LOG] /abs/path/to/<pipeline>.feedback.log`.
+2. **Agent → human: ONE endpoint.** `POST http://localhost:<PORT>/message` shows a toast in the browser.
+
 ### Starting the Feedback Server
 
-The persistent feedback server **starts automatically** when you run a pipeline with `ui: "web"`. It opens a browser, stays alive across multiple runs, and pushes results to the same tab — no manual setup needed. The port is saved to `.docetl_server_port`.
+The persistent feedback server **starts automatically** when you run a pipeline with `ui: "web"`. It opens a browser, stays alive across multiple runs, and pushes results to the same tab — no manual setup needed. The port is saved to `~/.docetl/server_port` (global, so pipelines in any directory share one server).
 
 You can also start it manually with `docetl serve` if you want it running before any pipeline.
 
 ### Watching for Feedback
 
-**At the start of the session, start the feedback monitor. Do this ONCE — the monitor stays alive across all pipeline runs.**
+**Right after launching a pipeline, start a Monitor on its feedback log. The log is named after the pipeline YAML, in the same directory:**
 
 ```
-Monitor(command="tail -F .docetl_feedback.log", description="Watch for human feedback")
+Monitor(command="tail -F /path/to/<pipeline>.feedback.log", description="Watch for human feedback")
 ```
 
-If the pipeline prints a `[FEEDBACK_LOG] /absolute/path` line, use that path instead — the log may be in a different directory than your cwd. You can also query the server: `curl -s http://localhost:<PORT>/feedback/log_path`.
+The pipeline's `[FEEDBACK_LOG] <path>` stdout line gives you the exact path (it exists as soon as the run starts — `tail -F` also tolerates it appearing late). One Monitor per pipeline file; it stays valid across re-runs of that pipeline.
 
-This is MANDATORY. Without the Monitor, you will not see feedback until the pipeline finishes. The Monitor sends you a notification the instant the human submits feedback.
+This is MANDATORY. Without the Monitor, you will not see feedback until the pipeline finishes. The Monitor sends you a notification the instant the human acts.
 
-Each feedback event appears as a line:
+Every human action appears as one line in that file:
 ```
 [FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
 [FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
 [FEEDBACK:kill] User stopped the pipeline
+[TOAST:response] id=3 action=Confirm re-run
 ```
 
 **When you see a `[FEEDBACK:...]` notification, act on it immediately.** Feedback is also printed in the background subagent's stdout when it polls the server, so the subagent's completion output includes any feedback received during the run.
@@ -625,7 +634,7 @@ curl -X POST http://localhost:<PORT>/message \
   -d '{"text": "I updated the prompt to require quantitative results. Re-run the pipeline?", "type": "info", "actions": ["Confirm re-run", "Dismiss"]}'
 ```
 
-Toasts with actions stay on screen until the user clicks a button. The response prints to stdout:
+Toasts with actions stay on screen until the user clicks a button. The response is appended to the pipeline's feedback log (the same file your Monitor is tailing), so you get notified:
 
 ```
 [TOAST:response] id=3 action=Confirm re-run
@@ -695,12 +704,16 @@ Wait for pipeline-level feedback from the human before proceeding.
 docetl serve &
 
 # Run pipeline (auto-connects to persistent server if running)
+# Prints: [FEEDBACK_LOG] /abs/path/pipeline.feedback.log  ← tail this
 docetl run pipeline.yaml
 
 # Run with more parallelism
 docetl run pipeline.yaml --max_threads 16
 
-# Poll for human feedback
+# Server port (global)
+cat ~/.docetl/server_port
+
+# Poll for human feedback (alternative to tailing the log)
 curl http://localhost:<PORT>/feedback/poll
 
 # Send a message/toast to the human

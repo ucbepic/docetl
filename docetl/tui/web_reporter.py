@@ -30,39 +30,61 @@ from docetl.progress.tracker import PipelineKilled, ProgressTracker, set_active_
 if TYPE_CHECKING:
     from docetl.runner import DSLRunner
 
-_PORT_FILE = ".docetl_server_port"
-_FEEDBACK_LOG = ".docetl_feedback.log"
+def _port_file() -> str:
+    """Global port file path: one server per user, found from any cwd."""
+    d = os.path.join(os.path.expanduser("~"), ".docetl")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "server_port")
 
 
-def _resolve_feedback_log() -> str:
-    """Return the absolute path to the feedback log.
+def _pipeline_log_path(runner: "DSLRunner") -> str:
+    """Feedback log lives next to the pipeline YAML, named after it.
 
-    When a port file exists, write the log next to it so the agent always
-    knows where to find it regardless of cwd.  Falls back to cwd.
+    e.g. ``workloads/medical/comm_quality.yaml`` →
+    ``workloads/medical/comm_quality.feedback.log``.
+    Falls back to ``.docetl_feedback.log`` in cwd when there is no YAML path.
     """
-    try:
-        port_path = os.path.abspath(_PORT_FILE)
-        return os.path.join(os.path.dirname(port_path), _FEEDBACK_LOG)
-    except Exception:
-        return os.path.abspath(_FEEDBACK_LOG)
+    yaml_file = getattr(runner, "yaml_file", None)
+    if yaml_file:
+        abs_yaml = os.path.abspath(yaml_file)
+        stem = os.path.splitext(os.path.basename(abs_yaml))[0]
+        return os.path.join(os.path.dirname(abs_yaml), f"{stem}.feedback.log")
+    return os.path.abspath(".docetl_feedback.log")
 
 
 # ---------------------------------------------------------------------------
 # Feedback store
 # ---------------------------------------------------------------------------
 class FeedbackStore:
-    """Thread-safe store for human feedback collected via the web UI."""
+    """Thread-safe store for human feedback collected via the web UI.
 
-    def __init__(self):
+    Every human → agent event (doc/pipeline feedback, kill, toast button
+    responses) is appended as one line to ``self._log_path`` so the agent
+    can follow everything by tailing a single file.
+    """
+
+    def __init__(self, log_path: str | None = None):
         self._lock = threading.Lock()
         self.doc_feedback: list[dict] = []
         self.pipeline_feedback: list[dict] = []
         self.kill_reason: str | None = None
         self._agent_messages: list[dict] = []
         self._agent_msg_counter = 0
-        self._log_path = _resolve_feedback_log()
-        with open(self._log_path, "w") as f:
+        self._log_path = log_path or os.path.abspath(".docetl_feedback.log")
+        self._truncate_log()
+
+    def _truncate_log(self):
+        try:
+            with open(self._log_path, "w"):
+                pass
+        except OSError:
             pass
+
+    def set_log_path(self, path: str):
+        """Point the log at a new pipeline's feedback file (truncates it)."""
+        with self._lock:
+            self._log_path = os.path.abspath(path)
+        self._truncate_log()
 
     def _log(self, line: str):
         try:
@@ -89,7 +111,9 @@ class FeedbackStore:
                     m["response"] = action
                     m["actions"] = []
                     break
-        print(f"[TOAST:response] id={msg_id} action={action}", flush=True)
+        line = f"[TOAST:response] id={msg_id} action={action}"
+        print(line, flush=True)
+        self._log(line)
 
     def get_agent_messages_since(self, since_id: int) -> list[dict]:
         with self._lock:
@@ -397,10 +421,12 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     feedback.doc_feedback.clear()
                     feedback.pipeline_feedback.clear()
                     feedback.kill_reason = None
-                with open(_FEEDBACK_LOG, "w"):
-                    pass
+                if body.get("log_path"):
+                    feedback.set_log_path(body["log_path"])
+                else:
+                    feedback._truncate_log()
                 broadcaster._reset_counter += 1
-                self._json_response({"ok": True})
+                self._json_response({"ok": True, "log_path": feedback._log_path})
 
             else:
                 self.send_error(404)
@@ -2001,7 +2027,7 @@ setInterval(() => {
 def _detect_server() -> int | None:
     """Return the port of a running persistent server, or None."""
     try:
-        with open(_PORT_FILE) as f:
+        with open(_port_file()) as f:
             port = int(f.read().strip())
     except (FileNotFoundError, ValueError):
         return None
@@ -2013,7 +2039,7 @@ def _detect_server() -> int | None:
     except (URLError, OSError):
         pass
     try:
-        os.remove(_PORT_FILE)
+        os.remove(_port_file())
     except OSError:
         pass
     return None
@@ -2115,8 +2141,8 @@ def _push_state_to_server(port: int, tracker: ProgressTracker):
 def start_server(port: int = 0) -> int:
     """Start a persistent feedback server.
 
-    Returns the port. Writes it to ``.docetl_server_port``.
-    The server runs until the process is killed.
+    Returns the port. Writes it to ``~/.docetl/server_port`` so pipelines
+    started from any directory can find it. The server runs until killed.
     """
     _kill_stale_servers()
     time.sleep(0.2)
@@ -2129,12 +2155,12 @@ def start_server(port: int = 0) -> int:
     server = ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
     actual_port = server.server_address[1]
 
-    with open(_PORT_FILE, "w") as f:
+    with open(_port_file(), "w") as f:
         f.write(str(actual_port))
 
     url = f"http://localhost:{actual_port}"
     print(f"DocETL feedback server running at {url}")
-    print(f"Port written to {_PORT_FILE}")
+    print(f"Port written to {_port_file()}")
     print("Press Ctrl+C to stop.")
 
     import signal
@@ -2156,7 +2182,7 @@ def start_server(port: int = 0) -> int:
         pass
     finally:
         try:
-            os.remove(_PORT_FILE)
+            os.remove(_port_file())
         except OSError:
             pass
         server.shutdown()
@@ -2187,7 +2213,7 @@ def _kill_stale_servers():
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     try:
-        os.remove(_PORT_FILE)
+        os.remove(_port_file())
     except OSError:
         pass
 
@@ -2202,12 +2228,15 @@ def _auto_start_server() -> int | None:
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "docetl.cli", "serve"],
-        stdout=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    for _ in range(50):
-        time.sleep(0.1)
+    # Slow environments can take >10s to import and bind; poll generously.
+    for _ in range(120):
+        time.sleep(0.25)
+        if proc.poll() is not None:
+            return None  # server process died
         port = _detect_server()
         if port is not None:
             return port
@@ -2256,20 +2285,21 @@ def _run_with_remote_server(runner: "DSLRunner", tracker: ProgressTracker, port:
     runner.console.log(
         f"[bold blue]Using persistent server:[/bold blue] http://localhost:{port}"
     )
-    log_path = _resolve_feedback_log()
-    print(f"[FEEDBACK_LOG] {log_path}", flush=True)
 
-    # Reset the server UI for this new run
+    # Reset the server UI for this run and point its feedback log at a file
+    # next to the pipeline YAML, so the agent always knows where to tail.
+    log_path = _pipeline_log_path(runner)
     try:
         req = Request(
             f"http://localhost:{port}/reset",
-            data=b"{}",
+            data=json.dumps({"log_path": log_path}).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         urlopen(req, timeout=2)
     except (URLError, OSError):
         pass
+    print(f"[FEEDBACK_LOG] {log_path}", flush=True)
 
     tracker._push_stop = threading.Event()
     push_thread = threading.Thread(
@@ -2325,7 +2355,8 @@ def _run_with_inline_server(runner: "DSLRunner", tracker: ProgressTracker) -> fl
     """Start an inline server, run pipeline, wait for feedback, then shut down."""
     import threading
 
-    feedback = FeedbackStore()
+    log_path = _pipeline_log_path(runner)
+    feedback = FeedbackStore(log_path=log_path)
     broadcaster = _Broadcaster(tracker, feedback)
     broadcaster.start()
 
@@ -2337,6 +2368,7 @@ def _run_with_inline_server(runner: "DSLRunner", tracker: ProgressTracker) -> fl
 
     url = f"http://localhost:{port}"
     runner.console.log(f"[bold blue]Live monitor:[/bold blue] [link={url}]{url}[/link]")
+    print(f"[FEEDBACK_LOG] {log_path}", flush=True)
     runner.console.log(
         "[dim]Opening browser… The pipeline is running.[/dim]"
     )
@@ -2363,7 +2395,7 @@ def _run_with_inline_server(runner: "DSLRunner", tracker: ProgressTracker) -> fl
 
     runner.console.log(
         "[bold]Pipeline finished.[/bold] Review results in the browser "
-        "and submit feedback — it will appear in [dim].docetl_feedback.log[/dim]."
+        f"and submit feedback — it will appear in [dim]{log_path}[/dim]."
     )
 
     # Brief pause so the final SSE push reaches the browser before shutdown.

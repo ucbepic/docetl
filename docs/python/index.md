@@ -106,6 +106,10 @@ frame = frame.code_reduce(reduce_key="category", code="def aggregate(items): ...
 Terminal actions execute the pipeline:
 
 ```python
+# Preview — run on a small sample and print results
+frame.show()          # default: 5 input documents
+frame.show(max=10)    # custom sample size
+
 # Collect as DataFrame
 df = frame.collect()
 

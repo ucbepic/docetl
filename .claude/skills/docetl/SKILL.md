@@ -222,7 +222,7 @@ print(f"Cost: ${results.attrs['_total_cost']:.4f}")
 **Key Frame API methods:**
 - Readers: `docetl.read_json()`, `docetl.read_csv()`, `docetl.read_parquet()`, `docetl.from_list()`
 - Operations: `.map()`, `.filter()`, `.reduce()`, `.resolve()`, `.equijoin()`, `.split()`, `.gather()`, `.unnest()`, `.code_map()`, `.code_filter()`, `.code_reduce()`
-- Terminal actions: `.collect()` (DataFrame), `.to_list()`, `.write_json()`, `.write_csv()`, `.write_parquet()`
+- Terminal actions: `.show()` (run on sample, print results), `.collect()` (DataFrame), `.to_list()`, `.write_json()`, `.write_csv()`, `.write_parquet()`
 - Config: `docetl.default_model`, `docetl.max_threads`, `docetl.bypass_cache`, `docetl.rate_limits`, `docetl.intermediate_dir`, `docetl.agent_model`, `docetl.fallback_models`
 
 All operation parameters are the same between YAML and Python — just pass them as keyword arguments (e.g., `validate=["len(output['items']) >= 1"]`, `fold_prompt="..."`, `fold_batch_size=100`).

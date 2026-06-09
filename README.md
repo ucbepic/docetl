@@ -64,7 +64,8 @@ pipeline = (
     )
 )
 
-df = pipeline.collect()
+pipeline.show()  # run on 5 docs and print results
+df = pipeline.collect()  # full run
 print(f"Cost: ${pipeline.total_cost:.4f}")
 ```
 

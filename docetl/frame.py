@@ -38,6 +38,7 @@ class Frame:
         _first_dataset: str | None = None,
         _op_counter: dict[str, int] | None = None,
         _extra_datasets: dict[str, dict[str, Any]] | None = None,
+        _retrievers: dict[str, dict[str, Any]] | None = None,
     ):
         self._datasets = datasets
         self._operations = operations or []
@@ -46,6 +47,7 @@ class Frame:
         self._first_dataset = _first_dataset or next(iter(datasets), None)
         self._op_counter = _op_counter or {}
         self._extra_datasets = _extra_datasets or {}
+        self._retrievers = _retrievers or {}
         self._total_cost: float = 0.0
         self._token_usage: dict[str, dict[str, int]] = {}
 
@@ -58,6 +60,7 @@ class Frame:
             _first_dataset=self._first_dataset,
             _op_counter=dict(self._op_counter),
             _extra_datasets=dict(self._extra_datasets),
+            _retrievers=dict(self._retrievers),
         )
         kw.update(overrides)
         return Frame(**kw)
@@ -101,6 +104,40 @@ class Frame:
             _last_step=step_name,
         )
 
+    # ── retrievers ─────────────────────────────────────────────────
+
+    def add_retriever(
+        self,
+        name: str,
+        *,
+        dataset: str,
+        index_dir: str,
+        index_types: list[str],
+        fts: dict[str, str] | None = None,
+        embedding: dict[str, str] | None = None,
+        query: dict[str, Any] | None = None,
+        build_index: str = "if_missing",
+    ) -> Frame:
+        """Register a LanceDB retriever for use in operations.
+
+        Operations reference it by *name* via their ``retriever`` parameter.
+        """
+        config: dict[str, Any] = {
+            "type": "lancedb",
+            "dataset": dataset,
+            "index_dir": index_dir,
+            "index_types": index_types,
+            "build_index": build_index,
+        }
+        if fts is not None:
+            config["fts"] = fts
+        if embedding is not None:
+            config["embedding"] = embedding
+        if query is not None:
+            config["query"] = query
+        new_retrievers = {**self._retrievers, name: config}
+        return self._copy(_retrievers=new_retrievers)
+
     # ── LLM operations ─────────────────────────────────────────────
 
     def map(
@@ -128,6 +165,7 @@ class Frame:
         limit: int | None = None,
         calibrate: bool | None = None,
         num_calibration_docs: int | None = None,
+        retriever: str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("map", name, {
@@ -145,6 +183,7 @@ class Frame:
             "flush_partial_results": flush_partial_results,
             "limit": limit, "calibrate": calibrate,
             "num_calibration_docs": num_calibration_docs,
+            "retriever": retriever,
             **kwargs,
         })
 
@@ -180,6 +219,7 @@ class Frame:
         max_batch_size: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
         limit: int | None = None,
+        retriever: str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("filter", name, {
@@ -188,7 +228,7 @@ class Frame:
             "validate": validate, "drop_keys": drop_keys,
             "timeout": timeout, "max_batch_size": max_batch_size,
             "litellm_completion_kwargs": litellm_completion_kwargs,
-            "limit": limit, **kwargs,
+            "limit": limit, "retriever": retriever, **kwargs,
         })
 
     def reduce(
@@ -214,6 +254,7 @@ class Frame:
         litellm_completion_kwargs: dict[str, Any] | None = None,
         enable_observability: bool | None = None,
         limit: int | None = None,
+        retriever: str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("reduce", name, {
@@ -227,7 +268,7 @@ class Frame:
             "timeout": timeout,
             "litellm_completion_kwargs": litellm_completion_kwargs,
             "enable_observability": enable_observability,
-            "limit": limit, **kwargs,
+            "limit": limit, "retriever": retriever, **kwargs,
         })
 
     def resolve(
@@ -334,6 +375,7 @@ class Frame:
         timeout: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
         limit: int | None = None,
+        retriever: str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("extract", name, {
@@ -342,7 +384,7 @@ class Frame:
             "extraction_key_suffix": extraction_key_suffix,
             "extraction_method": extraction_method, "timeout": timeout,
             "litellm_completion_kwargs": litellm_completion_kwargs,
-            "limit": limit, **kwargs,
+            "limit": limit, "retriever": retriever, **kwargs,
         })
 
     # ── structural operations ──────────────────────────────────────
@@ -516,14 +558,18 @@ class Frame:
         if _config.intermediate_dir:
             output_cfg["intermediate_dir"] = _config.intermediate_dir
 
+        all_datasets = {**self._datasets, **self._extra_datasets}
+
         config: dict[str, Any] = {
-            "datasets": dict(self._datasets),
+            "datasets": all_datasets,
             "operations": self._operations,
             "pipeline": {
                 "steps": self._steps,
                 "output": output_cfg,
             },
         }
+        if self._retrievers:
+            config["retrievers"] = self._retrievers
         if _config.default_model:
             config["default_model"] = _config.default_model
         if _config.rate_limits:

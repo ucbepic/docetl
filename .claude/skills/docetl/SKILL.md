@@ -387,7 +387,7 @@ Agent(
 **After launching the pipeline subagent, immediately start watching the feedback log.** The feedback server writes every feedback event to `.docetl_feedback.log`. Use the Monitor tool to watch it:
 
 ```
-Monitor(command="tail -f .docetl_feedback.log", description="Watch for human feedback")
+Monitor(command="tail -F .docetl_feedback.log", description="Watch for human feedback")
 ```
 
 Each feedback event appears as a notification in real time:
@@ -606,23 +606,14 @@ This opens a browser and prints the server port. The port is saved to `.docetl_s
 The feedback server writes all events to `.docetl_feedback.log`. **After starting a pipeline, always monitor this file** with the Monitor tool:
 
 ```
-Monitor(command="tail -f .docetl_feedback.log", description="Watch for human feedback")
+Monitor(command="tail -F .docetl_feedback.log", description="Watch for human feedback")
 ```
 
 You will receive a notification for each feedback event as it happens. React immediately — don't wait for the pipeline to finish.
 
-The `/feedback/wait` endpoint blocks until the human signals they're done, then returns all collected feedback as JSON:
-```json
-{
-  "doc_feedback": [{"operation": "summarize", "doc_index": 3, "feedback": "...", "timestamp": "..."}],
-  "pipeline_feedback": [{"feedback": "...", "timestamp": "..."}],
-  "killed": false
-}
-```
+**Do NOT use `/feedback/wait` or any blocking wait.** The Monitor on the feedback log handles real-time notification. Feedback also appears in the background subagent's stdout when it polls the server during the pipeline run.
 
-**Never skip the feedback wait.** If you run the pipeline and immediately move to the next step, the human's feedback is lost. The pattern is always: **run → wait → read feedback → iterate**.
-
-To poll without blocking (e.g., to check if any feedback has come in yet):
+To check feedback at any time without blocking:
 ```bash
 curl -s http://localhost:$PORT/feedback/poll
 ```

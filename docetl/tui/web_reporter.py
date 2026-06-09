@@ -366,6 +366,13 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     for op in tracker.snapshot().ops:
                         op.outputs.clear()
                     tracker._finished = False
+                with feedback._lock:
+                    feedback.doc_feedback.clear()
+                    feedback.pipeline_feedback.clear()
+                    feedback.kill_reason = None
+                    feedback.done_event.clear()
+                with open(_FEEDBACK_LOG, "w"):
+                    pass
                 broadcaster._reset_counter += 1
                 self._json_response({"ok": True})
 
@@ -1804,6 +1811,8 @@ def _detect_server() -> int | None:
 
 def _push_state_to_server(port: int, tracker: ProgressTracker):
     """Background loop that pushes tracker state to a persistent server."""
+    _seen_doc_fb = 0
+    _seen_pipe_fb = 0
     while not getattr(tracker, "_push_stop", threading.Event()).is_set():
         try:
             state = tracker.snapshot()
@@ -1836,13 +1845,26 @@ def _push_state_to_server(port: int, tracker: ProgressTracker):
             urlopen(req, timeout=2)
         except (URLError, OSError):
             pass
-        # Check kill requests from the server
+        # Check for feedback and kill requests from the server
         try:
             req = Request(f"http://localhost:{port}/feedback/poll")
             with urlopen(req, timeout=1) as resp:
                 data = json.loads(resp.read())
                 if data.get("killed") and data.get("kill_reason") is not None:
                     tracker.kill_requested = True
+                doc_fb = data.get("doc_feedback", [])
+                if len(doc_fb) > _seen_doc_fb:
+                    for fb in doc_fb[_seen_doc_fb:]:
+                        print(f"[FEEDBACK:doc] op={fb.get('operation','')} "
+                              f"doc_index={fb.get('doc_index','')} | "
+                              f"{fb.get('feedback','')}", flush=True)
+                    _seen_doc_fb = len(doc_fb)
+                pipe_fb = data.get("pipeline_feedback", [])
+                if len(pipe_fb) > _seen_pipe_fb:
+                    for fb in pipe_fb[_seen_pipe_fb:]:
+                        print(f"[FEEDBACK:pipeline] {fb.get('feedback','')}",
+                              flush=True)
+                    _seen_pipe_fb = len(pipe_fb)
         except (URLError, OSError):
             pass
         tracker._push_stop.wait(1.0)
@@ -2000,9 +2022,23 @@ def _run_with_remote_server(runner: "DSLRunner", tracker: ProgressTracker, port:
     runner.console.log(
         f"[bold]Pipeline finished.[/bold] Feedback server still running at http://localhost:{port}"
     )
-    runner.console.log(
-        f"[dim]Poll feedback: curl http://localhost:{port}/feedback/poll[/dim]"
-    )
+
+    # Print all feedback received so it appears in subagent output
+    try:
+        req = Request(f"http://localhost:{port}/feedback/poll")
+        with urlopen(req, timeout=2) as resp:
+            fb = json.loads(resp.read())
+            if fb.get("doc_feedback") or fb.get("pipeline_feedback"):
+                print("\n=== Feedback received during this run ===", flush=True)
+                for d in fb.get("doc_feedback", []):
+                    print(f"  [doc] op={d.get('operation','')} "
+                          f"doc_index={d.get('doc_index','')} | "
+                          f"{d.get('feedback','')}", flush=True)
+                for p in fb.get("pipeline_feedback", []):
+                    print(f"  [pipeline] {p.get('feedback','')}", flush=True)
+                print("=========================================\n", flush=True)
+    except (URLError, OSError):
+        pass
 
     if killed:
         cost = runner.total_cost

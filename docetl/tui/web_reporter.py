@@ -718,6 +718,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     font-size: 13px; color: var(--foreground); line-height: 1.6;
     white-space: pre-wrap; word-break: break-word;
     padding: 0 20px 14px; display: none;
+    max-height: 300px; overflow-y: auto;
   }
   .detail-field-val.open { display: block; }
   .detail-field-val.collapsed {

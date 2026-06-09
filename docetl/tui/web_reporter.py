@@ -707,8 +707,11 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .detail-field-key:hover { background: var(--accent); }
   .detail-field-key .chevron {
-    font-size: 10px; color: var(--muted-foreground); transition: transform .15s;
-    display: inline-block; width: 14px;
+    width: 0; height: 0; flex-shrink: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid var(--muted-foreground);
+    transition: transform .15s;
   }
   .detail-field-key .chevron.open { transform: rotate(90deg); }
   .detail-field-val {
@@ -759,26 +762,27 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .detail-fb-delete:hover { color: var(--destructive); }
   .detail-fb-input-wrap {
-    position: relative;
+    display: flex; gap: 8px; align-items: flex-end;
   }
   .detail-fb-input {
-    width: 100%; border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 14px; padding-right: 60px; font-family: inherit; font-size: 13px;
+    flex: 1; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; font-family: inherit; font-size: 13px;
     background: white; color: var(--foreground);
     transition: border-color .15s; resize: none; overflow: hidden;
-    min-height: 44px; max-height: 150px; line-height: 1.5;
+    min-height: 40px; max-height: 150px; line-height: 1.5;
+    box-sizing: border-box;
   }
   .detail-fb-input:focus {
     outline: none; border-color: var(--primary);
   }
   .detail-fb-send {
-    position: absolute; right: 8px; bottom: 8px;
     background: var(--primary); color: white; border: none;
-    border-radius: var(--radius); padding: 4px 12px; font-size: 12px;
+    border-radius: var(--radius); padding: 8px 14px; font-size: 12px;
     font-weight: 500; cursor: pointer; font-family: inherit;
-    opacity: .7; transition: opacity .15s;
+    white-space: nowrap; flex-shrink: 0; height: 40px;
+    transition: opacity .15s;
   }
-  .detail-fb-send:hover { opacity: 1; }
+  .detail-fb-send:hover { opacity: .85; }
 
   /* Histogram view */
   .viz-panel { flex: 1; overflow: auto; padding: 16px; }
@@ -1491,7 +1495,7 @@ function renderDetailPanel() {
     const openByDefault = ki === 0 || !isLong;
     bodyHtml += '<div class="detail-field">' +
       '<div class="detail-field-key" onclick="toggleDetailField(this)">' +
-        '<span class="chevron ' + (openByDefault ? 'open' : '') + '">▶</span>' +
+        '<span class="chevron ' + (openByDefault ? 'open' : '') + '"></span>' +
         escHtml(key) +
       '</div>' +
       '<div class="detail-field-val ' + (openByDefault ? 'open' : '') + '">' + displayVal + '</div>' +

@@ -211,7 +211,7 @@ class _Broadcaster:
     def _loop(self):
         while not self._stop.is_set():
             self._push()
-            self._stop.wait(1.0)
+            self._stop.wait(0.5)
         self._push()  # final push
 
     def _push(self):
@@ -409,8 +409,14 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
             self.end_headers()
             q = broadcaster.subscribe()
+            # Send the last known state immediately so the browser catches up
+            # instead of waiting up to 1s for the next push.
+            if broadcaster._last_event:
+                self.wfile.write(f"data: {json.dumps(broadcaster._last_event)}\n\n".encode())
+                self.wfile.flush()
             try:
                 while True:
                     try:
@@ -1846,8 +1852,9 @@ def _push_state_to_server(port: int, tracker: ProgressTracker):
                 headers={"Content-Type": "application/json"},
             )
             urlopen(req, timeout=2)
-        except (URLError, OSError):
-            pass
+        except (URLError, OSError) as exc:
+            import sys
+            print(f"[push] error: {exc}", file=sys.stderr, flush=True)
         # Check for feedback and kill requests from the server
         try:
             req = Request(f"http://localhost:{port}/feedback/poll")
@@ -1870,7 +1877,7 @@ def _push_state_to_server(port: int, tracker: ProgressTracker):
                     _seen_pipe_fb = len(pipe_fb)
         except (URLError, OSError):
             pass
-        tracker._push_stop.wait(1.0)
+        tracker._push_stop.wait(0.5)
     # Final push
     try:
         state = tracker.snapshot()

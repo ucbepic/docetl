@@ -523,6 +523,30 @@ class Frame:
         threads = max_threads or _config.max_threads
         return DSLRunner(self._build_config(output_path), max_threads=threads)
 
+    def show(self, n: int = 5, max_threads: int | None = None) -> "pd.DataFrame":
+        """Run the pipeline on a sample of *n* documents and print the results.
+
+        Injects ``sample: n`` on the first operation so only a small slice
+        of the dataset is processed — useful for interactive development.
+        Returns the resulting DataFrame.
+        """
+        import pandas as pd
+
+        if not self._operations:
+            raise ValueError("Pipeline has no operations.")
+
+        ops = list(self._operations)
+        first = {**ops[0], "sample": n}
+        ops[0] = first
+
+        sampled = self._copy(operations=ops)
+        data, cost = sampled._execute(max_threads=max_threads)
+        df = pd.DataFrame(data)
+        df.attrs["_total_cost"] = cost
+        df.attrs["_token_usage"] = sampled._token_usage
+        print(df.to_string())
+        return df
+
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
         """Execute the pipeline and return results as a DataFrame."""
         import pandas as pd

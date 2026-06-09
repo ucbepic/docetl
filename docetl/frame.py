@@ -595,16 +595,18 @@ class Frame:
         return DSLRunner(self._build_config(output_path), max_threads=threads)
 
     def show(self, max: int = 5, max_threads: int | None = None) -> "pd.DataFrame":
-        """Run the pipeline on the first *n* input documents and print results.
+        """Run the pipeline on the first *max* input documents and print results.
 
-        Truncates the input dataset to *n* rows so every operation
-        (including filters and reduces) sees realistic data, just less of it.
+        If no operations have been added yet, just shows the raw input data.
         Returns the resulting DataFrame.
         """
         import pandas as pd
 
         if not self._operations:
-            raise ValueError("Pipeline has no operations.")
+            data = self._load_input_data()[:max]
+            df = pd.DataFrame(data)
+            print(df.to_string())
+            return df
 
         sampled = self._copy(datasets=self._sample_datasets(max))
         data, cost = sampled._execute(max_threads=max_threads)
@@ -613,6 +615,36 @@ class Frame:
         df.attrs["_token_usage"] = sampled._token_usage
         print(df.to_string())
         return df
+
+    def count(self, max_threads: int | None = None) -> int:
+        """Return the number of output rows.
+
+        On a bare dataset (no operations), returns the input count without
+        executing anything.  With operations, executes the pipeline and
+        counts the results.
+        """
+        if not self._operations:
+            return len(self._load_input_data())
+        data, _ = self._execute(max_threads=max_threads)
+        return len(data)
+
+    def _load_input_data(self) -> list[dict]:
+        """Load the primary input dataset without executing operations."""
+        import json
+
+        ds = self._datasets.get(self._first_dataset, {})
+        if ds.get("type") == "memory":
+            return ds.get("path", [])
+        elif ds.get("type") == "file":
+            path = ds.get("path", "")
+            if path.lower().endswith(".json"):
+                with open(path) as f:
+                    return json.load(f)
+            elif path.lower().endswith(".csv"):
+                import csv as csv_mod
+                with open(path, newline="") as f:
+                    return list(csv_mod.DictReader(f))
+        return []
 
     def _sample_datasets(self, n: int) -> dict[str, dict[str, Any]]:
         """Return a copy of the datasets dict with each dataset truncated to *n* rows."""
@@ -834,6 +866,27 @@ class Frame:
             datasets, operations, steps,
             _last_step=last_step, _first_dataset=first_ds,
         )
+
+    def to_yaml(self, path: str | None = None) -> str:
+        """Export this pipeline as a YAML config string.
+
+        If *path* is given, also writes the YAML to that file.
+        """
+        import yaml
+        config = self._build_config()
+        config.pop("pipeline", None)
+
+        pipeline_cfg: dict[str, Any] = {
+            "steps": self._steps,
+            "output": {"type": "file", "path": "output.json"},
+        }
+        config["pipeline"] = pipeline_cfg
+
+        out = yaml.dump(config, default_flow_style=False, sort_keys=False)
+        if path:
+            with open(path, "w") as f:
+                f.write(out)
+        return out
 
     # ── code generation ────────────────────────────────────────────
 

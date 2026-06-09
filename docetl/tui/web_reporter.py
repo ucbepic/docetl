@@ -815,7 +815,32 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     padding: 5px 16px; font-size: 12px; color: var(--muted-foreground);
     display: flex; gap: 16px; flex-shrink: 0; align-items: center;
     box-shadow: 0 -1px 3px 0 rgb(0 0 0 / .04);
+    position: relative;
   }
+  .fb-toggle { cursor: pointer; user-select: none; }
+  .fb-toggle:hover { color: var(--foreground); }
+  .fb-dropdown {
+    display: none; position: absolute; bottom: 100%; left: 50%;
+    transform: translateX(-50%);
+    width: 480px; max-height: 360px; overflow-y: auto;
+    background: white; border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: 0 -4px 20px rgba(0,0,0,.12);
+    padding: 12px; z-index: 60; margin-bottom: 4px;
+  }
+  .fb-dropdown.open { display: block; }
+  .fb-dropdown-title { font-size: 13px; font-weight: 600; color: var(--foreground); margin-bottom: 8px; }
+  .fb-dropdown-empty { font-size: 12px; color: var(--muted-foreground); font-style: italic; }
+  .fb-item {
+    padding: 8px 10px; margin-bottom: 6px; border-radius: var(--radius);
+    border: 1px solid var(--border); font-size: 12px; line-height: 1.5;
+  }
+  .fb-item-pipeline { background: hsl(211 40% 97%); }
+  .fb-item-doc { background: hsl(38 100% 97%); }
+  .fb-item-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--muted-foreground); margin-bottom: 3px;
+  }
+  .fb-item-text { color: var(--foreground); }
   .status-dot {
     width: 6px; height: 6px; border-radius: 50%;
     display: inline-block; margin-right: 4px;
@@ -931,7 +956,8 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 <div class="statusbar">
   <span><span class="status-dot live" id="status-dot"></span> <span id="f-status">Connecting…</span></span>
   <span id="f-rows">0 rows</span>
-  <span id="f-feedback">Feedback: 0</span>
+  <span class="fb-toggle" id="f-feedback" onclick="toggleFeedbackDropdown()">Feedback: 0</span>
+  <div class="fb-dropdown" id="fb-dropdown"></div>
 </div>
 
 <div class="toast-container" id="toasts"></div>
@@ -1680,10 +1706,66 @@ function sendPipelineFeedback() {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ text: text })
+  }).then(() => {
+    allFeedback.pipeline.push({ feedback: text, timestamp: new Date().toISOString().slice(0,19) });
+    const total = allFeedback.doc.length + allFeedback.pipeline.length;
+    document.getElementById('f-feedback').textContent = 'Feedback: ' + total;
   });
   input.value = '';
   input.placeholder = 'Sent! Type more…';
 }
+
+let allFeedback = { doc: [], pipeline: [] };
+
+function toggleFeedbackDropdown() {
+  const dd = document.getElementById('fb-dropdown');
+  if (dd.classList.contains('open')) {
+    dd.classList.remove('open');
+    return;
+  }
+  fetch('/feedback/poll')
+    .then(r => r.json())
+    .then(data => {
+      allFeedback.doc = data.doc_feedback || [];
+      allFeedback.pipeline = data.pipeline_feedback || [];
+      renderFeedbackDropdown();
+      dd.classList.add('open');
+    })
+    .catch(() => {});
+}
+
+function renderFeedbackDropdown() {
+  const dd = document.getElementById('fb-dropdown');
+  const total = allFeedback.doc.length + allFeedback.pipeline.length;
+  if (total === 0) {
+    dd.innerHTML = '<div class="fb-dropdown-title">All Feedback</div>' +
+      '<div class="fb-dropdown-empty">No feedback submitted yet.</div>';
+    return;
+  }
+  let html = '<div class="fb-dropdown-title">All Feedback (' + total + ')</div>';
+  allFeedback.pipeline.forEach(fb => {
+    html += '<div class="fb-item fb-item-pipeline">' +
+      '<div class="fb-item-label">Pipeline · ' + (fb.timestamp || '') + '</div>' +
+      '<div class="fb-item-text">' + escHtml(fb.feedback) + '</div>' +
+    '</div>';
+  });
+  allFeedback.doc.forEach(fb => {
+    const opShort = (fb.operation || '').split('/').pop();
+    html += '<div class="fb-item fb-item-doc">' +
+      '<div class="fb-item-label">Doc #' + fb.doc_index + ' · ' + opShort + ' · ' + (fb.timestamp || '') + '</div>' +
+      '<div class="fb-item-text">' + escHtml(fb.feedback) + '</div>' +
+    '</div>';
+  });
+  dd.innerHTML = html;
+}
+
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('fb-dropdown');
+  const toggle = document.getElementById('f-feedback');
+  if (dd.classList.contains('open') && !dd.contains(e.target) && e.target !== toggle) {
+    dd.classList.remove('open');
+  }
+});
 
 function killPipeline() {
   const reason = prompt('Reason for stopping (optional):') || '';

@@ -368,47 +368,51 @@ OPENAI_API_KEY=sk-...
 ```bash
 # Start once per session — survives across pipeline runs
 docetl serve &
-PORT=$(cat .docetl_server_port)
 ```
+
+### Running Pipelines: Always via Subagents
+
+**Always run pipelines in a background subagent.** The main agent must stay free to receive and react to human feedback immediately. Use the Agent tool:
+
+```
+Agent(
+  description="Run docetl pipeline",
+  prompt="Run `docetl run pipeline.yaml` and report the results including cost and any feedback.",
+  run_in_background=true
+)
+```
+
+### Watching for Feedback
+
+**After launching the pipeline subagent, immediately start watching the feedback log.** The feedback server writes every feedback event to `.docetl_feedback.log`. Use the Monitor tool to watch it:
+
+```
+Monitor(command="tail -f .docetl_feedback.log", description="Watch for human feedback")
+```
+
+Each feedback event appears as a notification in real time:
+```
+[FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
+[FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
+[FEEDBACK:kill] User stopped the pipeline
+[FEEDBACK:done] Human clicked Done reviewing
+```
+
+**When you see a `[FEEDBACK:...]` notification, act on it immediately** — acknowledge the feedback, diagnose the issue, and adjust the pipeline. Don't wait for the pipeline to finish.
 
 ### Test Run (Required)
-Add `sample: 10-20` to your first operation, then run:
-```bash
-docetl run pipeline.yaml
-
-# Wait for human feedback (blocks until they click "Done reviewing")
-FEEDBACK=$(curl -s http://localhost:$PORT/feedback/wait)
-echo "$FEEDBACK"
-```
-
-**Inspect the test results AND human feedback before proceeding:**
-```python
-import json
-from collections import Counter
-
-# Load intermediate results
-data = json.load(open("intermediates/step_name/operation_name.json"))
-
-print(f"Processed: {len(data)} docs")
-
-# Check distributions
-if "domain" in data[0]:
-    print("Domain distribution:")
-    for k, v in Counter(d["domain"] for d in data).most_common():
-        print(f"  {k}: {v}")
-
-# Show sample outputs
-print("\nSample output:")
-print(json.dumps(data[0], indent=2))
-```
+1. Add `sample: 10-20` to your first operation
+2. Launch pipeline via subagent + start monitoring the feedback log
+3. When the subagent finishes, inspect intermediate results
+4. Act on any feedback that arrived during or after the run
 
 ### Full Run
 Once test results look good:
 1. Remove the `sample` parameter from the pipeline
 2. Ask user for permission (estimate cost based on test run)
-3. Run full pipeline: `docetl run pipeline.yaml`
-4. **Wait for feedback**: `curl -s http://localhost:$PORT/feedback/wait`
-5. **Read and act on feedback** before declaring success
+3. Launch pipeline via subagent
+4. Monitor `.docetl_feedback.log` for human feedback
+5. **React to feedback as it arrives** — don't wait for the run to finish
 
 Options:
 - `--max_threads N` - Control parallelism
@@ -597,21 +601,15 @@ docetl serve &
 
 This opens a browser and prints the server port. The port is saved to `.docetl_server_port`. All subsequent `docetl run` commands with `ui: "web"` automatically detect the server and push results to it — no restart, no broken browser connections.
 
-### Automatic Feedback Detection
+### Watching for Feedback
 
-A project hook (`.claude/hooks/poll-feedback.sh`) automatically checks the feedback server for new human feedback. It fires:
-- **After every Bash command** (PostToolUse)
-- **After every agent turn** (Stop event)
+The feedback server writes all events to `.docetl_feedback.log`. **After starting a pipeline, always monitor this file** with the Monitor tool:
 
-The hook deduplicates — it only injects feedback you haven't seen yet. When new feedback arrives, it appears as `additionalContext` in your next turn automatically.
-
-**The human can submit feedback at any time** — not just right after a pipeline run. The hook catches it on your next turn.
-
-If you need to explicitly block until feedback arrives (e.g., right after a run):
-```bash
-PORT=$(cat .docetl_server_port)
-curl -s http://localhost:$PORT/feedback/wait
 ```
+Monitor(command="tail -f .docetl_feedback.log", description="Watch for human feedback")
+```
+
+You will receive a notification for each feedback event as it happens. React immediately — don't wait for the pipeline to finish.
 
 The `/feedback/wait` endpoint blocks until the human signals they're done, then returns all collected feedback as JSON:
 ```json

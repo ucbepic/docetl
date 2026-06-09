@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from docetl.runner import DSLRunner
 
 _PORT_FILE = ".docetl_server_port"
+_FEEDBACK_LOG = ".docetl_feedback.log"
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +48,17 @@ class FeedbackStore:
         self._agent_messages: list[dict] = []
         self._agent_msg_counter = 0
         self.done_event = threading.Event()
+        # Truncate log at start of each session
+        with open(_FEEDBACK_LOG, "w") as f:
+            pass
+
+    def _log(self, line: str):
+        try:
+            with open(_FEEDBACK_LOG, "a") as f:
+                f.write(line + "\n")
+                f.flush()
+        except OSError:
+            pass
 
     def add_agent_message(self, text: str, msg_type: str = "info",
                           actions: list[str] | None = None) -> int:
@@ -81,7 +93,9 @@ class FeedbackStore:
         }
         with self._lock:
             self.doc_feedback.append(entry)
-        print(f"[FEEDBACK:doc] op={op_name} doc_index={doc_index} | {text}", flush=True)
+        line = f"[FEEDBACK:doc] op={op_name} doc_index={doc_index} | {text}"
+        print(line, flush=True)
+        self._log(line)
 
     def remove_doc_feedback(self, op_name: str, doc_index: int, feedback_index: int):
         with self._lock:
@@ -89,7 +103,9 @@ class FeedbackStore:
                        if f["operation"] == op_name and f["doc_index"] == doc_index]
             if 0 <= feedback_index < len(matches):
                 del self.doc_feedback[matches[feedback_index]]
-        print(f"[FEEDBACK:delete] op={op_name} doc_index={doc_index} fb_index={feedback_index}", flush=True)
+        line = f"[FEEDBACK:delete] op={op_name} doc_index={doc_index} fb_index={feedback_index}"
+        print(line, flush=True)
+        self._log(line)
 
     def add_pipeline_feedback(self, text: str):
         entry = {
@@ -98,7 +114,9 @@ class FeedbackStore:
         }
         with self._lock:
             self.pipeline_feedback.append(entry)
-        print(f"[FEEDBACK:pipeline] {text}", flush=True)
+        line = f"[FEEDBACK:pipeline] {text}"
+        print(line, flush=True)
+        self._log(line)
 
     def to_dict(self) -> dict:
         with self._lock:
@@ -272,13 +290,14 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
             elif self.path.startswith("/feedback/poll"):
                 self._json_response(feedback.to_dict())
             elif self.path.startswith("/feedback/wait"):
-                timeout = 1800
-                if "?timeout=" in self.path:
-                    try:
-                        timeout = int(self.path.split("?timeout=")[1])
-                    except ValueError:
-                        pass
-                feedback.done_event.wait(timeout=timeout)
+                if not feedback.has_any:
+                    timeout = 1800
+                    if "?timeout=" in self.path:
+                        try:
+                            timeout = int(self.path.split("?timeout=")[1])
+                        except ValueError:
+                            pass
+                    feedback.done_event.wait(timeout=timeout)
                 self._json_response(feedback.to_dict())
             elif self.path == "/health":
                 self._json_response({"ok": True})
@@ -313,6 +332,7 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
             elif self.path == "/kill":
                 reason = body.get("reason", "")
                 feedback.kill_reason = reason
+                feedback._log(f"[FEEDBACK:kill] {reason}")
                 if tracker is not None:
                     tracker.kill_requested = True
                 self._json_response({"ok": True})
@@ -334,6 +354,7 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
 
             elif self.path == "/done":
                 feedback.done_event.set()
+                feedback._log("[FEEDBACK:done] Human clicked Done reviewing")
                 self._json_response({"ok": True})
 
             elif self.path == "/state/push":

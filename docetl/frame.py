@@ -491,6 +491,24 @@ class Frame:
             "limit": limit, **kwargs,
         })
 
+    # ── inspection ─────────────────────────────────────────────────
+
+    def schema(self) -> dict[str, str]:
+        """Return the output schema of this pipeline.
+
+        Walks the operation chain and returns the schema that the last
+        operation will produce.  Does not execute anything.
+        """
+        result: dict[str, str] = {}
+        for op in self._operations:
+            output = op.get("output", {})
+            if isinstance(output, dict) and "schema" in output:
+                result.update(output["schema"])
+            if op.get("drop_keys"):
+                for k in op["drop_keys"]:
+                    result.pop(k, None)
+        return result
+
     # ── terminal actions ───────────────────────────────────────────
 
     def _build_config(self, output_path: str = "") -> dict[str, Any]:

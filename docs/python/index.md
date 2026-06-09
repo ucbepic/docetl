@@ -110,6 +110,9 @@ Terminal actions execute the pipeline:
 frame.show()          # default: 5 input documents
 frame.show(max=10)    # custom sample size
 
+# Inspect output schema without executing
+frame.schema()        # {'category': 'str', 'summary': 'str', ...}
+
 # Collect as DataFrame
 df = frame.collect()
 

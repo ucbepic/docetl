@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(docetl run)",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/poll-feedback.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

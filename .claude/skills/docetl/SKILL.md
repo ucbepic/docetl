@@ -363,13 +363,25 @@ OPENAI_API_KEY=sk-...
 
 **Always test on a sample first, then run full pipeline.**
 
+### Before First Run: Start the Feedback Server
+
+```bash
+# Start once per session — survives across pipeline runs
+docetl serve &
+PORT=$(cat .docetl_server_port)
+```
+
 ### Test Run (Required)
 Add `sample: 10-20` to your first operation, then run:
 ```bash
 docetl run pipeline.yaml
+
+# Wait for human feedback (blocks until they click "Done reviewing")
+FEEDBACK=$(curl -s http://localhost:$PORT/feedback/wait)
+echo "$FEEDBACK"
 ```
 
-**Inspect the test results before proceeding:**
+**Inspect the test results AND human feedback before proceeding:**
 ```python
 import json
 from collections import Counter
@@ -394,8 +406,9 @@ print(json.dumps(data[0], indent=2))
 Once test results look good:
 1. Remove the `sample` parameter from the pipeline
 2. Ask user for permission (estimate cost based on test run)
-3. Run full pipeline
-4. **Show final results** - distributions, key insights, trends
+3. Run full pipeline: `docetl run pipeline.yaml`
+4. **Wait for feedback**: `curl -s http://localhost:$PORT/feedback/wait`
+5. **Read and act on feedback** before declaring success
 
 Options:
 - `--max_threads N` - Control parallelism
@@ -575,26 +588,33 @@ Three modes:
 
 ### Starting the Feedback Server
 
-**Always start a persistent feedback server before running the pipeline.** This keeps the browser UI alive across multiple pipeline runs so the human can continuously review results and give feedback.
+**Always start a persistent feedback server before running any pipeline.** This keeps the browser UI alive across multiple pipeline runs so the human can continuously review results and give feedback.
 
 ```bash
 # Start the server in the background (run this ONCE at the start of the session)
 docetl serve &
 ```
 
-This opens a browser and prints the server port. The server writes its port to `.docetl_server_port`. Subsequent `docetl run` commands with `ui: "web"` automatically detect the running server and push results to it — no restart, no broken browser connections.
+This opens a browser and prints the server port. The port is saved to `.docetl_server_port`. All subsequent `docetl run` commands with `ui: "web"` automatically detect the server and push results to it — no restart, no broken browser connections.
 
-If you skip `docetl serve`, the pipeline will start an inline server that waits for the human to click **Done reviewing** before the command exits.
+### Automatic Feedback Hook
 
-### Reading Feedback
+A PostToolUse hook (`.claude/hooks/poll-feedback.sh`) fires automatically after every `docetl run` command. It:
+1. Checks if a feedback server is running
+2. Polls for any human feedback already submitted
+3. If feedback exists, injects it into your context as `additionalContext`
+4. If no feedback yet, tells you to wait with `curl -s http://localhost:PORT/feedback/wait`
 
-With a persistent server, poll for feedback at any time:
+**You will always be notified about feedback — never skip the wait step.** The `/feedback/wait` endpoint blocks until the human clicks "Done reviewing":
 
 ```bash
-curl http://localhost:<PORT>/feedback/poll
+PORT=$(cat .docetl_server_port)
+docetl run pipeline.yaml
+# Hook fires automatically — if it says to wait, run:
+curl -s http://localhost:$PORT/feedback/wait
 ```
 
-This returns JSON with all collected feedback:
+The `/feedback/wait` endpoint blocks until the human signals they're done, then returns all collected feedback as JSON:
 ```json
 {
   "doc_feedback": [{"operation": "summarize", "doc_index": 3, "feedback": "...", "timestamp": "..."}],
@@ -603,13 +623,12 @@ This returns JSON with all collected feedback:
 }
 ```
 
-Feedback also prints to stdout in real time as the human submits it:
-```
-[FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
-[FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
-```
+**Never skip the feedback wait.** If you run the pipeline and immediately move to the next step, the human's feedback is lost. The pattern is always: **run → wait → read feedback → iterate**.
 
-After each pipeline run, check the feedback endpoint (or read `_docetl_feedback.json`) to see what the human thought.
+To poll without blocking (e.g., to check if any feedback has come in yet):
+```bash
+curl -s http://localhost:$PORT/feedback/poll
+```
 
 ### Sending Messages to the Human (Toasts)
 

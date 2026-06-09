@@ -271,6 +271,15 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                 self._json_response({"messages": feedback.get_agent_messages_since(since)})
             elif self.path.startswith("/feedback/poll"):
                 self._json_response(feedback.to_dict())
+            elif self.path.startswith("/feedback/wait"):
+                timeout = 1800
+                if "?timeout=" in self.path:
+                    try:
+                        timeout = int(self.path.split("?timeout=")[1])
+                    except ValueError:
+                        pass
+                feedback.done_event.wait(timeout=timeout)
+                self._json_response(feedback.to_dict())
             elif self.path == "/health":
                 self._json_response({"ok": True})
             else:

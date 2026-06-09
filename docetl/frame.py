@@ -523,7 +523,7 @@ class Frame:
         threads = max_threads or _config.max_threads
         return DSLRunner(self._build_config(output_path), max_threads=threads)
 
-    def show(self, n: int = 5, max_threads: int | None = None) -> "pd.DataFrame":
+    def show(self, max: int = 5, max_threads: int | None = None) -> "pd.DataFrame":
         """Run the pipeline on the first *n* input documents and print results.
 
         Truncates the input dataset to *n* rows so every operation
@@ -535,7 +535,7 @@ class Frame:
         if not self._operations:
             raise ValueError("Pipeline has no operations.")
 
-        sampled = self._copy(datasets=self._sample_datasets(n))
+        sampled = self._copy(datasets=self._sample_datasets(max))
         data, cost = sampled._execute(max_threads=max_threads)
         df = pd.DataFrame(data)
         df.attrs["_total_cost"] = cost

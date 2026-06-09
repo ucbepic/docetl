@@ -743,18 +743,18 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     margin-bottom: 8px;
   }
   .detail-fb-card {
-    background: hsl(152 60% 96%); border: 1px solid hsl(152 40% 88%);
+    background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 10px 14px; margin-bottom: 8px;
     display: flex; align-items: flex-start; gap: 8px;
   }
   .detail-fb-text {
-    font-size: 13px; color: hsl(152 69% 22%); line-height: 1.5;
+    font-size: 13px; color: var(--foreground); line-height: 1.5;
     flex: 1; white-space: pre-wrap; word-break: break-word;
   }
   .detail-fb-delete {
     background: none; border: none; cursor: pointer;
-    color: hsl(152 30% 55%); font-size: 16px; line-height: 1;
+    color: var(--muted-foreground); font-size: 16px; line-height: 1;
     padding: 0 4px; flex-shrink: 0; transition: color .15s;
   }
   .detail-fb-delete:hover { color: var(--destructive); }

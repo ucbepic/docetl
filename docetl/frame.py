@@ -524,10 +524,10 @@ class Frame:
         return DSLRunner(self._build_config(output_path), max_threads=threads)
 
     def show(self, n: int = 5, max_threads: int | None = None) -> "pd.DataFrame":
-        """Run the pipeline on a sample of *n* documents and print the results.
+        """Run the pipeline on the first *n* input documents and print results.
 
-        Injects ``sample: n`` on the first operation so only a small slice
-        of the dataset is processed — useful for interactive development.
+        Truncates the input dataset to *n* rows so every operation
+        (including filters and reduces) sees realistic data, just less of it.
         Returns the resulting DataFrame.
         """
         import pandas as pd
@@ -535,17 +535,40 @@ class Frame:
         if not self._operations:
             raise ValueError("Pipeline has no operations.")
 
-        ops = list(self._operations)
-        first = {**ops[0], "sample": n}
-        ops[0] = first
-
-        sampled = self._copy(operations=ops)
+        sampled = self._copy(datasets=self._sample_datasets(n))
         data, cost = sampled._execute(max_threads=max_threads)
         df = pd.DataFrame(data)
         df.attrs["_total_cost"] = cost
         df.attrs["_token_usage"] = sampled._token_usage
         print(df.to_string())
         return df
+
+    def _sample_datasets(self, n: int) -> dict[str, dict[str, Any]]:
+        """Return a copy of the datasets dict with each dataset truncated to *n* rows."""
+        import json
+
+        sampled = {}
+        for name, ds in self._datasets.items():
+            if ds.get("type") == "memory":
+                data = ds["path"][:n] if isinstance(ds.get("path"), list) else ds["path"]
+                sampled[name] = {**ds, "path": data}
+            elif ds.get("type") == "file":
+                path = ds.get("path", "")
+                if path.lower().endswith(".json"):
+                    with open(path) as f:
+                        data = json.load(f)
+                    sampled[name] = {"type": "memory", "path": data[:n]}
+                elif path.lower().endswith(".csv"):
+                    import csv as csv_mod
+                    with open(path, newline="") as f:
+                        reader = csv_mod.DictReader(f)
+                        data = [row for _, row in zip(range(n), reader)]
+                    sampled[name] = {"type": "memory", "path": data}
+                else:
+                    sampled[name] = ds
+            else:
+                sampled[name] = ds
+        return sampled
 
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
         """Execute the pipeline and return results as a DataFrame."""

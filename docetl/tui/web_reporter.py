@@ -308,6 +308,8 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                 self._json_response({"messages": feedback.get_agent_messages_since(since)})
             elif self.path.startswith("/feedback/poll"):
                 self._json_response(feedback.to_dict())
+            elif self.path == "/state/current":
+                self._json_response(broadcaster._last_event or {})
             elif self.path == "/health":
                 self._json_response({"ok": True})
             else:
@@ -462,7 +464,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     --destructive: hsl(0 100% 30%);
     --border: hsl(211 30% 82%);
     --ring: hsl(211 100% 50%);
-    --radius: 0.5rem;
+    --radius: 4px;
     --chart-2: hsl(173 58% 39%);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -484,28 +486,30 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .topbar-stat b { font-weight: 600; color: var(--foreground); }
   .topbar-cost b { color: hsl(152 69% 31%); }
   .topbar-spacer { flex: 1; }
-  .topbar-fb { display: flex; gap: 6px; }
+  .topbar-fb { display: flex; gap: 8px; align-items: center; }
   .topbar-fb input {
-    width: 280px; background: var(--background); border: none;
-    border-radius: var(--radius); color: var(--foreground); padding: 5px 10px;
-    font-family: inherit; font-size: 13px; transition: box-shadow .15s;
+    width: 340px; background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--foreground); padding: 7px 14px;
+    font-family: inherit; font-size: 13px; transition: border-color .15s, box-shadow .15s;
   }
   .topbar-fb input:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px hsl(211 100% 50% / .15);
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .1);
   }
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
     border-radius: var(--radius); font-family: inherit; font-size: 13px;
     font-weight: 500; cursor: pointer; white-space: nowrap;
-    padding: 5px 14px; transition: background .15s, border-color .15s;
-    border: none; background: var(--card); color: var(--foreground);
+    padding: 7px 16px; transition: background .15s, border-color .15s;
+    border: 1px solid var(--border); background: white; color: var(--foreground);
   }
-  .btn:hover { background: var(--accent); }
+  .btn:hover { background: var(--card); }
   .btn-primary {
     background: var(--primary); color: var(--primary-foreground);
+    border-color: var(--primary);
   }
-  .btn-primary:hover { background: hsl(211 100% 42%); }
+  .btn-primary:hover { background: hsl(211 100% 42%); border-color: hsl(211 100% 42%); }
   .btn-destructive {
     color: var(--destructive); background: hsl(0 100% 30% / .06);
   }
@@ -708,38 +712,40 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     margin-bottom: 12px;
   }
   .detail-fb {
-    padding: 0 16px 10px; flex-shrink: 0;
+    padding: 0 16px 14px; flex-shrink: 0;
+    border-top: 1px solid var(--border); margin-top: 8px; padding-top: 12px;
   }
   .detail-fb-label {
-    font-size: 11px; font-weight: 500; color: var(--muted-foreground);
-    margin-bottom: 6px; text-transform: uppercase; letter-spacing: .03em;
+    font-size: 12px; font-weight: 600; color: var(--foreground);
+    margin-bottom: 8px;
   }
   .detail-fb-card {
-    background: hsl(152 60% 96%); border-radius: var(--radius);
-    padding: 10px 12px; margin-bottom: 8px;
+    background: hsl(152 60% 96%); border-left: 3px solid hsl(152 60% 50%);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 10px 14px; margin-bottom: 8px;
     display: flex; align-items: flex-start; gap: 8px;
   }
   .detail-fb-text {
-    font-size: 13px; color: hsl(152 69% 26%); line-height: 1.5;
+    font-size: 13px; color: hsl(152 69% 22%); line-height: 1.5;
     flex: 1; white-space: pre-wrap; word-break: break-word;
   }
   .detail-fb-delete {
     background: none; border: none; cursor: pointer;
-    color: hsl(152 30% 60%); font-size: 16px; line-height: 1;
-    padding: 0 2px; flex-shrink: 0; transition: color .15s;
+    color: hsl(152 30% 55%); font-size: 16px; line-height: 1;
+    padding: 0 4px; flex-shrink: 0; transition: color .15s;
   }
   .detail-fb-delete:hover { color: var(--destructive); }
-  .detail-fb-row { display: flex; gap: 6px; align-items: flex-end; }
+  .detail-fb-row { display: flex; gap: 8px; align-items: flex-end; }
   .detail-fb-input {
-    flex: 1; border: none; border-radius: var(--radius);
-    padding: 8px 12px; font-family: inherit; font-size: 13px;
-    background: var(--background); color: var(--foreground);
-    transition: box-shadow .15s; resize: none; overflow: hidden;
-    min-height: 38px; max-height: 120px; line-height: 1.5;
+    flex: 1; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; font-family: inherit; font-size: 13px;
+    background: white; color: var(--foreground);
+    transition: border-color .15s, box-shadow .15s; resize: none; overflow: hidden;
+    min-height: 44px; max-height: 150px; line-height: 1.5;
   }
   .detail-fb-input:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px hsl(211 100% 50% / .12);
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 2px hsl(211 100% 50% / .08);
   }
 
   /* Histogram view */
@@ -784,41 +790,46 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 
   /* Completion banner */
   .complete-banner {
-    background: hsl(152 69% 97%); border: none;
-    border-radius: var(--radius); padding: 12px 16px; margin: 12px 16px 0;
+    background: hsl(152 69% 97%); border: 1px solid hsl(152 40% 88%);
+    border-left: 3px solid hsl(152 69% 40%);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 16px; margin: 12px 16px 0;
     display: flex; align-items: center; gap: 10px; font-size: 13px;
   }
-  .complete-banner b { color: hsl(152 69% 28%); }
+  .complete-banner b { color: hsl(152 69% 28%); font-weight: 600; }
 
   /* Toast notifications */
   .toast-container {
     position: fixed; top: 60px; right: 16px; z-index: 50;
-    display: flex; flex-direction: column; gap: 8px; max-width: 380px;
+    display: flex; flex-direction: column; gap: 10px; max-width: 420px;
   }
   .toast {
-    background: white; border: none; border-radius: var(--radius);
-    padding: 10px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
-    font-size: 13px; color: var(--foreground); line-height: 1.4;
+    background: white; border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 16px; box-shadow: 0 4px 20px rgba(0,0,0,.1);
+    font-size: 13px; color: var(--foreground); line-height: 1.5;
     animation: toastIn .3s ease-out;
-    display: flex; gap: 8px; align-items: flex-start;
+    display: flex; gap: 10px; align-items: flex-start;
   }
-  .toast.info { }
-  .toast.success { }
-  .toast.warning { }
+  .toast.info { border-left-color: var(--primary); }
+  .toast.success { border-left-color: hsl(152 69% 40%); }
+  .toast.warning { border-left-color: hsl(38 92% 50%); }
+  .toast.error { border-left-color: var(--destructive); }
   .toast-body { flex: 1; }
-  .toast-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 2px; }
-  .toast-text { }
-  .toast-text.truncated { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .toast-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .toast-text { font-size: 13px; line-height: 1.5; }
+  .toast-text.truncated { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .toast-expand {
     font-size: 11px; color: var(--primary); cursor: pointer; border: none;
-    background: none; font-family: inherit; padding: 2px 0; margin-top: 2px;
+    background: none; font-family: inherit; padding: 2px 0; margin-top: 4px;
   }
   .toast-expand:hover { text-decoration: underline; }
   .toast-actions {
-    display: flex; gap: 6px; margin-top: 8px;
+    display: flex; gap: 8px; margin-top: 10px;
   }
   .toast-action {
-    padding: 4px 12px; font-size: 12px; font-weight: 500; border-radius: var(--radius);
+    padding: 6px 16px; font-size: 12px; font-weight: 500; border-radius: var(--radius);
     border: none; cursor: pointer; font-family: inherit; transition: background .15s;
   }
   .toast-action.confirm {
@@ -1787,6 +1798,52 @@ evtSource.onerror = function() {
   dot.classList.remove('live');
   dot.classList.add('off');
 };
+
+/* --- Polling fallback for toasts + state (SSE is unreliable through proxies) --- */
+let lastPollMsgId = 0;
+setInterval(() => {
+  fetch('/messages?since=' + lastPollMsgId)
+    .then(r => r.json())
+    .then(data => {
+      if (data.messages && data.messages.length > 0) {
+        data.messages.forEach(msg => {
+          showToast(msg);
+          if (msg.id > lastPollMsgId) lastPollMsgId = msg.id;
+        });
+      }
+    })
+    .catch(() => {});
+}, 3000);
+
+let sseAlive = true;
+evtSource.addEventListener('open', () => { sseAlive = true; });
+evtSource.addEventListener('error', () => { sseAlive = false; });
+
+setInterval(() => {
+  if (sseAlive) return;
+  fetch('/state/current')
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.ops) return;
+      updateOps(data.ops);
+      syncDocs(data.all_docs || []);
+      document.getElementById('h-cost').textContent = fmtCost(data.total_cost);
+      document.getElementById('h-time').textContent = fmtDur(data.elapsed);
+      document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
+      document.getElementById('f-status').textContent = data.finished ? 'Complete' : 'Polling';
+      if (data.agent_messages) data.agent_messages.forEach(msg => showToast(msg));
+      if (data.finished && !finished) {
+        finished = true;
+        const dot = document.getElementById('status-dot');
+        dot.classList.remove('live'); dot.classList.add('done');
+        const banner = document.getElementById('complete-banner');
+        banner.classList.remove('hidden');
+        document.getElementById('complete-summary').textContent = fmtCost(data.total_cost) + ' · ' + fmtDur(data.elapsed) + ' · ' + getVisibleDocs().length + ' outputs';
+        document.getElementById('kill-btn').classList.add('hidden');
+      }
+    })
+    .catch(() => {});
+}, 2000);
 </script>
 </body>
 </html>

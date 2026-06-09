@@ -666,9 +666,9 @@ _HTML_PAGE = r"""<!DOCTYPE html>
 
   /* Detail side panel */
   .detail-panel {
-    position: fixed; top: 0; right: 0; bottom: 0; width: 400px;
+    position: fixed; top: 0; right: 0; bottom: 0; width: 520px;
     background: white; z-index: 40;
-    box-shadow: -4px 0 20px rgba(0,0,0,.1);
+    box-shadow: -4px 0 20px rgba(0,0,0,.08);
     transform: translateX(100%);
     transition: transform .25s ease;
     display: flex; flex-direction: column;
@@ -677,17 +677,18 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   .detail-panel.open { transform: translateX(0); }
   .detail-header {
     display: flex; align-items: center; gap: 8px;
-    padding: 14px 16px; flex-shrink: 0;
+    padding: 14px 20px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
   }
-  .detail-header-title { font-size: 15px; font-weight: 600; flex: 1; display: flex; align-items: center; gap: 6px; }
+  .detail-header-title { font-size: 14px; font-weight: 600; flex: 1; display: flex; align-items: center; gap: 6px; }
   .detail-row-of { font-size: 12px; color: var(--muted-foreground); font-weight: 400; }
   .detail-hotkey-hint { font-size: 10px; color: var(--muted-foreground); opacity: .6; margin-left: 4px; pointer-events: none; }
   .detail-nav-btn {
-    background: var(--card); border: none; border-radius: var(--radius);
+    background: white; border: 1px solid var(--border); border-radius: var(--radius);
     cursor: pointer; padding: 4px 10px; font-size: 14px;
     color: var(--muted-foreground); transition: background .15s;
   }
-  .detail-nav-btn:hover { background: var(--accent); color: var(--foreground); }
+  .detail-nav-btn:hover { background: var(--card); color: var(--foreground); }
   .detail-nav-btn:disabled { opacity: .3; cursor: default; }
   .detail-close {
     background: none; border: none; cursor: pointer;
@@ -696,25 +697,46 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .detail-close:hover { color: var(--foreground); }
   .detail-body {
-    flex: 1; overflow-y: auto; padding: 16px;
+    flex: 1; overflow-y: auto; padding: 0;
   }
-  .detail-field { margin-bottom: 14px; }
+  .detail-field { border-bottom: 1px solid var(--border); }
   .detail-field-key {
-    font-size: 11px; font-weight: 500; color: var(--muted-foreground);
-    margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em;
+    font-size: 12px; font-weight: 600; color: var(--foreground);
+    padding: 10px 20px; cursor: pointer; display: flex; align-items: center;
+    gap: 6px; user-select: none; background: var(--card);
   }
+  .detail-field-key:hover { background: var(--accent); }
+  .detail-field-key .chevron {
+    font-size: 10px; color: var(--muted-foreground); transition: transform .15s;
+    display: inline-block; width: 14px;
+  }
+  .detail-field-key .chevron.open { transform: rotate(90deg); }
   .detail-field-val {
-    font-size: 13px; color: var(--foreground); line-height: 1.5;
+    font-size: 13px; color: var(--foreground); line-height: 1.6;
     white-space: pre-wrap; word-break: break-word;
+    padding: 0 20px 14px; display: none;
   }
+  .detail-field-val.open { display: block; }
+  .detail-field-val.collapsed {
+    display: -webkit-box; -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .detail-field-expand {
+    font-size: 11px; color: var(--primary); cursor: pointer; border: none;
+    background: none; font-family: inherit; padding: 0 20px 10px;
+    display: none;
+  }
+  .detail-field-expand.visible { display: block; }
+  .detail-field-expand:hover { text-decoration: underline; }
   .detail-op-tag {
     display: inline-block; font-size: 11px; color: var(--muted-foreground);
-    background: var(--card); border-radius: 3px; padding: 2px 8px;
-    margin-bottom: 12px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 3px 10px;
+    margin: 12px 20px;
   }
   .detail-fb {
-    padding: 0 16px 14px; flex-shrink: 0;
-    border-top: 1px solid var(--border); margin-top: 8px; padding-top: 12px;
+    padding: 12px 20px 16px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border); background: hsl(211 40% 99%);
   }
   .detail-fb-label {
     font-size: 12px; font-weight: 600; color: var(--foreground);
@@ -736,18 +758,27 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     padding: 0 4px; flex-shrink: 0; transition: color .15s;
   }
   .detail-fb-delete:hover { color: var(--destructive); }
-  .detail-fb-row { display: flex; gap: 8px; align-items: flex-end; }
+  .detail-fb-input-wrap {
+    position: relative;
+  }
   .detail-fb-input {
-    flex: 1; border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 14px; font-family: inherit; font-size: 13px;
+    width: 100%; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; padding-right: 60px; font-family: inherit; font-size: 13px;
     background: white; color: var(--foreground);
-    transition: border-color .15s, box-shadow .15s; resize: none; overflow: hidden;
+    transition: border-color .15s; resize: none; overflow: hidden;
     min-height: 44px; max-height: 150px; line-height: 1.5;
   }
   .detail-fb-input:focus {
     outline: none; border-color: var(--primary);
-    box-shadow: 0 0 0 2px hsl(211 100% 50% / .08);
   }
+  .detail-fb-send {
+    position: absolute; right: 8px; bottom: 8px;
+    background: var(--primary); color: white; border: none;
+    border-radius: var(--radius); padding: 4px 12px; font-size: 12px;
+    font-weight: 500; cursor: pointer; font-family: inherit;
+    opacity: .7; transition: opacity .15s;
+  }
+  .detail-fb-send:hover { opacity: 1; }
 
   /* Histogram view */
   .viz-panel { flex: 1; overflow: auto; padding: 16px; }
@@ -1416,6 +1447,20 @@ function navigateRow(delta) {
   renderTableBody();
 }
 
+function toggleDetailField(el) {
+  const field = el.closest('.detail-field');
+  const val = field.querySelector('.detail-field-val');
+  const chevron = el.querySelector('.chevron');
+  const isOpen = val.classList.contains('open');
+  if (isOpen) {
+    val.classList.remove('open');
+    chevron.classList.remove('open');
+  } else {
+    val.classList.add('open');
+    chevron.classList.add('open');
+  }
+}
+
 function renderDetailPanel() {
   if (selectedRow === null) return;
   const doc = allDocs[selectedRow];
@@ -1426,13 +1471,12 @@ function renderDetailPanel() {
   document.getElementById('detail-title').innerHTML = '<span>' + (curPos + 1) + ' of ' + sorted.length + '</span>' +
     '<span class="detail-hotkey-hint">← → to navigate</span>';
 
-  // Nav button state
   document.getElementById('detail-prev').disabled = (curPos <= 0);
   document.getElementById('detail-next').disabled = (curPos >= sorted.length - 1);
 
-  // Body: operation tag + fields
   let bodyHtml = '<div class="detail-op-tag">' + escHtml(doc.op_type + ':' + doc.op_name.split('/').pop()) + '</div>';
-  for (const key of Object.keys(doc.fields)) {
+  const keys = Object.keys(doc.fields);
+  keys.forEach((key, ki) => {
     const val = doc.fields[key];
     let displayVal;
     if (val == null) {
@@ -1442,27 +1486,32 @@ function renderDetailPanel() {
     } else {
       displayVal = escHtml(JSON.stringify(val, null, 2));
     }
+    const valStr = val == null ? '' : (typeof val === 'string' ? val : JSON.stringify(val));
+    const isLong = valStr.length > 200;
+    const openByDefault = ki === 0 || !isLong;
     bodyHtml += '<div class="detail-field">' +
-      '<div class="detail-field-key">' + escHtml(key) + '</div>' +
-      '<div class="detail-field-val">' + displayVal + '</div>' +
+      '<div class="detail-field-key" onclick="toggleDetailField(this)">' +
+        '<span class="chevron ' + (openByDefault ? 'open' : '') + '">▶</span>' +
+        escHtml(key) +
+      '</div>' +
+      '<div class="detail-field-val ' + (openByDefault ? 'open' : '') + '">' + displayVal + '</div>' +
     '</div>';
-  }
+  });
   document.getElementById('detail-body').innerHTML = bodyHtml;
 
-  // Feedback section
   const fbs = doc._feedbacks || [];
   let fbHtml = '<div class="detail-fb-label">Feedback' + (fbs.length ? ' (' + fbs.length + ')' : '') + '</div>';
   fbs.forEach((fb, fi) => {
     fbHtml += '<div class="detail-fb-card">' +
       '<div class="detail-fb-text">' + escHtml(fb) + '</div>' +
-      '<button class="detail-fb-delete" onclick="deleteDocFeedback(' + selectedRow + ',' + fi + ')" title="Delete">&#215;</button>' +
+      '<button class="detail-fb-delete" onclick="deleteDocFeedback(' + selectedRow + ',' + fi + ')" title="Delete">×</button>' +
     '</div>';
   });
-  fbHtml += '<div class="detail-fb-row">' +
-    '<textarea class="detail-fb-input" id="detail-fb-input" rows="1" placeholder="Add feedback…" ' +
+  fbHtml += '<div class="detail-fb-input-wrap">' +
+    '<textarea class="detail-fb-input" id="detail-fb-input" rows="1" placeholder="Add feedback… (Enter to send)" ' +
       'oninput="autoGrowTextarea(this)" ' +
       'onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendDocFeedback(' + selectedRow + ');}"></textarea>' +
-    '<button class="btn btn-primary" onclick="sendDocFeedback(' + selectedRow + ')">Send</button>' +
+    '<button class="detail-fb-send" onclick="sendDocFeedback(' + selectedRow + ')">Send</button>' +
   '</div>';
   document.getElementById('detail-fb').innerHTML = fbHtml;
 }

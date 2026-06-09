@@ -585,6 +585,8 @@ You can also start it manually with `docetl serve` if you want it running before
 Monitor(command="tail -F .docetl_feedback.log", description="Watch for human feedback")
 ```
 
+If the pipeline prints a `[FEEDBACK_LOG] /absolute/path` line, use that path instead — the log may be in a different directory than your cwd. You can also query the server: `curl -s http://localhost:<PORT>/feedback/log_path`.
+
 This is MANDATORY. Without the Monitor, you will not see feedback until the pipeline finishes. The Monitor sends you a notification the instant the human submits feedback.
 
 Each feedback event appears as a line:

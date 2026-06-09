@@ -34,6 +34,19 @@ _PORT_FILE = ".docetl_server_port"
 _FEEDBACK_LOG = ".docetl_feedback.log"
 
 
+def _resolve_feedback_log() -> str:
+    """Return the absolute path to the feedback log.
+
+    When a port file exists, write the log next to it so the agent always
+    knows where to find it regardless of cwd.  Falls back to cwd.
+    """
+    try:
+        port_path = os.path.abspath(_PORT_FILE)
+        return os.path.join(os.path.dirname(port_path), _FEEDBACK_LOG)
+    except Exception:
+        return os.path.abspath(_FEEDBACK_LOG)
+
+
 # ---------------------------------------------------------------------------
 # Feedback store
 # ---------------------------------------------------------------------------
@@ -47,13 +60,13 @@ class FeedbackStore:
         self.kill_reason: str | None = None
         self._agent_messages: list[dict] = []
         self._agent_msg_counter = 0
-        # Truncate log at start of each session
-        with open(_FEEDBACK_LOG, "w") as f:
+        self._log_path = _resolve_feedback_log()
+        with open(self._log_path, "w") as f:
             pass
 
     def _log(self, line: str):
         try:
-            with open(_FEEDBACK_LOG, "a") as f:
+            with open(self._log_path, "a") as f:
                 f.write(line + "\n")
                 f.flush()
         except OSError:
@@ -312,6 +325,8 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                 self._json_response(broadcaster._last_event or {})
             elif self.path == "/health":
                 self._json_response({"ok": True})
+            elif self.path == "/feedback/log_path":
+                self._json_response({"path": feedback._log_path})
             else:
                 self.send_error(404)
 
@@ -2241,6 +2256,8 @@ def _run_with_remote_server(runner: "DSLRunner", tracker: ProgressTracker, port:
     runner.console.log(
         f"[bold blue]Using persistent server:[/bold blue] http://localhost:{port}"
     )
+    log_path = _resolve_feedback_log()
+    print(f"[FEEDBACK_LOG] {log_path}", flush=True)
 
     # Reset the server UI for this new run
     try:

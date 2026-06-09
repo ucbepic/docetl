@@ -101,6 +101,41 @@ frame = frame.code_filter(code="def keep(doc): return len(doc['text']) > 100")
 frame = frame.code_reduce(reduce_key="category", code="def aggregate(items): ...")
 ```
 
+## Retrievers
+
+Augment LLM operations with context retrieved from a LanceDB index:
+
+```python
+kb = docetl.read_json("knowledge_base.json")
+
+frame = (
+    docetl.read_json("queries.json")
+    .add_retriever(
+        "kb_index",
+        dataset="kb",                   # dataset name to index
+        index_dir="./lance_index",
+        index_types=["fts", "embedding"],
+        fts={
+            "index_phrase": "{{ input.text }}",
+            "query_phrase": "{{ input.question }}",
+        },
+        embedding={
+            "model": "text-embedding-3-small",
+            "index_phrase": "{{ input.text }}",
+            "query_phrase": "{{ input.question }}",
+        },
+        query={"mode": "hybrid", "top_k": 5},
+    )
+    .map(
+        prompt="Answer: {{ input.question }}\nContext: {{ retrieval_context }}",
+        output={"schema": {"answer": "str"}},
+        retriever="kb_index",
+    )
+)
+```
+
+The `retriever` parameter is available on `map`, `filter`, `reduce`, and `extract`. The retrieved context is injected as `{{ retrieval_context }}` in your prompt template.
+
 ## Terminal Actions
 
 Terminal actions execute the pipeline:

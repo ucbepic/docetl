@@ -2022,10 +2022,8 @@ def start_server(port: int = 0) -> int:
     Returns the port. Writes it to ``.docetl_server_port``.
     The server runs until the process is killed.
     """
-    existing = _detect_server()
-    if existing is not None:
-        print(f"Server already running on port {existing}")
-        return existing
+    _kill_stale_servers()
+    time.sleep(0.2)
 
     feedback = FeedbackStore()
     broadcaster = _Broadcaster(None, feedback)
@@ -2043,7 +2041,17 @@ def start_server(port: int = 0) -> int:
     print(f"Port written to {_PORT_FILE}")
     print("Press Ctrl+C to stop.")
 
+    import signal
     import webbrowser
+
+    def _shutdown_handler(sig, frame):
+        raise KeyboardInterrupt
+
+    try:
+        signal.signal(signal.SIGTERM, _shutdown_handler)
+    except ValueError:
+        pass
+
     webbrowser.open(url)
 
     try:
@@ -2062,10 +2070,39 @@ def start_server(port: int = 0) -> int:
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+def _kill_stale_servers():
+    """Kill any lingering docetl serve processes."""
+    import signal
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "docetl.cli serve"],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.strip().splitlines():
+            pid = int(line.strip())
+            if pid == os.getpid():
+                continue
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    try:
+        os.remove(_PORT_FILE)
+    except OSError:
+        pass
+
+
 def _auto_start_server() -> int | None:
     """Spawn a persistent server as a detached subprocess. Returns port."""
     import subprocess
     import sys
+
+    _kill_stale_servers()
+    time.sleep(0.3)
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "docetl.cli", "serve"],
@@ -2073,13 +2110,11 @@ def _auto_start_server() -> int | None:
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    # Wait for the port file to appear (server writes it on startup).
     for _ in range(50):
         time.sleep(0.1)
         port = _detect_server()
         if port is not None:
             return port
-    # Server didn't start in time — fall back.
     try:
         proc.kill()
     except OSError:

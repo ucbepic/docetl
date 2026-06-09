@@ -1950,13 +1950,37 @@ def start_server(port: int = 0) -> int:
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+def _auto_start_server() -> int | None:
+    """Spawn a persistent server as a detached subprocess. Returns port."""
+    import subprocess
+    import sys
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "docetl.cli", "serve"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    # Wait for the port file to appear (server writes it on startup).
+    for _ in range(50):
+        time.sleep(0.1)
+        port = _detect_server()
+        if port is not None:
+            return port
+    # Server didn't start in time — fall back.
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    return None
+
+
 def run_with_web_ui(runner: "DSLRunner") -> float:
     """Run the pipeline with a web-based progress + feedback UI.
 
     If a persistent server is running (started via ``docetl serve``), the
-    pipeline pushes state to it and returns immediately.  Otherwise it
-    starts an inline server, runs the pipeline, waits for human feedback,
-    then shuts down.
+    pipeline pushes state to it.  Otherwise it auto-starts one as a detached
+    subprocess so it survives across pipeline runs.
     """
     import threading
 
@@ -1971,6 +1995,10 @@ def run_with_web_ui(runner: "DSLRunner") -> float:
     tracker.pipeline_start(runner.list_pipeline_operations())
 
     server_port = _detect_server()
+
+    if server_port is None:
+        runner.console.log("[dim]No persistent server found — starting one…[/dim]")
+        server_port = _auto_start_server()
 
     if server_port is not None:
         return _run_with_remote_server(runner, tracker, server_port)

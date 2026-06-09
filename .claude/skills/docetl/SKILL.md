@@ -573,18 +573,13 @@ Three modes:
 
 ### Starting the Feedback Server
 
-**Always start a persistent feedback server before running any pipeline.** This keeps the browser UI alive across multiple pipeline runs so the human can continuously review results and give feedback.
+The persistent feedback server **starts automatically** when you run a pipeline with `ui: "web"`. It opens a browser, stays alive across multiple runs, and pushes results to the same tab — no manual setup needed. The port is saved to `.docetl_server_port`.
 
-```bash
-# Start the server in the background (run this ONCE at the start of the session)
-docetl serve &
-```
-
-This opens a browser and prints the server port. The port is saved to `.docetl_server_port`. All subsequent `docetl run` commands with `ui: "web"` automatically detect the server and push results to it — no restart, no broken browser connections.
+You can also start it manually with `docetl serve` if you want it running before any pipeline.
 
 ### Watching for Feedback
 
-**Immediately after starting the server, start the feedback monitor. Do this ONCE at session start — the monitor stays alive across all pipeline runs.**
+**At the start of the session, start the feedback monitor. Do this ONCE — the monitor stays alive across all pipeline runs.**
 
 ```
 Monitor(command="tail -F .docetl_feedback.log", description="Watch for human feedback")

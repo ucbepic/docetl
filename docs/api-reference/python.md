@@ -1,431 +1,296 @@
 # Python API Reference
 
-The Python API lets you define, optimize, and run DocETL pipelines programmatically. All classes are importable from `docetl.api`.
+The Python API lets you build, run, and optimize DocETL pipelines with chainable operations.
 
 ```python
-from docetl.api import (
-    Pipeline, Dataset, PipelineStep, PipelineOutput,
-    MapOp, ReduceOp, ResolveOp, FilterOp, ParallelMapOp,
-    EquijoinOp, SplitOp, GatherOp, UnnestOp, SampleOp,
-    CodeMapOp, CodeReduceOp, CodeFilterOp, ExtractOp,
-)
+import docetl
 ```
 
 ---
 
-## Pipeline
+## Configuration
 
-The main class for defining and running a complete document processing pipeline.
+Set global defaults as module-level attributes:
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `docetl.default_model` | `str` | `None` | Default LLM model for all operations |
+| `docetl.agent_model` | `str` | `None` | Model for optimizer rewrites |
+| `docetl.max_threads` | `int` | `cpu_count * 4` | Concurrent threads |
+| `docetl.bypass_cache` | `bool` | `False` | Skip LLM cache |
+| `docetl.intermediate_dir` | `str` | `None` | Directory for intermediate results |
+| `docetl.rate_limits` | `dict` | `None` | Rate limits per model |
+| `docetl.fallback_models` | `list[str]` | `None` | Fallback chain on failure |
+| `docetl.fallback_embedding_models` | `list[str]` | `None` | Fallback embedding models |
+
+---
+
+## Reading Data
+
+| Function | Description |
+|----------|-------------|
+| `docetl.read_json(path)` | Load from JSON file |
+| `docetl.read_csv(path)` | Load from CSV file |
+| `docetl.read_parquet(path)` | Load from Parquet file |
+| `docetl.from_list(data)` | Load from a list of dicts |
+| `docetl.Frame.from_yaml(path)` | Load from a YAML pipeline config |
+
+All return a `Frame`.
+
+---
+
+## Frame
+
+A lazy pipeline — operations are recorded but not executed until a terminal action is called. Frames are immutable; every operation returns a new `Frame`.
+
+### LLM Operations
+
+#### `.map()`
+
+Applies an LLM prompt to each document independently.
 
 ```python
-Pipeline(
-    name: str,
-    datasets: dict[str, Dataset],
-    operations: list[OpType],
-    steps: list[PipelineStep],
-    output: PipelineOutput,
-    default_model: str | None = None,
-    parsing_tools: list[ParsingTool] = [],
-)
-```
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `str` | Name of the pipeline. |
-| `datasets` | `dict[str, Dataset]` | Datasets keyed by name. |
-| `operations` | `list[OpType]` | List of operation definitions. |
-| `steps` | `list[PipelineStep]` | Ordered steps to execute. |
-| `output` | `PipelineOutput` | Output configuration. |
-| `default_model` | `str \| None` | Default LLM model for all operations. |
-| `parsing_tools` | `list[ParsingTool]` | Custom parsing functions. Can be `ParsingTool` objects or plain Python functions. |
-
-**Methods:**
-
-- `pipeline.run() -> float` — Execute the pipeline. Returns total cost.
-- `pipeline.run_with_stats() -> dict` — Execute the pipeline and return detailed statistics including cost and token usage broken down by model (prompt and completion tokens).
-- `pipeline.optimize(**kwargs) -> MOARResult` — Run MOAR optimization and return results. See below.
-
-### pipeline.optimize()
-
-The single entry point for pipeline optimization. MOAR is the default (and recommended) method.
-
-```python
-def my_eval(results_path):
-    import json
-    with open(results_path) as f:
-        results = json.load(f)
-    return {"score": sum(1 for r in results if r.get("correct"))}
-
-result = pipeline.optimize(
-    eval_fn=my_eval,                 # Required — a callable
-    metric_key="score",              # Required — key in eval results dict
-    models=None,                     # Auto-detect from API keys
-    agent_model=None,                # Auto-select best available
-    max_iterations=20,               # Max search iterations
-    save_dir=None,                   # Defaults to temp dir
-    exploration_weight=1.414,        # UCB exploration constant
-    method="moar",                   # "moar" (default) or "v1" (legacy)
+frame.map(
+    prompt="Classify: {{ input.text }}",
+    output={"schema": {"category": "str"}},
 )
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `eval_fn` | `Callable` | *required* | A function `(results_path) -> dict` or `(dataset_path, results_path) -> dict`. Also accepts a file path string for CLI compatibility. |
-| `metric_key` | `str` | *required* | Key in evaluation results to optimize |
-| `models` | `list[str] \| None` | `None` | LiteLLM model names. Auto-detected from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AZURE_API_KEY`. |
-| `agent_model` | `str \| None` | `None` | Model for directive instantiation. Auto-selected. |
-| `max_iterations` | `int` | `20` | Maximum search iterations |
-| `save_dir` | `str \| None` | `None` | Results directory (temp dir if omitted) |
-| `exploration_weight` | `float` | `1.414` | UCB exploration constant |
-| `method` | `str` | `"moar"` | `"moar"` or `"v1"` (legacy) |
+| `prompt` | `str` | — | Jinja2 template. Access fields via `{{ input.key }}`. |
+| `output` | `dict` | — | Output schema, e.g. `{"schema": {"field": "str"}}` |
+| `model` | `str` | `None` | Override default model |
+| `validate` | `list[str]` | `None` | Python expressions to validate output |
+| `num_retries_on_validate_failure` | `int` | `None` | Retries on validation failure |
+| `sample` | `int` | `None` | Process only N documents |
+| `tools` | `list[dict]` | `None` | Tool definitions for function calling |
+| `drop_keys` | `list[str]` | `None` | Keys to remove from output |
+| `timeout` | `int` | `None` | Timeout per LLM call (seconds) |
+| `max_batch_size` | `int` | `None` | Batch size for batch processing |
+| `batch_prompt` | `str` | `None` | Jinja2 template for batch mode |
+| `retriever` | `Retriever` | `None` | Retriever for context augmentation |
+| `optimize` | `bool` | `None` | Mark for optimization |
+| `limit` | `int` | `None` | Max documents to process |
 
-**Returns:** `MOARResult`
+#### `.filter()`
 
----
-
-## MOARResult
-
-Returned by `pipeline.optimize()`. Provides access to the Pareto frontier of optimized pipelines.
-
-| Method / Property | Return Type | Description |
-|-------------------|-------------|-------------|
-| `best()` | `OptimizedPipeline` | Highest-accuracy solution on the frontier |
-| `cheapest()` | `OptimizedPipeline` | Lowest-cost solution on the frontier |
-| `frontier` | `list[OptimizedPipeline]` | All Pareto-optimal solutions |
-| `to_df()` | `pandas.DataFrame` | DataFrame of all explored plans |
+Keeps or removes documents based on an LLM prompt. Output schema must have one boolean field.
 
 ```python
-result = pipeline.optimize(eval_fn=my_eval, metric_key="score")
-
-best = result.best()
-best.run()  # Execute the best pipeline
-
-df = result.to_df()  # Analyze all explored configurations
-```
-
----
-
-## OptimizedPipeline
-
-A single optimized pipeline configuration, returned from `MOARResult`.
-
-| Property / Method | Type | Description |
-|-------------------|------|-------------|
-| `pipeline` | `DSLRunner` | The underlying pipeline runner |
-| `cost` | `float` | Estimated cost per run |
-| `accuracy` | `float` | Evaluation metric score |
-| `yaml_path` | `str` | Path to the optimized YAML file |
-| `on_frontier` | `bool` | Whether this plan is Pareto-optimal |
-| `run()` | `float` | Execute the pipeline; returns cost |
-
----
-
-## Dataset
-
-```python
-Dataset(
-    type: "file" | "memory",
-    path: str | list[dict] | pd.DataFrame,
-    source: str = "local",
-    parsing: list[dict[str, str]] | None = None,
+frame.filter(
+    prompt="Is this about technology? {{ input.text }}",
+    output={"schema": {"is_tech": "bool"}},
 )
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `type` | `"file"` or `"memory"` | `"file"` to load from disk, `"memory"` for in-memory data. |
-| `path` | `str \| list[dict] \| DataFrame` | File path (for `"file"` type) or data (for `"memory"` type). |
-| `source` | `str` | Source identifier. Defaults to `"local"`. |
-| `parsing` | `list[dict]` | Parsing instructions. Each dict has `input_key`, `function`, and `output_key`. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | `str` | — | Jinja2 template |
+| `output` | `dict` | — | Schema with one boolean field |
+| `model` | `str` | `None` | Override default model |
+| `validate` | `list[str]` | `None` | Validation expressions |
+| `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 
----
+#### `.reduce()`
 
-## PipelineStep
+Groups documents by key and reduces each group with an LLM.
 
 ```python
-PipelineStep(
-    name: str,
-    input: str | None,
-    operations: list[str | dict],
+frame.reduce(
+    reduce_key="category",
+    prompt="Summarize: {% for item in inputs %}{{ item.text }}{% endfor %}",
+    output={"schema": {"summary": "str"}},
 )
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `str` | Step name. |
-| `input` | `str \| None` | Name of a dataset or previous step to use as input. |
-| `operations` | `list[str \| dict]` | Operation names (or dicts for more complex configs) to run in this step. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `reduce_key` | `str \| list[str]` | — | Key(s) to group by. Use `"_all"` for one group. |
+| `prompt` | `str` | — | Jinja2 template. Iterate with `{% for item in inputs %}`. |
+| `output` | `dict` | — | Output schema |
+| `fold_prompt` | `str` | `None` | Prompt for incremental folding |
+| `fold_batch_size` | `int` | `None` | Items per fold iteration |
+| `merge_prompt` | `str` | `None` | Prompt for merging fold results |
+| `pass_through` | `bool` | `None` | Pass through non-reduced keys |
+| `associative` | `bool` | `None` | Enable parallel reduction |
+| `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 
----
+#### `.resolve()`
 
-## PipelineOutput
+Deduplicates entities by pairwise LLM comparison.
 
 ```python
-PipelineOutput(
-    type: str,
-    path: str,
-    intermediate_dir: str | None = None,
+frame.resolve(
+    comparison_prompt="Same person? {{ input1.name }} vs {{ input2.name }}",
+    resolution_prompt="Canonical name: {% for e in inputs %}{{ e.name }}{% endfor %}",
+    output={"schema": {"name": "str"}},
 )
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `type` | `str` | Output type (e.g., `"file"`). |
-| `path` | `str` | Path to write output. |
-| `intermediate_dir` | `str \| None` | Directory for intermediate results. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `comparison_prompt` | `str` | — | Jinja2 template comparing `{{ input1 }}` and `{{ input2 }}` |
+| `resolution_prompt` | `str` | `None` | Prompt for resolving matched groups |
+| `output` | `dict` | `None` | Output schema |
+| `blocking_keys` | `list[str]` | `None` | Keys for blocking |
+| `blocking_threshold` | `float` | `None` | Similarity threshold |
+| `embedding_model` | `str` | `None` | Model for blocking embeddings |
+| `optimize` | `bool` | `None` | Mark for optimization |
 
----
+#### `.extract()`
 
-## LLM-Powered Operations
-
-All operations share these base fields:
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `name` | `str` | *required* | Unique operation name. |
-| `type` | `str` | *required* | Operation type (must match the Op class). |
-| `skip_on_error` | `bool` | `False` | Skip documents that cause errors. |
-
-### MapOp
-
-Applies an LLM prompt to each document independently.
+Extracts information from documents with line-level precision.
 
 ```python
-MapOp(name="...", type="map", prompt="...", output={"schema": {...}})
+frame.extract(
+    prompt="Extract key findings from this paper.",
+    document_keys=["content"],
+)
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `prompt` | `str` | — | Jinja2 template. Use `{{ input.key }}` to access fields. |
-| `output` | `dict` | — | Output schema, e.g. `{"schema": {"field": "string"}}`. |
-| `model` | `str` | `None` | Override the default model. |
-| `drop_keys` | `list[str]` | `None` | Keys to drop from output. |
-| `batch_size` | `int` | `None` | Process documents in batches. |
-| `batch_prompt` | `str` | `None` | Jinja2 template for batch processing. Uses `{{ inputs }}`. |
-| `timeout` | `int` | `None` | Timeout in seconds per LLM call. |
-| `optimize` | `bool` | `None` | Mark for optimization. |
-| `limit` | `int` | `None` | Max documents to process. |
-| `litellm_completion_kwargs` | `dict` | `{}` | Extra kwargs passed to litellm. |
-| `enable_observability` | `bool` | `False` | Enable observability logging. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | `str` | — | Extraction prompt |
+| `document_keys` | `list[str]` | — | Keys containing document text |
+| `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 
-### ReduceOp
-
-Groups documents by key(s) and reduces each group with an LLM.
-
-```python
-ReduceOp(name="...", type="reduce", reduce_key="key", prompt="...", output={"schema": {...}})
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `reduce_key` | `str \| list[str]` | *required* | Key(s) to group by. Use `"_all"` for a single group. |
-| `prompt` | `str` | *required* | Jinja2 template. Use `{% for item in inputs %}` to iterate. |
-| `output` | `dict` | *required* | Output schema. |
-| `model` | `str` | `None` | Override the default model. |
-| `input` | `dict` | `None` | Input schema constraints. |
-| `pass_through` | `bool` | `None` | Pass through non-reduced keys. |
-| `associative` | `bool` | `None` | Whether reduce is associative (enables parallelism). |
-| `fold_prompt` | `str` | `None` | Prompt for incremental fold operations. |
-| `fold_batch_size` | `int` | `None` | Batch size for fold. |
-| `merge_prompt` | `str` | `None` | Prompt for merging fold results. |
-| `merge_batch_size` | `int` | `None` | Batch size for merge. |
-| `optimize` | `bool` | `None` | Mark for optimization. |
-| `timeout` | `int` | `None` | Timeout in seconds. |
-| `limit` | `int` | `None` | Max groups to process. |
-| `litellm_completion_kwargs` | `dict` | `{}` | Extra kwargs passed to litellm. |
-
-### ResolveOp
-
-Deduplicates/resolves entities by comparing pairs of documents.
-
-```python
-ResolveOp(name="...", type="resolve", comparison_prompt="...", resolution_prompt="...")
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `comparison_prompt` | `str` | *required* | Jinja2 template comparing `{{ input1 }}` and `{{ input2 }}`. |
-| `resolution_prompt` | `str` | `None` | Prompt for resolving matched pairs. |
-| `output` | `dict` | `None` | Output schema. |
-| `embedding_model` | `str` | `None` | Model for blocking embeddings. |
-| `comparison_model` | `str` | `None` | Model for comparisons. |
-| `resolution_model` | `str` | `None` | Model for resolution. |
-| `blocking_keys` | `list[str]` | `None` | Keys to use for blocking. |
-| `blocking_threshold` | `float` | `None` | Similarity threshold for blocking (0–1). |
-| `blocking_target_recall` | `float` | `None` | Target recall for blocking (0–1). |
-| `blocking_conditions` | `list[str]` | `None` | Custom blocking conditions. |
-| `optimize` | `bool` | `None` | Mark for optimization. |
-| `timeout` | `int` | `None` | Timeout in seconds. |
-| `litellm_completion_kwargs` | `dict` | `{}` | Extra kwargs passed to litellm. |
-
-### FilterOp
-
-Filters documents using an LLM prompt that returns a boolean.
-
-```python
-FilterOp(name="...", type="filter", prompt="...", output={"schema": {...}})
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `prompt` | `str` | *required* | Jinja2 template. Use `{{ input.key }}`. |
-| `output` | `dict` | *required* | Must include a boolean field in schema. |
-
-### ParallelMapOp
+#### `.parallel_map()`
 
 Runs multiple prompts on each document in parallel.
 
 ```python
-ParallelMapOp(name="...", type="parallel_map", prompts=[...], output={"schema": {...}})
+frame.parallel_map(
+    prompts=[{"prompt": "...", "output_keys": ["field1"]}, ...],
+    output={"schema": {"field1": "str", "field2": "str"}},
+)
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `prompts` | `list[dict]` | — | List of prompt configurations. |
-| `output` | `dict` | — | Combined output schema. |
-| `drop_keys` | `list[str]` | `None` | Keys to drop from output. |
+#### `.equijoin()`
 
-### EquijoinOp
-
-Joins two datasets by comparing document pairs with an LLM.
+Joins two datasets by LLM comparison.
 
 ```python
-EquijoinOp(name="...", type="equijoin", comparison_prompt="...")
+right = docetl.read_json("other.json")
+frame.equijoin(right, comparison_prompt="Are these related? {{ left.x }} {{ right.y }}")
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `comparison_prompt` | `str` | *required* | Jinja2 template comparing `{{ left }}` and `{{ right }}`. |
-| `output` | `dict` | `None` | Output schema. |
-| `blocking_keys` | `dict[str, list[str]]` | `None` | Keys for blocking per dataset. |
-| `blocking_threshold` | `float` | `None` | Similarity threshold. |
-| `blocking_conditions` | `list[str]` | `None` | Custom blocking conditions. |
-| `limits` | `dict[str, int]` | `None` | Max matches per side. |
-| `comparison_model` | `str` | `None` | Model for comparisons. |
-| `embedding_model` | `str` | `None` | Model for embeddings. |
-| `optimize` | `bool` | `None` | Mark for optimization. |
-| `timeout` | `int` | `None` | Timeout in seconds. |
-| `litellm_completion_kwargs` | `dict` | `{}` | Extra kwargs passed to litellm. |
+### Structural Operations (no LLM calls)
 
-### ExtractOp
+| Method | Description |
+|--------|-------------|
+| `.split(split_key, method, method_kwargs)` | Split documents into chunks |
+| `.gather(content_key, doc_id_key, order_key)` | Add surrounding context to chunks |
+| `.unnest(unnest_key)` | Flatten a list field into separate rows |
+| `.cluster(embedding_keys)` | Cluster documents by embedding similarity |
+| `.sample(samples, method)` | Sample a subset of documents |
 
-Extracts specific information from documents with line-level precision.
+### Code Operations (no LLM calls)
 
-```python
-ExtractOp(name="...", type="extract", prompt="...", document_keys=["content"])
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `prompt` | `str` | *required* | Extraction prompt. |
-| `document_keys` | `list[str]` | *required* | Keys containing document text. |
-| `model` | `str` | `None` | Override the default model. |
-| `format_extraction` | `bool` | `True` | Format extracted content. |
-| `extraction_key_suffix` | `str` | `None` | Suffix for extraction output keys. |
-| `extraction_method` | `"line_number" \| "regex"` | `"line_number"` | Extraction method. |
-| `timeout` | `int` | `None` | Timeout in seconds. |
-| `limit` | `int` | `None` | Max documents to process. |
-| `litellm_completion_kwargs` | `dict` | `{}` | Extra kwargs passed to litellm. |
+| Method | Description |
+|--------|-------------|
+| `.code_map(code="def transform(doc): ...")` | Per-document Python transform |
+| `.code_filter(code="def transform(doc): ...")` | Per-document Python filter (return bool) |
+| `.code_reduce(reduce_key, code="def transform(items): ...")` | Per-group Python aggregation |
 
 ---
 
-## Auxiliary Operations
+## Retriever
 
-### SplitOp
-
-Splits documents into chunks.
+Augment LLM operations with retrieved context from a LanceDB index.
 
 ```python
-SplitOp(name="...", type="split", split_key="content", method="token_count", method_kwargs={"num_tokens": 500})
+retriever = docetl.Retriever(
+    dataset="knowledge_base",
+    index_dir="./lance_index",
+    index_types=["fts", "embedding"],
+    fts={"index_phrase": "{{ input.text }}", "query_phrase": "{{ input.question }}"},
+    embedding={"model": "text-embedding-3-small", "index_phrase": "...", "query_phrase": "..."},
+    query={"mode": "hybrid", "top_k": 5},
+)
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `split_key` | `str` | *required* | Key containing text to split. |
-| `method` | `str` | *required* | Split method (e.g., `"token_count"`, `"delimiter"`). |
-| `method_kwargs` | `dict` | *required* | Arguments for the split method. |
-| `model` | `str` | `None` | Model for token counting. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `dataset` | `str` | — | Name of the dataset to index |
+| `index_dir` | `str` | — | Directory for the LanceDB index |
+| `index_types` | `list[str]` | — | `["fts"]`, `["embedding"]`, or both |
+| `fts` | `dict` | `None` | Full-text search config (`index_phrase`, `query_phrase`) |
+| `embedding` | `dict` | `None` | Embedding config (`model`, `index_phrase`, `query_phrase`) |
+| `query` | `dict` | `None` | Query config (`mode`, `top_k`) |
+| `build_index` | `str` | `"if_missing"` | `"if_missing"`, `"always"`, or `"never"` |
 
-### GatherOp
-
-Adds surrounding context to chunks created by split.
-
-```python
-GatherOp(name="...", type="gather", content_key="...", doc_id_key="...", order_key="...")
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `content_key` | `str` | *required* | Key with chunk content. |
-| `doc_id_key` | `str` | *required* | Key identifying the source document. |
-| `order_key` | `str` | *required* | Key for chunk ordering. |
-| `peripheral_chunks` | `dict` | `None` | Configuration for surrounding context. |
-| `doc_header_key` | `str` | `None` | Key for document headers. |
-
-### UnnestOp
-
-Flattens a list-valued field into separate documents.
-
-```python
-UnnestOp(name="...", type="unnest", unnest_key="items")
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `unnest_key` | `str` | *required* | Key containing the list to unnest. |
-| `keep_empty` | `bool` | `None` | Keep documents with empty lists. |
-| `expand_fields` | `list[str]` | `None` | Additional fields to expand. |
-| `recursive` | `bool` | `None` | Recursively unnest nested lists. |
-| `depth` | `int` | `None` | Max recursion depth. |
-
-### SampleOp
-
-Samples a subset of documents.
-
-```python
-SampleOp(name="...", type="sample", method="uniform", samples=100)
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `method` | `str` | *required* | One of `"uniform"`, `"outliers"`, `"custom"`, `"first"`, `"top_embedding"`, `"top_fts"`. |
-| `samples` | `int \| float \| list` | `None` | Number of samples or fraction. |
-| `stratify_key` | `str \| list[str]` | `None` | Key(s) for stratified sampling. |
-| `samples_per_group` | `bool` | `False` | Apply sample count per group. |
-| `method_kwargs` | `dict` | `{}` | Extra arguments for the sampling method. |
-| `random_state` | `int` | `None` | Random seed for reproducibility. |
+Pass to any LLM operation via `retriever=`. Retrieved context is available as `{{ retrieval_context }}` in prompts.
 
 ---
 
-## Code Operations
+## Inspection (no execution)
 
-Code operations run Python functions instead of LLM calls. The `code` parameter accepts either a string containing Python code that defines a `transform` function, or a regular Python function.
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `frame.schema()` | `dict[str, str]` | Output schema from operation definitions |
+| `frame.count()` | `int` | Input count (no ops) or output count (executes if ops present) |
+| `frame.to_yaml()` | `str` | Export pipeline as YAML config |
+| `frame.to_yaml(path)` | `str` | Also write YAML to file |
+| `frame.to_python()` | `str` | Export as Python source code |
+
+---
+
+## Terminal Actions
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `frame.show(max=5)` | `DataFrame` | Run on a sample and print results. Works on bare datasets too. |
+| `frame.collect()` | `DataFrame` | Execute full pipeline, return DataFrame |
+| `frame.to_list()` | `list[dict]` | Execute full pipeline, return list of dicts |
+| `frame.write_json(path)` | `float` | Execute and write to JSON. Returns cost. |
+| `frame.write_csv(path)` | `float` | Execute and write to CSV. Returns cost. |
+| `frame.write_parquet(path)` | `float` | Execute and write to Parquet. Returns cost. |
+
+### Cost & Token Tracking
 
 ```python
-def my_transform(doc: dict) -> dict:
-    return {"doubled": doc["value"] * 2}
+df = frame.collect()
 
-op = CodeMapOp(name="double", type="code_map", code=my_transform)
+print(f"Cost: ${frame.total_cost:.4f}")
+print(f"Tokens: {frame.token_usage}")
+print(f"Cost: ${df.attrs['_total_cost']:.4f}")  # also on DataFrame
 ```
 
-### CodeMapOp
+---
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `code` | `str \| Callable` | *required* | `fn(doc: dict) -> dict` |
-| `drop_keys` | `list[str]` | `None` | Keys to drop from output. |
-| `limit` | `int` | `None` | Max documents to process. |
+## Optimization
 
-### CodeReduceOp
+```python
+@docetl.register_eval
+def evaluate(results):
+    correct = sum(1 for r in results if r.get("correct"))
+    return {"score": correct}
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `code` | `str \| Callable` | *required* | `fn(group: list[dict]) -> dict` |
-| `limit` | `int` | `None` | Max groups to process. |
+optimized = frame.optimize(
+    eval_fn=evaluate,
+    metric_key="score",
+)
+```
 
-### CodeFilterOp
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `eval_fn` | `Callable` | **required** | Scores pipeline output. Returns a dict of metrics. |
+| `metric_key` | `str` | **required** | Key in eval_fn's return dict to optimize |
+| `models` | `list[str]` | Auto-detect | LiteLLM model names to explore |
+| `agent_model` | `str` | Auto-select | Model for rewrite agent |
+| `max_iterations` | `int` | `20` | Search budget |
+| `save_dir` | `str` | Temp dir | Where to save results |
+| `exploration_weight` | `float` | `1.414` | UCB exploration constant |
+| `dataset_path` | `str` | Pipeline's dataset | Sample dataset for optimization |
+| `max_threads` | `int` | `None` | Max concurrent LLM calls per run |
+| `max_concurrent_agents` | `int` | `3` | Parallel MCTS search agents |
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `code` | `str \| Callable` | *required* | `fn(doc: dict) -> bool` |
-| `limit` | `int` | `None` | Max documents to process. |
+Returns an optimized `Frame`. Access search results via `optimized.search_results`:
+
+| Method / Property | Return Type | Description |
+|-------------------|-------------|-------------|
+| `.best()` | `OptimizedPipeline` | Highest-accuracy solution |
+| `.cheapest()` | `OptimizedPipeline` | Lowest-cost solution |
+| `.frontier` | `list[OptimizedPipeline]` | All Pareto-optimal solutions |
+| `.to_df()` | `DataFrame` | All explored plans |

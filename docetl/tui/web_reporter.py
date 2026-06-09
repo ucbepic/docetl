@@ -183,18 +183,19 @@ class _Broadcaster:
             {"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
             for f in self._feedback.doc_feedback
         ]
-        event["agent_messages"] = self._feedback.get_agent_messages_since(0)
         event["reset_token"] = self._reset_counter
         self._last_event = event
         self._broadcast(event)
 
     def rebroadcast(self):
-        """Re-broadcast the last known state with fresh feedback/messages.
+        """Re-broadcast the last known state with fresh feedback.
 
         In remote mode, the pipeline's push loop drives SSE updates. Once the
-        pipeline finishes (or between pushes), new feedback and toasts are stored
-        but never delivered to SSE subscribers. Call this after any mutation
-        (add feedback, post toast, etc.) so the browser sees the change immediately.
+        pipeline finishes (or between pushes), new feedback is stored but never
+        delivered to SSE subscribers. Call this after any mutation (add feedback,
+        kill, etc.) so the browser sees the change immediately.
+
+        Agent toasts are delivered exclusively via ``/messages`` polling.
         """
         if not self._last_event:
             return
@@ -204,7 +205,6 @@ class _Broadcaster:
             {"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
             for f in self._feedback.doc_feedback
         ]
-        event["agent_messages"] = self._feedback.get_agent_messages_since(0)
         event["reset_token"] = self._reset_counter
         self._last_event = event
         self._broadcast(event)
@@ -270,7 +270,6 @@ class _Broadcaster:
             "feedback_count": len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback),
             "doc_feedback": [{"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
                              for f in self._feedback.doc_feedback],
-            "agent_messages": self._feedback.get_agent_messages_since(0),
             "reset_token": self._reset_counter,
         }
 
@@ -1812,10 +1811,6 @@ evtSource.onmessage = function(e) {
   document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
   document.getElementById('f-status').textContent = data.finished ? 'Complete' : 'Running';
 
-  if (data.agent_messages) {
-    data.agent_messages.forEach(msg => showToast(msg));
-  }
-
   // Sync external doc feedback (submitted via API, not through UI)
   if (data.doc_feedback) {
     let fbChanged = false;
@@ -1852,7 +1847,7 @@ evtSource.onerror = function() {
   dot.classList.add('off');
 };
 
-/* --- Polling fallback for toasts + state (SSE is unreliable through proxies) --- */
+/* --- Toast polling (single delivery path — SSE handles pipeline state only) --- */
 let lastPollMsgId = 0;
 setInterval(() => {
   fetch('/messages?since=' + lastPollMsgId)
@@ -1884,7 +1879,6 @@ setInterval(() => {
       document.getElementById('h-time').textContent = fmtDur(data.elapsed);
       document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
       document.getElementById('f-status').textContent = data.finished ? 'Complete' : 'Polling';
-      if (data.agent_messages) data.agent_messages.forEach(msg => showToast(msg));
       if (data.finished && !finished) {
         finished = true;
         const dot = document.getElementById('status-dot');

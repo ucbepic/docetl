@@ -382,27 +382,9 @@ Agent(
 )
 ```
 
-### Watching for Feedback
-
-**After launching the pipeline subagent, immediately start watching the feedback log.** The feedback server writes every feedback event to `.docetl_feedback.log`. Use the Monitor tool to watch it:
-
-```
-Monitor(command="tail -F .docetl_feedback.log", description="Watch for human feedback")
-```
-
-Each feedback event appears as a notification in real time:
-```
-[FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
-[FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
-[FEEDBACK:kill] User stopped the pipeline
-[FEEDBACK:done] Human clicked Done reviewing
-```
-
-**When you see a `[FEEDBACK:...]` notification, act on it immediately** — acknowledge the feedback, diagnose the issue, and adjust the pipeline. Don't wait for the pipeline to finish.
-
 ### Test Run (Required)
 1. Add `sample: 10-20` to your first operation
-2. Launch pipeline via subagent + start monitoring the feedback log
+2. Launch pipeline via subagent (the Monitor from session start catches feedback automatically)
 3. When the subagent finishes, inspect intermediate results
 4. Act on any feedback that arrived during or after the run
 
@@ -411,8 +393,7 @@ Once test results look good:
 1. Remove the `sample` parameter from the pipeline
 2. Ask user for permission (estimate cost based on test run)
 3. Launch pipeline via subagent
-4. Monitor `.docetl_feedback.log` for human feedback
-5. **React to feedback as it arrives** — don't wait for the run to finish
+4. React to feedback as it arrives via Monitor notifications
 
 Options:
 - `--max_threads N` - Control parallelism
@@ -603,15 +584,25 @@ This opens a browser and prints the server port. The port is saved to `.docetl_s
 
 ### Watching for Feedback
 
-The feedback server writes all events to `.docetl_feedback.log`. **After starting a pipeline, always monitor this file** with the Monitor tool:
+**Immediately after starting the server, start the feedback monitor. Do this ONCE at session start — the monitor stays alive across all pipeline runs.**
 
 ```
 Monitor(command="tail -F .docetl_feedback.log", description="Watch for human feedback")
 ```
 
-You will receive a notification for each feedback event as it happens. React immediately — don't wait for the pipeline to finish.
+This is MANDATORY. Without the Monitor, you will not see feedback until the pipeline finishes. The Monitor sends you a notification the instant the human submits feedback.
 
-**Do NOT use `/feedback/wait` or any blocking wait.** The Monitor on the feedback log handles real-time notification. Feedback also appears in the background subagent's stdout when it polls the server during the pipeline run.
+Each feedback event appears as a line:
+```
+[FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
+[FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
+[FEEDBACK:kill] User stopped the pipeline
+[FEEDBACK:done] Human clicked Done reviewing
+```
+
+**When you see a `[FEEDBACK:...]` notification, act on it immediately.**
+
+**Do NOT use `/feedback/wait` or any blocking wait.** Feedback is also printed in the background subagent's stdout when it polls the server, so the subagent's completion output includes any feedback received during the run.
 
 To check feedback at any time without blocking:
 ```bash

@@ -189,6 +189,26 @@ class _Broadcaster:
         self._last_event = event
         self._broadcast(event)
 
+    def rebroadcast(self):
+        """Re-broadcast the last known state with fresh feedback/messages.
+
+        In remote mode, the pipeline's push loop drives SSE updates. Once the
+        pipeline finishes (or between pushes), new feedback and toasts are stored
+        but never delivered to SSE subscribers. Call this after any mutation
+        (add feedback, post toast, etc.) so the browser sees the change immediately.
+        """
+        if not self._last_event:
+            return
+        event = dict(self._last_event)
+        event["feedback_count"] = len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback)
+        event["doc_feedback"] = [
+            {"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
+            for f in self._feedback.doc_feedback
+        ]
+        event["agent_messages"] = self._feedback.get_agent_messages_since(0)
+        event["reset_token"] = self._reset_counter
+        self._broadcast(event)
+
     def _loop(self):
         while not self._stop.is_set():
             self._push()
@@ -315,6 +335,7 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("doc_snapshot", {}),
                     body.get("text", ""),
                 )
+                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/feedback/doc/delete":
@@ -323,10 +344,12 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("doc_index", 0),
                     body.get("feedback_index", 0),
                 )
+                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/feedback/pipeline":
                 feedback.add_pipeline_feedback(body.get("text", ""))
+                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/kill":
@@ -335,6 +358,7 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                 feedback._log(f"[FEEDBACK:kill] {reason}")
                 if tracker is not None:
                     tracker.kill_requested = True
+                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/message":
@@ -343,6 +367,7 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("type", "info"),
                     body.get("actions"),
                 )
+                broadcaster.rebroadcast()
                 self._json_response({"ok": True, "id": msg_id})
 
             elif self.path == "/message/respond":
@@ -350,11 +375,13 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("id", 0),
                     body.get("action", ""),
                 )
+                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/done":
                 feedback.done_event.set()
                 feedback._log("[FEEDBACK:done] Human clicked Done reviewing")
+                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/state/push":

@@ -206,6 +206,7 @@ class _Broadcaster:
         ]
         event["agent_messages"] = self._feedback.get_agent_messages_since(0)
         event["reset_token"] = self._reset_counter
+        self._last_event = event
         self._broadcast(event)
 
     def _loop(self):
@@ -720,8 +721,8 @@ _HTML_PAGE = r"""<!DOCTYPE html>
     margin-bottom: 8px;
   }
   .detail-fb-card {
-    background: hsl(152 60% 96%); border-left: 3px solid hsl(152 60% 50%);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    background: hsl(152 60% 96%); border: 1px solid hsl(152 40% 88%);
+    border-radius: var(--radius);
     padding: 10px 14px; margin-bottom: 8px;
     display: flex; align-items: flex-start; gap: 8px;
   }
@@ -791,8 +792,7 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   /* Completion banner */
   .complete-banner {
     background: hsl(152 69% 97%); border: 1px solid hsl(152 40% 88%);
-    border-left: 3px solid hsl(152 69% 40%);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    border-radius: var(--radius);
     padding: 12px 16px; margin: 12px 16px 0;
     display: flex; align-items: center; gap: 10px; font-size: 13px;
   }
@@ -805,17 +805,16 @@ _HTML_PAGE = r"""<!DOCTYPE html>
   }
   .toast {
     background: white; border: 1px solid var(--border);
-    border-left: 3px solid var(--primary);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    border-radius: var(--radius);
     padding: 12px 16px; box-shadow: 0 4px 20px rgba(0,0,0,.1);
     font-size: 13px; color: var(--foreground); line-height: 1.5;
     animation: toastIn .3s ease-out;
     display: flex; gap: 10px; align-items: flex-start;
   }
-  .toast.info { border-left-color: var(--primary); }
-  .toast.success { border-left-color: hsl(152 69% 40%); }
-  .toast.warning { border-left-color: hsl(38 92% 50%); }
-  .toast.error { border-left-color: var(--destructive); }
+  .toast.info { }
+  .toast.success { background: hsl(152 69% 97%); border-color: hsl(152 40% 82%); }
+  .toast.warning { background: hsl(38 100% 97%); border-color: hsl(38 80% 82%); }
+  .toast.error { background: hsl(0 100% 98%); border-color: hsl(0 60% 85%); }
   .toast-body { flex: 1; }
   .toast-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
   .toast-text { font-size: 13px; line-height: 1.5; }

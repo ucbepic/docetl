@@ -1,7 +1,7 @@
 """Model-cascade machinery with statistical guarantees.
 
 Routes each item in a batch to a cheap *proxy* model or an expensive *oracle*
-model, while guaranteeing a target accuracy / precision / recall holds with
+model, while guaranteeing a target accuracy, precision, or recall holds with
 probability ``1 - delta`` for any finite sample size.
 
 This module delegates to the BARGAIN library (UC Berkeley EPIC lab,
@@ -41,6 +41,8 @@ from BARGAIN.process.BARGAIN_P import BARGAIN_P
 from BARGAIN.process.BARGAIN_R import BARGAIN_R
 
 Guarantee = str  # "accuracy" | "precision" | "recall"
+
+
 
 ProxyPredict = Callable[[Any], "tuple[Hashable, float]"]
 OraclePredict = Callable[[Any], Hashable]
@@ -203,9 +205,6 @@ class CascadeStats:
     delta: float
     label_budget: int = 0
     threshold: float | None = None
-    calibration_calls: int = 0
-    gap_verified: int = 0
-    gap_truncated: bool = False
 
 
 @dataclass
@@ -227,7 +226,7 @@ class CategoricalCascade:
     See module docstring for the proxy/oracle callable contract.
     """
 
-    _VALID_GUARANTEES = ("accuracy", "precision", "recall", "precision+recall")
+    _VALID_GUARANTEES = ("accuracy", "precision", "recall")
 
     def __init__(
         self,
@@ -287,10 +286,8 @@ class CategoricalCascade:
             result = self._run_accuracy(items, proxy, oracle)
         elif spec.guarantee == "precision":
             result = self._run_precision(items, proxy, oracle)
-        elif spec.guarantee == "recall":
-            result = self._run_recall(items, proxy, oracle)
         else:
-            result = self._run_precision_recall(items, proxy, oracle)
+            result = self._run_recall(items, proxy, oracle)
 
         self.proxy_scores = self._extract_proxy_scores(proxy)
         return result
@@ -447,121 +444,3 @@ class CategoricalCascade:
         )
         return self._run_positive_set(items, bargain, proxy, oracle, "recall")
 
-    # ------------------------------------------------------------------
-    # Combined precision+recall via union bound (delta/2 each).
-    #
-    # Both guarantees hold simultaneously via union bound (delta/2
-    # each).  BARGAIN_P finds the precision-safe set; BARGAIN_R finds
-    # the recall-safe set.  Items in recall_pos that aren't already in
-    # prec_pos are oracle-verified: the oracle is perfect, so every
-    # true positive in the gap is found (preserving recall) and only
-    # verified TPs are added (preserving precision).
-    # ------------------------------------------------------------------
-    def _run_precision_recall(self, items, proxy, oracle) -> CascadeResult:
-        spec = self.spec
-        half_delta = spec.delta / 2
-        half_budget = max(1, spec.label_budget // 2)
-
-        # Precision pass — formal precision guarantee on prec_pos.
-        prec_proxy = _ProxyAdapter(
-            self._proxy_predict, positive_label=spec.positive_label,
-            max_threads=self._max_threads,
-        )
-        prec_oracle = _OracleAdapter(
-            self._oracle_predict, positive_label=spec.positive_label,
-            max_threads=self._max_threads,
-        )
-        bargain_p = BARGAIN_P(
-            prec_proxy, prec_oracle,
-            delta=half_delta, target=spec.target, budget=half_budget,
-            M=spec.n_thresholds, eta=0, seed=None,
-        )
-        prec_pos = set(int(i) for i in bargain_p.process(items))
-
-        # Recall pass — formal recall guarantee on recall_pos.
-        recall_proxy = _ProxyAdapter(
-            self._proxy_predict, positive_label=spec.positive_label,
-            max_threads=self._max_threads,
-        )
-        recall_oracle = _OracleAdapter(
-            self._oracle_predict, positive_label=spec.positive_label,
-            max_threads=self._max_threads,
-        )
-        bargain_r = BARGAIN_R(
-            recall_proxy, recall_oracle,
-            delta=half_delta, target=spec.target, budget=half_budget, beta=0, seed=None,
-        )
-        recall_pos = set(int(i) for i in bargain_r.process(items))
-
-        # Merge oracle labels already obtained during calibration.
-        known_labels: dict[int, int] = {}
-        known_labels.update(recall_oracle.preds_dict)
-        known_labels.update(prec_oracle.preds_dict)
-
-        # Start from prec_pos (precision guaranteed).
-        positive_set = prec_pos.copy()
-
-        # Add calibration-labeled TPs from recall_pos.
-        for idx in recall_pos:
-            if idx not in positive_set and known_labels.get(idx) == 1:
-                positive_set.add(idx)
-
-        # Oracle-verify the gap: items in recall_pos not yet resolved.
-        # Cap total oracle calls at label_budget; prioritize by proxy
-        # confidence so the most likely TPs are verified first.
-        full_gap = [idx for idx in recall_pos
-                    if idx not in positive_set and idx not in known_labels]
-        gap_budget = max(0, spec.label_budget - len(known_labels))
-        gap = full_gap
-        gap_truncated = len(full_gap) > gap_budget
-        if gap and gap_budget > 0:
-            def _proxy_conf(idx):
-                entry = recall_proxy.preds_dict.get(idx)
-                if entry is None:
-                    return 0.0
-                pred, score = entry
-                return pred * score + (1 - pred) * (1 - score)
-            gap.sort(key=_proxy_conf, reverse=True)
-            gap = gap[:gap_budget]
-            gap_records = [items[idx] for idx in gap]
-            gap_labels = recall_oracle.get_pred(gap_records, gap)
-            for idx, lbl in zip(gap, gap_labels):
-                if lbl == 1:
-                    positive_set.add(idx)
-        elif gap and gap_budget <= 0:
-            gap = []
-
-        result_labels = [
-            spec.positive_label if i in positive_set else spec.negative_label
-            for i in range(len(items))
-        ]
-        all_oracle = set(recall_oracle.preds_dict.keys()) | set(prec_oracle.preds_dict.keys())
-        escalated = [i in all_oracle for i in range(len(items))]
-        total_oracle = len(all_oracle)
-
-        p_threshold = self._compute_threshold(prec_proxy, prec_oracle, prec_pos)
-
-        proxy.preds_dict.update(recall_proxy.preds_dict)
-        proxy.preds_dict.update(prec_proxy.preds_dict)
-
-        calibration_calls = total_oracle - len(gap)
-        stats = CascadeStats(
-            n_items=len(items),
-            proxy_calls=prec_proxy.n_calls() + recall_proxy.n_calls(),
-            oracle_calls=total_oracle,
-            escalation_rate=total_oracle / len(items) if items else 0.0,
-            guarantee="precision+recall",
-            target=spec.target,
-            delta=spec.delta,
-            label_budget=spec.label_budget,
-            threshold=p_threshold,
-            calibration_calls=calibration_calls,
-            gap_verified=len(gap),
-            gap_truncated=gap_truncated,
-        )
-        return CascadeResult(
-            labels=result_labels,
-            escalated=escalated,
-            stats=stats,
-            positive_indices=sorted(positive_set),
-        )

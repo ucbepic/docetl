@@ -11,7 +11,7 @@ An operator supplies only: how to enumerate items, how to render an item's
 prompt, the candidate label set, and an oracle callable. The guarantee default
 is operator-dependent (filter->recall, resolve/equijoin->precision) and is
 passed in at call time. Only binary predictions are supported (accuracy,
-precision, recall, precision+recall guarantees via BARGAIN).
+precision, recall guarantees via BARGAIN).
 """
 
 import hashlib
@@ -26,7 +26,7 @@ from docetl.progress.tracker import active_tracker
 if TYPE_CHECKING:
     from docetl.operations.utils.progress import RichLoopBar
 
-_GUARANTEES = ("accuracy", "precision", "recall", "precision+recall")
+_GUARANTEES = ("accuracy", "precision", "recall")
 
 # Default guarantee when the cascade block omits ``guarantee`` (per operator).
 CASCADE_DEFAULT_GUARANTEE: dict[str, str] = {
@@ -48,7 +48,7 @@ def format_cascade_plan_lines(
     target = cfg["target"]
     delta = cfg.get("delta", 0.05)
     budget = cfg.get("label_budget", 400)
-    if guarantee in ("recall", "precision", "precision+recall"):
+    if guarantee in ("recall", "precision"):
         oracle_hint = f"≤{budget} oracle labels"
     else:
         oracle_hint = "escalated items"
@@ -76,7 +76,7 @@ def describe_cascade_stats(info: dict) -> dict[str, str]:
     """Produce human-readable description strings from a cascade info dict.
 
     Returns a dict with keys:
-        oracle_desc:     what the oracle did ("12 calibration + 3 gap-verified = 15 total (budget 300)")
+        oracle_desc:     what the oracle did ("15 sampled for calibration (budget 300)")
         threshold_desc:  threshold line ("0.847 proxy confidence" or "n/a — proxy not confident enough")
         result_desc:     result/escalation line ("450 proxy-accepted + 50 calibration samples → 500 items")
 
@@ -84,22 +84,15 @@ def describe_cascade_stats(info: dict) -> dict[str, str]:
     (_render_cascade_info) use this so the wording stays in sync.
     """
     guarantee = info.get("guarantee", "")
-    is_calibrated = guarantee in ("precision", "recall", "precision+recall")
+    is_calibrated = guarantee in ("precision", "recall")
     oracle_calls = info.get("oracle_calls", 0)
     n_items = info.get("n_items", 0)
     served_by_proxy = info.get("served_by_proxy", n_items - oracle_calls)
     budget = info.get("label_budget", "?")
-    cal = info.get("calibration_calls", oracle_calls)
-    gap = info.get("gap_verified", 0)
     threshold = info.get("threshold")
 
     # Oracle description
-    if guarantee == "precision+recall" and gap > 0:
-        oracle_desc = (
-            f"{cal} calibration + {gap} gap-verified "
-            f"= {oracle_calls} total (budget {budget})"
-        )
-    elif is_calibrated:
+    if is_calibrated:
         oracle_desc = f"{oracle_calls} sampled for calibration (budget {budget})"
     else:
         oracle_desc = f"{oracle_calls} escalated"
@@ -113,12 +106,7 @@ def describe_cascade_stats(info: dict) -> dict[str, str]:
         threshold_desc = "n/a"
 
     # Result description
-    if guarantee == "precision+recall" and gap > 0:
-        result_desc = (
-            f"{served_by_proxy} proxy-accepted + {cal} calibration "
-            f"+ {gap} gap-verified → {n_items} items"
-        )
-    elif is_calibrated:
+    if is_calibrated:
         result_desc = (
             f"{served_by_proxy} proxy-accepted "
             f"+ {oracle_calls} calibration samples → {n_items} items"
@@ -383,8 +371,6 @@ class CascadeMixin:
                 "threshold": stats.threshold,
                 "score_hist": score_hist,
                 "cached": cached_hit,
-                "calibration_calls": stats.calibration_calls,
-                "gap_verified": stats.gap_verified,
             }
             if escalated is not None:
                 info["item_escalated"] = escalated
@@ -404,8 +390,6 @@ class CascadeMixin:
             "n_items": stats.n_items,
             "served_by_proxy": served_by_proxy,
             "label_budget": stats.label_budget,
-            "calibration_calls": stats.calibration_calls,
-            "gap_verified": stats.gap_verified,
             "threshold": stats.threshold,
             "escalation_rate": stats.escalation_rate,
         })
@@ -431,7 +415,7 @@ class CascadeMixin:
             if descs["threshold_desc"] != "n/a" and "n/a" not in descs["threshold_desc"]
             else f"           [dim]threshold[/dim] [dim]{descs['threshold_desc']}[/dim]"
         )
-        is_calibrated = stats.guarantee in ("precision", "recall", "precision+recall")
+        is_calibrated = stats.guarantee in ("precision", "recall")
         if is_calibrated:
             lines.append(f"           [dim]result[/dim]   {descs['result_desc']}")
         else:
@@ -440,13 +424,6 @@ class CascadeMixin:
             f"           [dim]total cost[/dim] [green]${cost:.4f}[/green]"
         )
         self.console.log("\n".join(lines))
-
-        if getattr(stats, 'gap_truncated', False):
-            self.console.log(
-                f"           [bold yellow]⚠ gap verification capped by label_budget "
-                f"— recall is best-effort. Increase label_budget for stronger recall."
-                f"[/bold yellow]"
-            )
 
         if stats.escalation_rate >= 0.95 and stats.n_items > 10:
             if is_calibrated:
@@ -521,7 +498,7 @@ class CascadeMixin:
             positive_label=positive_label,
             negative_label=negative_label,
         )
-        if guarantee in ("precision", "recall", "precision+recall") and spec.label_budget < 50:
+        if guarantee in ("precision", "recall") and spec.label_budget < 50:
             fallback = (
                 "keep everything (no filtering)"
                 if guarantee == "recall"
@@ -534,7 +511,7 @@ class CascadeMixin:
                 f"confidence, causing the cascade to {fallback}. Consider "
                 f"label_budget ≥ 100."
             )
-        elif guarantee in ("precision", "recall", "precision+recall") and spec.label_budget < len(items) * 0.05:
+        elif guarantee in ("precision", "recall") and spec.label_budget < len(items) * 0.05:
             self.console.log(
                 f"[bold yellow]Warning:[/bold yellow] cascade label_budget="
                 f"{spec.label_budget} is small relative to {len(items)} items "

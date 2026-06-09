@@ -72,7 +72,6 @@ Pick the guarantee that matches the operator's intent:
 | `accuracy` | Output matches the oracle on ≥ `target` fraction of items | Any binary operator | BARGAIN_A |
 | `precision` | Of items returned positive, ≥ `target` are truly positive | `resolve` / `equijoin` (don't over-merge) | BARGAIN_P |
 | `recall` | Of truly-positive items, ≥ `target` are returned | `filter` (don't drop relevant docs) | BARGAIN_R |
-| `precision+recall` | Both precision and recall hold simultaneously at `target` | `resolve` / `equijoin` (don't over-merge AND don't miss matches) | BARGAIN_P + BARGAIN_R with union bound |
 
 **Default guarantee per operator** (applied when `guarantee` is omitted):
 
@@ -81,19 +80,6 @@ Pick the guarantee that matches the operator's intent:
 | `filter` | `recall` |
 | `resolve` | `precision` |
 | `equijoin` | `precision` |
-
-### precision+recall details
-
-The engine runs a precision pass and a recall pass (splitting δ/2 and
-`label_budget`/2 to each), then oracle-verifies items in the gap between
-the two thresholds. Total oracle calls are capped at `label_budget`; if
-the gap exceeds the remaining budget, items are verified in order of proxy
-confidence (most likely positives first) and recall becomes best-effort.
-Increase `label_budget` for stronger recall.
-
-For `precision+recall`, both passes share the same `target` value. If you need
-different targets (e.g. precision ≥ 0.95 but recall ≥ 0.8), run two separate
-operations — one with each guarantee.
 
 ### Small-sample behavior
 
@@ -222,29 +208,6 @@ clustering (resolve) / join (equijoin) unchanged.
   blocking_threshold: 0.8
   cascade: { proxy_model: gpt-4o-mini, target: 0.9 }    # guarantee=precision
 ```
-
-To guarantee both precision **and** recall on the same operation, set
-`guarantee: precision+recall`. The engine runs a precision pass and a recall
-pass (splitting δ and the label budget equally), then oracle-verifies items in
-the gap between the two thresholds so both guarantees transfer:
-
-```yaml
-- name: dedupe
-  type: resolve
-  comparison_model: gpt-4o
-  comparison_prompt: "Are these the same entity? {{ input1.name }} / {{ input2.name }}"
-  blocking_threshold: 0.8
-  cascade:
-    proxy_model: gpt-4o-mini
-    guarantee: precision+recall   # both hold simultaneously
-    target: 0.9                   # precision >= 0.9 AND recall >= 0.9
-    delta: 0.05                   # P(either fails) <= 0.05 via union bound
-    label_budget: 300             # split equally: 150 for each threshold search
-```
-
-The extra oracle cost for verifying the gap depends on the proxy quality — a
-good proxy has a small gap (few extra calls); a weak proxy has a large gap
-(many calls, but both guarantees still hold).
 
 ## Caching
 

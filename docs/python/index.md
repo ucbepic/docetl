@@ -135,17 +135,25 @@ df = (
 
 The `retriever` parameter is available on `map`, `filter`, `reduce`, and `extract`. The retrieved context is injected as `{{ retrieval_context }}` in your prompt template.
 
-## Terminal Actions
+## Inspection (no execution)
 
-Terminal actions execute the pipeline:
+```python
+frame.schema()        # {'category': 'str', 'summary': 'str', ...}
+frame.count()         # number of input docs (or output rows if ops are present)
+frame.to_yaml()       # export pipeline as YAML config string
+frame.to_yaml("pipeline.yaml")  # also write to file
+frame.to_python()     # export as Python source code
+```
+
+## Terminal Actions
 
 ```python
 # Preview — run on a small sample and print results
 frame.show()          # default: 5 input documents
 frame.show(max=10)    # custom sample size
 
-# Inspect output schema without executing
-frame.schema()        # {'category': 'str', 'summary': 'str', ...}
+# Also works on bare datasets
+docetl.read_json("data.json").show()
 
 # Collect as DataFrame
 df = frame.collect()

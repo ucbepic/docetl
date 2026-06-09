@@ -24,6 +24,39 @@ from typing import Any
 from docetl import _config
 
 
+class Retriever:
+    """A LanceDB retriever configuration. Pass to operations via ``retriever=``."""
+
+    _counter = 0
+
+    def __init__(
+        self,
+        dataset: str,
+        index_dir: str,
+        index_types: list[str],
+        *,
+        fts: dict[str, str] | None = None,
+        embedding: dict[str, str] | None = None,
+        query: dict[str, Any] | None = None,
+        build_index: str = "if_missing",
+    ):
+        Retriever._counter += 1
+        self._name = f"retriever_{Retriever._counter}"
+        self._config: dict[str, Any] = {
+            "type": "lancedb",
+            "dataset": dataset,
+            "index_dir": index_dir,
+            "index_types": index_types,
+            "build_index": build_index,
+        }
+        if fts is not None:
+            self._config["fts"] = fts
+        if embedding is not None:
+            self._config["embedding"] = embedding
+        if query is not None:
+            self._config["query"] = query
+
+
 class Frame:
     """A lazy pipeline frame—operations are recorded but not executed
     until a terminal action (``.collect()``, ``.write_json()``, etc.) is called."""
@@ -74,6 +107,13 @@ class Frame:
 
     def _append_op(self, op_type: str, name: str | None, config: dict[str, Any]) -> Frame:
         name_val, new_counter = self._auto_name(op_type) if name is None else (name, self._op_counter)
+
+        new_retrievers = dict(self._retrievers)
+        retriever = config.get("retriever")
+        if isinstance(retriever, Retriever):
+            new_retrievers[retriever._name] = retriever._config
+            config = {**config, "retriever": retriever._name}
+
         op = {"name": name_val, "type": op_type, **{k: v for k, v in config.items() if v is not None}}
 
         step_input = self._last_step or self._first_dataset
@@ -87,6 +127,7 @@ class Frame:
             steps=self._steps + [step],
             _last_step=step_name,
             _op_counter=new_counter if name is None else dict(self._op_counter),
+            _retrievers=new_retrievers,
         )
         return new
 
@@ -103,40 +144,6 @@ class Frame:
             steps=self._steps + [step],
             _last_step=step_name,
         )
-
-    # ── retrievers ─────────────────────────────────────────────────
-
-    def add_retriever(
-        self,
-        name: str,
-        *,
-        dataset: str,
-        index_dir: str,
-        index_types: list[str],
-        fts: dict[str, str] | None = None,
-        embedding: dict[str, str] | None = None,
-        query: dict[str, Any] | None = None,
-        build_index: str = "if_missing",
-    ) -> Frame:
-        """Register a LanceDB retriever for use in operations.
-
-        Operations reference it by *name* via their ``retriever`` parameter.
-        """
-        config: dict[str, Any] = {
-            "type": "lancedb",
-            "dataset": dataset,
-            "index_dir": index_dir,
-            "index_types": index_types,
-            "build_index": build_index,
-        }
-        if fts is not None:
-            config["fts"] = fts
-        if embedding is not None:
-            config["embedding"] = embedding
-        if query is not None:
-            config["query"] = query
-        new_retrievers = {**self._retrievers, name: config}
-        return self._copy(_retrievers=new_retrievers)
 
     # ── LLM operations ─────────────────────────────────────────────
 
@@ -165,7 +172,7 @@ class Frame:
         limit: int | None = None,
         calibrate: bool | None = None,
         num_calibration_docs: int | None = None,
-        retriever: str | None = None,
+        retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("map", name, {
@@ -219,7 +226,7 @@ class Frame:
         max_batch_size: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
         limit: int | None = None,
-        retriever: str | None = None,
+        retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("filter", name, {
@@ -254,7 +261,7 @@ class Frame:
         litellm_completion_kwargs: dict[str, Any] | None = None,
         enable_observability: bool | None = None,
         limit: int | None = None,
-        retriever: str | None = None,
+        retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("reduce", name, {
@@ -375,7 +382,7 @@ class Frame:
         timeout: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
         limit: int | None = None,
-        retriever: str | None = None,
+        retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op("extract", name, {

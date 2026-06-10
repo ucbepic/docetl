@@ -370,30 +370,39 @@ OPENAI_API_KEY=sk-...
 docetl serve &
 ```
 
-### Running Pipelines: Always via Subagents
+### Running Pipelines: Always via Subagent + Monitor (parallel)
 
-**Always run pipelines in a background subagent.** The main agent must stay free to receive and react to human feedback immediately. Use the Agent tool:
+**Always run pipelines in a background subagent AND start a feedback Monitor in the same tool call.** The main agent must stay free to receive and react to human feedback immediately. The feedback log path is predictable: `<pipeline_stem>.feedback.log` next to the YAML (e.g. `pipeline.yaml` → `pipeline.feedback.log`). `tail -F` handles the file not existing yet.
 
+**Launch both in one message (parallel tool calls):**
 ```
+# These MUST be sent as parallel tool calls in a single message:
+
 Agent(
   description="Run docetl pipeline",
   prompt="Run `docetl run pipeline.yaml` and report the results including cost and any feedback.",
   run_in_background=true
 )
+
+Monitor(
+  command="tail -F /path/to/pipeline.feedback.log",
+  description="Watch for human feedback"
+)
 ```
+
+The Monitor is **not optional** — it is the only way you receive feedback in real time. Without it, feedback is invisible until the pipeline finishes. Starting both in the same message guarantees the Monitor is active before any feedback can arrive.
 
 ### Test Run (Required)
 1. Add `sample: 10-20` to your first operation
-2. Launch pipeline via subagent
-3. Start a Monitor on `<pipeline>.feedback.log` (next to the YAML — see "Watching for Feedback")
-4. When the subagent finishes, inspect intermediate results
-5. Act on any feedback that arrived during or after the run
+2. **In one message**, launch pipeline via subagent AND start the feedback Monitor (see pattern above)
+3. When the subagent finishes, inspect intermediate results
+4. Act on any feedback that arrived during or after the run
 
 ### Full Run
 Once test results look good:
 1. Remove the `sample` parameter from the pipeline
 2. Ask user for permission (estimate cost based on test run)
-3. Launch pipeline via subagent
+3. **In one message**, launch pipeline via subagent AND start the feedback Monitor
 4. React to feedback as it arrives via Monitor notifications
 
 Options:
@@ -587,13 +596,13 @@ You can also start it manually with `docetl serve` if you want it running before
 
 ### Watching for Feedback
 
-**Right after launching a pipeline, start a Monitor on its feedback log. The log is named after the pipeline YAML, in the same directory:**
+**Start the Monitor in the same parallel tool call as the pipeline subagent** (see "Running Pipelines" above). The log is named after the pipeline YAML, in the same directory — the path is predictable so you don't need to wait for the `[FEEDBACK_LOG]` output.
 
 ```
 Monitor(command="tail -F /path/to/<pipeline>.feedback.log", description="Watch for human feedback")
 ```
 
-The pipeline's `[FEEDBACK_LOG] <path>` stdout line gives you the exact path (it exists as soon as the run starts — `tail -F` also tolerates it appearing late). One Monitor per pipeline file; it stays valid across re-runs of that pipeline.
+`tail -F` tolerates the file not existing yet — it waits until it appears. One Monitor per pipeline file; it stays valid across re-runs of that pipeline.
 
 This is MANDATORY. Without the Monitor, you will not see feedback until the pipeline finishes. The Monitor sends you a notification the instant the human acts.
 

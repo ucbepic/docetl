@@ -1,14 +1,18 @@
-"""Web-based progress + feedback UI for non-interactive environments.
+"""Web-based progress + feedback UI for agent-supervised pipeline runs.
 
-Supports two modes:
+One architecture: a long-lived ``docetl serve`` process owns the browser UI
+(auto-started on first run, survives across runs). Each ``docetl run``
+pushes state to it via ``POST /state/push``.
 
-1. **Inline** (default) — the pipeline process starts its own HTTP server,
-   runs the pipeline, and waits for human feedback before exiting.
+The agent ↔ human protocol is two channels:
 
-2. **Persistent server** — a long-lived ``docetl serve`` process runs
-   independently.  Each ``docetl run`` pushes state updates to it via HTTP.
-   The agent polls ``GET /feedback/poll`` for new feedback at any time.
-   The server survives across multiple pipeline runs.
+* **Human → agent**: every UI action is appended as one line to
+  ``<pipeline>.feedback.log`` next to the pipeline YAML. The agent tails it.
+* **Agent → human**: ``POST /message`` shows a toast in the browser; button
+  clicks land in the same feedback log.
+
+The browser polls ``GET /state`` once a second — the single delivery path
+for pipeline state, feedback counts, and agent toasts.
 
 No external web framework required — uses Python's built-in http.server.
 """
@@ -17,7 +21,6 @@ from __future__ import annotations
 
 import json
 import os
-import queue
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -170,145 +173,41 @@ class FeedbackStore:
 
 
 # ---------------------------------------------------------------------------
-# SSE state broadcaster
+# Server state: the latest snapshot pushed by the pipeline process
 # ---------------------------------------------------------------------------
-class _Broadcaster:
-    """Pushes state snapshots to SSE subscribers.
+class _ServerState:
+    """Holds the most recent pipeline state pushed via ``/state/push``.
 
-    Two modes:
-    * **local** — ``tracker`` is set; a background thread polls it every second.
-    * **remote** — ``tracker`` is ``None``; the pipeline pushes state via
-      ``accept_state()``.
+    The browser polls ``GET /state`` once a second; that response is this
+    event merged with current feedback counts and agent messages. No SSE,
+    no subscriber queues — one poll loop is the only delivery path.
     """
 
-    def __init__(self, tracker: ProgressTracker | None, feedback: FeedbackStore):
-        self._tracker = tracker
-        self._feedback = feedback
-        self._subscribers: list[queue.Queue] = []
+    def __init__(self):
         self._lock = threading.Lock()
-        self._stop = threading.Event()
-        self._sent_docs: dict[str, int] = {}
-        self._reset_counter = 0
-        self._last_event: dict = {}
+        self.event: dict = {}
+        self.reset_counter = 0
 
-    def subscribe(self) -> queue.Queue:
-        q: queue.Queue = queue.Queue(maxsize=50)
+    def push(self, event: dict):
         with self._lock:
-            self._subscribers.append(q)
-        return q
+            self.event = event
 
-    def unsubscribe(self, q: queue.Queue):
+    def reset(self):
         with self._lock:
-            try:
-                self._subscribers.remove(q)
-            except ValueError:
-                pass
+            self.event = {}
+            self.reset_counter += 1
 
-    def start(self):
-        if self._tracker is None:
-            return  # remote mode — no polling thread needed
-        t = threading.Thread(target=self._loop, daemon=True)
-        t.start()
-
-    def stop(self):
-        self._stop.set()
-
-    def accept_state(self, event: dict):
-        """Accept a state dict pushed by a remote pipeline process."""
-        event["feedback_count"] = len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback)
+    def snapshot(self, feedback: FeedbackStore) -> dict:
+        with self._lock:
+            event = dict(self.event)
+            event["reset_token"] = self.reset_counter
+        event["feedback_count"] = len(feedback.doc_feedback) + len(feedback.pipeline_feedback)
         event["doc_feedback"] = [
             {"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
-            for f in self._feedback.doc_feedback
+            for f in feedback.doc_feedback
         ]
-        event["reset_token"] = self._reset_counter
-        self._last_event = event
-        self._broadcast(event)
-
-    def rebroadcast(self):
-        """Re-broadcast the last known state with fresh feedback.
-
-        In remote mode, the pipeline's push loop drives SSE updates. Once the
-        pipeline finishes (or between pushes), new feedback is stored but never
-        delivered to SSE subscribers. Call this after any mutation (add feedback,
-        kill, etc.) so the browser sees the change immediately.
-
-        Agent toasts are delivered exclusively via ``/messages`` polling.
-        """
-        if not self._last_event:
-            return
-        event = dict(self._last_event)
-        event["feedback_count"] = len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback)
-        event["doc_feedback"] = [
-            {"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
-            for f in self._feedback.doc_feedback
-        ]
-        event["reset_token"] = self._reset_counter
-        self._last_event = event
-        self._broadcast(event)
-
-    def _loop(self):
-        while not self._stop.is_set():
-            self._push()
-            self._stop.wait(0.5)
-        self._push()  # final push
-
-    def _push(self):
-        state = self._tracker.snapshot()
-        event = self._build_event(state)
-        self._last_event = event
-        self._broadcast(event)
-
-    def _broadcast(self, event: dict):
-        with self._lock:
-            dead = []
-            for q in self._subscribers:
-                try:
-                    q.put_nowait(event)
-                except queue.Full:
-                    dead.append(q)
-            for q in dead:
-                try:
-                    self._subscribers.remove(q)
-                except ValueError:
-                    pass
-
-    def _build_event(self, state) -> dict:
-        ops = []
-        for op in state.ops:
-            ops.append({
-                "name": op.name,
-                "op_type": op.op_type,
-                "model": op.model,
-                "status": op.status,
-                "total": op.total,
-                "completed": op.completed,
-                "errors": op.errors,
-                "out_count": op.out_count,
-                "cost": op.cost,
-                "elapsed": op.elapsed,
-            })
-
-        all_docs = []
-        for op in state.ops:
-            for i, doc in enumerate(op.outputs):
-                all_docs.append({
-                    "op_name": op.name,
-                    "op_type": op.op_type,
-                    "doc_index": i,
-                    "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
-                })
-
-        return {
-            "ops": ops,
-            "all_docs": all_docs,
-            "total_cost": state.total_cost,
-            "elapsed": state.elapsed,
-            "finished": state.finished,
-            "feedback_count": len(self._feedback.doc_feedback) + len(self._feedback.pipeline_feedback),
-            "doc_feedback": [{"op_name": f["operation"], "doc_index": f["doc_index"], "feedback": f["feedback"]}
-                             for f in self._feedback.doc_feedback],
-            "reset_token": self._reset_counter,
-        }
+        event["messages"] = feedback.get_agent_messages_since(0)
+        return event
 
 
 def _trunc(v, n=500) -> str:
@@ -319,7 +218,7 @@ def _trunc(v, n=500) -> str:
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
-def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broadcaster: _Broadcaster):
+def _make_handler(state: _ServerState, feedback: FeedbackStore):
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -328,25 +227,10 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
         def do_GET(self):
             if self.path == "/":
                 self._serve_html()
-            elif self.path == "/events":
-                self._serve_sse()
             elif self.path == "/state":
-                if tracker is not None:
-                    self._json_response(broadcaster._build_event(tracker.snapshot()))
-                else:
-                    self._json_response(broadcaster._last_event or {})
-            elif self.path.startswith("/messages"):
-                since = 0
-                if "?since=" in self.path:
-                    try:
-                        since = int(self.path.split("?since=")[1])
-                    except ValueError:
-                        pass
-                self._json_response({"messages": feedback.get_agent_messages_since(since)})
+                self._json_response(state.snapshot(feedback))
             elif self.path.startswith("/feedback/poll"):
                 self._json_response(feedback.to_dict())
-            elif self.path == "/state/current":
-                self._json_response(broadcaster._last_event or {})
             elif self.path == "/health":
                 self._json_response({"ok": True})
             elif self.path == "/feedback/log_path":
@@ -365,7 +249,6 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("doc_snapshot", {}),
                     body.get("text", ""),
                 )
-                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/feedback/doc/delete":
@@ -374,21 +257,16 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("doc_index", 0),
                     body.get("feedback_index", 0),
                 )
-                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/feedback/pipeline":
                 feedback.add_pipeline_feedback(body.get("text", ""))
-                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/kill":
                 reason = body.get("reason", "")
                 feedback.kill_reason = reason
                 feedback._log(f"[FEEDBACK:kill] {reason}")
-                if tracker is not None:
-                    tracker.kill_requested = True
-                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/message":
@@ -397,7 +275,6 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("type", "info"),
                     body.get("actions"),
                 )
-                broadcaster.rebroadcast()
                 self._json_response({"ok": True, "id": msg_id})
 
             elif self.path == "/message/respond":
@@ -405,18 +282,13 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     body.get("id", 0),
                     body.get("action", ""),
                 )
-                broadcaster.rebroadcast()
                 self._json_response({"ok": True})
 
             elif self.path == "/state/push":
-                broadcaster.accept_state(body)
+                state.push(body)
                 self._json_response({"ok": True})
 
             elif self.path == "/reset":
-                if tracker is not None:
-                    for op in tracker.snapshot().ops:
-                        op.outputs.clear()
-                    tracker._finished = False
                 with feedback._lock:
                     feedback.doc_feedback.clear()
                     feedback.pipeline_feedback.clear()
@@ -425,7 +297,7 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
                     feedback.set_log_path(body["log_path"])
                 else:
                     feedback._truncate_log()
-                broadcaster._reset_counter += 1
+                state.reset()
                 self._json_response({"ok": True, "log_path": feedback._log_path})
 
             else:
@@ -446,34 +318,6 @@ def _make_handler(tracker: ProgressTracker | None, feedback: FeedbackStore, broa
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-
-        def _serve_sse(self):
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("X-Accel-Buffering", "no")
-            self.end_headers()
-            q = broadcaster.subscribe()
-            # Send the last known state immediately so the browser catches up
-            # instead of waiting up to 1s for the next push.
-            if broadcaster._last_event:
-                self.wfile.write(f"data: {json.dumps(broadcaster._last_event)}\n\n".encode())
-                self.wfile.flush()
-            try:
-                while True:
-                    try:
-                        event = q.get(timeout=30)
-                    except queue.Empty:
-                        self.wfile.write(b": keepalive\n\n")
-                        self.wfile.flush()
-                        continue
-                    self.wfile.write(f"data: {json.dumps(event)}\n\n".encode())
-                    self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError, OSError):
-                pass
-            finally:
-                broadcaster.unsubscribe(q)
 
     return Handler
 
@@ -1902,11 +1746,8 @@ function respondToast(msgId, action) {
   }
 }
 
-/* --- SSE --- */
-const evtSource = new EventSource('/events');
-evtSource.onmessage = function(e) {
-  const data = JSON.parse(e.data);
-
+/* --- State polling: the single delivery path for everything --- */
+function applyState(data) {
   // Detect table reset (e.g. re-run after confirm)
   if (data.reset_token !== undefined && data.reset_token > lastResetToken) {
     lastResetToken = data.reset_token;
@@ -1927,8 +1768,9 @@ evtSource.onmessage = function(e) {
     renderTableBody();
   }
 
+  if (!data.ops) return;  // no pipeline has pushed state yet
   updateOps(data.ops);
-  syncDocs(data.all_docs);
+  syncDocs(data.all_docs || []);
   document.getElementById('h-cost').textContent = fmtCost(data.total_cost);
   document.getElementById('h-time').textContent = fmtDur(data.elapsed);
   document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
@@ -1962,58 +1804,28 @@ evtSource.onmessage = function(e) {
     document.getElementById('complete-summary').textContent = fmtCost(data.total_cost) + ' · ' + fmtDur(data.elapsed) + ' · ' + getVisibleDocs().length + ' outputs';
     document.getElementById('kill-btn').classList.add('hidden');
   }
-};
-evtSource.onerror = function() {
-  document.getElementById('f-status').textContent = 'Disconnected';
-  const dot = document.getElementById('status-dot');
-  dot.classList.remove('live');
-  dot.classList.add('off');
-};
+}
 
-/* --- Toast polling (single delivery path — SSE handles pipeline state only) --- */
-let lastPollMsgId = 0;
-setInterval(() => {
-  fetch('/messages?since=' + lastPollMsgId)
+function pollState() {
+  fetch('/state')
     .then(r => r.json())
     .then(data => {
-      if (data.messages && data.messages.length > 0) {
-        data.messages.forEach(msg => {
-          showToast(msg);
-          if (msg.id > lastPollMsgId) lastPollMsgId = msg.id;
-        });
-      }
+      const dot = document.getElementById('status-dot');
+      dot.classList.remove('off');
+      if (!finished) dot.classList.add('live');
+      if (data.messages) data.messages.forEach(showToast);
+      applyState(data);
+      if (!data.ops) document.getElementById('f-status').textContent = 'Waiting for pipeline…';
     })
-    .catch(() => {});
-}, 3000);
-
-let sseAlive = true;
-evtSource.addEventListener('open', () => { sseAlive = true; });
-evtSource.addEventListener('error', () => { sseAlive = false; });
-
-setInterval(() => {
-  if (sseAlive) return;
-  fetch('/state/current')
-    .then(r => r.json())
-    .then(data => {
-      if (!data || !data.ops) return;
-      updateOps(data.ops);
-      syncDocs(data.all_docs || []);
-      document.getElementById('h-cost').textContent = fmtCost(data.total_cost);
-      document.getElementById('h-time').textContent = fmtDur(data.elapsed);
-      document.getElementById('f-feedback').textContent = 'Feedback: ' + data.feedback_count;
-      document.getElementById('f-status').textContent = data.finished ? 'Complete' : 'Polling';
-      if (data.finished && !finished) {
-        finished = true;
-        const dot = document.getElementById('status-dot');
-        dot.classList.remove('live'); dot.classList.add('done');
-        const banner = document.getElementById('complete-banner');
-        banner.classList.remove('hidden');
-        document.getElementById('complete-summary').textContent = fmtCost(data.total_cost) + ' · ' + fmtDur(data.elapsed) + ' · ' + getVisibleDocs().length + ' outputs';
-        document.getElementById('kill-btn').classList.add('hidden');
-      }
-    })
-    .catch(() => {});
-}, 2000);
+    .catch(() => {
+      document.getElementById('f-status').textContent = 'Disconnected';
+      const dot = document.getElementById('status-dot');
+      dot.classList.remove('live');
+      dot.classList.add('off');
+    });
+}
+pollState();
+setInterval(pollState, 1000);
 </script>
 </body>
 </html>
@@ -2045,40 +1857,53 @@ def _detect_server() -> int | None:
     return None
 
 
+def _tracker_event(tracker: ProgressTracker) -> dict:
+    """Serialize the tracker's current state for ``POST /state/push``."""
+    state = tracker.snapshot()
+    ops = []
+    for op in state.ops:
+        ops.append({
+            "name": op.name, "op_type": op.op_type, "model": op.model,
+            "status": op.status, "total": op.total, "completed": op.completed,
+            "errors": op.errors, "out_count": op.out_count,
+            "cost": op.cost, "elapsed": op.elapsed,
+        })
+    all_docs = []
+    for op in state.ops:
+        for i, doc in enumerate(op.outputs):
+            all_docs.append({
+                "op_name": op.name, "op_type": op.op_type, "doc_index": i,
+                "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
+            })
+    return {
+        "ops": ops, "all_docs": all_docs,
+        "total_cost": state.total_cost, "elapsed": state.elapsed,
+        "finished": state.finished,
+    }
+
+
+def _post_json(port: int, path: str, payload: dict, timeout: float = 2):
+    req = Request(
+        f"http://localhost:{port}{path}",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    urlopen(req, timeout=timeout)
+
+
 def _push_state_to_server(port: int, tracker: ProgressTracker):
-    """Background loop that pushes tracker state to a persistent server."""
+    """Background loop: push tracker state to the server, poll for kill.
+
+    Feedback itself reaches the agent via the feedback log file — this loop
+    only needs to detect the kill request and echo feedback to stdout so it
+    shows up in the subagent transcript.
+    """
     _seen_doc_fb = 0
     _seen_pipe_fb = 0
-    while not getattr(tracker, "_push_stop", threading.Event()).is_set():
+    while not tracker._push_stop.is_set():
         try:
-            state = tracker.snapshot()
-            ops = []
-            for op in state.ops:
-                ops.append({
-                    "name": op.name, "op_type": op.op_type, "model": op.model,
-                    "status": op.status, "total": op.total, "completed": op.completed,
-                    "errors": op.errors, "out_count": op.out_count,
-                    "cost": op.cost, "elapsed": op.elapsed,
-                })
-            all_docs = []
-            for op in state.ops:
-                for i, doc in enumerate(op.outputs):
-                    all_docs.append({
-                        "op_name": op.name, "op_type": op.op_type, "doc_index": i,
-                        "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
-                    })
-            event = {
-                "ops": ops, "all_docs": all_docs,
-                "total_cost": state.total_cost, "elapsed": state.elapsed,
-                "finished": state.finished,
-            }
-            body = json.dumps(event).encode()
-            req = Request(
-                f"http://localhost:{port}/state/push",
-                data=body,
-                headers={"Content-Type": "application/json"},
-            )
-            urlopen(req, timeout=2)
+            _post_json(port, "/state/push", _tracker_event(tracker))
         except (URLError, OSError) as exc:
             import sys
             print(f"[push] error: {exc}", file=sys.stderr, flush=True)
@@ -2105,35 +1930,11 @@ def _push_state_to_server(port: int, tracker: ProgressTracker):
         except (URLError, OSError):
             pass
         tracker._push_stop.wait(0.5)
-    # Final push
+    # Final push so the browser sees the finished state
     try:
-        state = tracker.snapshot()
-        ops = []
-        for op in state.ops:
-            ops.append({
-                "name": op.name, "op_type": op.op_type, "model": op.model,
-                "status": op.status, "total": op.total, "completed": op.completed,
-                "errors": op.errors, "out_count": op.out_count,
-                "cost": op.cost, "elapsed": op.elapsed,
-            })
-        all_docs = []
-        for op in state.ops:
-            for i, doc in enumerate(op.outputs):
-                all_docs.append({
-                    "op_name": op.name, "op_type": op.op_type, "doc_index": i,
-                    "fields": {k: _trunc(v) for k, v in doc.items() if not k.startswith("_")},
-                })
-        event = {
-            "ops": ops, "all_docs": all_docs,
-            "total_cost": state.total_cost, "elapsed": state.elapsed,
-            "finished": True,
-        }
-        body = json.dumps(event).encode()
-        req = Request(
-            f"http://localhost:{port}/state/push",
-            data=body, headers={"Content-Type": "application/json"},
-        )
-        urlopen(req, timeout=2)
+        event = _tracker_event(tracker)
+        event["finished"] = True
+        _post_json(port, "/state/push", event)
     except (URLError, OSError):
         pass
 
@@ -2148,10 +1949,9 @@ def start_server(port: int = 0) -> int:
     time.sleep(0.2)
 
     feedback = FeedbackStore()
-    broadcaster = _Broadcaster(None, feedback)
-    broadcaster.start()
+    state = _ServerState()
 
-    handler_cls = _make_handler(None, feedback, broadcaster)
+    handler_cls = _make_handler(state, feedback)
     server = ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
     actual_port = server.server_address[1]
 
@@ -2250,9 +2050,10 @@ def _auto_start_server() -> int | None:
 def run_with_web_ui(runner: "DSLRunner") -> float:
     """Run the pipeline with a web-based progress + feedback UI.
 
-    If a persistent server is running (started via ``docetl serve``), the
-    pipeline pushes state to it.  Otherwise it auto-starts one as a detached
-    subprocess so it survives across pipeline runs.
+    One mode only: a persistent server (``docetl serve``) owns the browser
+    UI; the pipeline pushes state to it. If no server is running one is
+    auto-started as a detached subprocess so it survives across runs. If
+    that fails, the pipeline runs without a UI rather than half-working.
     """
     import threading
 
@@ -2260,26 +2061,29 @@ def run_with_web_ui(runner: "DSLRunner") -> float:
 
     _tqdm.set_lock(threading.RLock())
 
-    tracker = ProgressTracker(concurrency=min(runner.max_threads or 1, 64))
-    runner.progress_tracker = tracker
-    runner._tui_active = True
-    set_active_tracker(tracker)
-    tracker.pipeline_start(runner.list_pipeline_operations())
-
     server_port = _detect_server()
 
     if server_port is None:
         runner.console.log("[dim]No persistent server found — starting one…[/dim]")
         server_port = _auto_start_server()
 
-    if server_port is not None:
-        return _run_with_remote_server(runner, tracker, server_port)
-    else:
-        return _run_with_inline_server(runner, tracker)
+    if server_port is None:
+        runner.console.log(
+            "[bold yellow]Could not start the feedback server — "
+            "running without the web UI.[/bold yellow]"
+        )
+        return runner.load_run_save()
+
+    tracker = ProgressTracker(concurrency=min(runner.max_threads or 1, 64))
+    runner.progress_tracker = tracker
+    runner._tui_active = True
+    set_active_tracker(tracker)
+    tracker.pipeline_start(runner.list_pipeline_operations())
+    return _run_with_server(runner, tracker, server_port)
 
 
-def _run_with_remote_server(runner: "DSLRunner", tracker: ProgressTracker, port: int) -> float:
-    """Push state to a persistent server. Returns immediately after pipeline."""
+def _run_with_server(runner: "DSLRunner", tracker: ProgressTracker, port: int) -> float:
+    """Push state to the persistent server while the pipeline runs."""
     import threading
 
     runner.console.log(
@@ -2290,13 +2094,7 @@ def _run_with_remote_server(runner: "DSLRunner", tracker: ProgressTracker, port:
     # next to the pipeline YAML, so the agent always knows where to tail.
     log_path = _pipeline_log_path(runner)
     try:
-        req = Request(
-            f"http://localhost:{port}/reset",
-            data=json.dumps({"log_path": log_path}).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urlopen(req, timeout=2)
+        _post_json(port, "/reset", {"log_path": log_path})
     except (URLError, OSError):
         pass
     print(f"[FEEDBACK_LOG] {log_path}", flush=True)
@@ -2348,73 +2146,4 @@ def _run_with_remote_server(runner: "DSLRunner", tracker: ProgressTracker, port:
 
     if killed:
         cost = runner.total_cost
-    return cost
-
-
-def _run_with_inline_server(runner: "DSLRunner", tracker: ProgressTracker) -> float:
-    """Start an inline server, run pipeline, wait for feedback, then shut down."""
-    import threading
-
-    log_path = _pipeline_log_path(runner)
-    feedback = FeedbackStore(log_path=log_path)
-    broadcaster = _Broadcaster(tracker, feedback)
-    broadcaster.start()
-
-    handler_cls = _make_handler(tracker, feedback, broadcaster)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
-    port = server.server_address[1]
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.start()
-
-    url = f"http://localhost:{port}"
-    runner.console.log(f"[bold blue]Live monitor:[/bold blue] [link={url}]{url}[/link]")
-    print(f"[FEEDBACK_LOG] {log_path}", flush=True)
-    runner.console.log(
-        "[dim]Opening browser… The pipeline is running.[/dim]"
-    )
-    import webbrowser
-    webbrowser.open(url)
-
-    cost = 0.0
-    killed = False
-    try:
-        cost = runner.load_run_save()
-    except PipelineKilled:
-        killed = True
-        runner.console.log("[bold red]Pipeline killed by user.[/bold red]")
-        try:
-            tracker.pipeline_done()
-        except Exception:
-            pass
-    finally:
-        set_active_tracker(None)
-        runner.progress_tracker = None
-        runner._tui_active = False
-
-    broadcaster.stop()
-
-    runner.console.log(
-        "[bold]Pipeline finished.[/bold] Review results in the browser "
-        f"and submit feedback — it will appear in [dim]{log_path}[/dim]."
-    )
-
-    # Brief pause so the final SSE push reaches the browser before shutdown.
-    time.sleep(2)
-    server.shutdown()
-
-    if feedback.has_any:
-        fb_data = feedback.to_dict()
-        runner.console.log(f"\n[bold]Human feedback collected:[/bold]")
-        for item in feedback.pipeline_feedback:
-            runner.console.log(f"  [pipeline] {item['feedback']}")
-        for item in feedback.doc_feedback:
-            runner.console.log(
-                f"  [doc] {item['operation']} #{item['doc_index']}: {item['feedback']}"
-            )
-        if killed and feedback.kill_reason:
-            runner.console.log(f"  [kill reason] {feedback.kill_reason}")
-
-    if killed:
-        cost = runner.total_cost
-
     return cost

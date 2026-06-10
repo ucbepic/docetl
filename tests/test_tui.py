@@ -424,13 +424,11 @@ def test_web_reporter_serves_html():
     import urllib.request
     from http.server import ThreadingHTTPServer
 
-    from docetl.tui.web_reporter import FeedbackStore, _Broadcaster, _make_handler
+    from docetl.tui.web_reporter import FeedbackStore, _make_handler, _ServerState
 
-    t = ProgressTracker()
-    t.pipeline_start([("s", "s/op", "map", None)])
     fb = FeedbackStore()
-    bc = _Broadcaster(t, fb)
-    handler = _make_handler(t, fb, bc)
+    state = _ServerState()
+    handler = _make_handler(state, fb)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     port = server.server_address[1]
     import threading
@@ -443,11 +441,24 @@ def test_web_reporter_serves_html():
         html = resp.read().decode()
         assert "DocETL Monitor" in html
 
-        # GET /state should return JSON
+        # POST /state/push, then GET /state should round-trip it
+        event = {"ops": [{"name": "s/op", "op_type": "map", "status": "queued",
+                          "total": 0, "completed": 0, "errors": 0,
+                          "out_count": 0, "cost": 0.0, "elapsed": 0.0}],
+                 "all_docs": [], "total_cost": 0.0, "elapsed": 0.0,
+                 "finished": False}
+        req = urllib.request.Request(
+            f"http://localhost:{port}/state/push",
+            data=json.dumps(event).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
         resp = urllib.request.urlopen(f"http://localhost:{port}/state")
-        state = json.loads(resp.read())
-        assert len(state["ops"]) == 1
-        assert state["ops"][0]["status"] == "queued"
+        got = json.loads(resp.read())
+        assert len(got["ops"]) == 1
+        assert got["ops"][0]["status"] == "queued"
+        assert got["feedback_count"] == 0
+        assert got["messages"] == []
 
         # POST /feedback/pipeline
         req = urllib.request.Request(
@@ -458,17 +469,30 @@ def test_web_reporter_serves_html():
         urllib.request.urlopen(req)
         assert fb.pipeline_feedback[0]["feedback"] == "needs work"
 
-        # POST /kill
+        # POST /message → toast appears in /state
+        req = urllib.request.Request(
+            f"http://localhost:{port}/message",
+            data=json.dumps({"text": "hello", "type": "info"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
+        resp = urllib.request.urlopen(f"http://localhost:{port}/state")
+        got = json.loads(resp.read())
+        assert got["messages"][0]["text"] == "hello"
+        assert got["feedback_count"] == 1
+
+        # POST /kill → recorded; pipelines pick this up via /feedback/poll
         req = urllib.request.Request(
             f"http://localhost:{port}/kill",
             data=json.dumps({"reason": "bad"}).encode(),
             headers={"Content-Type": "application/json"},
         )
         urllib.request.urlopen(req)
-        assert t.kill_requested
         assert fb.kill_reason == "bad"
+        resp = urllib.request.urlopen(f"http://localhost:{port}/feedback/poll")
+        polled = json.loads(resp.read())
+        assert polled["killed"]
     finally:
-        t.kill_requested = False
         server.shutdown()
 
 

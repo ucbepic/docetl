@@ -49,7 +49,10 @@ Best for production code, notebooks, and scripting. [Full guide](https://ucbepic
 import docetl
 
 docetl.default_model = "gpt-4o-mini"
-docetl.rate_limits = {"gpt-4o-mini": {"rpm": 500, "tpm": 200000}}
+docetl.rate_limits = {
+    "llm_call": [{"count": 500, "per": 1, "unit": "minute"}],
+    "llm_tokens": [{"count": 200_000, "per": 1, "unit": "minute"}],
+}
 
 pipeline = (
     docetl.read_json("tickets.json")

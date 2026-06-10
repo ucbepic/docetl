@@ -69,9 +69,9 @@ No `--optimizer` flag needed -- MOAR is the default.
 #### Python API (Recommended)
 
 ```python
-result = pipeline.optimize(eval_fn=my_eval_function, metric_key="score")
-best = result.best()
-best.run()
+optimized = frame.optimize(eval_fn=my_eval_function, metric_key="score")
+df = optimized.collect()                  # run the optimized pipeline
+best = optimized.search_results.best()    # inspect the frontier
 ```
 
 See the [MOAR Optimizer Guide](../optimization/moar.md) for detailed instructions.
@@ -81,9 +81,11 @@ See the [MOAR Optimizer Guide](../optimization/moar.md) for detailed instruction
 !!! warning "Deprecated"
     The V1 optimizer is deprecated and no longer recommended. Use MOAR instead.
 
-The V1 optimizer is still available for backward compatibility via `method="v1"` in the Python API:
+The V1 optimizer is still available for backward compatibility via `method="v1"` on the legacy `docetl.api.Pipeline` class (not the Frame API):
 
 ```python
+from docetl.api import Pipeline
+
 optimized_pipeline = pipeline.optimize(method="v1")
 ```
 

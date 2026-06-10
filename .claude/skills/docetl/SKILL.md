@@ -223,6 +223,7 @@ print(f"Cost: ${results.attrs['_total_cost']:.4f}")
 - Readers: `docetl.read_json()`, `docetl.read_csv()`, `docetl.read_parquet()`, `docetl.from_list()`
 - Operations: `.map()`, `.filter()`, `.reduce()`, `.resolve()`, `.equijoin()`, `.split()`, `.gather()`, `.unnest()`, `.code_map()`, `.code_filter()`, `.code_reduce()`
 - Terminal actions: `.show()` (run on sample, print results), `.collect()` (DataFrame), `.to_list()`, `.write_json()`, `.write_csv()`, `.write_parquet()`
+- Inspection (no execution): `.schema()` (output schema), `.count()` (input doc count on bare datasets), `.to_yaml()` (export pipeline as YAML), `.to_python()`
 - Config: `docetl.default_model`, `docetl.max_threads`, `docetl.bypass_cache`, `docetl.rate_limits`, `docetl.intermediate_dir`, `docetl.agent_model`, `docetl.fallback_models`
 
 All operation parameters are the same between YAML and Python — just pass them as keyword arguments (e.g., `validate=["len(output['items']) >= 1"]`, `fold_prompt="..."`, `fold_batch_size=100`).
@@ -561,6 +562,33 @@ retrievers:
     schema:
       has_conflict: boolean
 ```
+
+**Python API** — create a `docetl.Retriever` object and pass it to operations:
+```python
+retriever = docetl.Retriever(
+    dataset="extracted_facts",
+    index_dir="workloads/wiki/lance_index",
+    index_types=["fts", "embedding"],
+    fts={"index_phrase": "{{ input.fact }}", "query_phrase": "{{ input.fact }}"},
+    embedding={
+        "model": "openai/text-embedding-3-small",
+        "index_phrase": "{{ input.fact }}",
+        "query_phrase": "{{ input.fact }}",
+    },
+    query={"mode": "hybrid", "top_k": 5},
+)
+
+results = (
+    docetl.read_json("facts.json")
+    .map(
+        prompt="Check conflicts: {{ input.fact }}\n{{ retrieval_context }}",
+        output={"schema": {"has_conflict": "boolean"}},
+        retriever=retriever,
+    )
+    .collect()
+)
+```
+The `retriever` parameter is available on `.map()`, `.filter()`, `.reduce()`, and `.extract()`.
 
 **Key points:**
 - `{{ retrieval_context }}` is injected into prompts automatically

@@ -678,6 +678,10 @@ class ResolveOperation(BaseOperation, CascadeMixin):
                     pair = future_to_pair[future]
                     is_match_result, cost, prompt = future.result()
                     pair_costs += cost
+                    from docetl.progress.tracker import active_tracker as _at
+                    _t = _at()
+                    if _t is not None:
+                        _t.tick_cost(cost)
                     if is_match_result:
                         merge_clusters(pair[0], pair[1])
 
@@ -861,6 +865,12 @@ class ResolveOperation(BaseOperation, CascadeMixin):
                     cluster_results, cluster_cost = future.result()
                     results.extend(cluster_results)
                     total_cost += cluster_cost
+                    from docetl.progress.tracker import active_tracker
+                    _tracker = active_tracker()
+                    if _tracker is not None:
+                        _tracker.tick_cost(cluster_cost)
+                        if cluster_results:
+                            _tracker.add_outputs(cluster_results)
 
         total_pairs = len(input_data) * (len(input_data) - 1) // 2
         true_match_count = sum(

@@ -360,11 +360,11 @@ class MOAROptimizer:
 
         with open(self.pipeline_path, "r") as f:
             pipeline_config = yaml.safe_load(f)
-        if pipeline_config.get("interactive_ui", False):
+        if pipeline_config.get("ui", "none") != "none":
             DOCETL_CONSOLE.log(
-                "[bold yellow]Warning: interactive_ui is enabled but MOAR "
+                "[bold yellow]Warning: ui mode is set but MOAR "
                 "optimization does not use the interactive progress view. "
-                "The optimized pipelines can be run with interactive_ui "
+                "The optimized pipelines can be run with the ui setting "
                 "after optimization completes.[/bold yellow]"
             )
 

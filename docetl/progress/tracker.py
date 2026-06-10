@@ -16,6 +16,10 @@ import uuid
 from .events import OpState, RunState
 
 
+class PipelineKilled(Exception):
+    """Raised when the user kills the pipeline via the feedback UI."""
+
+
 class ProgressTracker:
     """Collects structured progress from a running pipeline.
 
@@ -30,6 +34,7 @@ class ProgressTracker:
         # Subscribers are called (outside the lock) after each mutation so the
         # TUI can request a redraw promptly rather than only polling.
         self._subscribers: list = []
+        self.kill_requested = False
 
     # -- subscription ----------------------------------------------------
     def subscribe(self, callback) -> None:
@@ -154,6 +159,18 @@ class ProgressTracker:
             op.completed += n
             if op.total is not None and op.completed > op.total:
                 op.completed = op.total
+        self._notify()
+
+    def tick_cost(self, delta: float) -> None:
+        """Increment the current operation's cost so the UI can show it live."""
+        if delta <= 0:
+            return
+        with self._lock:
+            op = self._current
+            if op is None:
+                return
+            op.cost += delta
+            self.state.total_cost = sum(o.cost for o in self.state.ops)
         self._notify()
 
     def add_outputs(self, items: list[dict]) -> None:

@@ -96,9 +96,11 @@ class DSLRunner(ConfigWrapper):
             retrievers: dict[str, Any] | None
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
-            # When true (and stdout is a TTY), launch the full-screen interactive
-            # progress view for this run (requires the optional ``tui`` extra).
-            interactive_ui: bool = False
+            # Interactive progress UI mode:
+            #   "none" (default) — no interactive UI
+            #   "tui"  — full-screen Textual dashboard (requires ``tui`` extra)
+            #   "web"  — browser-based feedback UI (for agent-orchestrated runs)
+            ui: str = "none"
 
         return Pipeline
 
@@ -126,7 +128,7 @@ class DSLRunner(ConfigWrapper):
         )
         # Interactive progress TUI state. ``progress_tracker`` is only set while
         # an interactive run is active; the TUI is enabled by the top-level
-        # ``interactive_ui`` flag in the config.
+        # ``ui`` field in the config ("tui" or "web").
         self.progress_tracker = None
         self._tui_active = False
         self._initialize_state()
@@ -554,40 +556,37 @@ class DSLRunner(ConfigWrapper):
                 ops.append((step_name, f"{step_name}/{op_name}", op_type, model))
         return ops
 
-    def _should_use_tui(self) -> bool:
-        """Decide whether to launch the interactive TUI for this run.
+    def _should_use_tui(self) -> str | None:
+        """Decide which interactive progress mode to use for this run.
 
-        Enabled by the top-level ``interactive_ui`` flag in the config (alongside
-        ``default_model``). The TUI requires an interactive terminal; otherwise
-        we fall back to plain logging.
+        Returns ``"web"`` for the browser-based feedback UI, ``"tui"`` for
+        the full Textual dashboard, or ``None`` to skip interactive progress.
         """
-        import sys
-
         if self._tui_active:
-            return False
-        if not self.config.get("interactive_ui", False):
-            return False
-        if not (sys.stdout.isatty() and sys.stdin.isatty()):
-            self.console.log(
-                "[yellow]interactive_ui requested but stdout is not a TTY; "
-                "falling back to standard output.[/yellow]"
-            )
-            return False
-        return True
+            return None
+        mode = self.config.get("ui", "none")
+        if mode in ("web", "tui"):
+            return mode
+        return None
 
     def load_run_save(self) -> float:
         """
         Execute the entire pipeline defined in the configuration.
         """
-        # Route to the interactive TUI if requested and supported. The TUI runs
-        # this same method again on a worker thread with ``_tui_active`` set, so
-        # the actual execution path below is shared.
-        if self._should_use_tui():
+        # Route to an interactive progress view if requested and supported. The
+        # TUI runs this same method again on a worker thread with ``_tui_active``
+        # set, so the actual execution path below is shared.
+        ui_mode = self._should_use_tui()
+        if ui_mode == "web":
+            from docetl.tui.web_reporter import run_with_web_ui
+
+            return run_with_web_ui(self)
+        elif ui_mode == "tui":
             try:
                 from docetl.tui.app import run_with_tui
             except ImportError:
                 self.console.log(
-                    "[yellow]interactive_ui is enabled but the 'textual' package "
+                    "[yellow]ui: tui is set but the 'textual' package "
                     "is not installed. Install it with `pip install docetl[tui]` "
                     "to use the interactive progress view. Falling back to "
                     "standard output.[/yellow]"

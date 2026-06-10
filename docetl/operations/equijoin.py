@@ -629,6 +629,10 @@ class EquijoinOperation(BaseOperation, CascadeMixin):
                 pair = future_to_pair[future]
                 is_match, cost = future.result()
                 comparison_costs += cost
+                from docetl.progress.tracker import active_tracker
+                _tracker = active_tracker()
+                if _tracker is not None:
+                    _tracker.tick_cost(cost)
 
                 if is_match:
                     joined_item = {}

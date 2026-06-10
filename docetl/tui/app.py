@@ -507,12 +507,13 @@ class DocetlTUI(App):
         else:
             out.append_text(_kv("status", "done", value_style="green"))
         out.append("\n")
+        if provenance:
+            out.append_text(_kv("provenance", provenance, value_style="grey62"))
+            out.append("\n")
         if op.cascade_info:
             out.append_text(_render_cascade_doc(op.cascade_info, idx))
             out.append("\n")
         for key, value in rows:
-            # short scalars read best inline; long / multi-line values get their
-            # own indented block so nothing wraps awkwardly against the label.
             if len(value) <= 36 and "\n" not in value:
                 out.append_text(_kv(key, value))
             else:
@@ -520,8 +521,6 @@ class DocetlTUI(App):
                 for line in value.splitlines() or [""]:
                     out.append(f"  {line}\n", style="grey85")
         parts = [out]
-        if provenance:
-            parts.append(_section("provenance", provenance))
         if prompt:
             parts.append(_section("prompt", _trunc(prompt, 1000), style="grey70"))
         return Group(*parts)

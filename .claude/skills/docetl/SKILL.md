@@ -63,10 +63,11 @@ Work like a data analyst: **write → run → inspect → iterate**. Never write
 
 **Source Document Links:**
 - **Link aggregated results to source documents** - users should be able to drill down
-- Clickable links that open a modal/popup with source content
+- **Never use external links or file:// URLs** — all data must be self-contained in the HTML
+- Embed source data as a `<script>` JSON blob in the page, then use JavaScript onclick handlers to show modals
 - Modal should show: extracted fields + original source text
 - Original text can be collapsed by default with "Show original" toggle
-- Embed source data as JSON in the page for JavaScript access
+- **Never generate `<a href="...">` links to local files, APIs, or URLs that won't resolve** — use `onclick` handlers with inline data instead
 
 **Key principle:** The user should see results at every step. Don't proceed to the next phase until the current phase produces good results.
 
@@ -156,6 +157,7 @@ Create a YAML file with this structure:
 
 ```yaml
 default_model: gpt-5-nano
+ui: "web"  # Always set when agent authors the pipeline
 
 system_prompt:
   dataset_description: <describe the data based on what you observed>
@@ -260,9 +262,28 @@ Many tasks only need a **single map operation**. Use good judgement:
 
 ## Operation Reference
 
-### Map Operation
+**Do not rely on hardcoded documentation below — always read the current docs from the repo.** Before writing any operation, read the relevant doc file:
 
-Applies an LLM transformation to each document independently.
+- **Map**: `docs/operators/map.md`
+- **Filter**: `docs/operators/filter.md`
+- **Reduce**: `docs/operators/reduce.md`
+- **Resolve**: `docs/operators/resolve.md`
+- **Split**: `docs/operators/split.md`
+- **Unnest**: `docs/operators/unnest.md`
+- **Code operations**: `docs/operators/code.md`
+- **Equijoin**: `docs/operators/equijoin.md`
+- **Retrievers**: `docs/retrievers.md`
+- **Pipelines**: `docs/concepts/pipelines.md`
+- **Schemas**: `docs/concepts/schemas.md`
+- **Optimization**: `docs/optimization/overview.md`
+- **Interactive progress (web UI)**: `docs/execution/interactive-progress.md`
+- **Running pipelines**: `docs/execution/running-pipelines.md`
+
+Read the doc file for the operation type you're about to use. The docs contain the full parameter reference, examples, and edge cases.
+
+### Quick Examples (for orientation only — check docs for current syntax)
+
+#### Map Operation
 
 ```yaml
 - name: extract_info
@@ -291,251 +312,33 @@ Applies an LLM transformation to each document independently.
 - `sample`: Process only N documents (for testing)
 - `limit`: Stop after producing N outputs
 
-### Filter Operation
+#### Filter
 
-Keeps or removes documents based on LLM criteria. Output schema must have exactly one boolean field.
+One boolean output field. Read `docs/operators/filter.md` for full syntax.
 
-```yaml
-- name: filter_relevant
-  type: filter
-  skip_on_error: true
-  prompt: |
-    Document: {{ input.text }}
+#### Reduce
 
-    Is this document relevant to climate change?
-    Respond true or false.
-  output:
-    schema:
-      is_relevant: boolean
-```
+Aggregates docs by key. **Always include `fold_prompt` and `fold_batch_size`** — the fold prompt must produce a clean standalone output (not "updated X" or "added Y"). Use `reduce_key: "_all"` to aggregate everything. Read `docs/operators/reduce.md`.
 
-### Reduce Operation
+#### Split
 
-Aggregates documents by a key using an LLM.
+Divides long text into chunks (no LLM). Read `docs/operators/split.md`.
 
-**Always include `fold_prompt` and `fold_batch_size`** for reduce operations. This handles cases where the group is too large to fit in context.
+#### Unnest
 
-```yaml
-- name: summarize_by_category
-  type: reduce
-  reduce_key: category  # use "_all" to aggregate everything
-  skip_on_error: true
-  prompt: |
-    Summarize these {{ inputs | length }} items for category "{{ inputs[0].category }}":
+Flattens list fields into rows (no LLM). Read `docs/operators/unnest.md`.
 
-    {% for item in inputs %}
-    - {{ item.title }}: {{ item.description }}
-    {% endfor %}
+#### Resolve
 
-    Provide a 2-3 sentence summary of the key themes.
-  fold_prompt: |
-    You have a summary based on previous items, and new items to incorporate.
+Pairwise deduplication. Set `optimize: true` and run `docetl build` for blocking rules (without blocking it's O(n²)). Uses `comparison_prompt` + `resolution_prompt`. Read `docs/operators/resolve.md`.
 
-    Previous summary (based on {{ output.item_count }} items):
-    {{ output.summary }}
+#### Code Operations
 
-    New items ({{ inputs | length }} more):
-    {% for item in inputs %}
-    - {{ item.title }}: {{ item.description }}
-    {% endfor %}
+Deterministic Python: `code_map`, `code_reduce`, `code_filter`. Each defines a `transform` function. Read `docs/operators/code.md`.
 
-    Write a NEW summary that covers ALL items (previous + new).
+#### Retrievers
 
-    IMPORTANT: Output a clean, standalone summary as if describing the entire dataset.
-    Do NOT mention "updated", "added", "new items", or reference the incremental process.
-  fold_batch_size: 100
-  output:
-    schema:
-      summary: string
-      item_count: int
-  validate:
-    - len(output["summary"].strip()) > 0
-  num_retries_on_validate_failure: 2
-```
-
-**Critical: Writing Good Fold Prompts**
-
-The `fold_prompt` is called repeatedly as batches are processed. Its output must:
-1. **Reflect ALL data seen so far**, not just the latest batch
-2. **Be a clean, standalone output** - no "updated X" or "added Y items" language
-3. **Match the same schema** as the initial `prompt` output
-
-Bad fold_prompt output: "Added 50 new projects. The updated summary now includes..."
-Good fold_prompt output: "Developers are building privacy-focused tools and local-first apps..."
-
-**Estimating `fold_batch_size`:**
-- **Use 100+ for most cases** - larger batches = fewer LLM calls = lower cost
-- For very long documents, reduce to 50-75
-- For short documents (tweets, titles), can use 150-200
-- Models like gpt-4o-mini have 128k context, so batch size is rarely the bottleneck
-
-**Key parameters:**
-- `reduce_key`: Field to group by (or list of fields, or `_all`)
-- `fold_prompt`: Template for incrementally adding items to existing output (required)
-- `fold_batch_size`: Number of items per fold iteration (required, use 100+)
-- `associative`: Set to `false` if order matters
-
-### Split Operation
-
-Divides long text into smaller chunks. No LLM call.
-
-```yaml
-- name: split_document
-  type: split
-  split_key: content
-  method: token_count  # or "delimiter"
-  method_kwargs:
-    num_tokens: 500
-    model: gpt-5-nano
-```
-
-**Output adds:**
-- `{split_key}_chunk`: The chunk content
-- `{op_name}_id`: Original document ID
-- `{op_name}_chunk_num`: Chunk number
-
-### Unnest Operation
-
-Flattens list fields into separate rows. No LLM call.
-
-```yaml
-- name: unnest_items
-  type: unnest
-  unnest_key: items  # field containing the list
-  keep_empty: false  # optional
-```
-
-**Example:** If a document has `items: ["a", "b", "c"]`, unnest creates 3 documents, each with `items: "a"`, `items: "b"`, `items: "c"`.
-
-### Resolve Operation
-
-Deduplicates and canonicalizes entities. Uses pairwise comparison.
-
-```yaml
-- name: dedupe_names
-  type: resolve
-  optimize: true  # let optimizer find blocking rules
-  skip_on_error: true
-  comparison_prompt: |
-    Are these the same person?
-
-    Person 1: {{ input1.name }} ({{ input1.email }})
-    Person 2: {{ input2.name }} ({{ input2.email }})
-
-    Respond true or false.
-  resolution_prompt: |
-    Standardize this person's name:
-
-    {% for entry in inputs %}
-    - {{ entry.name }}
-    {% endfor %}
-
-    Return the canonical name.
-  output:
-    schema:
-      name: string
-```
-
-**Important:** Set `optimize: true` and run `docetl build` to generate efficient blocking rules. Without blocking, this is O(n²).
-
-### Code Operations
-
-Deterministic Python transformations without LLM calls.
-
-**code_map:**
-```yaml
-- name: compute_stats
-  type: code_map
-  code: |
-    def transform(doc) -> dict:
-        return {
-            "word_count": len(doc["text"].split()),
-            "char_count": len(doc["text"])
-        }
-```
-
-**code_reduce:**
-```yaml
-- name: aggregate
-  type: code_reduce
-  reduce_key: category
-  code: |
-    def transform(items) -> dict:
-        total = sum(item["value"] for item in items)
-        return {"total": total, "count": len(items)}
-```
-
-**code_filter:**
-```yaml
-- name: filter_long
-  type: code_filter
-  code: |
-    def transform(doc) -> bool:
-        return len(doc["text"]) > 100
-
-```
-
-### Retrievers (LanceDB)
-
-Augment LLM operations with retrieved context from a LanceDB index. Useful for:
-- Finding related documents to compare against
-- Providing additional context for extraction/classification
-- Cross-referencing facts across a dataset
-
-**Define a retriever:**
-```yaml
-retrievers:
-  facts_index:
-    type: lancedb
-    dataset: extracted_facts  # dataset to index
-    index_dir: workloads/wiki/lance_index
-    build_index: if_missing  # if_missing | always | never
-    index_types: ["fts", "embedding"]  # or "hybrid"
-    fts:
-      index_phrase: "{{ input.fact }}: {{ input.source }}"
-      query_phrase: "{{ input.fact }}"
-    embedding:
-      model: openai/text-embedding-3-small
-      index_phrase: "{{ input.fact }}"
-      query_phrase: "{{ input.fact }}"
-    query:
-      mode: hybrid
-      top_k: 5
-```
-
-**Use in operations:**
-```yaml
-- name: find_conflicts
-  type: map
-  retriever: facts_index
-  prompt: |
-    Check if this fact conflicts with any retrieved facts:
-
-    Current fact: {{ input.fact }} (from {{ input.source }})
-
-    Related facts from other articles:
-    {{ retrieval_context }}
-
-    Return whether there's a genuine conflict.
-  output:
-    schema:
-      has_conflict: boolean
-```
-
-**Key points:**
-- `{{ retrieval_context }}` is injected into prompts automatically
-- Index is built on first use (when `build_index: if_missing`)
-- Supports full-text (`fts`), vector (`embedding`), or `hybrid` search
-- Use `save_retriever_output: true` to debug what was retrieved
-- **Can index intermediate outputs**: Retriever can index the output of a previous pipeline step, enabling patterns like "extract facts → index facts → retrieve similar facts for each"
-
-## Documentation Reference
-
-For detailed parameters, advanced features, and more examples, read the docs:
-- **Operations**: `docs/operators/` folder (map.md, reduce.md, filter.md, etc.)
-- **Concepts**: `docs/concepts/` folder (pipelines.md, operators.md, schemas.md)
-- **Examples**: `docs/examples/` folder
-- **Optimization**: `docs/optimization/` folder
+Augment operations with LanceDB retrieval context (`{{ retrieval_context }}`). Supports full-text, embedding, or hybrid search. Read `docs/retrievers.md`.
 
 ## Step 6: Environment Setup
 
@@ -560,39 +363,47 @@ OPENAI_API_KEY=sk-...
 
 **Always test on a sample first, then run full pipeline.**
 
-### Test Run (Required)
-Add `sample: 10-20` to your first operation, then run:
+### Before First Run: Start the Feedback Server
+
 ```bash
-docetl run pipeline.yaml
+# Start once per session — survives across pipeline runs
+docetl serve &
 ```
 
-**Inspect the test results before proceeding:**
-```python
-import json
-from collections import Counter
+### Running Pipelines: Always via Subagent + Monitor (parallel)
 
-# Load intermediate results
-data = json.load(open("intermediates/step_name/operation_name.json"))
+**Always run pipelines in a background subagent AND start a feedback Monitor in the same tool call.** The main agent must stay free to receive and react to human feedback immediately. The feedback log path is predictable: `<pipeline_stem>.feedback.log` next to the YAML (e.g. `pipeline.yaml` → `pipeline.feedback.log`). `tail -F` handles the file not existing yet.
 
-print(f"Processed: {len(data)} docs")
-
-# Check distributions
-if "domain" in data[0]:
-    print("Domain distribution:")
-    for k, v in Counter(d["domain"] for d in data).most_common():
-        print(f"  {k}: {v}")
-
-# Show sample outputs
-print("\nSample output:")
-print(json.dumps(data[0], indent=2))
+**Launch both in one message (parallel tool calls):**
 ```
+# These MUST be sent as parallel tool calls in a single message:
+
+Agent(
+  description="Run docetl pipeline",
+  prompt="Run `docetl run pipeline.yaml` and report the results including cost and any feedback.",
+  run_in_background=true
+)
+
+Monitor(
+  command="tail -F /path/to/pipeline.feedback.log",
+  description="Watch for human feedback"
+)
+```
+
+The Monitor is **not optional** — it is the only way you receive feedback in real time. Without it, feedback is invisible until the pipeline finishes. Starting both in the same message guarantees the Monitor is active before any feedback can arrive.
+
+### Test Run (Required)
+1. Add `sample: 10-20` to your first operation
+2. **In one message**, launch pipeline via subagent AND start the feedback Monitor (see pattern above)
+3. When the subagent finishes, inspect intermediate results
+4. Act on any feedback that arrived during or after the run
 
 ### Full Run
 Once test results look good:
 1. Remove the `sample` parameter from the pipeline
 2. Ask user for permission (estimate cost based on test run)
-3. Run full pipeline
-4. **Show final results** - distributions, key insights, trends
+3. **In one message**, launch pipeline via subagent AND start the feedback Monitor
+4. React to feedback as it arrives via Monitor notifications
 
 Options:
 - `--max_threads N` - Control parallelism
@@ -755,14 +566,169 @@ prompt: |
 ### Check intermediate results
 Look in `intermediate_dir` folder to debug each step.
 
+## Human-in-the-Loop Feedback Workflow
+
+**When an LLM agent authors a pipeline, always set `ui: "web"` in the pipeline YAML.** This opens a browser-based feedback UI where the human can watch outputs stream in, click on any operation to inspect its results, give per-document or pipeline-level feedback, and kill the pipeline. The agent orchestrates the feedback loop.
+
+```yaml
+# Add to pipeline YAML top level (next to default_model)
+ui: "web"       # Opens browser feedback UI automatically
+default_model: gpt-5-nano
+```
+
+Three modes:
+- `ui: "web"` — Browser-based feedback UI (use when agent runs the pipeline)
+- `ui: "tui"` — Terminal dashboard (use for manual CLI runs)
+- `ui: "none"` — No interactive UI (default)
+
+### How Agent ↔ Human Communication Works
+
+The protocol is two channels:
+
+1. **Human → agent: ONE log file.** Every human action in the web UI (doc feedback, pipeline feedback, kill, toast button clicks) is appended as one line to `<pipeline>.feedback.log`, **in the same directory as the pipeline YAML** (e.g. `comm_quality.yaml` → `comm_quality.feedback.log`). The pipeline prints the exact path on startup: `[FEEDBACK_LOG] /abs/path/to/<pipeline>.feedback.log`.
+2. **Agent → human: ONE endpoint.** `POST http://localhost:<PORT>/message` shows a toast in the browser.
+
+### Starting the Feedback Server
+
+The persistent feedback server **starts automatically** when you run a pipeline with `ui: "web"`. It opens a browser, stays alive across multiple runs, and pushes results to the same tab — no manual setup needed. The port is saved to `~/.docetl/server_port` (global, so pipelines in any directory share one server).
+
+You can also start it manually with `docetl serve` if you want it running before any pipeline.
+
+### Watching for Feedback
+
+**Start the Monitor in the same parallel tool call as the pipeline subagent** (see "Running Pipelines" above). The log is named after the pipeline YAML, in the same directory — the path is predictable so you don't need to wait for the `[FEEDBACK_LOG]` output.
+
+```
+Monitor(command="tail -F /path/to/<pipeline>.feedback.log", description="Watch for human feedback")
+```
+
+`tail -F` tolerates the file not existing yet — it waits until it appears. One Monitor per pipeline file; it stays valid across re-runs of that pipeline.
+
+This is MANDATORY. Without the Monitor, you will not see feedback until the pipeline finishes. The Monitor sends you a notification the instant the human acts.
+
+Every human action appears as one line in that file:
+```
+[FEEDBACK:doc] op=summarize doc_index=3 | This summary misses the key financial figures
+[FEEDBACK:pipeline] The outputs are too verbose, I want bullet points not paragraphs
+[FEEDBACK:kill] User stopped the pipeline
+[TOAST:response] id=3 action=Confirm re-run
+```
+
+**When you see a `[FEEDBACK:...]` notification, act on it immediately.** Feedback is also printed in the background subagent's stdout when it polls the server, so the subagent's completion output includes any feedback received during the run.
+
+To check feedback at any time without blocking:
+```bash
+curl -s http://localhost:$PORT/feedback/poll
+```
+
+### Sending Messages to the Human (Toasts)
+
+Send toast notifications to the web UI so the human sees your status or questions:
+
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I noticed 3 docs got negative feedback. Updating the prompt to add more detail.", "type": "info"}'
+```
+
+The `type` field can be `"info"`, `"success"`, `"warning"`, or `"error"`. The port is printed to stdout when the UI starts.
+
+### Toasts with Action Buttons
+
+For decisions that need explicit user confirmation, add `actions` — the toast will show buttons the user must click:
+
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I updated the prompt to require quantitative results. Re-run the pipeline?", "type": "info", "actions": ["Confirm re-run", "Dismiss"]}'
+```
+
+Toasts with actions stay on screen until the user clicks a button. The response is appended to the pipeline's feedback log (the same file your Monitor is tailing), so you get notified:
+
+```
+[TOAST:response] id=3 action=Confirm re-run
+```
+
+Use action toasts for:
+- Confirming re-runs after prompt changes
+- Approving pipeline structural changes (adding/removing operations)
+- Approving model upgrades that increase cost
+
+Use plain toasts (no actions) for:
+- Acknowledging feedback ("Got it, looking at this...")
+- Status updates ("Analyzing 5 feedback items...")
+- Asking for more feedback ("Could you review a few more docs?")
+
+### Feedback Loop Strategy
+
+When you receive feedback, follow this cycle:
+
+1. **Acknowledge** — Send a plain toast so the human knows you saw their feedback.
+2. **Diagnose** — Categorize the feedback:
+   - *Prompt quality*: outputs are wrong, vague, missing info, or in the wrong format.
+   - *Schema mismatch*: output fields don't match what the human expects.
+   - *Pipeline structure*: wrong operations, missing steps, or wrong order.
+   - *Data quality*: input data has issues the pipeline can't fix.
+3. **Propose a fix** — Send a toast with actions (e.g., `["Confirm re-run", "Dismiss"]`) describing what you plan to change. Wait for the `[TOAST:response]` line on stdout.
+4. **Apply the fix** — Only after confirmation, edit the YAML pipeline and/or prompts.
+5. **Re-run** — Execute the pipeline again so the human sees updated results.
+6. **Check** — Monitor for new feedback. If quality improves, send a success toast. If not, iterate.
+
+### Common Fix Patterns
+
+**Updating prompts** (most common fix for doc-level feedback):
+- Read the specific feedback and the current prompt in the YAML
+- Add concrete examples, clarify instructions, or constrain the output format
+- If multiple docs got similar feedback, address the pattern, not each individually
+
+**Asking the human to label more docs**:
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -d '{"text": "I see feedback on 2 docs but need more examples to understand the pattern. Could you review a few more docs and leave feedback?", "type": "info"}'
+```
+
+**Proposing pipeline changes** (for structural feedback):
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -d '{"text": "Based on your feedback, I think we need a filter step before summarize to remove irrelevant sections. I will update the pipeline — send feedback if you disagree.", "type": "warning"}'
+```
+
+**Confirming before big changes**:
+```bash
+curl -X POST http://localhost:<PORT>/message \
+  -d '{"text": "This would require changing the model from gpt-4o-mini to gpt-4o, which costs ~10x more. Should I proceed?", "type": "warning"}'
+```
+Wait for pipeline-level feedback from the human before proceeding.
+
+### When to Stop Iterating
+
+- The human sends positive pipeline feedback ("looks good", "ship it")
+- No new negative feedback after a re-run
+- The human kills the pipeline (you'll see `PipelineKilled` in the output)
+
 ## Quick Reference
 
 ```bash
-# Run pipeline
+# Start persistent feedback server (do this first for agent workflows)
+docetl serve &
+
+# Run pipeline (auto-connects to persistent server if running)
+# Prints: [FEEDBACK_LOG] /abs/path/pipeline.feedback.log  ← tail this
 docetl run pipeline.yaml
 
 # Run with more parallelism
 docetl run pipeline.yaml --max_threads 16
+
+# Server port (global)
+cat ~/.docetl/server_port
+
+# Poll for human feedback (alternative to tailing the log)
+curl http://localhost:<PORT>/feedback/poll
+
+# Send a message/toast to the human
+curl -X POST http://localhost:<PORT>/message \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Updating prompt based on feedback...", "type": "info"}'
 
 # Optimize pipeline (cost/accuracy tradeoff)
 docetl build pipeline.yaml --optimizer moar

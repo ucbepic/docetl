@@ -106,6 +106,42 @@ def test_add_outputs_streams_documents_during_run():
     assert len(op.outputs) == 3
 
 
+def test_tick_cost_streams_cost_during_run():
+    t = ProgressTracker()
+    t.pipeline_start([("s", "s/op", "map", None)])
+    t.op_start("s/op", "map", None, total=10)
+    t.tick_cost(0.05)
+    t.tick_cost(0.10)
+    op = t.snapshot().get("s/op")
+    assert op.cost == pytest.approx(0.15)
+    assert t.snapshot().total_cost == pytest.approx(0.15)
+    # Zero or negative deltas are ignored.
+    t.tick_cost(0.0)
+    t.tick_cost(-1.0)
+    assert op.cost == pytest.approx(0.15)
+    # op_done overwrites with the final total.
+    t.op_done("s/op", cost=0.15, prompt_tokens=100, completion_tokens=50)
+    assert op.cost == pytest.approx(0.15)
+
+
+def test_richloopbar_update_with_cost():
+    t = ProgressTracker()
+    set_active_tracker(t)
+    try:
+        t.op_start("op", "map", None, total=5)
+        from docetl.operations.utils.progress import RichLoopBar
+
+        bar = RichLoopBar.__new__(RichLoopBar)
+        bar.tqdm = None
+        bar.update(1, cost=0.03)
+        bar.update(1, cost=0.07)
+        op = t.snapshot().get("op")
+        assert op.completed == 2
+        assert op.cost == pytest.approx(0.10)
+    finally:
+        set_active_tracker(None)
+
+
 def test_active_tracker_hook():
     t = ProgressTracker()
     set_active_tracker(t)
@@ -130,31 +166,34 @@ def test_pipeline_label_from_yaml_path(tmp_path):
     assert runner.pipeline_label() == "filteronly.yaml"
 
 
-def test_should_use_tui_reads_top_level_flag(monkeypatch):
-    # interactive_ui lives at the top level of the config (next to
-    # default_model), not under `pipeline`.
-    import sys
-
+def test_ui_mode_routing():
+    """The top-level ``ui`` field routes to the correct mode."""
     from docetl.runner import DSLRunner
 
-    monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
+    base = {
+        "default_model": "gpt-4o-mini",
+        "operations": [],
+        "pipeline": {"steps": [], "output": {"path": "/tmp/x.json"}},
+    }
 
-    runner = DSLRunner(
-        {
-            "default_model": "gpt-4o-mini",
-            "operations": [],
-            "pipeline": {"steps": [], "output": {"path": "/tmp/x.json"}},
-        },
-        max_threads=2,
-    )
-    assert runner._should_use_tui() is False  # absent -> off
-    runner.config["interactive_ui"] = True
-    assert runner._should_use_tui() is True  # top level -> on
-    # the old nested location is ignored
-    runner.config["interactive_ui"] = False
-    runner.config["pipeline"]["interactive_ui"] = True
-    assert runner._should_use_tui() is False
+    # Default (absent or "none") → no UI
+    runner = DSLRunner(dict(base), max_threads=2)
+    assert runner._should_use_tui() is None
+
+    runner.config["ui"] = "none"
+    assert runner._should_use_tui() is None
+
+    # "tui" → tui
+    runner.config["ui"] = "tui"
+    assert runner._should_use_tui() == "tui"
+
+    # "web" → web
+    runner.config["ui"] = "web"
+    assert runner._should_use_tui() == "web"
+
+    # _tui_active prevents recursion regardless of mode
+    runner._tui_active = True
+    assert runner._should_use_tui() is None
 
 
 def test_runstate_to_dict():
@@ -334,6 +373,173 @@ def test_filter_summary_reports_dropped():
     f = OpState("s", "s/f", "filter")
     f.total, f.out_count = 20, 12
     assert "dropped: 8" in "".join(str(x) for x in get_profile("filter").summary(f))
+
+
+def test_kill_requested_raises_in_progress_bar():
+    """When kill_requested is set, RichLoopBar.update() raises PipelineKilled."""
+    from docetl.progress.tracker import PipelineKilled
+
+    t = ProgressTracker()
+    set_active_tracker(t)
+    try:
+        t.op_start("op", "map", None, total=10)
+        from docetl.operations.utils.progress import RichLoopBar
+
+        bar = RichLoopBar.__new__(RichLoopBar)
+        bar.tqdm = None
+        bar.update(1)  # fine
+        t.kill_requested = True
+        with pytest.raises(PipelineKilled):
+            bar.update(1)
+    finally:
+        t.kill_requested = False
+        set_active_tracker(None)
+
+
+def test_feedback_store():
+    from docetl.tui.web_reporter import FeedbackStore
+
+    fb = FeedbackStore()
+    assert not fb.has_any
+    fb.add_pipeline_feedback("too aggressive")
+    assert fb.has_any
+    fb.add_doc_feedback("classify", 3, {"cat": "billing"}, "should be refund")
+    d = fb.to_dict()
+    assert len(d["pipeline_feedback"]) == 1
+    assert d["pipeline_feedback"][0]["feedback"] == "too aggressive"
+    assert len(d["doc_feedback"]) == 1
+    assert d["doc_feedback"][0]["operation"] == "classify"
+    assert d["doc_feedback"][0]["doc_snapshot"] == {"cat": "billing"}
+    assert not d["killed"]
+
+    fb.kill_reason = "bad outputs"
+    d = fb.to_dict()
+    assert d["killed"]
+    assert d["kill_reason"] == "bad outputs"
+
+
+def test_web_reporter_serves_html():
+    """The web server should serve the HTML page and accept feedback POSTs."""
+    import json
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from docetl.tui.web_reporter import FeedbackStore, _make_handler, _ServerState
+
+    fb = FeedbackStore()
+    state = _ServerState()
+    handler = _make_handler(state, fb)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    port = server.server_address[1]
+    import threading
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        # GET / should return HTML
+        resp = urllib.request.urlopen(f"http://localhost:{port}/")
+        html = resp.read().decode()
+        assert "DocETL Monitor" in html
+
+        # POST /state/push, then GET /state should round-trip it
+        event = {"ops": [{"name": "s/op", "op_type": "map", "status": "queued",
+                          "total": 0, "completed": 0, "errors": 0,
+                          "out_count": 0, "cost": 0.0, "elapsed": 0.0}],
+                 "all_docs": [], "total_cost": 0.0, "elapsed": 0.0,
+                 "finished": False}
+        req = urllib.request.Request(
+            f"http://localhost:{port}/state/push",
+            data=json.dumps(event).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
+        resp = urllib.request.urlopen(f"http://localhost:{port}/state")
+        got = json.loads(resp.read())
+        assert len(got["ops"]) == 1
+        assert got["ops"][0]["status"] == "queued"
+        assert got["feedback_count"] == 0
+        assert got["messages"] == []
+
+        # POST /feedback/pipeline
+        req = urllib.request.Request(
+            f"http://localhost:{port}/feedback/pipeline",
+            data=json.dumps({"text": "needs work"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
+        assert fb.pipeline_feedback[0]["feedback"] == "needs work"
+
+        # POST /message → toast appears in /state
+        req = urllib.request.Request(
+            f"http://localhost:{port}/message",
+            data=json.dumps({"text": "hello", "type": "info"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
+        resp = urllib.request.urlopen(f"http://localhost:{port}/state")
+        got = json.loads(resp.read())
+        assert got["messages"][0]["text"] == "hello"
+        assert got["feedback_count"] == 1
+
+        # POST /kill → recorded; pipelines pick this up via /feedback/poll
+        req = urllib.request.Request(
+            f"http://localhost:{port}/kill",
+            data=json.dumps({"reason": "bad"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req)
+        assert fb.kill_reason == "bad"
+        resp = urllib.request.urlopen(f"http://localhost:{port}/feedback/poll")
+        polled = json.loads(resp.read())
+        assert polled["killed"]
+    finally:
+        server.shutdown()
+
+
+def test_log_reporter_emits_progress():
+    """The log reporter should emit progress lines for running and done ops."""
+    from docetl.tui.log_reporter import _LogReporter
+
+    class FakeConsole:
+        def __init__(self):
+            self.lines = []
+        def log(self, msg):
+            self.lines.append(str(msg))
+
+    console = FakeConsole()
+    t = ProgressTracker()
+    t.pipeline_start([("s", "s/classify", "map", "m")])
+    t.op_start("s/classify", "map", "m", total=10)
+
+    reporter = _LogReporter(t, console, interval=60)
+    # Emit once with the op running.
+    reporter._emit()
+    assert any("map:classify" in line for line in console.lines)
+    assert any("0/10" in line for line in console.lines)
+
+    # Stream some documents mid-run.
+    t.tick(2)
+    t.tick_cost(0.10)
+    t.add_outputs([{"category": "billing", "priority": "high"}])
+    console.lines.clear()
+    reporter._emit()
+    assert any("50%" in line or "20%" in line for line in console.lines)
+    # Document content should appear in the output.
+    assert any("category" in line and "billing" in line for line in console.lines)
+    assert any("[output]" in line for line in console.lines)
+
+    # A second emit should not repeat the same document.
+    console.lines.clear()
+    reporter._emit()
+    assert not any("billing" in line for line in console.lines)
+
+    t.op_done("s/classify", cost=0.20, prompt_tokens=500, completion_tokens=100,
+              outputs=[{"x": i} for i in range(10)])
+    t.pipeline_done()
+    console.lines.clear()
+    reporter._emit()
+    assert any("✓ done" in line for line in console.lines)
+    assert any("pipeline complete" in line for line in console.lines)
 
 
 # =============================================================================

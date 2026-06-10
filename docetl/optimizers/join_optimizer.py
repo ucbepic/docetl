@@ -1202,7 +1202,7 @@ class JoinOptimizer:
         comparisons: list[tuple[int, int, bool]],
         similarities: list[tuple[int, int, float]],
     ) -> tuple[float, float, float]:
-        true_labels = np.array([comp[2] for comp in comparisons])
+        true_labels = np.array([comp[2] for comp in comparisons], dtype=bool)
         sim_dict = {(i, j): sim for i, j, sim in similarities}
         sim_scores = np.array([sim_dict[(i, j)] for i, j, _ in comparisons])
 

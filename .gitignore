@@ -84,6 +84,10 @@ reaction_index/
 # Progress view (issue #487): committed demo fixtures + screenshots
 !tests/tui_demo/*.yaml
 !tests/tui_demo/*.json
+!.claude/settings.json
+.docetl_feedback.log
+.docetl_server_port
+*.feedback.log
 tests/tui_demo/*_output.json
 !docs/assets/progress-view/*.png
 

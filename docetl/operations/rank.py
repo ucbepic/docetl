@@ -262,6 +262,10 @@ class RankOperation(BaseOperation):
                     for idx, count in local_win_counts.items():
                         win_counts[idx] += count
                     total_cost += cost
+                    from docetl.progress.tracker import active_tracker
+                    _tracker = active_tracker()
+                    if _tracker is not None:
+                        _tracker.tick_cost(cost)
                 except Exception as e:
                     self.console.log(f"[red]Error in batch processing: {str(e)}[/red]")
                     raise e

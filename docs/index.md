@@ -1,4 +1,4 @@
-# DocETL: A System for Complex Document Processing
+# DocETL
 
 [![GitHub](https://img.shields.io/github/stars/ucbepic/docetl?style=social)](https://github.com/ucbepic/docetl)
 [![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
@@ -6,29 +6,20 @@
 [![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
 [![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
 
-![DocETL Figure](assets/readmefig.png)
+DocETL is a declarative query engine and optimizer for LLM-powered data
+processing. Think of DocETL as an agentic map-reduce framework. DocETL exposes
+high-level operations — e.g., map, reduce, filter, resolve, extract — that can
+be authored in natural language and executed by agents, and an optimizer that
+rewrites pipelines by searching over models, prompts, and operation
+decompositions.
 
-DocETL is a tool for creating and executing LLM-powered data processing pipelines. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
-
-!!! tip "When to Use DocETL"
-
-    DocETL is the ideal choice when you're looking to **maximize correctness and output quality** for complex tasks over a collection of documents or unstructured datasets. You should consider using DocETL if:
-
-    - You have complex tasks that you want to represent via map-reduce (e.g., map over your documents, then group by the result of your map call & reduce)
-    - You're unsure how to best write your pipeline or sequence of operations to maximize LLM accuracy
-    - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
-    - You have validation criteria and want tasks to automatically retry when the validation fails
-
-## Features
-
-- **Rich Suite of Operators**: Tailored for complex data processing, including specialized operators like "resolve" for entity resolution and "gather" for maintaining context when splitting documents.
-- **Low-Code Interface**: Define your pipeline and prompts easily using YAML. You have 100% control over the prompts.
-- **Flexible Processing**: Handle various document types and processing tasks across domains like law, medicine, and social sciences.
-- **Accuracy Optimization**: Our optimizer leverages LLM agents to experiment with different logically-equivalent rewrites of your pipeline and automatically selects the most accurate version. This includes finding limits of how many documents to process in a single reduce operation before the accuracy plateaus.
+Use it when you have a task over a collection of documents or unstructured
+records — e.g., extracting and aggregating themes across thousands of
+transcripts — and you care about output quality, cost, or both.
 
 ## Getting Started
 
-DocETL supports two ways to define pipelines:
+Pipelines can be written in Python or YAML — both are first class:
 
 === "Python"
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-# DocETL
+# DocETL: Declarative & Agentic Map-Reduce
 
 [![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
 [![Documentation](https://img.shields.io/badge/Docs-ucbepic.github.io/docetl-green)](https://ucbepic.github.io/docetl)

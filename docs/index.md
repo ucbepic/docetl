@@ -1,4 +1,4 @@
-# DocETL { .center-title }
+# DocETL: Declarative & Agentic Map-Reduce { .center-title }
 
 <p align="center">
 <a href="https://github.com/ucbepic/docetl"><img src="https://img.shields.io/github/stars/ucbepic/docetl?style=social" alt="GitHub stars"></a>

@@ -1,14 +1,13 @@
 # Retrievers
 
 Sometimes an operation's prompt needs information that isn't in the row being
-processed: a knowledge-base entry to answer a question, similar records to
-check a fact against, or definitions to apply consistently. Putting the whole
-reference dataset in every prompt is expensive and often impossible.
+processed — e.g., answering each question in a dataset requires the relevant
+entry from a knowledge base. Putting the whole knowledge base in every prompt
+is expensive and often exceeds the context window.
 
-A **retriever** solves this: it indexes a dataset once (full-text, vector, or
-both, via local [LanceDB](https://lancedb.com)), and for each item an
-operation processes, it searches the index and injects the top matches into
-the prompt as `{{ retrieval_context }}`. Define retrievers once at the top level, attach one to any LLM-powered operation with `retriever: <name>`, and DocETL runs full-text, vector, or hybrid search at runtime and injects the results into your prompt as `{{ retrieval_context }}`.
+A **retriever** indexes a dataset once (full-text, vector, or both, via local
+[LanceDB](https://lancedb.com)) and, for each item an operation processes,
+injects the top matches into the prompt as `{{ retrieval_context }}`. Define retrievers once at the top level, attach one to any LLM-powered operation with `retriever: <name>`, and DocETL runs full-text, vector, or hybrid search at runtime and injects the results into your prompt as `{{ retrieval_context }}`.
 
 - Always OSS LanceDB (local `index_dir`). Hybrid search uses RRF reranking; see the [LanceDB docs](https://lancedb.com/docs/search/hybrid-search/).
 - A retriever references a dataset from the pipeline config, or the output of a previous pipeline step.

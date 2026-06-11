@@ -155,7 +155,7 @@ quality guarantee. This can dramatically reduce cost on large datasets.
 like `text-embedding-3-small` (a logistic head is fitted on an oracle-labeled
 slice of the budget — far cheaper per item for high-volume topical filters).
 
-See [Model Cascades with BARGAIN](../concepts/cascades.md) for full details,
+See [Model Cascades with BARGAIN](../optimization/cascades.md) for full details,
 guarantee explanations, and examples.
 
 ### Limiting filtered outputs

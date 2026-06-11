@@ -233,7 +233,7 @@ many candidate pairs.
 | `delta` | Failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
 | `label_budget` | Max oracle calls spent learning the threshold | `400` |
 
-See [Model Cascades with BARGAIN](../concepts/cascades.md) for full details,
+See [Model Cascades with BARGAIN](../optimization/cascades.md) for full details,
 guarantee explanations, and examples.
 
 ## Best Practices

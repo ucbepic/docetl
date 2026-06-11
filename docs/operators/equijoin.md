@@ -186,7 +186,7 @@ Key differences from Resolve:
 Like resolve, equijoin supports a `cascade` block to run a cheap proxy model on
 candidate pairs and only escalate uncertain comparisons to the oracle.
 Default guarantee is `precision` (don't over-join). See
-[Model Cascades with BARGAIN](../concepts/cascades.md) for full details.
+[Model Cascades with BARGAIN](../optimization/cascades.md) for full details.
 
 ## Incorporating Into a Pipeline
 

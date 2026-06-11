@@ -114,6 +114,15 @@ The `docetl run` command's options:
   show_source: false
   show_name: false
 
+## Optimizing a Pipeline
+
+Two optimizers are available, covered in the [Optimization](../optimization/overview.md) section:
+
+- [Model cascades](../optimization/cascades.md): cost optimization of a single
+  operator, applied during execution itself.
+- [MOAR](../optimization/moar.md): joint accuracy and cost optimization of the
+  whole pipeline, run as an offline search.
+
 ## Configuration
 
 ### Default Model

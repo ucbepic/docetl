@@ -5,7 +5,7 @@ Based on **BARGAIN**: Sepanta Zeighami, Shreya Shankar, Aditya Parameswaran.
 *ACM SIGMOD 2026.* ([code](https://github.com/ucbepic/BARGAIN))
 
 Status: complete — engine, proxy logprob path, filter / resolve / equijoin
-wiring, caching + cost reporting + user docs at `docs/concepts/cascades.md`.
+wiring, caching + cost reporting + user docs at `docs/optimization/cascades.md`.
 Owner: (you)
 Branch: `claude/zen-maxwell-OPO34`
 

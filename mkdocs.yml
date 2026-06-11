@@ -38,8 +38,6 @@ nav:
           - Operators & Validation: concepts/operators.md
           - Output Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
-          - Optimization: concepts/optimization.md
-          - Model Cascades with BARGAIN: concepts/cascades.md
       - Retrieval:
           - Retrievers: retrievers.md
       - Running Pipelines:
@@ -74,6 +72,7 @@ nav:
   
   - Optimization:
       - Overview: optimization/overview.md
+      - Model Cascades (BARGAIN): optimization/cascades.md
       - MOAR Optimizer:
           - Introduction: optimization/moar.md
           - Getting Started: optimization/moar/getting-started.md

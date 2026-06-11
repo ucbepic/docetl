@@ -97,7 +97,7 @@ frame.filter(
 | `model` | `str` | `None` | Override default model |
 | `validate` | `list[str]` | `None` | Validation expressions |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
-| `cascade` | `dict` | `None` | [Model cascade](../concepts/cascades.md): run a cheap proxy (chat or embedding model) on all items and escalate only uncertain ones, with a statistical guarantee. Also available on `resolve` and `equijoin`. |
+| `cascade` | `dict` | `None` | [Model cascade](../optimization/cascades.md): run a cheap proxy (chat or embedding model) on all items and escalate only uncertain ones, with a statistical guarantee. Also available on `resolve` and `equijoin`. |
 
 ```python
 frame.filter(

@@ -1,29 +1,46 @@
-# DocETL Optimizer
+# Optimization
 
-DocETL provides two optimizer options to improve your document processing pipelines:
+DocETL has two optimizers. They solve different problems:
 
-## MOAR Optimizer (Recommended)
+| | [Model cascades (BARGAIN)](cascades.md) | [MOAR](moar.md) |
+|---|---|---|
+| Optimizes | a single operator | the whole pipeline |
+| Objective | cost, under a statistical quality guarantee | accuracy and cost jointly |
+| When it runs | during execution itself | as an offline search, before you run |
+| What it costs | at most `label_budget` oracle calls | many sample-pipeline runs plus agent calls |
+| How to use it | add a `cascade:` block to the operator | provide an evaluation function |
 
-The **MOAR (Multi-Objective Agentic Rewrites)** optimizer uses Monte Carlo Tree Search to explore optimization space and find Pareto-optimal solutions that balance accuracy and cost. It's the recommended optimizer for most use cases.
+**Model cascades** are lightweight cost optimization. A `cascade:` block on a
+`filter`, `resolve`, or `equijoin` runs a cheap proxy model on every item and
+escalates only the uncertain ones to the operator's model, preserving a
+statistical guarantee. There is no separate optimization step — it happens
+while the pipeline executes. See [Model Cascades with BARGAIN](cascades.md).
 
-**Key Features:**
+**MOAR** is joint accuracy and cost optimization. It searches over pipeline
+rewrites and model choices, executes candidate pipelines on a sample, scores
+them with your evaluation function, and returns a Pareto frontier of plans.
+See the [MOAR Optimizer Guide](moar.md).
 
-- Multi-objective optimization (accuracy + cost)
-- Returns multiple Pareto-optimal solutions
-- Automatic model exploration
-- Custom evaluation functions
-- Intelligent search using MCTS
+The two compose: a MOAR-optimized pipeline can still use cascades on its
+binary operators. Merging them into a single optimizer is on our roadmap.
 
-See the [MOAR Optimizer Guide](moar.md) for detailed documentation and examples.
+## Running MOAR
 
-## V1 Optimizer (Deprecated)
+=== "Python"
 
-!!! warning "Deprecated"
-    The V1 optimizer is deprecated and no longer recommended. Use MOAR instead for all new optimizations.
+    ```python
+    optimized = frame.optimize(eval_fn=my_eval_function, metric_key="score")
+    df = optimized.collect()                  # run the optimized pipeline
+    best = optimized.search_results.best()    # inspect the frontier
+    ```
 
-The V1 optimizer uses a greedy approach with validation to find improved pipeline configurations. It's still available for backward compatibility but should not be used for new projects.
+=== "YAML / CLI"
 
-The rest of this page describes the general optimization concepts that apply to both optimizers.
+    ```bash
+    docetl build pipeline.yaml
+    ```
+
+The rest of this page describes what MOAR's rewrites do to a pipeline.
 
 ## Key Features
 
@@ -105,16 +122,9 @@ After applying the optimizer, your pipeline could be transformed into a more eff
 
 The goal of the DocETL optimizer is to try many ways of rewriting your pipeline and then select the best one. This may take some time (20-30 minutes for very complex tasks and large documents). But the optimizer's ability to break down complex tasks into more manageable sub-steps can lead to more accurate and reliable results.
 
-## Choosing an Optimizer
-
-**Use MOAR if:**
-
-- You want to explore cost-accuracy trade-offs
-- You need multiple solution options (Pareto frontier)
-- You have custom evaluation metrics
-- You want automatic model exploration
-
 !!! warning "V1 Optimizer Deprecated"
-    The V1 optimizer is deprecated. Use MOAR instead. If you have existing V1-optimized pipelines, they will continue to work, but new optimizations should use MOAR.
+    The V1 optimizer is deprecated; use MOAR. Existing V1-optimized pipelines
+    continue to work (via `method="v1"` on the deprecated `docetl.api.Pipeline`
+    class), but new optimizations should use MOAR.
 
 For detailed MOAR usage, see the [MOAR Optimizer Guide](moar.md).

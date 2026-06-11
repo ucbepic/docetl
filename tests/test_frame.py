@@ -548,7 +548,7 @@ def test_read_dir_extracts_pdf_and_docx(tmp_path):
     doc.save(str(tmp_path / "c.docx"))
     (tmp_path / "junk.bin").write_bytes(b"\x00\x01binary")
 
-    rows = {r["filename"]: r["content"] for r in docetl.read_dir(str(tmp_path))._load_input_data()}
+    rows = {r["filename"]: r["text"] for r in docetl.read_dir(str(tmp_path))._load_input_data()}
     assert "hello from pdf" in rows["b.pdf"]
     assert "word doc body" in rows["c.docx"]
     assert "junk.bin" not in rows
@@ -564,12 +564,12 @@ def test_read_dir_reads_files_as_text(tmp_path):
     frame = docetl.read_dir(str(tmp_path))
     assert frame.count() == 3
     rows = frame._load_input_data()
-    assert sorted(r["content"] for r in rows) == ["alpha doc", "beta doc", "gamma doc"]
-    assert all({"path", "filename", "content"} <= set(r) for r in rows)
+    assert sorted(r["text"] for r in rows) == ["alpha doc", "beta doc", "gamma doc"]
+    assert all({"path", "filename", "text"} <= set(r) for r in rows)
     assert len(frame._load_input_data(limit=2)) == 2
     assert "docetl.read_dir(" in frame.to_python()
 
     out = frame.code_map(
-        "wc", code="def transform(doc): return {'words': len(doc['content'].split())}"
+        "wc", code="def transform(doc): return {'words': len(doc['text'].split())}"
     ).collect()
     assert len(out) == 3 and all(r["words"] == 2 for r in out)

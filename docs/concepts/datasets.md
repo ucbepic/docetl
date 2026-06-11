@@ -91,7 +91,7 @@ ticket_id,customer,message
 ### A directory of documents
 
 Every non-hidden file under the directory (recursively) becomes one row:
-`content` holds the file's text, with `filename` and `path` alongside. PDF,
+`text` holds the file's content, with `filename` and `path` alongside. PDF,
 Word, PowerPoint, and Excel files are converted to text; other files are read
 as UTF-8; binary files with no extractor are skipped with a warning.
 
@@ -119,7 +119,7 @@ contracts/
     # {
     #     "filename": "acme_msa.pdf",
     #     "path": "contracts/acme_msa.pdf",
-    #     "content": "MASTER SERVICE AGREEMENT\nThis Agreement is entered into by...",
+    #     "text": "MASTER SERVICE AGREEMENT\nThis Agreement is entered into by...",
     # }
     ```
 

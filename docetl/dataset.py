@@ -303,7 +303,7 @@ class DataLoader:
                     {
                         "path": str(path),
                         "filename": os.path.basename(path),
-                        "content": text,
+                        "text": text,
                     }
                 )
             return self._apply_parsing_tools(data)

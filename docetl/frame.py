@@ -1374,8 +1374,8 @@ def read_parquet(path: str, *, parsing: list[dict[str, str]] | None = None) -> F
 def read_dir(path: str, *, parsing: list[dict[str, str]] | None = None) -> Frame:
     """Read every file in a directory (recursively) as text.
 
-    Each file becomes one row with ``filename``, ``path``, and ``content``
-    keys, where ``content`` is the file's extracted text. PDF, Word, PowerPoint, and Excel files are converted to text;
+    Each file becomes one row with ``filename``, ``path``, and ``text``
+    keys, where ``text`` is the file's extracted content. PDF, Word, PowerPoint, and Excel files are converted to text;
     other files are read as UTF-8, and binary files with no extractor are
     skipped with a warning.
     """

@@ -138,10 +138,44 @@ the oracle.
 | `recall` | Of truly-positive items, ≥ `target` are returned | `filter` (don't drop relevant docs) | BARGAIN_R |
 | `precision+recall` | Both precision and recall ≥ `target`, jointly | When neither error direction is acceptable | BARGAIN_PR |
 
-`precision+recall` learns two thresholds: items above the precision
+### Guaranteeing both at once
+
+`guarantee: precision+recall` enforces both metrics at `target`
+simultaneously. It learns two thresholds — items above the precision
 threshold take the proxy's positive answer, items below the recall threshold
 take the proxy's negative answer, and the oracle labels the band in between.
-Oracle usage adapts to how well the proxy separates the data.
+Oracle usage adapts to how well the proxy separates the data (`label_budget`
+is ignored).
+
+=== "YAML"
+
+    ```yaml
+    - name: is_relevant
+      type: filter
+      model: gpt-4o
+      prompt: "Is this document about climate policy? {{ input.text }}"
+      output: { schema: { keep: "bool" } }
+      cascade:
+        proxy_model: gpt-4o-mini
+        guarantee: precision+recall
+        target: 0.9     # precision >= 0.9 AND recall >= 0.9, w.p. 1 - delta
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.filter(
+        name="is_relevant",
+        model="gpt-4o",
+        prompt="Is this document about climate policy? {{ input.text }}",
+        output={"schema": {"keep": "bool"}},
+        cascade={
+            "proxy_model": "gpt-4o-mini",
+            "guarantee": "precision+recall",
+            "target": 0.9,  # precision >= 0.9 AND recall >= 0.9, w.p. 1 - delta
+        },
+    )
+    ```
 
 When `guarantee` is omitted, the operator's natural default applies:
 `filter` → `recall`, `resolve` / `equijoin` → `precision`. Quality is always

@@ -224,10 +224,13 @@ LLM-based operators can include a `validate` field, which accepts a list of Pyth
 
     ```python
     validate=[
-        'len(output["insights"]) >= 2',
-        'all(len(insight["supporting_actions"]) >= 1 for insight in output["insights"])',
+        lambda output: len(output["insights"]) >= 2,
+        lambda output: all(len(i["supporting_actions"]) >= 1 for i in output["insights"]),
     ]
     ```
+
+    Entries may be callables taking the output dict, or the same expression
+    strings as YAML. Use strings if you plan to export with `to_yaml()`.
 
 Access variables using dictionary syntax: `output["field"]`. Note that you can't access `input` docs in validation, but the output docs should have all the fields from the input docs (for non-reduce operations), since fields pass through unchanged.
 

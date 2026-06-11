@@ -96,7 +96,7 @@ frame.map(
 | `prompt` | `str` | — | Jinja2 template. Access fields via `{{ input.key }}`. |
 | `output` | `dict` | — | Output schema, e.g. `{"schema": {"field": "str"}}` |
 | `model` | `str` | `None` | Override default model |
-| `validate` | `list[str]` | `None` | Python expressions to validate output |
+| `validate` | `list[str \| callable]` | `None` | Validators: expression strings over `output`, or callables taking the output dict (callables can't be exported to YAML) |
 | `num_retries_on_validate_failure` | `int` | `None` | Retries on validation failure |
 | `sample` | `int` | `None` | Process only N documents |
 | `tools` | `list[dict]` | `None` | Tool definitions for function calling |
@@ -124,7 +124,7 @@ frame.filter(
 | `prompt` | `str` | — | Jinja2 template |
 | `output` | `dict` | — | Schema with one boolean field |
 | `model` | `str` | `None` | Override default model |
-| `validate` | `list[str]` | `None` | Validation expressions |
+| `validate` | `list[str \| callable]` | `None` | Validators: expression strings or callables over the output dict |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 | `cascade` | `dict` | `None` | [Model cascade](../optimization/cascades.md): run a cheap proxy (chat or embedding model) on all items and escalate only uncertain ones, with a statistical guarantee. Also available on `resolve` and `equijoin`. |
 

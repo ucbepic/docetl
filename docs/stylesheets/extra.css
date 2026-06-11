@@ -95,7 +95,11 @@ a {
   color: var(--card-foreground);
 }
 
-/* Center mermaid diagrams */
+/* Center mermaid diagrams and keep them compact */
 .mermaid {
   text-align: center;
+}
+.mermaid svg {
+  max-width: 30rem;
+  height: auto;
 }

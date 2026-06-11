@@ -1473,9 +1473,19 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         if "validate" not in operation:
             return True
         for validation in operation["validate"]:
+            label = (
+                getattr(validation, "__name__", None) or repr(validation)
+                if callable(validation)
+                else validation
+            )
             try:
-                if not safe_eval(validation, output):
-                    console.log(f"[bold red]Validation failed:[/bold red] {validation}")
+                passed = (
+                    bool(validation(output))
+                    if callable(validation)
+                    else safe_eval(validation, output)
+                )
+                if not passed:
+                    console.log(f"[bold red]Validation failed:[/bold red] {label}")
                     console.log(f"[yellow]Output:[/yellow] {output}")
                     return False
             except Exception as e:

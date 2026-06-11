@@ -83,12 +83,11 @@ flowchart LR
         },
         model="gpt-4o-mini",
         validate=[
-            "len(output['main_topic'].split()) <= 3",
-            "len(output['key_entities']) <= 5",
-            "output['sentiment'] in ['positive', 'negative', 'neutral']",
-            "len(output['categories']) <= 3",
-            "1 <= output['credibility_score'] <= 10",
-        ],
+            lambda output: len(output["main_topic"].split()) <= 3,
+            lambda output: len(output["key_entities"]) <= 5,
+            lambda output: output["sentiment"] in ["positive", "negative", "neutral"],
+            lambda output: 1 <= output["credibility_score"] <= 10,
+        ],  # callables or expression strings; strings are required for to_yaml()
         num_retries_on_validate_failure=2,
     )
     df = frame.collect()

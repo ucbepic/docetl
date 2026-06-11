@@ -5,7 +5,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 import asyncio
 import base64
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, Callable
 
 import requests
 from jinja2 import Template
@@ -15,7 +15,12 @@ from tqdm import tqdm
 
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types, lookup_field
+from docetl.operations.utils import (
+    RichLoopBar,
+    lookup_field,
+    strict_render,
+    validate_output_types,
+)
 from docetl.operations.utils.api import OutputMode
 from docetl.progress.tracker import active_tracker
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
@@ -33,7 +38,7 @@ class MapOperation(BaseOperation):
         tools: list[dict[str, Any]] | None = (
             None  # FIXME: Why isn't this using the Tool data class so validation works automatically?
         )
-        validation_rules: list[str] | None = Field(None, alias="validate")
+        validation_rules: list[str | Callable] | None = Field(None, alias="validate")
         num_retries_on_validate_failure: int | None = None
         drop_keys: list[str] | None = None
         timeout: int | None = None
@@ -120,7 +125,6 @@ class MapOperation(BaseOperation):
                     raise ValueError("Missing 'schema' in 'output' configuration")
 
             return self
-
 
     def __init__(
         self,

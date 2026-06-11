@@ -510,3 +510,24 @@ def test_system_prompt_global_flows_into_config():
         assert frame._build_config()["system_prompt"]["persona"] == "a doctor"
     finally:
         _config.system_prompt = saved
+
+
+def test_callable_validators_run(tmp_path):
+    """validate= accepts Python callables alongside expression strings."""
+    from types import SimpleNamespace
+
+    from docetl.operations.utils.api import APIWrapper
+
+    calls = []
+
+    def long_enough(output):
+        calls.append(output)
+        return len(output["topic"]) >= 3
+
+    op = {"validate": [long_enough, "output['topic'] != 'banned'"]}
+    console = SimpleNamespace(log=lambda *a, **k: None)
+    validate = lambda out: APIWrapper.validate_output(None, op, out, console)
+    assert validate({"topic": "tech"}) is True
+    assert validate({"topic": "ab"}) is False
+    assert validate({"topic": "banned"}) is False
+    assert len(calls) == 3

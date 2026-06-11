@@ -44,11 +44,39 @@ Let's walk through an example of using the Gather operation to process a long me
 
 First, we extract important metadata from the full document:
 
-```yaml
-- name: extract_metadata
-  type: map
-  prompt: |
-    Extract the following metadata from the merger agreement:
+=== "YAML"
+
+    ```yaml
+    - name: extract_metadata
+      type: map
+      prompt: |
+        Extract the following metadata from the merger agreement:
+        1. Agreement Date
+        2. Parties involved
+        3. Total value of the merger (if specified)
+
+        Agreement text:
+        {{ input.agreement_text }}
+
+        Return the extracted information in a structured format.
+      output:
+        schema:
+          agreement_date: string
+          parties: list[string]
+          merger_value: string
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("agreements.json")
+    frame = frame.map(
+        name="extract_metadata",
+        prompt="""Extract the following metadata from the merger agreement:
     1. Agreement Date
     2. Parties involved
     3. Total value of the merger (if specified)
@@ -56,44 +84,75 @@ First, we extract important metadata from the full document:
     Agreement text:
     {{ input.agreement_text }}
 
-    Return the extracted information in a structured format.
-  output:
-    schema:
-      agreement_date: string
-      parties: list[string]
-      merger_value: string
-```
+    Return the extracted information in a structured format.""",
+        output={
+            "schema": {
+                "agreement_date": "string",
+                "parties": "list[string]",
+                "merger_value": "string",
+            }
+        },
+    )
+    ```
 
 ### Step 2: Split Operation
 
 Next, we split the document into manageable chunks:
 
-```yaml
-- name: split_merger_agreement
-  type: split
-  split_key: agreement_text
-  method: token_count
-  method_kwargs:
-    num_tokens: 1000
-```
+=== "YAML"
+
+    ```yaml
+    - name: split_merger_agreement
+      type: split
+      split_key: agreement_text
+      method: token_count
+      method_kwargs:
+        num_tokens: 1000
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.split(
+        name="split_merger_agreement",
+        split_key="agreement_text",
+        method="token_count",
+        method_kwargs={"num_tokens": 1000},
+    )
+    ```
 
 ### Step 3: Extract Headers (Map operation)
 
 We extract headers from each chunk:
 
-```yaml
-- name: extract_headers
-  type: map
-  input:
-    - agreement_text_chunk
-  prompt: |
-    Extract any section headers from the following merger agreement chunk:
+=== "YAML"
+
+    ```yaml
+    - name: extract_headers
+      type: map
+      input:
+        - agreement_text_chunk
+      prompt: |
+        Extract any section headers from the following merger agreement chunk:
+        {{ input.agreement_text_chunk }}
+        Return the headers as a list, preserving their hierarchy.
+      output:
+        schema:
+          headers: "list[{header: string, level: integer}]"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.map(
+        name="extract_headers",
+        input=["agreement_text_chunk"],
+        prompt="""Extract any section headers from the following merger agreement chunk:
     {{ input.agreement_text_chunk }}
-    Return the headers as a list, preserving their hierarchy.
-  output:
-    schema:
-      headers: "list[{header: string, level: integer}]"
-```
+    Return the headers as a list, preserving their hierarchy.""",
+        output={"schema": {"headers": "list[{header: string, level: integer}]"}},
+    )
+    ```
 
 ### Step 4: Gather Operation
 
@@ -150,16 +209,45 @@ Now, we apply the Gather operation:
 
 Finally, we analyze each chunk with its gathered context:
 
-```yaml
-- name: analyze_chunks
-  type: map
-  input:
-    - agreement_text_chunk_rendered
-    - agreement_date
-    - parties
-    - merger_value
-  prompt: |
-    Analyze the following chunk of a merger agreement, considering the provided metadata:
+=== "YAML"
+
+    ```yaml
+    - name: analyze_chunks
+      type: map
+      input:
+        - agreement_text_chunk_rendered
+        - agreement_date
+        - parties
+        - merger_value
+      prompt: |
+        Analyze the following chunk of a merger agreement, considering the provided metadata:
+
+        Agreement Date: {{ input.agreement_date }}
+        Parties: {{ input.parties | join(', ') }}
+        Merger Value: {{ input.merger_value }}
+
+        Chunk content:
+        {{ input.agreement_text_chunk_rendered }}
+
+        Provide a summary of key points and any potential legal implications in this chunk.
+      output:
+        schema:
+          summary: string
+          legal_implications: list[string]
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.map(
+        name="analyze_chunks",
+        input=[
+            "agreement_text_chunk_rendered",
+            "agreement_date",
+            "parties",
+            "merger_value",
+        ],
+        prompt="""Analyze the following chunk of a merger agreement, considering the provided metadata:
 
     Agreement Date: {{ input.agreement_date }}
     Parties: {{ input.parties | join(', ') }}
@@ -168,12 +256,16 @@ Finally, we analyze each chunk with its gathered context:
     Chunk content:
     {{ input.agreement_text_chunk_rendered }}
 
-    Provide a summary of key points and any potential legal implications in this chunk.
-  output:
-    schema:
-      summary: string
-      legal_implications: list[string]
-```
+    Provide a summary of key points and any potential legal implications in this chunk.""",
+        output={
+            "schema": {
+                "summary": "string",
+                "legal_implications": "list[string]",
+            }
+        },
+    )
+    df = frame.collect()
+    ```
 
 This configuration:
 
@@ -226,22 +318,40 @@ For each subsection, you can specify:
 
 #### Example Configuration
 
-```yaml
-peripheral_chunks:
-  previous:
-    head:
-      count: 1
-      content_key: full_content
-    middle:
-      content_key: summary_content
-    tail:
-      count: 2
-      content_key: full_content
-  next:
-    head:
-      count: 1
-      content_key: full_content
-```
+=== "YAML"
+
+    ```yaml
+    peripheral_chunks:
+      previous:
+        head:
+          count: 1
+          content_key: full_content
+        middle:
+          content_key: summary_content
+        tail:
+          count: 2
+          content_key: full_content
+      next:
+        head:
+          count: 1
+          content_key: full_content
+    ```
+
+=== "Python"
+
+    ```python
+    # Pass via the peripheral_chunks= kwarg on a gather call
+    peripheral_chunks={
+        "previous": {
+            "head": {"count": 1, "content_key": "full_content"},
+            "middle": {"content_key": "summary_content"},
+            "tail": {"count": 2, "content_key": "full_content"},
+        },
+        "next": {
+            "head": {"count": 1, "content_key": "full_content"},
+        },
+    }
+    ```
 
 This configuration would:
 

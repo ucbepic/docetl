@@ -13,19 +13,48 @@ of its children as inputs (or for the leaf nodes, the actual items).
 
 ## Example: Grouping concepts from a knowledge-graph
 
-```yaml
-- name: cluster_concepts
-  type: cluster
-  max_batch_size: 5
-  embedding_keys:
-    - concept
-    - description
-  output_key: categories # This is optional, and defaults to "clusters"
-  summary_schema:
-    concept: str
-    description: str
-  summary_prompt: |
-    The following describes two related concepts. What concept
+=== "YAML"
+
+    ```yaml
+    - name: cluster_concepts
+      type: cluster
+      max_batch_size: 5
+      embedding_keys:
+        - concept
+        - description
+      output_key: categories # This is optional, and defaults to "clusters"
+      summary_schema:
+        concept: str
+        description: str
+      summary_prompt: |
+        The following describes two related concepts. What concept
+        encompasses both? Try not to be too broad; it might be that one of
+        these two concepts already encompasses the other; in that case,
+        you should just use that concept.
+
+        {% for input in inputs %}
+        {{input.concept}}:
+        {{input.description}}
+        {% endfor %}
+
+        Provide the title of the super-concept, and a description.
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("concepts.json")
+    frame = frame.cluster(
+        name="cluster_concepts",
+        max_batch_size=5,
+        embedding_keys=["concept", "description"],
+        output_key="categories",  # This is optional, and defaults to "clusters"
+        summary_schema={"concept": "str", "description": "str"},
+        summary_prompt="""The following describes two related concepts. What concept
     encompasses both? Try not to be too broad; it might be that one of
     these two concepts already encompasses the other; in that case,
     you should just use that concept.
@@ -35,8 +64,10 @@ of its children as inputs (or for the leaf nodes, the actual items).
     {{input.description}}
     {% endfor %}
 
-    Provide the title of the super-concept, and a description.
-```
+    Provide the title of the super-concept, and a description.""",
+    )
+    df = frame.collect()
+    ```
 
 This cluster operation processes a set of concepts, each with a title
 and a description, and groups them into a tree of categories.

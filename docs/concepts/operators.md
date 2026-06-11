@@ -30,24 +30,50 @@ DocETL uses [LiteLLM](https://docs.litellm.ai) to execute all LLM calls, providi
 
 Example:
 
-```yaml
-- name: extract_insights
-  type: map
-  model: gpt-4o-mini
-  litellm_completion_kwargs:
-    max_tokens: 500          # limit response length
-    temperature: 0.7         # control randomness
-    top_p: 0.9              # nucleus sampling parameter
-  prompt: |
-    Analyze the following user interaction log:
+=== "YAML"
+
+    ```yaml
+    - name: extract_insights
+      type: map
+      model: gpt-4o-mini
+      litellm_completion_kwargs:
+        max_tokens: 500          # limit response length
+        temperature: 0.7         # control randomness
+        top_p: 0.9              # nucleus sampling parameter
+      prompt: |
+        Analyze the following user interaction log:
+        {{ input.log }}
+
+        Extract 2-3 main insights from this log, each being 1-2 words, to help inform future product development. Consider any difficulties or pain points the user may have had. Also provide 1-2 supporting actions for each insight.
+        Return the results as a list of dictionaries, each containing 'insight' and 'supporting_actions' keys.
+      output:
+        schema:
+          insights: "list[{insight: string, supporting_actions: list[string]}]"
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="extract_insights",
+        model="gpt-4o-mini",
+        litellm_completion_kwargs={
+            "max_tokens": 500,   # limit response length
+            "temperature": 0.7,  # control randomness
+            "top_p": 0.9,        # nucleus sampling parameter
+        },
+        prompt="""Analyze the following user interaction log:
     {{ input.log }}
 
     Extract 2-3 main insights from this log, each being 1-2 words, to help inform future product development. Consider any difficulties or pain points the user may have had. Also provide 1-2 supporting actions for each insight.
-    Return the results as a list of dictionaries, each containing 'insight' and 'supporting_actions' keys.
-  output:
-    schema:
-      insights: "list[{insight: string, supporting_actions: list[string]}]"
-```
+    Return the results as a list of dictionaries, each containing 'insight' and 'supporting_actions' keys.""",
+        output={
+            "schema": {
+                "insights": "list[{insight: string, supporting_actions: list[string]}]"
+            }
+        },
+    )
+    ```
 
 ## Input and Output
 
@@ -60,19 +86,36 @@ For map operations, you can only reference `input`, but in reduce operations, yo
 
 Example:
 
-```yaml
-prompt: |
-  Summarize the user behavior insights for the country: {{ inputs[0].country }}
+=== "YAML"
 
-  Insights and supporting actions:
-  {% for item in inputs %}
-  - Insight: {{ item.insight }}
-  Supporting actions:
-  {% for action in item.supporting_actions %}
-  - {{ action }}
-  {% endfor %}
-  {% endfor %}
-```
+    ```yaml
+    prompt: |
+      Summarize the user behavior insights for the country: {{ inputs[0].country }}
+
+      Insights and supporting actions:
+      {% for item in inputs %}
+      - Insight: {{ item.insight }}
+      Supporting actions:
+      {% for action in item.supporting_actions %}
+      - {{ action }}
+      {% endfor %}
+      {% endfor %}
+    ```
+
+=== "Python"
+
+    ```python
+    prompt="""Summarize the user behavior insights for the country: {{ inputs[0].country }}
+
+    Insights and supporting actions:
+    {% for item in inputs %}
+    - Insight: {{ item.insight }}
+    Supporting actions:
+    {% for action in item.supporting_actions %}
+    - {{ action }}
+    {% endfor %}
+    {% endfor %}"""
+    ```
 
 !!! question "What happens if the input is too long?"
 
@@ -100,30 +143,69 @@ The `output` attribute defines the structure of the LLM's response. It supports 
 
 Example:
 
-```yaml
-output:
-  schema:
-    insights: "list[{insight: string, supporting_actions: string}]"
-    detailed_summary: string
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        insights: "list[{insight: string, supporting_actions: string}]"
+        detailed_summary: string
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "insights": "list[{insight: string, supporting_actions: string}]",
+            "detailed_summary": "string",
+        }
+    }
+    ```
 
 !!! tip "Keep Output Types Simple"
 
     It's recommended to keep output types as simple as possible. Complex nested structures may be difficult for the LLM to consistently produce, potentially leading to parsing errors. The structured output feature works best with straightforward schemas. If you need complex data structures, consider breaking them down into multiple simpler operations.
 
     For example, instead of:
-    ```yaml
-    output:
-      schema:
-        insights: "list[{insight: string, supporting_actions: list[{action: string, priority: integer}]}]"
-    ```
+
+    === "YAML"
+
+        ```yaml
+        output:
+          schema:
+            insights: "list[{insight: string, supporting_actions: list[{action: string, priority: integer}]}]"
+        ```
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "insights": "list[{insight: string, supporting_actions: list[{action: string, priority: integer}]}]"
+            }
+        }
+        ```
 
     Consider:
-    ```yaml
-    output:
-      schema:
-        insights: "list[{insight: string, supporting_actions: string}]"
-    ```
+
+    === "YAML"
+
+        ```yaml
+        output:
+          schema:
+            insights: "list[{insight: string, supporting_actions: string}]"
+        ```
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "insights": "list[{insight: string, supporting_actions: string}]"
+            }
+        }
+        ```
 
     And then use a separate operation to further process the supporting actions if needed.
 
@@ -137,11 +219,22 @@ Validation is a first-class citizen in DocETL, ensuring the quality and correctn
 
 LLM-based operators can include a `validate` field, which accepts a list of Python statements:
 
-```yaml
-validate:
-  - len(output["insights"]) >= 2
-  - all(len(insight["supporting_actions"]) >= 1 for insight in output["insights"])
-```
+=== "YAML"
+
+    ```yaml
+    validate:
+      - len(output["insights"]) >= 2
+      - all(len(insight["supporting_actions"]) >= 1 for insight in output["insights"])
+    ```
+
+=== "Python"
+
+    ```python
+    validate=[
+        'len(output["insights"]) >= 2',
+        'all(len(insight["supporting_actions"]) >= 1 for insight in output["insights"])',
+    ]
+    ```
 
 Access variables using dictionary syntax: `output["field"]`. Note that you can't access `input` docs in validation, but the output docs should have all the fields from the input docs (for non-reduce operations), since fields pass through unchanged.
 
@@ -160,38 +253,73 @@ To enable gleaning, specify:
 
 Example:
 
-```yaml
-gleaning:
-  num_rounds: 1
-  validation_prompt: |
-    Evaluate the extraction for completeness and relevance:
+=== "YAML"
+
+    ```yaml
+    gleaning:
+      num_rounds: 1
+      validation_prompt: |
+        Evaluate the extraction for completeness and relevance:
+        1. Are all key user behaviors and pain points from the log addressed in the insights?
+        2. Are the supporting actions practical and relevant to the insights?
+        3. Is there any important information missing or any irrelevant information included?
+    ```
+
+=== "Python"
+
+    ```python
+    gleaning={
+        "num_rounds": 1,
+        "validation_prompt": """Evaluate the extraction for completeness and relevance:
     1. Are all key user behaviors and pain points from the log addressed in the insights?
     2. Are the supporting actions practical and relevant to the insights?
-    3. Is there any important information missing or any irrelevant information included?
-```
+    3. Is there any important information missing or any irrelevant information included?""",
+    }
+    ```
 
 This approach allows for _context-aware_ validation and refinement of LLM outputs. Note that it is expensive, since it at least doubles the number of LLM calls required for each operator.
 
 Example map operation (with a different model for the validation prompt):
 
-```yaml
-- name: extract_insights
-  type: map
-  model: gpt-4o
-  prompt: |
-    From the user log below, list 2-3 concise insights (1-2 words each) and 1-2 supporting actions per insight.
+=== "YAML"
+
+    ```yaml
+    - name: extract_insights
+      type: map
+      model: gpt-4o
+      prompt: |
+        From the user log below, list 2-3 concise insights (1-2 words each) and 1-2 supporting actions per insight.
+        Return as a list of dictionaries with 'insight' and 'supporting_actions'.
+        Log: {{ input.log }}
+      output:
+        schema:
+          insights_summary: "string"
+      gleaning:
+        if: "len(output['insights_summary']) < 10"  # Only refine if summary is too short
+        num_rounds: 2 # Will refine up to 2 times if needed
+        model: gpt-4o-mini
+        validation_prompt: |
+          There should be at least 2 insights, and each insight should have at least 1 supporting action.
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="extract_insights",
+        model="gpt-4o",
+        prompt="""From the user log below, list 2-3 concise insights (1-2 words each) and 1-2 supporting actions per insight.
     Return as a list of dictionaries with 'insight' and 'supporting_actions'.
-    Log: {{ input.log }}
-  output:
-    schema:
-      insights_summary: "string"
-  gleaning:
-    if: "len(output['insights_summary']) < 10"  # Only refine if summary is too short
-    num_rounds: 2 # Will refine up to 2 times if needed
-    model: gpt-4o-mini
-    validation_prompt: |
-      There should be at least 2 insights, and each insight should have at least 1 supporting action.
-```
+    Log: {{ input.log }}""",
+        output={"schema": {"insights_summary": "string"}},
+        gleaning={
+            "if": "len(output['insights_summary']) < 10",  # Only refine if summary is too short
+            "num_rounds": 2,  # Will refine up to 2 times if needed
+            "model": "gpt-4o-mini",
+            "validation_prompt": "There should be at least 2 insights, and each insight should have at least 1 supporting action.",
+        },
+    )
+    ```
 
 !!! tip "Choosing a Different Model for Validation"
 
@@ -200,11 +328,23 @@ Example map operation (with a different model for the validation prompt):
 !!! tip "Conditional Gleaning"
 
     You can also use the `if` field to conditionally skip gleaning. For example, if you only want to glean if the output is too short, you can use:
-    ```yaml
-    gleaning:
-      if: "len(output['insights_summary']) < 10"
-      num_rounds: 2
-    ```
+
+    === "YAML"
+
+        ```yaml
+        gleaning:
+          if: "len(output['insights_summary']) < 10"
+          num_rounds: 2
+        ```
+
+    === "Python"
+
+        ```python
+        gleaning={
+            "if": "len(output['insights_summary']) < 10",
+            "num_rounds": 2,
+        }
+        ```
 
     If the `if` field evaluates to `False`, DocETL skips gleaning entirely. Or, if the `if` field does not exist, DocETL will always glean.
 

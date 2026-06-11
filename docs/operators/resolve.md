@@ -97,26 +97,47 @@ The Resolve operation creates a **union** of pairs that pass either blocking met
 
 Here's an example of a Resolve operation with both blocking methods:
 
-```yaml
-- name: standardize_patient_names
-  type: resolve
-  comparison_prompt: |
-    # (Same as previous example)
-  resolution_prompt: |
-    # (Same as previous example)
-  output:
-    schema:
-      patient_name: string
-  blocking_keys:
-    - last_name
-    - date_of_birth
-  blocking_threshold: 0.8
-  blocking_conditions:
-    - "input1['last_name'][:2].lower() == input2['last_name'][:2].lower()"
-    - "input1['first_name'][:2].lower() == input2['first_name'][:2].lower()"
-    - "input1['date_of_birth'] == input2['date_of_birth']"
-    - "input1['ssn'][-4:] == input2['ssn'][-4:]"
-```
+=== "YAML"
+
+    ```yaml
+    - name: standardize_patient_names
+      type: resolve
+      comparison_prompt: |
+        # (Same as previous example)
+      resolution_prompt: |
+        # (Same as previous example)
+      output:
+        schema:
+          patient_name: string
+      blocking_keys:
+        - last_name
+        - date_of_birth
+      blocking_threshold: 0.8
+      blocking_conditions:
+        - "input1['last_name'][:2].lower() == input2['last_name'][:2].lower()"
+        - "input1['first_name'][:2].lower() == input2['first_name'][:2].lower()"
+        - "input1['date_of_birth'] == input2['date_of_birth']"
+        - "input1['ssn'][-4:] == input2['ssn'][-4:]"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.resolve(
+        name="standardize_patient_names",
+        comparison_prompt="...",  # (Same as previous example)
+        resolution_prompt="...",  # (Same as previous example)
+        output={"schema": {"patient_name": "string"}},
+        blocking_keys=["last_name", "date_of_birth"],
+        blocking_threshold=0.8,
+        blocking_conditions=[
+            "input1['last_name'][:2].lower() == input2['last_name'][:2].lower()",
+            "input1['first_name'][:2].lower() == input2['first_name'][:2].lower()",
+            "input1['date_of_birth'] == input2['date_of_birth']",
+            "input1['ssn'][-4:] == input2['ssn'][-4:]",
+        ],
+    )
+    ```
 
 In this example, pairs will be considered for comparison if they satisfy **any** of the following:
 
@@ -186,11 +207,23 @@ first and only escalate uncertain comparisons to the expensive oracle — with a
 statistical quality guarantee. This is especially effective when blocking produces
 many candidate pairs.
 
-```yaml
-cascade:
-  proxy_model: gpt-4o-mini
-  target: 0.9
-```
+=== "YAML"
+
+    ```yaml
+    cascade:
+      proxy_model: gpt-4o-mini
+      target: 0.9
+    ```
+
+=== "Python"
+
+    ```python
+    # Pass via the cascade= kwarg on a resolve call
+    frame = frame.resolve(
+        ...,
+        cascade={"proxy_model": "gpt-4o-mini", "target": 0.9},
+    )
+    ```
 
 | Parameter | Description | Default |
 |---|---|---|

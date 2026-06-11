@@ -22,127 +22,9 @@ We'll be using a subset of the [STEAM review dataset](https://www.kaggle.com/dat
 
 Let's examine the pipeline structure and its operations:
 
-```yaml
-pipeline:
-  steps:
-    - name: game_analysis
-      input: steam_reviews
-      operations:
-        - identify_polarizing_themes
-        - unnest_polarizing_themes
-        - resolve_themes
-        - aggregate_common_themes
-
-  output:
-    type: file
-    path: "output_polarizing_themes.json"
-    intermediate_dir: "intermediates"
-```
-
-??? example "Full Pipeline Configuration"
+=== "YAML"
 
     ```yaml
-    default_model: gpt-4o-mini
-
-    system_prompt:
-      dataset_description: a collection of reviews for video games
-      persona: a marketing analyst analyzing player opinions and themes
-
-    datasets:
-      steam_reviews:
-        type: file
-        path: "path/to/top_apps_steam_sample.json"
-
-    operations:
-      - name: identify_polarizing_themes
-        optimize: true
-        type: map
-        prompt: |
-          Analyze the following concatenated reviews for a video game and identify polarizing themes that divide player opinions. A polarizing theme is one that some players love while others strongly dislike.
-
-          Game: {{ input.app_name }}
-          Reviews: {{ input.concatenated_reviews }}
-
-          For each polarizing theme you identify:
-          1. Provide a summary of the theme
-          2. Explain why it's polarizing
-          3. Include supporting quotes from both positive and negative perspectives
-
-          Aim to identify ~10 polarizing themes, if present.
-
-        output:
-          schema:
-            polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
-
-      - name: unnest_polarizing_themes
-        type: unnest
-        unnest_key: polarizing_themes
-        recursive: true
-        depth: 2
-
-      - name: resolve_themes
-        type: resolve
-        optimize: true
-        comparison_prompt: |
-          Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
-
-          Theme 1: {{ input1.theme }}
-          Summary 1: {{ input1.summary }}
-
-          Theme 2: {{ input2.theme }}
-          Summary 2: {{ input2.summary }}
-        resolution_prompt: |
-          Given the following themes, please come up with a theme that best captures the essence of all the themes:
-
-          {% for input in inputs %}
-          Theme {{ loop.index }}: {{ input.theme }}
-          {% if not loop.last %}
-          ---
-          {% endif %}
-          {% endfor %}
-
-          Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
-        output:
-          schema:
-            theme: str
-
-      - name: aggregate_common_themes
-        type: reduce
-        optimize: true
-        reduce_key: theme
-        prompt: |
-          You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
-
-          For each input, you will receive:
-          - theme: A specific polarizing theme
-          - summary: A brief summary of the theme
-          - app_name: The name of the game
-          - positive_quotes: List of supporting quotes from positive perspectives
-          - negative_quotes: List of supporting quotes from negative perspectives
-
-          Create a report that includes:
-          1. The name of the common theme
-          2. A summary of the theme and why it's common across games
-          3. Representative quotes from different games, both positive and negative
-
-          Here's the information for the theme:
-          Theme: {{ inputs[0].theme }}
-          Summary: {{ inputs[0].summary }}
-
-          {% for app in inputs %}
-          Game: {{ app.app_name }}
-          Positive Quotes: {{ app.positive_quotes }}
-          Negative Quotes: {{ app.negative_quotes }}
-          {% if not loop.last %}
-          ----------------------------------------
-          {% endif %}
-          {% endfor %}
-
-        output:
-          schema:
-            theme_summary: str
-            representative_quotes: "list[{game: str, quote: str, sentiment: str}]"
-
     pipeline:
       steps:
         - name: game_analysis
@@ -155,9 +37,260 @@ pipeline:
 
       output:
         type: file
-        path: "path/to/output_polarizing_themes.json"
-        intermediate_dir: "path/to/intermediates"
+        path: "output_polarizing_themes.json"
+        intermediate_dir: "intermediates"
     ```
+
+=== "Python"
+
+    ```python
+    docetl.intermediate_dir = "intermediates"
+
+    pipeline = (
+        docetl.read_json("path/to/top_apps_steam_sample.json")
+        .map(...)      # identify_polarizing_themes, defined below
+        .unnest(...)   # unnest_polarizing_themes
+        .resolve(...)  # resolve_themes
+        .reduce(...)   # aggregate_common_themes
+    )
+    pipeline.write_json("output_polarizing_themes.json")
+    ```
+
+??? example "Full Pipeline Configuration"
+
+    === "YAML"
+
+        ```yaml
+        default_model: gpt-4o-mini
+
+        system_prompt:
+          dataset_description: a collection of reviews for video games
+          persona: a marketing analyst analyzing player opinions and themes
+
+        datasets:
+          steam_reviews:
+            type: file
+            path: "path/to/top_apps_steam_sample.json"
+
+        operations:
+          - name: identify_polarizing_themes
+            optimize: true
+            type: map
+            prompt: |
+              Analyze the following concatenated reviews for a video game and identify polarizing themes that divide player opinions. A polarizing theme is one that some players love while others strongly dislike.
+
+              Game: {{ input.app_name }}
+              Reviews: {{ input.concatenated_reviews }}
+
+              For each polarizing theme you identify:
+              1. Provide a summary of the theme
+              2. Explain why it's polarizing
+              3. Include supporting quotes from both positive and negative perspectives
+
+              Aim to identify ~10 polarizing themes, if present.
+
+            output:
+              schema:
+                polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+
+          - name: unnest_polarizing_themes
+            type: unnest
+            unnest_key: polarizing_themes
+            recursive: true
+            depth: 2
+
+          - name: resolve_themes
+            type: resolve
+            optimize: true
+            comparison_prompt: |
+              Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
+
+              Theme 1: {{ input1.theme }}
+              Summary 1: {{ input1.summary }}
+
+              Theme 2: {{ input2.theme }}
+              Summary 2: {{ input2.summary }}
+            resolution_prompt: |
+              Given the following themes, please come up with a theme that best captures the essence of all the themes:
+
+              {% for input in inputs %}
+              Theme {{ loop.index }}: {{ input.theme }}
+              {% if not loop.last %}
+              ---
+              {% endif %}
+              {% endfor %}
+
+              Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
+            output:
+              schema:
+                theme: str
+
+          - name: aggregate_common_themes
+            type: reduce
+            optimize: true
+            reduce_key: theme
+            prompt: |
+              You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
+
+              For each input, you will receive:
+              - theme: A specific polarizing theme
+              - summary: A brief summary of the theme
+              - app_name: The name of the game
+              - positive_quotes: List of supporting quotes from positive perspectives
+              - negative_quotes: List of supporting quotes from negative perspectives
+
+              Create a report that includes:
+              1. The name of the common theme
+              2. A summary of the theme and why it's common across games
+              3. Representative quotes from different games, both positive and negative
+
+              Here's the information for the theme:
+              Theme: {{ inputs[0].theme }}
+              Summary: {{ inputs[0].summary }}
+
+              {% for app in inputs %}
+              Game: {{ app.app_name }}
+              Positive Quotes: {{ app.positive_quotes }}
+              Negative Quotes: {{ app.negative_quotes }}
+              {% if not loop.last %}
+              ----------------------------------------
+              {% endif %}
+              {% endfor %}
+
+            output:
+              schema:
+                theme_summary: str
+                representative_quotes: "list[{game: str, quote: str, sentiment: str}]"
+
+        pipeline:
+          steps:
+            - name: game_analysis
+              input: steam_reviews
+              operations:
+                - identify_polarizing_themes
+                - unnest_polarizing_themes
+                - resolve_themes
+                - aggregate_common_themes
+
+          output:
+            type: file
+            path: "path/to/output_polarizing_themes.json"
+            intermediate_dir: "path/to/intermediates"
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gpt-4o-mini"
+        docetl.system_prompt = {
+            "dataset_description": "a collection of reviews for video games",
+            "persona": "a marketing analyst analyzing player opinions and themes",
+        }
+        docetl.intermediate_dir = "path/to/intermediates"
+
+        pipeline = docetl.read_json("path/to/top_apps_steam_sample.json")
+
+        pipeline = pipeline.map(
+            name="identify_polarizing_themes",
+            optimize=True,
+            prompt="""
+            Analyze the following concatenated reviews for a video game and identify polarizing themes that divide player opinions. A polarizing theme is one that some players love while others strongly dislike.
+
+            Game: {{ input.app_name }}
+            Reviews: {{ input.concatenated_reviews }}
+
+            For each polarizing theme you identify:
+            1. Provide a summary of the theme
+            2. Explain why it's polarizing
+            3. Include supporting quotes from both positive and negative perspectives
+
+            Aim to identify ~10 polarizing themes, if present.
+            """,
+            output={
+                "schema": {
+                    "polarizing_themes": "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+                }
+            },
+        )
+
+        pipeline = pipeline.unnest(
+            name="unnest_polarizing_themes",
+            unnest_key="polarizing_themes",
+            recursive=True,
+            depth=2,
+        )
+
+        pipeline = pipeline.resolve(
+            name="resolve_themes",
+            optimize=True,
+            comparison_prompt="""
+            Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
+
+            Theme 1: {{ input1.theme }}
+            Summary 1: {{ input1.summary }}
+
+            Theme 2: {{ input2.theme }}
+            Summary 2: {{ input2.summary }}
+            """,
+            resolution_prompt="""
+            Given the following themes, please come up with a theme that best captures the essence of all the themes:
+
+            {% for input in inputs %}
+            Theme {{ loop.index }}: {{ input.theme }}
+            {% if not loop.last %}
+            ---
+            {% endif %}
+            {% endfor %}
+
+            Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
+            """,
+            output={"schema": {"theme": "str"}},
+        )
+
+        pipeline = pipeline.reduce(
+            name="aggregate_common_themes",
+            optimize=True,
+            reduce_key="theme",
+            prompt="""
+            You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
+
+            For each input, you will receive:
+            - theme: A specific polarizing theme
+            - summary: A brief summary of the theme
+            - app_name: The name of the game
+            - positive_quotes: List of supporting quotes from positive perspectives
+            - negative_quotes: List of supporting quotes from negative perspectives
+
+            Create a report that includes:
+            1. The name of the common theme
+            2. A summary of the theme and why it's common across games
+            3. Representative quotes from different games, both positive and negative
+
+            Here's the information for the theme:
+            Theme: {{ inputs[0].theme }}
+            Summary: {{ inputs[0].summary }}
+
+            {% for app in inputs %}
+            Game: {{ app.app_name }}
+            Positive Quotes: {{ app.positive_quotes }}
+            Negative Quotes: {{ app.negative_quotes }}
+            {% if not loop.last %}
+            ----------------------------------------
+            {% endif %}
+            {% endfor %}
+            """,
+            output={
+                "schema": {
+                    "theme_summary": "str",
+                    "representative_quotes": "list[{game: str, quote: str, sentiment: str}]",
+                }
+            },
+        )
+
+        pipeline.write_json("path/to/output_polarizing_themes.json")
+        ```
 
 ## Pipeline Operations
 
@@ -165,114 +298,235 @@ pipeline:
 
 This map operation processes each game's reviews to identify polarizing themes:
 
-```yaml
-- name: identify_polarizing_themes
-  optimize: true
-  type: map
-  prompt: |
-    Analyze the following concatenated reviews for a video game and identify polarizing themes that divide player opinions. A polarizing theme is one that some players love while others strongly dislike.
+=== "YAML"
 
-    Game: {{ input.app_name }}
-    Reviews: {{ input.concatenated_reviews }}
+    ```yaml
+    - name: identify_polarizing_themes
+      optimize: true
+      type: map
+      prompt: |
+        Analyze the following concatenated reviews for a video game and identify polarizing themes that divide player opinions. A polarizing theme is one that some players love while others strongly dislike.
 
-    For each polarizing theme you identify:
-    1. Provide a summary of the theme
-    2. Explain why it's polarizing
-    3. Include supporting quotes from both positive and negative perspectives
+        Game: {{ input.app_name }}
+        Reviews: {{ input.concatenated_reviews }}
 
-    Aim to identify ~10 polarizing themes, if present.
+        For each polarizing theme you identify:
+        1. Provide a summary of the theme
+        2. Explain why it's polarizing
+        3. Include supporting quotes from both positive and negative perspectives
 
-  output:
-    schema:
-      polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
-```
+        Aim to identify ~10 polarizing themes, if present.
+
+      output:
+        schema:
+          polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="identify_polarizing_themes",
+        optimize=True,
+        prompt="""
+        Analyze the following concatenated reviews for a video game and identify polarizing themes that divide player opinions. A polarizing theme is one that some players love while others strongly dislike.
+
+        Game: {{ input.app_name }}
+        Reviews: {{ input.concatenated_reviews }}
+
+        For each polarizing theme you identify:
+        1. Provide a summary of the theme
+        2. Explain why it's polarizing
+        3. Include supporting quotes from both positive and negative perspectives
+
+        Aim to identify ~10 polarizing themes, if present.
+        """,
+        output={
+            "schema": {
+                "polarizing_themes": "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+            }
+        },
+    )
+    ```
 
 ### 2. Unnest Polarizing Themes
 
 This operation flattens the list of themes extracted from each game:
 
-```yaml
-- name: unnest_polarizing_themes
-  type: unnest
-  unnest_key: polarizing_themes
-  recursive: true
-  depth: 2
-```
+=== "YAML"
+
+    ```yaml
+    - name: unnest_polarizing_themes
+      type: unnest
+      unnest_key: polarizing_themes
+      recursive: true
+      depth: 2
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.unnest(
+        name="unnest_polarizing_themes",
+        unnest_key="polarizing_themes",
+        recursive=True,
+        depth=2,
+    )
+    ```
 
 ### 3. Resolve Themes
 
 This operation identifies and consolidates similar themes across different games:
 
-```yaml
-- name: resolve_themes
-  type: resolve
-  optimize: true
-  comparison_prompt: |
-    Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
+=== "YAML"
 
-    Theme 1: {{ input1.theme }}
-    Summary 1: {{ input1.summary }}
+    ```yaml
+    - name: resolve_themes
+      type: resolve
+      optimize: true
+      comparison_prompt: |
+        Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
 
-    Theme 2: {{ input2.theme }}
-    Summary 2: {{ input2.summary }}
-  resolution_prompt: |
-    Given the following themes, please come up with a theme that best captures the essence of all the themes:
+        Theme 1: {{ input1.theme }}
+        Summary 1: {{ input1.summary }}
 
-    {% for input in inputs %}
-    Theme {{ loop.index }}: {{ input.theme }}
-    {% if not loop.last %}
-    ---
-    {% endif %}
-    {% endfor %}
+        Theme 2: {{ input2.theme }}
+        Summary 2: {{ input2.summary }}
+      resolution_prompt: |
+        Given the following themes, please come up with a theme that best captures the essence of all the themes:
 
-    Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
-  output:
-    schema:
-      theme: str
-```
+        {% for input in inputs %}
+        Theme {{ loop.index }}: {{ input.theme }}
+        {% if not loop.last %}
+        ---
+        {% endif %}
+        {% endfor %}
+
+        Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
+      output:
+        schema:
+          theme: str
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.resolve(
+        name="resolve_themes",
+        optimize=True,
+        comparison_prompt="""
+        Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
+
+        Theme 1: {{ input1.theme }}
+        Summary 1: {{ input1.summary }}
+
+        Theme 2: {{ input2.theme }}
+        Summary 2: {{ input2.summary }}
+        """,
+        resolution_prompt="""
+        Given the following themes, please come up with a theme that best captures the essence of all the themes:
+
+        {% for input in inputs %}
+        Theme {{ loop.index }}: {{ input.theme }}
+        {% if not loop.last %}
+        ---
+        {% endif %}
+        {% endfor %}
+
+        Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
+        """,
+        output={"schema": {"theme": "str"}},
+    )
+    ```
 
 ### 4. Aggregate Common Themes
 
 This reduce operation generates a comprehensive report for each common theme:
 
-```yaml
-- name: aggregate_common_themes
-  type: reduce
-  optimize: true
-  reduce_key: theme
-  prompt: |
-    You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
+=== "YAML"
 
-    For each input, you will receive:
-    - theme: A specific polarizing theme
-    - summary: A brief summary of the theme
-    - app_name: The name of the game
-    - positive_quotes: List of supporting quotes from positive perspectives
-    - negative_quotes: List of supporting quotes from negative perspectives
+    ```yaml
+    - name: aggregate_common_themes
+      type: reduce
+      optimize: true
+      reduce_key: theme
+      prompt: |
+        You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
 
-    Create a report that includes:
-    1. The name of the common theme
-    2. A summary of the theme and why it's common across games
-    3. Representative quotes from different games, both positive and negative
+        For each input, you will receive:
+        - theme: A specific polarizing theme
+        - summary: A brief summary of the theme
+        - app_name: The name of the game
+        - positive_quotes: List of supporting quotes from positive perspectives
+        - negative_quotes: List of supporting quotes from negative perspectives
 
-    Here's the information for the theme:
-    Theme: {{ inputs[0].theme }}
-    Summary: {{ inputs[0].summary }}
+        Create a report that includes:
+        1. The name of the common theme
+        2. A summary of the theme and why it's common across games
+        3. Representative quotes from different games, both positive and negative
 
-    {% for app in inputs %}
-    Game: {{ app.app_name }}
-    Positive Quotes: {{ app.positive_quotes }}
-    Negative Quotes: {{ app.negative_quotes }}
-    {% if not loop.last %}
-    ----------------------------------------
-    {% endif %}
-    {% endfor %}
+        Here's the information for the theme:
+        Theme: {{ inputs[0].theme }}
+        Summary: {{ inputs[0].summary }}
 
-  output:
-    schema:
-      theme_summary: str
-      representative_quotes: "list[{game: str, quote: str, sentiment: str}]"
-```
+        {% for app in inputs %}
+        Game: {{ app.app_name }}
+        Positive Quotes: {{ app.positive_quotes }}
+        Negative Quotes: {{ app.negative_quotes }}
+        {% if not loop.last %}
+        ----------------------------------------
+        {% endif %}
+        {% endfor %}
+
+      output:
+        schema:
+          theme_summary: str
+          representative_quotes: "list[{game: str, quote: str, sentiment: str}]"
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.reduce(
+        name="aggregate_common_themes",
+        optimize=True,
+        reduce_key="theme",
+        prompt="""
+        You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
+
+        For each input, you will receive:
+        - theme: A specific polarizing theme
+        - summary: A brief summary of the theme
+        - app_name: The name of the game
+        - positive_quotes: List of supporting quotes from positive perspectives
+        - negative_quotes: List of supporting quotes from negative perspectives
+
+        Create a report that includes:
+        1. The name of the common theme
+        2. A summary of the theme and why it's common across games
+        3. Representative quotes from different games, both positive and negative
+
+        Here's the information for the theme:
+        Theme: {{ inputs[0].theme }}
+        Summary: {{ inputs[0].summary }}
+
+        {% for app in inputs %}
+        Game: {{ app.app_name }}
+        Positive Quotes: {{ app.positive_quotes }}
+        Negative Quotes: {{ app.negative_quotes }}
+        {% if not loop.last %}
+        ----------------------------------------
+        {% endif %}
+        {% endfor %}
+        """,
+        output={
+            "schema": {
+                "theme_summary": "str",
+                "representative_quotes": "list[{game: str, quote: str, sentiment: str}]",
+            }
+        },
+    )
+    ```
 
 ## Optimizing the Pipeline
 
@@ -292,166 +546,318 @@ These optimizations are crucial for handling the scale of our dataset, which inc
 
 ??? info "Optimized Pipeline"
 
-    ```yaml
-    default_model: gpt-4o-mini
+    === "YAML"
 
-    datasets:
-      steam_reviews:
-        type: file
-        path: "/path/to/steam_reviews_dataset.json"
+        ```yaml
+        default_model: gpt-4o-mini
 
-    operations:
-      - name: split_identify_polarizing_themes
-        type: split
-        split_key: concatenated_reviews
-        method: token_count
-        method_kwargs:
-          num_tokens: 87776
-        optimize: false
+        datasets:
+          steam_reviews:
+            type: file
+            path: "/path/to/steam_reviews_dataset.json"
 
-      - name: gather_concatenated_reviews_identify_polarizing_themes
-        type: gather
-        content_key: concatenated_reviews_chunk
-        doc_id_key: split_identify_polarizing_themes_id
-        order_key: split_identify_polarizing_themes_chunk_num
-        peripheral_chunks:
-          previous:
-            tail:
-              count: 0.1
-        optimize: false
+        operations:
+          - name: split_identify_polarizing_themes
+            type: split
+            split_key: concatenated_reviews
+            method: token_count
+            method_kwargs:
+              num_tokens: 87776
+            optimize: false
 
-      - name: submap_identify_polarizing_themes
-        type: map
-        prompt: |
-          Analyze the following review snippet from a video game {{ input.app_name }} and identify any polarizing themes within it. A polarizing theme is one that diverges opinions among players, where some express strong approval while others express strong disapproval.
+          - name: gather_concatenated_reviews_identify_polarizing_themes
+            type: gather
+            content_key: concatenated_reviews_chunk
+            doc_id_key: split_identify_polarizing_themes_id
+            order_key: split_identify_polarizing_themes_chunk_num
+            peripheral_chunks:
+              previous:
+                tail:
+                  count: 0.1
+            optimize: false
 
-          Review Snippet: {{ input.concatenated_reviews_chunk_rendered }}
+          - name: submap_identify_polarizing_themes
+            type: map
+            prompt: |
+              Analyze the following review snippet from a video game {{ input.app_name }} and identify any polarizing themes within it. A polarizing theme is one that diverges opinions among players, where some express strong approval while others express strong disapproval.
 
-          For each polarizing theme you identify:
-          1. Provide a brief summary of the theme
-          2. Explain why it's polarizing
-          3. Include supporting quotes from both positive and negative perspectives.
+              Review Snippet: {{ input.concatenated_reviews_chunk_rendered }}
 
-          Aim to identify and analyze 3-5 polarizing themes within this snippet. Only process the main chunk.
-        model: gpt-4o-mini
-        output:
-          schema:
-            polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
-        optimize: false
+              For each polarizing theme you identify:
+              1. Provide a brief summary of the theme
+              2. Explain why it's polarizing
+              3. Include supporting quotes from both positive and negative perspectives.
 
-      - name: subreduce_identify_polarizing_themes
-        type: reduce
-        reduce_key: ["split_identify_polarizing_themes_id"]
-        prompt: |
-          Combine the following results and create a cohesive summary of ~10 polarizing themes for the video game {{ inputs[0].app_name }}:
+              Aim to identify and analyze 3-5 polarizing themes within this snippet. Only process the main chunk.
+            model: gpt-4o-mini
+            output:
+              schema:
+                polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+            optimize: false
 
-          {% for chunk in inputs %}
-              {% for theme in chunk.polarizing_themes %}
-                  {{ theme }}
-                  ----------------------------------------
+          - name: subreduce_identify_polarizing_themes
+            type: reduce
+            reduce_key: ["split_identify_polarizing_themes_id"]
+            prompt: |
+              Combine the following results and create a cohesive summary of ~10 polarizing themes for the video game {{ inputs[0].app_name }}:
+
+              {% for chunk in inputs %}
+                  {% for theme in chunk.polarizing_themes %}
+                      {{ theme }}
+                      ----------------------------------------
+                  {% endfor %}
               {% endfor %}
-          {% endfor %}
 
-          Make sure each theme is unique and not a duplicate of another theme. You should include summaries and supporting quotes (both positive and negative) for each theme.
-        model: gpt-4o-mini
-        output:
-          schema:
-            polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
-        pass_through: true
-        associative: true
-        optimize: false
-        synthesize_resolve: false
+              Make sure each theme is unique and not a duplicate of another theme. You should include summaries and supporting quotes (both positive and negative) for each theme.
+            model: gpt-4o-mini
+            output:
+              schema:
+                polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+            pass_through: true
+            associative: true
+            optimize: false
+            synthesize_resolve: false
 
-      - name: unnest_polarizing_themes
-        type: unnest
-        unnest_key: polarizing_themes
-        recursive: true
-        depth: 2
+          - name: unnest_polarizing_themes
+            type: unnest
+            unnest_key: polarizing_themes
+            recursive: true
+            depth: 2
 
-      - name: resolve_themes
-        type: resolve
-        blocking_keys:
-          - summary
-          - theme
-        blocking_threshold: 0.596
-        optimize: true
-        comparison_prompt: |
-          Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
+          - name: resolve_themes
+            type: resolve
+            blocking_keys:
+              - summary
+              - theme
+            blocking_threshold: 0.596
+            optimize: true
+            comparison_prompt: |
+              Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
 
-          Theme 1: {{ input1.theme }}
-          Summary 1: {{ input1.summary }}
+              Theme 1: {{ input1.theme }}
+              Summary 1: {{ input1.summary }}
 
-          Theme 2: {{ input2.theme }}
-          Summary 2: {{ input2.summary }}
-        resolution_prompt: |
-          Given the following themes, please come up with a theme that best captures the essence of all the themes:
+              Theme 2: {{ input2.theme }}
+              Summary 2: {{ input2.summary }}
+            resolution_prompt: |
+              Given the following themes, please come up with a theme that best captures the essence of all the themes:
 
-          {% for input in inputs %}
-          Theme {{ loop.index }}: {{ input.theme }}
-          {% if not loop.last %}
-          ---
-          {% endif %}
-          {% endfor %}
+              {% for input in inputs %}
+              Theme {{ loop.index }}: {{ input.theme }}
+              {% if not loop.last %}
+              ---
+              {% endif %}
+              {% endfor %}
 
-          Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
-        output:
-          schema:
-            theme: str
+              Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
+            output:
+              schema:
+                theme: str
 
-      - name: aggregate_common_themes
-        type: reduce
-        reduce_key: theme
-        prompt: |
-          You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
+          - name: aggregate_common_themes
+            type: reduce
+            reduce_key: theme
+            prompt: |
+              You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
 
-          For each input, you will receive:
-          - theme: A specific polarizing theme
-          - summary: A brief summary of the theme
-          - app_name: The name of the game
-          - positive_quotes: List of supporting quotes from positive perspectives
-          - negative_quotes: List of supporting quotes from negative perspectives
+              For each input, you will receive:
+              - theme: A specific polarizing theme
+              - summary: A brief summary of the theme
+              - app_name: The name of the game
+              - positive_quotes: List of supporting quotes from positive perspectives
+              - negative_quotes: List of supporting quotes from negative perspectives
 
-          Create a report that includes:
-          1. The name of the common theme
-          2. A summary of the theme and why it's common across games
-          3. Representative quotes from different games, both positive and negative
+              Create a report that includes:
+              1. The name of the common theme
+              2. A summary of the theme and why it's common across games
+              3. Representative quotes from different games, both positive and negative
 
-          Here's the information for the theme:
-          Theme: {{ inputs[0].theme }}
-          Summary: {{ inputs[0].summary }}
+              Here's the information for the theme:
+              Theme: {{ inputs[0].theme }}
+              Summary: {{ inputs[0].summary }}
 
-          {% for app in inputs %}
-          Game: {{ app.app_name }}
-          Positive Quotes: {{ app.positive_quotes }}
-          Negative Quotes: {{ app.negative_quotes }}
-          {% if not loop.last %}
-          ----------------------------------------
-          {% endif %}
-          {% endfor %}
+              {% for app in inputs %}
+              Game: {{ app.app_name }}
+              Positive Quotes: {{ app.positive_quotes }}
+              Negative Quotes: {{ app.negative_quotes }}
+              {% if not loop.last %}
+              ----------------------------------------
+              {% endif %}
+              {% endfor %}
 
-        output:
-          schema:
-            theme_summary: str
-            representative_quotes: "list[{game: str, quote: str, sentiment: str}]"
+            output:
+              schema:
+                theme_summary: str
+                representative_quotes: "list[{game: str, quote: str, sentiment: str}]"
 
-    pipeline:
-      steps:
-        - name: game_analysis
-          input: steam_reviews
-          operations:
-            - split_identify_polarizing_themes
-            - gather_concatenated_reviews_identify_polarizing_themes
-            - submap_identify_polarizing_themes
-            - subreduce_identify_polarizing_themes
-            - unnest_polarizing_themes
-            - resolve_themes
-            - aggregate_common_themes
+        pipeline:
+          steps:
+            - name: game_analysis
+              input: steam_reviews
+              operations:
+                - split_identify_polarizing_themes
+                - gather_concatenated_reviews_identify_polarizing_themes
+                - submap_identify_polarizing_themes
+                - subreduce_identify_polarizing_themes
+                - unnest_polarizing_themes
+                - resolve_themes
+                - aggregate_common_themes
 
-      output:
-        type: file
-        path: "/path/to/output/output_polarizing_themes.json"
-        intermediate_dir: "/path/to/intermediates"
-    ```
+          output:
+            type: file
+            path: "/path/to/output/output_polarizing_themes.json"
+            intermediate_dir: "/path/to/intermediates"
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gpt-4o-mini"
+        docetl.intermediate_dir = "/path/to/intermediates"
+
+        pipeline = docetl.read_json("/path/to/steam_reviews_dataset.json")
+
+        pipeline = pipeline.split(
+            name="split_identify_polarizing_themes",
+            split_key="concatenated_reviews",
+            method="token_count",
+            method_kwargs={"num_tokens": 87776},
+        )
+
+        pipeline = pipeline.gather(
+            name="gather_concatenated_reviews_identify_polarizing_themes",
+            content_key="concatenated_reviews_chunk",
+            doc_id_key="split_identify_polarizing_themes_id",
+            order_key="split_identify_polarizing_themes_chunk_num",
+            peripheral_chunks={"previous": {"tail": {"count": 0.1}}},
+        )
+
+        pipeline = pipeline.map(
+            name="submap_identify_polarizing_themes",
+            prompt="""
+            Analyze the following review snippet from a video game {{ input.app_name }} and identify any polarizing themes within it. A polarizing theme is one that diverges opinions among players, where some express strong approval while others express strong disapproval.
+
+            Review Snippet: {{ input.concatenated_reviews_chunk_rendered }}
+
+            For each polarizing theme you identify:
+            1. Provide a brief summary of the theme
+            2. Explain why it's polarizing
+            3. Include supporting quotes from both positive and negative perspectives.
+
+            Aim to identify and analyze 3-5 polarizing themes within this snippet. Only process the main chunk.
+            """,
+            model="gpt-4o-mini",
+            output={
+                "schema": {
+                    "polarizing_themes": "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+                }
+            },
+        )
+
+        pipeline = pipeline.reduce(
+            name="subreduce_identify_polarizing_themes",
+            reduce_key=["split_identify_polarizing_themes_id"],
+            prompt="""
+            Combine the following results and create a cohesive summary of ~10 polarizing themes for the video game {{ inputs[0].app_name }}:
+
+            {% for chunk in inputs %}
+                {% for theme in chunk.polarizing_themes %}
+                    {{ theme }}
+                    ----------------------------------------
+                {% endfor %}
+            {% endfor %}
+
+            Make sure each theme is unique and not a duplicate of another theme. You should include summaries and supporting quotes (both positive and negative) for each theme.
+            """,
+            model="gpt-4o-mini",
+            output={
+                "schema": {
+                    "polarizing_themes": "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+                }
+            },
+            pass_through=True,
+            associative=True,
+            synthesize_resolve=False,
+        )
+
+        pipeline = pipeline.unnest(
+            name="unnest_polarizing_themes",
+            unnest_key="polarizing_themes",
+            recursive=True,
+            depth=2,
+        )
+
+        pipeline = pipeline.resolve(
+            name="resolve_themes",
+            blocking_keys=["summary", "theme"],
+            blocking_threshold=0.596,
+            comparison_prompt="""
+            Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
+
+            Theme 1: {{ input1.theme }}
+            Summary 1: {{ input1.summary }}
+
+            Theme 2: {{ input2.theme }}
+            Summary 2: {{ input2.summary }}
+            """,
+            resolution_prompt="""
+            Given the following themes, please come up with a theme that best captures the essence of all the themes:
+
+            {% for input in inputs %}
+            Theme {{ loop.index }}: {{ input.theme }}
+            {% if not loop.last %}
+            ---
+            {% endif %}
+            {% endfor %}
+
+            Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
+            """,
+            output={"schema": {"theme": "str"}},
+        )
+
+        pipeline = pipeline.reduce(
+            name="aggregate_common_themes",
+            reduce_key="theme",
+            prompt="""
+            You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
+
+            For each input, you will receive:
+            - theme: A specific polarizing theme
+            - summary: A brief summary of the theme
+            - app_name: The name of the game
+            - positive_quotes: List of supporting quotes from positive perspectives
+            - negative_quotes: List of supporting quotes from negative perspectives
+
+            Create a report that includes:
+            1. The name of the common theme
+            2. A summary of the theme and why it's common across games
+            3. Representative quotes from different games, both positive and negative
+
+            Here's the information for the theme:
+            Theme: {{ inputs[0].theme }}
+            Summary: {{ inputs[0].summary }}
+
+            {% for app in inputs %}
+            Game: {{ app.app_name }}
+            Positive Quotes: {{ app.positive_quotes }}
+            Negative Quotes: {{ app.negative_quotes }}
+            {% if not loop.last %}
+            ----------------------------------------
+            {% endif %}
+            {% endfor %}
+            """,
+            output={
+                "schema": {
+                    "theme_summary": "str",
+                    "representative_quotes": "list[{game: str, quote: str, sentiment: str}]",
+                }
+            },
+        )
+
+        pipeline.write_json("/path/to/output/output_polarizing_themes.json")
+        ```
 
 ## Running the Pipeline
 

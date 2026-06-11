@@ -24,21 +24,84 @@ Let's create a pipeline that classifies medical documents into categories such a
 
 !!! example "Initial Pipeline Configuration"
 
+    === "YAML"
+
+        ```yaml
+        datasets:
+          medical_records:
+            type: file
+            path: "medical_records.json"
+
+        default_model: ollama/llama3
+
+        system_prompt:
+          dataset_description: a collection of medical records
+          persona: a medical practitioner analyzing patient symptoms and reactions to medications
+
+        operations:
+          - name: classify_medical_record
+            type: map
+            output:
+              schema:
+                categories: "list[str]"
+            prompt: |
+              Classify the following medical record into one or more of these categories: Cardiology, Neurology, Oncology, Pediatrics, Orthopedics.
+
+              Medical Record:
+              {{ input.text }}
+
+              Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].
+
+        pipeline:
+          steps:
+            - name: medical_classification
+              input: medical_records
+              operations:
+                - classify_medical_record
+
+        output:
+          type: file
+          path: "classified_records.json"
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "ollama/llama3"
+        docetl.system_prompt = {
+            "dataset_description": "a collection of medical records",
+            "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
+        }
+
+        pipeline = docetl.read_json("medical_records.json")
+        pipeline = pipeline.map(
+            "classify_medical_record",
+            prompt="""Classify the following medical record into one or more of these categories: Cardiology, Neurology, Oncology, Pediatrics, Orthopedics.
+
+        Medical Record:
+        {{ input.text }}
+
+        Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].""",
+            output={"schema": {"categories": "list[str]"}},
+        )
+        pipeline.write_json("classified_records.json")
+        ```
+
+## Running the Pipeline with a Sample
+
+To test our pipeline and estimate the required timeout, we'll first run it on a sample of documents.
+
+Modify the `classify_medical_record` operation in your configuration to include a `sample` parameter:
+
+=== "YAML"
+
     ```yaml
-    datasets:
-      medical_records:
-        type: file
-        path: "medical_records.json"
-
-    default_model: ollama/llama3
-
-    system_prompt:
-      dataset_description: a collection of medical records
-      persona: a medical practitioner analyzing patient symptoms and reactions to medications
-
     operations:
       - name: classify_medical_record
         type: map
+        sample: 5
         output:
           schema:
             categories: "list[str]"
@@ -49,41 +112,23 @@ Let's create a pipeline that classifies medical documents into categories such a
           {{ input.text }}
 
           Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].
-
-    pipeline:
-      steps:
-        - name: medical_classification
-          input: medical_records
-          operations:
-            - classify_medical_record
-
-    output:
-      type: file
-      path: "classified_records.json"
     ```
 
-## Running the Pipeline with a Sample
+=== "Python"
 
-To test our pipeline and estimate the required timeout, we'll first run it on a sample of documents.
+    ```python
+    pipeline = pipeline.map(
+        "classify_medical_record",
+        sample=5,
+        prompt="""Classify the following medical record into one or more of these categories: Cardiology, Neurology, Oncology, Pediatrics, Orthopedics.
 
-Modify the `classify_medical_record` operation in your configuration to include a `sample` parameter:
+    Medical Record:
+    {{ input.text }}
 
-```yaml
-operations:
-  - name: classify_medical_record
-    type: map
-    sample: 5
-    output:
-      schema:
-        categories: "list[str]"
-    prompt: |
-      Classify the following medical record into one or more of these categories: Cardiology, Neurology, Oncology, Pediatrics, Orthopedics.
-
-      Medical Record:
-      {{ input.text }}
-
-      Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].
-```
+    Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].""",
+        output={"schema": {"categories": "list[str]"}},
+    )
+    ```
 
 Now, run the pipeline with this sample configuration:
 
@@ -103,20 +148,36 @@ After running the sample, note the time it took to process 5 documents.
 
 Now, adjust your pipeline configuration to include this timeout and remove the sample parameter:
 
-```yaml
-operations:
-  - name: classify_medical_record
-    type: map
-    timeout: 20000
-    output:
-      schema:
-        categories: "list[str]"
-    prompt: |
-      Classify the following medical record into one or more of these categories: Cardiology, Neurology, Oncology, Pediatrics, Orthopedics.
-      Medical Record:
-      {{ input.text }}
-      Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].
-```
+=== "YAML"
+
+    ```yaml
+    operations:
+      - name: classify_medical_record
+        type: map
+        timeout: 20000
+        output:
+          schema:
+            categories: "list[str]"
+        prompt: |
+          Classify the following medical record into one or more of these categories: Cardiology, Neurology, Oncology, Pediatrics, Orthopedics.
+          Medical Record:
+          {{ input.text }}
+          Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        "classify_medical_record",
+        timeout=20000,
+        prompt="""Classify the following medical record into one or more of these categories: Cardiology, Neurology, Oncology, Pediatrics, Orthopedics.
+    Medical Record:
+    {{ input.text }}
+    Return your answer as a JSON list of strings, e.g., ["Cardiology", "Neurology"].""",
+        output={"schema": {"categories": "list[str]"}},
+    )
+    ```
 
 !!! note "Caching"
 

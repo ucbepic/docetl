@@ -19,80 +19,142 @@ Our pipeline will:
 
 Let's examine the pipeline structure:
 
-```yaml
-pipeline:
-  steps:
-    - name: analyze_crashes
-      input: crashes
-      operations:
-        - extract_crash_cause # this is a map operation
-        - synthesize_findings # this is a reduce operation
-```
-
-!!! example "Full Pipeline Configuration"
+=== "YAML"
 
     ```yaml
-    datasets:
-      crashes:
-        type: file
-        path: "fatal.json"
-
-    default_model: gemini/gemini-2.0-flash
-
-    operations:
-      - name: extract_crash_cause
-        type: map
-        pdf_url_key: ReportUrl
-        skip_on_error: true # Skip llm calls where the PDF is malformed or not found
-        output:
-          schema:
-            cause: str
-            contributing_factors: "list[str]"
-            recommendations: str
-        prompt: |
-          Analyze this NTSB airplane crash report and extract:
-          1. The primary cause of the crash (2-3 sentences)
-          2. Any contributing factors (list)
-          3. Key safety recommendations made
-
-      - name: synthesize_findings
-        type: reduce
-        reduce_key: _all
-        output:
-          schema:
-            summary: str
-        prompt: |
-          Analyze the following airplane crash reports:
-
-          {% for item in inputs %}
-          Report {{loop.index}}:
-          Cause: {{ item.cause }}
-          Contributing Factors: {{ item.contributing_factors | join(", ") }}
-          Recommendations: {{ item.recommendations }}
-
-          {% endfor %}
-
-          Generate a comprehensive analysis that:
-          1. Identifies common causes across incidents
-          2. Lists recurring contributing factors
-          3. Synthesizes key safety recommendations
-          4. Highlights any notable patterns
-
-          Format your response as a structured report.
-
     pipeline:
       steps:
         - name: analyze_crashes
           input: crashes
           operations:
-            - extract_crash_cause
-            - synthesize_findings
-
-      output:
-        type: file
-        path: "crash_analysis.json"
-        intermediate_dir: "checkpoints"
+            - extract_crash_cause # this is a map operation
+            - synthesize_findings # this is a reduce operation
     ```
+
+=== "Python"
+
+    ```python
+    pipeline = docetl.read_json("fatal.json")
+    pipeline = pipeline.map("extract_crash_cause", ...)      # this is a map operation
+    pipeline = pipeline.reduce("synthesize_findings", ...)   # this is a reduce operation
+    ```
+
+!!! example "Full Pipeline Configuration"
+
+    === "YAML"
+
+        ```yaml
+        datasets:
+          crashes:
+            type: file
+            path: "fatal.json"
+
+        default_model: gemini/gemini-2.0-flash
+
+        operations:
+          - name: extract_crash_cause
+            type: map
+            pdf_url_key: ReportUrl
+            skip_on_error: true # Skip llm calls where the PDF is malformed or not found
+            output:
+              schema:
+                cause: str
+                contributing_factors: "list[str]"
+                recommendations: str
+            prompt: |
+              Analyze this NTSB airplane crash report and extract:
+              1. The primary cause of the crash (2-3 sentences)
+              2. Any contributing factors (list)
+              3. Key safety recommendations made
+
+          - name: synthesize_findings
+            type: reduce
+            reduce_key: _all
+            output:
+              schema:
+                summary: str
+            prompt: |
+              Analyze the following airplane crash reports:
+
+              {% for item in inputs %}
+              Report {{loop.index}}:
+              Cause: {{ item.cause }}
+              Contributing Factors: {{ item.contributing_factors | join(", ") }}
+              Recommendations: {{ item.recommendations }}
+
+              {% endfor %}
+
+              Generate a comprehensive analysis that:
+              1. Identifies common causes across incidents
+              2. Lists recurring contributing factors
+              3. Synthesizes key safety recommendations
+              4. Highlights any notable patterns
+
+              Format your response as a structured report.
+
+        pipeline:
+          steps:
+            - name: analyze_crashes
+              input: crashes
+              operations:
+                - extract_crash_cause
+                - synthesize_findings
+
+          output:
+            type: file
+            path: "crash_analysis.json"
+            intermediate_dir: "checkpoints"
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gemini/gemini-2.0-flash"
+        docetl.intermediate_dir = "checkpoints"
+
+        pipeline = docetl.read_json("fatal.json")
+        pipeline = pipeline.map(
+            "extract_crash_cause",
+            pdf_url_key="ReportUrl",
+            skip_on_error=True,  # Skip llm calls where the PDF is malformed or not found
+            prompt="""Analyze this NTSB airplane crash report and extract:
+        1. The primary cause of the crash (2-3 sentences)
+        2. Any contributing factors (list)
+        3. Key safety recommendations made""",
+            output={
+                "schema": {
+                    "cause": "str",
+                    "contributing_factors": "list[str]",
+                    "recommendations": "str",
+                }
+            },
+        )
+        pipeline = pipeline.reduce(
+            "synthesize_findings",
+            reduce_key="_all",
+            prompt="""Analyze the following airplane crash reports:
+
+        {% for item in inputs %}
+        Report {{loop.index}}:
+        Cause: {{ item.cause }}
+        Contributing Factors: {{ item.contributing_factors | join(", ") }}
+        Recommendations: {{ item.recommendations }}
+
+        {% endfor %}
+
+        Generate a comprehensive analysis that:
+        1. Identifies common causes across incidents
+        2. Lists recurring contributing factors
+        3. Synthesizes key safety recommendations
+        4. Highlights any notable patterns
+
+        Format your response as a structured report.""",
+            output={"schema": {"summary": "str"}},
+        )
+        pipeline.write_json("crash_analysis.json")
+        ```
 
 ## Sample Output
 

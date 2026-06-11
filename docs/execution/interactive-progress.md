@@ -20,22 +20,39 @@ pip install "docetl[tui]"
 Then add `interactive_ui: true` at the top level of your config (next to
 `default_model`):
 
-```yaml
-default_model: gpt-4.1-nano
-interactive_ui: true
+=== "YAML"
 
-pipeline:
-  steps:
-    - name: themes
-      input: reviews
-      operations:
-        - extract_theme
-        - canonicalize_themes
-        - summarize_themes
-  output:
-    type: file
-    path: output.json
-```
+    ```yaml
+    default_model: gpt-4.1-nano
+    interactive_ui: true
+
+    pipeline:
+      steps:
+        - name: themes
+          input: reviews
+          operations:
+            - extract_theme
+            - canonicalize_themes
+            - summarize_themes
+      output:
+        type: file
+        path: output.json
+    ```
+
+=== "Python"
+
+    ```python
+    # The interactive dashboard is a CLI feature: it starts when `docetl run`
+    # finds `interactive_ui: true` in the YAML config. Pipelines executed
+    # through the Python Frame API (.collect(), .show(), .write_json()) use
+    # the standard log output instead.
+    #
+    # To use the dashboard for a pipeline built in Python, export it to YAML,
+    # add `interactive_ui: true` at the top level, and run it with the CLI:
+
+    pipeline.to_yaml("pipeline.yaml")
+    # then: docetl run pipeline.yaml
+    ```
 
 And run the pipeline the usual way:
 

@@ -222,26 +222,48 @@ The Map operation supports processing multiple documents in a single prompt usin
 
 ??? example "Batch Processing Example"
 
-    ```yaml
-    - name: classify_documents
-      type: map
-      max_batch_size: 5  # Process up to 5 documents in a single LLM call
-      batch_prompt: |
-        Classify each of the following documents into categories (technology, business, or science):
-        
+    === "YAML"
+
+        ```yaml
+        - name: classify_documents
+          type: map
+          max_batch_size: 5  # Process up to 5 documents in a single LLM call
+          batch_prompt: |
+            Classify each of the following documents into categories (technology, business, or science):
+            
+            {% for doc in inputs %}
+            Document {{loop.index}}:
+            {{doc.text}}
+            {% endfor %}
+            
+            Provide a classification for each document.
+          prompt: |
+            Classify the following document:
+            {{input.text}}
+          output:
+            schema:
+              category: string
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.map(
+            name="classify_documents",
+            max_batch_size=5,  # Process up to 5 documents in a single LLM call
+            batch_prompt="""Classify each of the following documents into categories (technology, business, or science):
+
         {% for doc in inputs %}
         Document {{loop.index}}:
         {{doc.text}}
         {% endfor %}
-        
-        Provide a classification for each document.
-      prompt: |
-        Classify the following document:
-        {{input.text}}
-      output:
-        schema:
-          category: string
-    ```
+
+        Provide a classification for each document.""",
+            prompt="""Classify the following document:
+        {{input.text}}""",
+            output={"schema": {"category": "string"}},
+        )
+        ```
 
 When using batch processing:
 
@@ -271,25 +293,46 @@ This is particularly useful for:
 
     Imagine you're processing a large collection of customer support tickets and want to classify them by priority. Without calibration, the LLM might be inconsistent - a "medium" priority ticket early in processing might be classified as "high" later when the LLM sees more severe issues.
 
-    ```yaml
-    - name: classify_ticket_priority
-      type: map
-      calibrate: true  # Enable calibration
-      num_calibration_docs: 15  # Use 15 tickets for calibration
-      prompt: |
-        Classify the following customer support ticket by priority level:
-        
+    === "YAML"
+
+        ```yaml
+        - name: classify_ticket_priority
+          type: map
+          calibrate: true  # Enable calibration
+          num_calibration_docs: 15  # Use 15 tickets for calibration
+          prompt: |
+            Classify the following customer support ticket by priority level:
+            
+            Subject: {{ input.subject }}
+            Description: {{ input.description }}
+            Customer Tier: {{ input.customer_tier }}
+            
+            Classify as: low, medium, high, or critical
+          output:
+            schema:
+              priority: string
+              reasoning: string
+          model: gpt-4o-mini
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.map(
+            name="classify_ticket_priority",
+            calibrate=True,  # Enable calibration
+            num_calibration_docs=15,  # Use 15 tickets for calibration
+            prompt="""Classify the following customer support ticket by priority level:
+
         Subject: {{ input.subject }}
         Description: {{ input.description }}
         Customer Tier: {{ input.customer_tier }}
-        
-        Classify as: low, medium, high, or critical
-      output:
-        schema:
-          priority: string
-          reasoning: string
-      model: gpt-4o-mini
-    ```
+
+        Classify as: low, medium, high, or critical""",
+            output={"schema": {"priority": "string", "reasoning": "string"}},
+            model="gpt-4o-mini",
+        )
+        ```
 
     **How calibration works:**
 
@@ -337,30 +380,49 @@ The Map operation can directly process PDFs using Claude or Gemini models. To us
 
     Here's an example of processing a dataset of papers, where each paper is represented by a URL.
 
-    ```yaml
-    datasets:
-      papers:
-        type: file
-        path: "papers/urls.json"  # Contains documents with PDF URLs
+    === "YAML"
 
-    default_model: gemini/gemini-2.0-flash  # or claude models
-    operations:
-      - name: extract_paper_info
-        type: map
-        pdf_url_key: url  # Tells DocETL which field contains the PDF URL
-        prompt: |
-          Summarize the paper.
-        output:
-          schema:
-            paper_info: string
+        ```yaml
+        datasets:
+          papers:
+            type: file
+            path: "papers/urls.json"  # Contains documents with PDF URLs
 
-    pipeline:
-      steps:
-        - name: extract_paper_info
-          input: papers
-          operations:
-            - extract_paper_info
-    ```
+        default_model: gemini/gemini-2.0-flash  # or claude models
+        operations:
+          - name: extract_paper_info
+            type: map
+            pdf_url_key: url  # Tells DocETL which field contains the PDF URL
+            prompt: |
+              Summarize the paper.
+            output:
+              schema:
+                paper_info: string
+
+        pipeline:
+          steps:
+            - name: extract_paper_info
+              input: papers
+              operations:
+                - extract_paper_info
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gemini/gemini-2.0-flash"  # or claude models
+
+        frame = docetl.read_json("papers/urls.json")  # Contains documents with PDF URLs
+        frame = frame.map(
+            name="extract_paper_info",
+            pdf_url_key="url",  # Tells DocETL which field contains the PDF URL
+            prompt="Summarize the paper.",
+            output={"schema": {"paper_info": "string"}},
+        )
+        df = frame.collect()
+        ```
 
     Your input data (`papers/urls.json`) should contain documents with PDF URLs:
     ```json
@@ -392,23 +454,47 @@ Tools can extend the capabilities of the Map operation. Each tool is a Python fu
 
 ??? example "Tool Definition Example"
 
-    ```yaml
-    tools:
-    - required: true
-        code: |
-        def count_words(text):
-            return {"word_count": len(text.split())}
-        function:
-        name: count_words
-        description: Count the number of words in a text string.
-        parameters:
-            type: object
-            properties:
-            text:
-                type: string
-            required:
-            - text
-    ```
+    === "YAML"
+
+        ```yaml
+        tools:
+        - required: true
+            code: |
+            def count_words(text):
+                return {"word_count": len(text.split())}
+            function:
+            name: count_words
+            description: Count the number of words in a text string.
+            parameters:
+                type: object
+                properties:
+                text:
+                    type: string
+                required:
+                - text
+        ```
+
+    === "Python"
+
+        ```python
+        # Pass via the tools= kwarg on a map call
+        tools = [
+            {
+                "required": True,
+                "code": """def count_words(text):
+            return {"word_count": len(text.split())}""",
+                "function": {
+                    "name": "count_words",
+                    "description": "Count the number of words in a text string.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                        "required": ["text"],
+                    },
+                },
+            }
+        ]
+        ```
 
 !!! warning
 
@@ -424,17 +510,31 @@ If you have a really large collection of documents and you don't want to run the
 
 To enable batching in your map operations, you need to specify the `max_batch_size` parameter in your configuration.
 
-```yaml
-- name: extract_summaries
-  type: map
-  max_batch_size: 5
-  clustering_method: random
-  prompt: |
-    Summarize this text: "{{ input.text }}"
-  output:
-    schema:
-      summary: string
-```
+=== "YAML"
+
+    ```yaml
+    - name: extract_summaries
+      type: map
+      max_batch_size: 5
+      clustering_method: random
+      prompt: |
+        Summarize this text: "{{ input.text }}"
+      output:
+        schema:
+          summary: string
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.map(
+        name="extract_summaries",
+        max_batch_size=5,
+        clustering_method="random",
+        prompt='Summarize this text: "{{ input.text }}"',
+        output={"schema": {"summary": "string"}},
+    )
+    ```
 
 In the above config, there will be no more than 5 API calls to the LLM at a time (i.e., 5 documents processed at a time, one per API call).
 
@@ -442,13 +542,24 @@ In the above config, there will be no more than 5 API calls to the LLM at a time
 
 You can use a map operation to act as an LLM no-op, and just drop any key-value pairs you don't want to save to the output file. To do this, you can use the `drop_keys` parameter.
 
-```yaml
-- name: drop_keys_example
-  type: map
-  drop_keys:
-    - "keyname1"
-    - "keyname2"
-```
+=== "YAML"
+
+    ```yaml
+    - name: drop_keys_example
+      type: map
+      drop_keys:
+        - "keyname1"
+        - "keyname2"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.map(
+        name="drop_keys_example",
+        drop_keys=["keyname1", "keyname2"],
+    )
+    ```
 
 ## Best Practices
 
@@ -473,56 +584,100 @@ This multiplies your dataset size by the factor of `n`.
 
     Imagine you have a dataset of prospects and want to generate multiple email templates for each person. Here's how to generate 10 different email templates per prospect:
 
-    ```yaml
-    datasets:
-      prospects:
-        type: file
-        path: "prospects.json"  # Contains names, companies, roles, etc.
+    === "YAML"
 
-    operations:
-      - name: generate_email_templates
-        type: map
-        bypass_cache: true
-        optimize: true
-        output:
-          n: 10  # Generate 10 unique emails per prospect
-          schema:
-            subject: "str"
-            body: "str"
-            call_to_action: "str"
-        prompt: |
-          Create a personalized cold outreach email for the following prospect:
-          
-          Name: {{ input.name }}
-          Company: {{ input.company }}
-          Role: {{ input.role }}
-          Industry: {{ input.industry }}
-          
-          The email should:
-          - Have a compelling subject line
-          - Be brief (3-5 sentences)
-          - Mention a specific pain point for their industry
-          - Include a clear call to action
-          - Sound natural and conversational, not sales-y
-          
-          Your response should be formatted as:
-          Subject: [Your subject line]
-          
-          [Your email body]
-          
-          Call to action: [Your specific call to action]
+        ```yaml
+        datasets:
+          prospects:
+            type: file
+            path: "prospects.json"  # Contains names, companies, roles, etc.
 
-    pipeline:
-      steps:
-        - name: email_generation
-          input: prospects
-          operations:
-            - generate_email_templates
-      
-      output:
-        type: file
-        path: "email_templates.json"
-    ```
+        operations:
+          - name: generate_email_templates
+            type: map
+            bypass_cache: true
+            optimize: true
+            output:
+              n: 10  # Generate 10 unique emails per prospect
+              schema:
+                subject: "str"
+                body: "str"
+                call_to_action: "str"
+            prompt: |
+              Create a personalized cold outreach email for the following prospect:
+              
+              Name: {{ input.name }}
+              Company: {{ input.company }}
+              Role: {{ input.role }}
+              Industry: {{ input.industry }}
+              
+              The email should:
+              - Have a compelling subject line
+              - Be brief (3-5 sentences)
+              - Mention a specific pain point for their industry
+              - Include a clear call to action
+              - Sound natural and conversational, not sales-y
+              
+              Your response should be formatted as:
+              Subject: [Your subject line]
+              
+              [Your email body]
+              
+              Call to action: [Your specific call to action]
+
+        pipeline:
+          steps:
+            - name: email_generation
+              input: prospects
+              operations:
+                - generate_email_templates
+          
+          output:
+            type: file
+            path: "email_templates.json"
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        frame = docetl.read_json("prospects.json")  # Contains names, companies, roles, etc.
+        frame = frame.map(
+            name="generate_email_templates",
+            bypass_cache=True,
+            optimize=True,
+            output={
+                "n": 10,  # Generate 10 unique emails per prospect
+                "schema": {
+                    "subject": "str",
+                    "body": "str",
+                    "call_to_action": "str",
+                },
+            },
+            prompt="""Create a personalized cold outreach email for the following prospect:
+
+        Name: {{ input.name }}
+        Company: {{ input.company }}
+        Role: {{ input.role }}
+        Industry: {{ input.industry }}
+
+        The email should:
+        - Have a compelling subject line
+        - Be brief (3-5 sentences)
+        - Mention a specific pain point for their industry
+        - Include a clear call to action
+        - Sound natural and conversational, not sales-y
+
+        Your response should be formatted as:
+        Subject: [Your subject line]
+
+        [Your email body]
+
+        Call to action: [Your specific call to action]""",
+        )
+        frame.write_json("email_templates.json")
+        ```
 
     With this configuration, if your prospects.json file has 50 prospects, the output will contain 500 email templates (50 prospects × 10 emails each).
 

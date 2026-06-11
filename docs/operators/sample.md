@@ -6,14 +6,32 @@ Insert it before the last operation, the one you're currently trying to add to t
 
 ## Example:
 
-```yaml
-- name: sample_concepts
-  type: sample
-  method: uniform
-  samples: 0.1
-  stratify_key: category
-  random_state: 42
-```
+=== "YAML"
+
+    ```yaml
+    - name: sample_concepts
+      type: sample
+      method: uniform
+      samples: 0.1
+      stratify_key: category
+      random_state: 42
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    frame = docetl.read_json("data.json")
+    frame = frame.sample(
+        name="sample_concepts",
+        method="uniform",
+        samples=0.1,
+        stratify_key="category",
+        random_state=42,
+    )
+    df = frame.collect()
+    ```
 
 This sample operation will return a pseudo-randomly selected 10% of the samples (samples: 0.1). The random selection will be seeded with a constant (42), meaning the same sample will be returned if you rerun the pipeline (If no random state is given, a different sample will be returned every time). Additionally, the random sampling will sample each value of the category key proportionally.
 
@@ -39,23 +57,47 @@ This sample operation will return a pseudo-randomly selected 10% of the samples 
 
 Randomly samples items from the input data. When combined with stratification, maintains the distribution of the stratified groups.
 
-```yaml
-- name: uniform_sample
-  type: sample
-  method: uniform
-  samples: 100
-```
+=== "YAML"
+
+    ```yaml
+    - name: uniform_sample
+      type: sample
+      method: uniform
+      samples: 100
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="uniform_sample",
+        method="uniform",
+        samples=100,
+    )
+    ```
 
 ### First Sampling
 
 Takes the first N items from the input. When combined with stratification, takes proportionally from each group.
 
-```yaml
-- name: first_sample
-  type: sample
-  method: first
-  samples: 50
-```
+=== "YAML"
+
+    ```yaml
+    - name: first_sample
+      type: sample
+      method: first
+      samples: 50
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="first_sample",
+        method="first",
+        samples=50,
+    )
+    ```
 
 ### Outlier Sampling
 
@@ -69,30 +111,58 @@ Samples based on distance from a center point in embedding space. Specify the fo
 
 You must specify either "std" or "samples" in the method_kwargs, but not both.
 
-```yaml
-- name: remove_outliers
-  type: sample
-  method: outliers
-  method_kwargs:
-    embedding_keys:
-      - concept
-      - description
-    std: 2
-    keep: false
-```
+=== "YAML"
+
+    ```yaml
+    - name: remove_outliers
+      type: sample
+      method: outliers
+      method_kwargs:
+        embedding_keys:
+          - concept
+          - description
+        std: 2
+        keep: false
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="remove_outliers",
+        method="outliers",
+        method_kwargs={
+            "embedding_keys": ["concept", "description"],
+            "std": 2,
+            "keep": False,
+        },
+    )
+    ```
 
 ### Custom Sampling
 
 Samples specific items by matching key-value pairs. Stratification is not supported with custom sampling.
 
-```yaml
-- name: custom_sample
-  type: sample
-  method: custom
-  samples:
-    - id: 1
-    - id: 5
-```
+=== "YAML"
+
+    ```yaml
+    - name: custom_sample
+      type: sample
+      method: custom
+      samples:
+        - id: 1
+        - id: 5
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="custom_sample",
+        method="custom",
+        samples=[{"id": 1}, {"id": 5}],
+    )
+    ```
 
 ### Top Embedding Sampling
 
@@ -102,31 +172,64 @@ Retrieves the top N most similar items to a query based on semantic similarity u
 - query: The query string to match against (supports Jinja templates)
 - embedding_model: (Optional) The embedding model to use. Defaults to "text-embedding-3-small"
 
-```yaml
-- name: semantic_search
-  type: sample
-  method: top_embedding
-  samples: 10
-  method_kwargs:
-    keys:
-      - title
-      - content
-    query: "machine learning applications in healthcare"
-    embedding_model: text-embedding-3-small
-```
+=== "YAML"
+
+    ```yaml
+    - name: semantic_search
+      type: sample
+      method: top_embedding
+      samples: 10
+      method_kwargs:
+        keys:
+          - title
+          - content
+        query: "machine learning applications in healthcare"
+        embedding_model: text-embedding-3-small
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="semantic_search",
+        method="top_embedding",
+        samples=10,
+        method_kwargs={
+            "keys": ["title", "content"],
+            "query": "machine learning applications in healthcare",
+            "embedding_model": "text-embedding-3-small",
+        },
+    )
+    ```
 
 With Jinja template for dynamic queries:
 
-```yaml
-- name: personalized_search
-  type: sample
-  method: top_embedding
-  samples: 5
-  method_kwargs:
-    keys:
-      - description
-    query: "{{ input.user_query }}"
-```
+=== "YAML"
+
+    ```yaml
+    - name: personalized_search
+      type: sample
+      method: top_embedding
+      samples: 5
+      method_kwargs:
+        keys:
+          - description
+        query: "{{ input.user_query }}"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="personalized_search",
+        method="top_embedding",
+        samples=5,
+        method_kwargs={
+            "keys": ["description"],
+            "query": "{{ input.user_query }}",
+        },
+    )
+    ```
 
 ### Top FTS Sampling
 
@@ -135,32 +238,64 @@ Retrieves the top N items using full-text search with BM25 algorithm. Requires t
 - keys: A list of keys to search within
 - query: The query string for keyword matching (supports Jinja templates)
 
-```yaml
-- name: keyword_search
-  type: sample
-  method: top_fts
-  samples: 20
-  method_kwargs:
-    keys:
-      - title
-      - content
-      - tags
-    query: "python programming tutorial"
-```
+=== "YAML"
+
+    ```yaml
+    - name: keyword_search
+      type: sample
+      method: top_fts
+      samples: 20
+      method_kwargs:
+        keys:
+          - title
+          - content
+          - tags
+        query: "python programming tutorial"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="keyword_search",
+        method="top_fts",
+        samples=20,
+        method_kwargs={
+            "keys": ["title", "content", "tags"],
+            "query": "python programming tutorial",
+        },
+    )
+    ```
 
 With dynamic query:
 
-```yaml
-- name: search_products
-  type: sample
-  method: top_fts
-  samples: 0.1  # Top 10% of results
-  method_kwargs:
-    keys:
-      - product_name
-      - description
-    query: "{{ input.search_terms }}"
-```
+=== "YAML"
+
+    ```yaml
+    - name: search_products
+      type: sample
+      method: top_fts
+      samples: 0.1  # Top 10% of results
+      method_kwargs:
+        keys:
+          - product_name
+          - description
+        query: "{{ input.search_terms }}"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="search_products",
+        method="top_fts",
+        samples=0.1,  # Top 10% of results
+        method_kwargs={
+            "keys": ["product_name", "description"],
+            "query": "{{ input.search_terms }}",
+        },
+    )
+    ```
 
 ## Stratification
 
@@ -168,132 +303,273 @@ Stratification can be applied to "uniform", "first", "outliers", "top_embedding"
 
 ### Single Key Stratification
 
-```yaml
-- name: stratified_sample
-  type: sample
-  method: uniform
-  samples: 0.2
-  stratify_key: category
-```
+=== "YAML"
+
+    ```yaml
+    - name: stratified_sample
+      type: sample
+      method: uniform
+      samples: 0.2
+      stratify_key: category
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="stratified_sample",
+        method="uniform",
+        samples=0.2,
+        stratify_key="category",
+    )
+    ```
 
 ### Multiple Key Stratification
 
 When using multiple keys, stratification is based on the combination of values:
 
-```yaml
-- name: multi_stratified_sample
-  type: sample
-  method: uniform
-  samples: 50
-  stratify_key: 
-    - type
-    - size
-```
+=== "YAML"
+
+    ```yaml
+    - name: multi_stratified_sample
+      type: sample
+      method: uniform
+      samples: 50
+      stratify_key: 
+        - type
+        - size
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="multi_stratified_sample",
+        method="uniform",
+        samples=50,
+        stratify_key=["type", "size"],
+    )
+    ```
 
 ### Samples Per Group
 
 Instead of proportional sampling, you can sample a fixed number from each stratum:
 
-```yaml
-- name: stratified_per_group
-  type: sample
-  method: uniform
-  samples: 10  # Sample 10 items from each group
-  stratify_key: category
-  samples_per_group: true
-```
+=== "YAML"
+
+    ```yaml
+    - name: stratified_per_group
+      type: sample
+      method: uniform
+      samples: 10  # Sample 10 items from each group
+      stratify_key: category
+      samples_per_group: true
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="stratified_per_group",
+        method="uniform",
+        samples=10,  # Sample 10 items from each group
+        stratify_key="category",
+        samples_per_group=True,
+    )
+    ```
 
 This also works with fractions:
 
-```yaml
-- name: stratified_fraction_per_group
-  type: sample
-  method: uniform
-  samples: 0.3  # Sample 30% from each group
-  stratify_key: category
-  samples_per_group: true
-```
+=== "YAML"
+
+    ```yaml
+    - name: stratified_fraction_per_group
+      type: sample
+      method: uniform
+      samples: 0.3  # Sample 30% from each group
+      stratify_key: category
+      samples_per_group: true
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="stratified_fraction_per_group",
+        method="uniform",
+        samples=0.3,  # Sample 30% from each group
+        stratify_key="category",
+        samples_per_group=True,
+    )
+    ```
 
 ## Complete Examples
 
 Stratified outlier detection:
 
-```yaml
-- name: stratified_outliers
-  type: sample
-  method: outliers
-  stratify_key: document_type
-  method_kwargs:
-    embedding_keys:
-      - title
-      - content
-    std: 1.5
-    keep: false
-```
+=== "YAML"
+
+    ```yaml
+    - name: stratified_outliers
+      type: sample
+      method: outliers
+      stratify_key: document_type
+      method_kwargs:
+        embedding_keys:
+          - title
+          - content
+        std: 1.5
+        keep: false
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="stratified_outliers",
+        method="outliers",
+        stratify_key="document_type",
+        method_kwargs={
+            "embedding_keys": ["title", "content"],
+            "std": 1.5,
+            "keep": False,
+        },
+    )
+    ```
 
 Stratified first sampling with multiple keys:
 
-```yaml
-- name: stratified_first
-  type: sample
-  method: first
-  samples: 100
-  stratify_key:
-    - category
-    - priority
-  samples_per_group: false  # Take proportionally from each combination
-```
+=== "YAML"
+
+    ```yaml
+    - name: stratified_first
+      type: sample
+      method: first
+      samples: 100
+      stratify_key:
+        - category
+        - priority
+      samples_per_group: false  # Take proportionally from each combination
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="stratified_first",
+        method="first",
+        samples=100,
+        stratify_key=["category", "priority"],
+        samples_per_group=False,  # Take proportionally from each combination
+    )
+    ```
 
 Outlier sampling with a custom center:
 
-```yaml
-- name: centered_outliers
-  type: sample
-  method: outliers
-  method_kwargs:
-    embedding_keys:
-      - concept
-      - description
-    center:
-      concept: Tree house
-      description: A small house built among the branches of a tree for children to play in.
-    samples: 20  # Keep the 20 furthest items from the center
-    keep: true
-```
+=== "YAML"
+
+    ```yaml
+    - name: centered_outliers
+      type: sample
+      method: outliers
+      method_kwargs:
+        embedding_keys:
+          - concept
+          - description
+        center:
+          concept: Tree house
+          description: A small house built among the branches of a tree for children to play in.
+        samples: 20  # Keep the 20 furthest items from the center
+        keep: true
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="centered_outliers",
+        method="outliers",
+        method_kwargs={
+            "embedding_keys": ["concept", "description"],
+            "center": {
+                "concept": "Tree house",
+                "description": "A small house built among the branches of a tree for children to play in.",
+            },
+            "samples": 20,  # Keep the 20 furthest items from the center
+            "keep": True,
+        },
+    )
+    ```
 
 Stratified semantic search - retrieve top documents from each category:
 
-```yaml
-- name: stratified_semantic_search
-  type: sample
-  method: top_embedding
-  samples: 5  # Get top 5 from each category
-  stratify_key: category
-  samples_per_group: true
-  method_kwargs:
-    keys:
-      - title
-      - abstract
-    query: "recent advances in artificial intelligence"
-```
+=== "YAML"
+
+    ```yaml
+    - name: stratified_semantic_search
+      type: sample
+      method: top_embedding
+      samples: 5  # Get top 5 from each category
+      stratify_key: category
+      samples_per_group: true
+      method_kwargs:
+        keys:
+          - title
+          - abstract
+        query: "recent advances in artificial intelligence"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="stratified_semantic_search",
+        method="top_embedding",
+        samples=5,  # Get top 5 from each category
+        stratify_key="category",
+        samples_per_group=True,
+        method_kwargs={
+            "keys": ["title", "abstract"],
+            "query": "recent advances in artificial intelligence",
+        },
+    )
+    ```
 
 Full-text search with multiple stratification keys:
 
-```yaml
-- name: stratified_keyword_search
-  type: sample
-  method: top_fts
-  samples: 3
-  stratify_key:
-    - department
-    - priority
-  samples_per_group: true
-  method_kwargs:
-    keys:
-      - subject
-      - content
-    query: "urgent customer complaint refund"
-```
+=== "YAML"
+
+    ```yaml
+    - name: stratified_keyword_search
+      type: sample
+      method: top_fts
+      samples: 3
+      stratify_key:
+        - department
+        - priority
+      samples_per_group: true
+      method_kwargs:
+        keys:
+          - subject
+          - content
+        query: "urgent customer complaint refund"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.sample(
+        name="stratified_keyword_search",
+        method="top_fts",
+        samples=3,
+        stratify_key=["department", "priority"],
+        samples_per_group=True,
+        method_kwargs={
+            "keys": ["subject", "content"],
+            "query": "urgent customer complaint refund",
+        },
+    )
+    ```
 
 ## Note on TopK Operation
 

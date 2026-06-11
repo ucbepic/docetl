@@ -22,25 +22,43 @@ The DocETL optimizer is designed to decompose operators (and sequences of operat
 
     This could be optimized into two _separate_ map operations:
 
-    - Suggestion Extraction:
-      Focus solely on identifying concrete, actionable suggestions for improving the course.
+    **Suggestion Extraction**: Focus solely on identifying concrete, actionable suggestions for improving the course.
 
-      ```yaml
-      prompt: |
-        From this student survey response, extract any specific, actionable suggestions
+    === "YAML"
+
+        ```yaml
+        prompt: |
+          From this student survey response, extract any specific, actionable suggestions
+          for improving the course. If no suggestions are present, output 'No suggestions found.':
+          '{{ input.response }}'
+        ```
+
+    === "Python"
+
+        ```python
+        prompt="""From this student survey response, extract any specific, actionable suggestions
         for improving the course. If no suggestions are present, output 'No suggestions found.':
-        '{{ input.response }}'
-      ```
+        '{{ input.response }}'"""
+        ```
 
-    - Interdisciplinary Connection Analysis:
-      Analyze the response for mentions of concepts or ideas that could connect to other disciplines or courses.
+    **Interdisciplinary Connection Analysis**: Analyze the response for mentions of concepts or ideas that could connect to other disciplines or courses.
 
-      ```yaml
-      prompt: |
-        Identify any concepts or ideas in this student survey response that could have
+    === "YAML"
+
+        ```yaml
+        prompt: |
+          Identify any concepts or ideas in this student survey response that could have
+          interdisciplinary connections. For each connection, specify the related discipline or course:
+          '{{ input.response }}'
+        ```
+
+    === "Python"
+
+        ```python
+        prompt="""Identify any concepts or ideas in this student survey response that could have
         interdisciplinary connections. For each connection, specify the related discipline or course:
-        '{{ input.response }}'
-      ```
+        '{{ input.response }}'"""
+        ```
 
     By breaking these tasks into separate operations, each LLM call can focus on a specific aspect of the analysis. This specialization might lead to more accurate results, depending on the LLM, data, and nature of the task!
 

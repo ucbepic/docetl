@@ -74,33 +74,63 @@ In YAML, add an `optimizer_config` section. Only `evaluation_file` and `metric_k
 | `max_concurrent_agents` | `int` | `3` | Number of parallel MCTS search agents |
 | `ground_truth_path` | `str` | `None` | Path to ground truth file (for evaluation) |
 
-### Minimal YAML Example
+### Minimal Example
 
-```yaml
-optimizer_config:
-  evaluation_file: evaluate_medications.py
-  metric_key: medication_extraction_score
-```
+=== "YAML"
 
-### Full YAML Example
+    ```yaml
+    optimizer_config:
+      evaluation_file: evaluate_medications.py
+      metric_key: medication_extraction_score
+    ```
 
-```yaml
-optimizer_config:
-  evaluation_file: evaluate_medications.py
-  metric_key: medication_extraction_score
-  available_models:
-    - gpt-4o-mini
-    - gpt-4o
-    - gpt-5.1-mini
-    - gpt-5.1
-  max_iterations: 40
-  rewrite_agent_model: gpt-5.1
-  save_dir: results/moar_optimization
-  dataset_path: data/sample.json
-  exploration_weight: 1.414
-  max_threads: 8
-  max_concurrent_agents: 3
-```
+=== "Python"
+
+    ```python
+    optimized = frame.optimize(
+        eval_fn=evaluate_medications,
+        metric_key="medication_extraction_score",
+    )
+    ```
+
+### Full Example
+
+=== "YAML"
+
+    ```yaml
+    optimizer_config:
+      evaluation_file: evaluate_medications.py
+      metric_key: medication_extraction_score
+      available_models:
+        - gpt-4o-mini
+        - gpt-4o
+        - gpt-5.1-mini
+        - gpt-5.1
+      max_iterations: 40
+      rewrite_agent_model: gpt-5.1
+      save_dir: results/moar_optimization
+      dataset_path: data/sample.json
+      exploration_weight: 1.414
+      max_threads: 8
+      max_concurrent_agents: 3
+    ```
+
+=== "Python"
+
+    ```python
+    optimized = frame.optimize(
+        eval_fn=evaluate_medications,
+        metric_key="medication_extraction_score",
+        models=["gpt-4o-mini", "gpt-4o", "gpt-5.1-mini", "gpt-5.1"],
+        max_iterations=40,
+        agent_model="gpt-5.1",
+        save_dir="results/moar_optimization",
+        dataset_path="data/sample.json",
+        exploration_weight=1.414,
+        max_threads=8,
+        max_concurrent_agents=3,
+    )
+    ```
 
 ## Model Auto-Detection
 
@@ -122,33 +152,61 @@ When `models` (Python) or `available_models` (YAML) is omitted, MOAR auto-detect
 
 If `dataset_path` is not specified, MOAR will automatically infer it from the `datasets` section of your YAML:
 
-```yaml
-datasets:
-  transcripts:
-    path: data/full_dataset.json  # This will be used if dataset_path not specified
-    type: file
+=== "YAML"
 
-optimizer_config:
-  # dataset_path not specified — will use data/full_dataset.json
-  evaluation_file: evaluate.py
-  metric_key: score
-```
+    ```yaml
+    datasets:
+      transcripts:
+        path: data/full_dataset.json  # This will be used if dataset_path not specified
+        type: file
+
+    optimizer_config:
+      # dataset_path not specified — will use data/full_dataset.json
+      evaluation_file: evaluate.py
+      metric_key: score
+    ```
+
+=== "Python"
+
+    ```python
+    frame = docetl.read_json("data/full_dataset.json")
+
+    optimized = frame.optimize(
+        # dataset_path not specified — will use data/full_dataset.json
+        eval_fn=evaluate,
+        metric_key="score",
+    )
+    ```
 
 ### Using Sample/Hold-Out Datasets
 
 !!! tip "Best Practice"
     Use a sample or hold-out dataset for optimization to avoid optimizing on your test set.
 
-```yaml
-optimizer_config:
-  dataset_path: data/sample_dataset.json  # Use sample/hold-out for optimization
-  evaluation_file: evaluate.py
-  metric_key: score
+=== "YAML"
 
-datasets:
-  transcripts:
-    path: data/full_dataset.json  # Full dataset for final pipeline
-```
+    ```yaml
+    optimizer_config:
+      dataset_path: data/sample_dataset.json  # Use sample/hold-out for optimization
+      evaluation_file: evaluate.py
+      metric_key: score
+
+    datasets:
+      transcripts:
+        path: data/full_dataset.json  # Full dataset for final pipeline
+    ```
+
+=== "Python"
+
+    ```python
+    frame = docetl.read_json("data/full_dataset.json")  # Full dataset for final pipeline
+
+    optimized = frame.optimize(
+        dataset_path="data/sample_dataset.json",  # Use sample/hold-out for optimization
+        eval_fn=evaluate,
+        metric_key="score",
+    )
+    ```
 
 ## Iteration Count
 

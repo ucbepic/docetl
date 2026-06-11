@@ -99,32 +99,62 @@ Add a top-level `retrievers` section. Each retriever has:
 
 ### Basic example
 
-```yaml
-datasets:
-  transcripts:
-    type: file
-    path: workloads/medical/raw.json
+=== "YAML"
 
-default_model: gpt-4o-mini
+    ```yaml
+    datasets:
+      transcripts:
+        type: file
+        path: workloads/medical/raw.json
 
-retrievers:
-  medical_r:
-    type: lancedb
-    dataset: transcripts
-    index_dir: workloads/medical/lance_index
-    build_index: if_missing  # if_missing | always | never
-    index_types: ["fts", "embedding"]
-    fts:
-      index_phrase: "{{ input.src }}"
-      query_phrase: "{{ input.src[:1000] }}"
-    embedding:
-      model: openai/text-embedding-3-small
-      index_phrase: "{{ input.src }}"
-      query_phrase: "{{ input.src[:1000] }}"
-    query:
-      mode: hybrid
-      top_k: 8
-```
+    default_model: gpt-4o-mini
+
+    retrievers:
+      medical_r:
+        type: lancedb
+        dataset: transcripts
+        index_dir: workloads/medical/lance_index
+        build_index: if_missing  # if_missing | always | never
+        index_types: ["fts", "embedding"]
+        fts:
+          index_phrase: "{{ input.src }}"
+          query_phrase: "{{ input.src[:1000] }}"
+        embedding:
+          model: openai/text-embedding-3-small
+          index_phrase: "{{ input.src }}"
+          query_phrase: "{{ input.src[:1000] }}"
+        query:
+          mode: hybrid
+          top_k: 8
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    medical_r = docetl.Retriever(
+        dataset="raw",  # the frame's own input: basename of raw.json
+        index_dir="workloads/medical/lance_index",
+        index_types=["fts", "embedding"],
+        build_index="if_missing",  # if_missing | always | never
+        fts={
+            "index_phrase": "{{ input.src }}",
+            "query_phrase": "{{ input.src[:1000] }}",
+        },
+        embedding={
+            "model": "openai/text-embedding-3-small",
+            "index_phrase": "{{ input.src }}",
+            "query_phrase": "{{ input.src[:1000] }}",
+        },
+        query={"mode": "hybrid", "top_k": 8},
+    )
+
+    pipeline = docetl.read_json("workloads/medical/raw.json")
+    # ... attach medical_r to operations via retriever=medical_r
+    ```
 
 ## Multi-step pipelines with retrieval
 
@@ -136,84 +166,142 @@ Most pipelines have a single step, but you can define multiple steps where **the
 
 ### Example: Extract facts, then find conflicts
 
-```yaml
-datasets:
-  articles:
-    type: file
-    path: workloads/wiki/articles.json
+=== "YAML"
 
-default_model: gpt-4o-mini
+    ```yaml
+    datasets:
+      articles:
+        type: file
+        path: workloads/wiki/articles.json
 
-# Retriever indexes output of step 1 (extract_facts_step)
-retrievers:
-  facts_index:
-    type: lancedb
-    dataset: extract_facts_step  # References output of a pipeline step!
-    index_dir: workloads/wiki/facts_lance_index
-    build_index: if_missing
-    index_types: ["fts", "embedding"]
-    fts:
-      index_phrase: "{{ input.fact }} from {{ input.title }}"
-      query_phrase: "{{ input.fact }}"
-    embedding:
-      model: openai/text-embedding-3-small
-      index_phrase: "{{ input.fact }}"
-      query_phrase: "{{ input.fact }}"
-    query:
-      mode: hybrid
-      top_k: 5
+    default_model: gpt-4o-mini
 
-operations:
-  - name: extract_facts
-    type: map
-    prompt: |
-      Extract factual claims from this article.
-      Article: {{ input.title }}
-      Text: {{ input.text }}
-    output:
-      schema:
-        facts: list[string]
+    # Retriever indexes output of step 1 (extract_facts_step)
+    retrievers:
+      facts_index:
+        type: lancedb
+        dataset: extract_facts_step  # References output of a pipeline step!
+        index_dir: workloads/wiki/facts_lance_index
+        build_index: if_missing
+        index_types: ["fts", "embedding"]
+        fts:
+          index_phrase: "{{ input.fact }} from {{ input.title }}"
+          query_phrase: "{{ input.fact }}"
+        embedding:
+          model: openai/text-embedding-3-small
+          index_phrase: "{{ input.fact }}"
+          query_phrase: "{{ input.fact }}"
+        query:
+          mode: hybrid
+          top_k: 5
 
-  - name: unnest_facts
-    type: unnest
-    unnest_key: facts
+    operations:
+      - name: extract_facts
+        type: map
+        prompt: |
+          Extract factual claims from this article.
+          Article: {{ input.title }}
+          Text: {{ input.text }}
+        output:
+          schema:
+            facts: list[string]
 
-  - name: find_conflicts
-    type: map
-    retriever: facts_index  # Uses the retriever
-    prompt: |
-      Check if this fact conflicts with similar facts from other articles.
+      - name: unnest_facts
+        type: unnest
+        unnest_key: facts
 
-      Current fact: {{ input.facts }} (from {{ input.title }})
+      - name: find_conflicts
+        type: map
+        retriever: facts_index  # Uses the retriever
+        prompt: |
+          Check if this fact conflicts with similar facts from other articles.
 
-      Similar facts from other articles:
-      {{ retrieval_context }}
+          Current fact: {{ input.facts }} (from {{ input.title }})
 
-      Return true only if there's a genuine contradiction.
-    output:
-      schema:
-        has_conflict: boolean
+          Similar facts from other articles:
+          {{ retrieval_context }}
 
-pipeline:
-  steps:
+          Return true only if there's a genuine contradiction.
+        output:
+          schema:
+            has_conflict: boolean
+
+    pipeline:
+      steps:
+        # Step 1: Extract and unnest facts
+        - name: extract_facts_step
+          input: articles
+          operations:
+            - extract_facts
+            - unnest_facts
+
+        # Step 2: Use retrieval to find conflicts
+        - name: find_conflicts_step
+          input: extract_facts_step  # Input is output of step 1
+          operations:
+            - find_conflicts
+
+      output:
+        type: file
+        path: workloads/wiki/conflicts.json
+        intermediate_dir: workloads/wiki/intermediates
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+    docetl.intermediate_dir = "workloads/wiki/intermediates"
+
+    # Retriever indexes output of the unnest step (step names are step_<op_name>)
+    facts_index = docetl.Retriever(
+        dataset="step_unnest_facts",  # References output of a pipeline step!
+        index_dir="workloads/wiki/facts_lance_index",
+        build_index="if_missing",
+        index_types=["fts", "embedding"],
+        fts={
+            "index_phrase": "{{ input.fact }} from {{ input.title }}",
+            "query_phrase": "{{ input.fact }}",
+        },
+        embedding={
+            "model": "openai/text-embedding-3-small",
+            "index_phrase": "{{ input.fact }}",
+            "query_phrase": "{{ input.fact }}",
+        },
+        query={"mode": "hybrid", "top_k": 5},
+    )
+
+    pipeline = docetl.read_json("workloads/wiki/articles.json")
+
     # Step 1: Extract and unnest facts
-    - name: extract_facts_step
-      input: articles
-      operations:
-        - extract_facts
-        - unnest_facts
+    pipeline = pipeline.map(
+        "extract_facts",
+        prompt="""Extract factual claims from this article.
+    Article: {{ input.title }}
+    Text: {{ input.text }}""",
+        output={"schema": {"facts": "list[string]"}},
+    )
+    pipeline = pipeline.unnest("unnest_facts", unnest_key="facts")
 
     # Step 2: Use retrieval to find conflicts
-    - name: find_conflicts_step
-      input: extract_facts_step  # Input is output of step 1
-      operations:
-        - find_conflicts
+    pipeline = pipeline.map(
+        "find_conflicts",
+        retriever=facts_index,  # Uses the retriever
+        prompt="""Check if this fact conflicts with similar facts from other articles.
 
-  output:
-    type: file
-    path: workloads/wiki/conflicts.json
-    intermediate_dir: workloads/wiki/intermediates
-```
+    Current fact: {{ input.facts }} (from {{ input.title }})
+
+    Similar facts from other articles:
+    {{ retrieval_context }}
+
+    Return true only if there's a genuine contradiction.""",
+        output={"schema": {"has_conflict": "boolean"}},
+    )
+
+    pipeline.write_json("workloads/wiki/conflicts.json")
+    ```
 
 In this example:
 - **Step 1** (`extract_facts_step`) extracts facts from articles
@@ -226,39 +314,81 @@ In this example:
 
 Here's the simplest possible retriever config (FTS only):
 
-```yaml
-retrievers:
-  my_search:                              # name can be anything you want
-    type: lancedb
-    dataset: my_dataset                   # must match a dataset name or pipeline step
-    index_dir: ./my_lance_index
-    index_types: ["fts"]
-    fts:
-      index_phrase: "{{ input.text }}"    # what to index from each row
-      query_phrase: "{{ input.query }}"   # what to search for at runtime
-```
+=== "YAML"
+
+    ```yaml
+    retrievers:
+      my_search:                              # name can be anything you want
+        type: lancedb
+        dataset: my_dataset                   # must match a dataset name or pipeline step
+        index_dir: ./my_lance_index
+        index_types: ["fts"]
+        fts:
+          index_phrase: "{{ input.text }}"    # what to index from each row
+          query_phrase: "{{ input.query }}"   # what to search for at runtime
+    ```
+
+=== "Python"
+
+    ```python
+    my_search = docetl.Retriever(
+        dataset="my_dataset",                     # must match a dataset name or pipeline step
+        index_dir="./my_lance_index",
+        index_types=["fts"],
+        fts={
+            "index_phrase": "{{ input.text }}",   # what to index from each row
+            "query_phrase": "{{ input.query }}",  # what to search for at runtime
+        },
+    )
+    ```
 
 ### Full example with all options
 
-```yaml
-retrievers:
-  my_search:
-    type: lancedb
-    dataset: my_dataset
-    index_dir: ./my_lance_index
-    build_index: if_missing               # optional, default: if_missing
-    index_types: ["fts", "embedding"]     # can be ["fts"], ["embedding"], or both
-    fts:
-      index_phrase: "{{ input.text }}"
-      query_phrase: "{{ input.query }}"
-    embedding:
-      model: openai/text-embedding-3-small
-      index_phrase: "{{ input.text }}"    # optional, falls back to fts.index_phrase
-      query_phrase: "{{ input.query }}"
-    query:                                # optional section
-      mode: hybrid                        # optional, auto-selects based on index_types
-      top_k: 10                           # optional, default: 5
-```
+=== "YAML"
+
+    ```yaml
+    retrievers:
+      my_search:
+        type: lancedb
+        dataset: my_dataset
+        index_dir: ./my_lance_index
+        build_index: if_missing               # optional, default: if_missing
+        index_types: ["fts", "embedding"]     # can be ["fts"], ["embedding"], or both
+        fts:
+          index_phrase: "{{ input.text }}"
+          query_phrase: "{{ input.query }}"
+        embedding:
+          model: openai/text-embedding-3-small
+          index_phrase: "{{ input.text }}"    # optional, falls back to fts.index_phrase
+          query_phrase: "{{ input.query }}"
+        query:                                # optional section
+          mode: hybrid                        # optional, auto-selects based on index_types
+          top_k: 10                           # optional, default: 5
+    ```
+
+=== "Python"
+
+    ```python
+    my_search = docetl.Retriever(
+        dataset="my_dataset",
+        index_dir="./my_lance_index",
+        build_index="if_missing",              # optional, default: if_missing
+        index_types=["fts", "embedding"],      # can be ["fts"], ["embedding"], or both
+        fts={
+            "index_phrase": "{{ input.text }}",
+            "query_phrase": "{{ input.query }}",
+        },
+        embedding={
+            "model": "openai/text-embedding-3-small",
+            "index_phrase": "{{ input.text }}",   # optional, falls back to fts index_phrase
+            "query_phrase": "{{ input.query }}",
+        },
+        query={                                # optional
+            "mode": "hybrid",                  # optional, auto-selects based on index_types
+            "top_k": 10,                       # optional, default: 5
+        },
+    )
+    ```
 
 ---
 
@@ -302,41 +432,75 @@ Required if `"fts"` is in `index_types`. Configures full-text search.
 
 **Example - Medical knowledge base:**
 
-```yaml
-datasets:
-  drugs:
-    type: file
-    path: drugs.json  # [{"name": "Aspirin", "uses": "pain, fever"}, ...]
+=== "YAML"
 
-  patient_notes:
-    type: file
-    path: notes.json  # [{"symptoms": "headache and fever"}, ...]
+    ```yaml
+    datasets:
+      drugs:
+        type: file
+        path: drugs.json  # [{"name": "Aspirin", "uses": "pain, fever"}, ...]
 
-retrievers:
-  drug_lookup:
-    type: lancedb
-    dataset: drugs                        # index the drugs dataset
-    index_dir: ./drug_index
-    index_types: ["fts"]
-    fts:
-      index_phrase: "{{ input.name }}: {{ input.uses }}"   # index: "Aspirin: pain, fever"
-      query_phrase: "{{ input.symptoms }}"                  # search with patient symptoms
+      patient_notes:
+        type: file
+        path: notes.json  # [{"symptoms": "headache and fever"}, ...]
 
-operations:
-  - name: find_treatment
-    type: map
-    retriever: drug_lookup                # attach the retriever
-    prompt: |
-      Patient symptoms: {{ input.symptoms }}
+    retrievers:
+      drug_lookup:
+        type: lancedb
+        dataset: drugs                        # index the drugs dataset
+        index_dir: ./drug_index
+        index_types: ["fts"]
+        fts:
+          index_phrase: "{{ input.name }}: {{ input.uses }}"   # index: "Aspirin: pain, fever"
+          query_phrase: "{{ input.symptoms }}"                  # search with patient symptoms
 
-      Relevant drugs from knowledge base:
-      {{ retrieval_context }}
+    operations:
+      - name: find_treatment
+        type: map
+        retriever: drug_lookup                # attach the retriever
+        prompt: |
+          Patient symptoms: {{ input.symptoms }}
 
-      Recommend a treatment.
-    output:
-      schema:
-        recommendation: string
-```
+          Relevant drugs from knowledge base:
+          {{ retrieval_context }}
+
+          Recommend a treatment.
+        output:
+          schema:
+            recommendation: string
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    drug_lookup = docetl.Retriever(
+        dataset="drugs",                      # index the drugs dataset
+        index_dir="./drug_index",
+        index_types=["fts"],
+        fts={
+            "index_phrase": "{{ input.name }}: {{ input.uses }}",  # index: "Aspirin: pain, fever"
+            "query_phrase": "{{ input.symptoms }}",                # search with patient symptoms
+        },
+    )
+
+    pipeline = docetl.read_json("notes.json")  # [{"symptoms": "headache and fever"}, ...]
+    pipeline = pipeline.with_dataset(
+        "drugs", "drugs.json"  # [{"name": "Aspirin", "uses": "pain, fever"}, ...]
+    )
+    pipeline = pipeline.map(
+        "find_treatment",
+        retriever=drug_lookup,                 # attach the retriever
+        prompt="""Patient symptoms: {{ input.symptoms }}
+
+    Relevant drugs from knowledge base:
+    {{ retrieval_context }}
+
+    Recommend a treatment.""",
+        output={"schema": {"recommendation": "string"}},
+    )
+    ```
 
 When processing `{"symptoms": "headache and fever"}`:
 
@@ -360,18 +524,35 @@ Required if `"embedding"` is in `index_types`. Configures vector/semantic search
 
 **Example - Semantic search:**
 
-```yaml
-retrievers:
-  semantic_docs:
-    type: lancedb
-    dataset: documentation
-    index_dir: ./docs_index
-    index_types: ["embedding"]
-    embedding:
-      model: openai/text-embedding-3-small
-      index_phrase: "{{ input.content }}"
-      query_phrase: "{{ input.question }}"
-```
+=== "YAML"
+
+    ```yaml
+    retrievers:
+      semantic_docs:
+        type: lancedb
+        dataset: documentation
+        index_dir: ./docs_index
+        index_types: ["embedding"]
+        embedding:
+          model: openai/text-embedding-3-small
+          index_phrase: "{{ input.content }}"
+          query_phrase: "{{ input.question }}"
+    ```
+
+=== "Python"
+
+    ```python
+    semantic_docs = docetl.Retriever(
+        dataset="documentation",
+        index_dir="./docs_index",
+        index_types=["embedding"],
+        embedding={
+            "model": "openai/text-embedding-3-small",
+            "index_phrase": "{{ input.content }}",
+            "query_phrase": "{{ input.question }}",
+        },
+    )
+    ```
 
 ---
 
@@ -386,14 +567,28 @@ Controls search behavior. You can omit this entire section.
 
 **Example - Override defaults:**
 
-```yaml
-retrievers:
-  my_search:
-    # ... other config ...
-    query:
-      mode: fts      # force FTS even if embedding index exists
-      top_k: 20      # return more results
-```
+=== "YAML"
+
+    ```yaml
+    retrievers:
+      my_search:
+        # ... other config ...
+        query:
+          mode: fts      # force FTS even if embedding index exists
+          top_k: 20      # return more results
+    ```
+
+=== "Python"
+
+    ```python
+    my_search = docetl.Retriever(
+        # ... other config ...
+        query={
+            "mode": "fts",  # force FTS even if embedding index exists
+            "top_k": 20,    # return more results
+        },
+    )
+    ```
 
 ---
 
@@ -408,57 +603,109 @@ Attach a retriever to any LLM operation (map, filter, reduce, extract) with `ret
 
 ### Map example
 
-```yaml
-- name: tag_visit
-  type: map
-  retriever: medical_r
-  save_retriever_output: true
-  output:
-    schema:
-      tag: string
-  prompt: |
-    Classify this medical visit. Related context:
+=== "YAML"
+
+    ```yaml
+    - name: tag_visit
+      type: map
+      retriever: medical_r
+      save_retriever_output: true
+      output:
+        schema:
+          tag: string
+      prompt: |
+        Classify this medical visit. Related context:
+        {{ retrieval_context }}
+
+        Transcript: {{ input.src }}
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        "tag_visit",
+        retriever=medical_r,
+        save_retriever_output=True,
+        prompt="""Classify this medical visit. Related context:
     {{ retrieval_context }}
 
-    Transcript: {{ input.src }}
-```
+    Transcript: {{ input.src }}""",
+        output={"schema": {"tag": "string"}},
+    )
+    ```
 
 ### Filter example
 
-```yaml
-- name: filter_relevant
-  type: filter
-  retriever: medical_r
-  prompt: |
-    Is this transcript relevant to medication counseling?
+=== "YAML"
+
+    ```yaml
+    - name: filter_relevant
+      type: filter
+      retriever: medical_r
+      prompt: |
+        Is this transcript relevant to medication counseling?
+        Context: {{ retrieval_context }}
+        Transcript: {{ input.src }}
+      output:
+        schema:
+          is_relevant: boolean
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.filter(
+        "filter_relevant",
+        retriever=medical_r,
+        prompt="""Is this transcript relevant to medication counseling?
     Context: {{ retrieval_context }}
-    Transcript: {{ input.src }}
-  output:
-    schema:
-      is_relevant: boolean
-```
+    Transcript: {{ input.src }}""",
+        output={"schema": {"is_relevant": "boolean"}},
+    )
+    ```
 
 ### Reduce example
 
 When using reduce, the retrieval context is computed per group.
 
-```yaml
-- name: summarize_by_medication
-  type: reduce
-  retriever: medical_r
-  reduce_key: medication
-  output:
-    schema:
-      summary: string
-  prompt: |
-    Summarize key points for medication '{{ reduce_key.medication }}'.
+=== "YAML"
+
+    ```yaml
+    - name: summarize_by_medication
+      type: reduce
+      retriever: medical_r
+      reduce_key: medication
+      output:
+        schema:
+          summary: string
+      prompt: |
+        Summarize key points for medication '{{ reduce_key.medication }}'.
+        Related context: {{ retrieval_context }}
+
+        Inputs:
+        {% for item in inputs %}
+        - {{ item.src }}
+        {% endfor %}
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.reduce(
+        "summarize_by_medication",
+        retriever=medical_r,
+        reduce_key="medication",
+        prompt="""Summarize key points for medication '{{ reduce_key.medication }}'.
     Related context: {{ retrieval_context }}
 
     Inputs:
     {% for item in inputs %}
     - {{ item.src }}
-    {% endfor %}
-```
+    {% endfor %}""",
+        output={"schema": {"summary": "string"}},
+    )
+    ```
 
 ## Troubleshooting
 

@@ -76,43 +76,89 @@ Equijoin lets you specify **explicit blocking logic** to skip record pairs that 
 Provide one or more **field names** for each side of the join. The selected values are concatenated and **embedded**; the cosine similarity of the left vs. right embeddings is then compared against `blocking_threshold` (defaults to `1.0`). If the similarity meets or exceeds that threshold, the pair moves on to the `comparison_prompt`; otherwise it is skipped.  
 If you omit `blocking_keys`, **all key–value pairs of each record are embedded by default**.
 
-```yaml
-blocking_keys:
-  left:
-    - medicine
-  right:
-    - extracted_medications
-```
+=== "YAML"
+
+    ```yaml
+    blocking_keys:
+      left:
+        - medicine
+      right:
+        - extracted_medications
+    ```
+
+=== "Python"
+
+    ```python
+    # Pass via the blocking_keys= kwarg on an equijoin call
+    blocking_keys={
+        "left": ["medicine"],
+        "right": ["extracted_medications"],
+    }
+    ```
 
 #### `blocking_threshold`
 Optionally set a numeric `blocking_threshold` \(0 – 1\) representing the minimum cosine similarity (computed with the selected `embedding_model`) that the concatenated blocking keys must achieve to be considered a candidate pair. Anything below the threshold is filtered out without invoking the LLM.
 
-```yaml
-blocking_threshold: 0.35
-embedding_model: text-embedding-3-small
-```
+=== "YAML"
+
+    ```yaml
+    blocking_threshold: 0.35
+    embedding_model: text-embedding-3-small
+    ```
+
+=== "Python"
+
+    ```python
+    # Pass via kwargs on an equijoin call
+    blocking_threshold=0.35,
+    embedding_model="text-embedding-3-small",
+    ```
 
 A full Equijoin step combining both ideas might look like:
 
-```yaml
-- name: join_meds_transcripts
-  type: equijoin
-  blocking_keys:
-    left:
-      - medicine
-    right:
-      - extracted_medications
-  blocking_threshold: 0.3535
-  embedding_model: text-embedding-3-small
-  comparison_prompt: |
-    Compare the following medication names:
+=== "YAML"
+
+    ```yaml
+    - name: join_meds_transcripts
+      type: equijoin
+      blocking_keys:
+        left:
+          - medicine
+        right:
+          - extracted_medications
+      blocking_threshold: 0.3535
+      embedding_model: text-embedding-3-small
+      comparison_prompt: |
+        Compare the following medication names:
+
+        {{ left.medicine }}
+
+        {{ right.extracted_medications }}
+
+        Determine if these entries refer to the same medication.
+    ```
+
+=== "Python"
+
+    ```python
+    frame = meds.equijoin(
+        transcripts,
+        name="join_meds_transcripts",
+        blocking_keys={
+            "left": ["medicine"],
+            "right": ["extracted_medications"],
+        },
+        blocking_threshold=0.3535,
+        embedding_model="text-embedding-3-small",
+        comparison_prompt="""Compare the following medication names:
 
     {{ left.medicine }}
 
     {{ right.extracted_medications }}
 
-    Determine if these entries refer to the same medication.
-```
+    Determine if these entries refer to the same medication.""",
+    )
+    ```
 
 #### Auto-generating Rules (Experimental)
 `docetl build pipeline.yaml` can call the **Optimizer** to propose `blocking_keys` and an appropriate `blocking_threshold` based on a sample of your data. This feature is experimental; always review the suggested rules to ensure they do not exclude valid matches.
@@ -146,43 +192,70 @@ Default guarantee is `precision` (don't over-join). See
 
 Here's an example of how to incorporate the Equijoin operation into a pipeline using the job candidate matching scenario:
 
-```yaml
-model: gpt-4o-mini
+=== "YAML"
 
-datasets:
-  candidates:
-    type: file
-    path: /path/to/candidates.json
-  job_postings:
-    type: file
-    path: /path/to/job_postings.json
+    ```yaml
+    model: gpt-4o-mini
 
-operations:
-  - name: match_candidates_to_jobs:
-    type: equijoin
-    comparison_prompt: |
-      Compare the following job candidate and job posting:
+    datasets:
+      candidates:
+        type: file
+        path: /path/to/candidates.json
+      job_postings:
+        type: file
+        path: /path/to/job_postings.json
 
-      Candidate Skills: {{ left.skills }}
-      Candidate Experience: {{ left.years_experience }}
+    operations:
+      - name: match_candidates_to_jobs:
+        type: equijoin
+        comparison_prompt: |
+          Compare the following job candidate and job posting:
 
-      Job Required Skills: {{ right.required_skills }}
-      Job Desired Experience: {{ right.desired_experience }}
+          Candidate Skills: {{ left.skills }}
+          Candidate Experience: {{ left.years_experience }}
 
-      Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
+          Job Required Skills: {{ right.required_skills }}
+          Job Desired Experience: {{ right.desired_experience }}
 
-pipeline:
-  steps:
-    - name: match_candidates_to_jobs
-      operations:
-        - match_candidates_to_jobs:
-            left: candidates
-            right: job_postings
+          Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
 
-  output:
-    type: file
-    path: "/path/to/matched_candidates_jobs.json"
-```
+    pipeline:
+      steps:
+        - name: match_candidates_to_jobs
+          operations:
+            - match_candidates_to_jobs:
+                left: candidates
+                right: job_postings
+
+      output:
+        type: file
+        path: "/path/to/matched_candidates_jobs.json"
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    candidates = docetl.read_json("/path/to/candidates.json")
+    job_postings = docetl.read_json("/path/to/job_postings.json")
+    frame = candidates.equijoin(
+        job_postings,
+        name="match_candidates_to_jobs",
+        comparison_prompt="""Compare the following job candidate and job posting:
+
+    Candidate Skills: {{ left.skills }}
+    Candidate Experience: {{ left.years_experience }}
+
+    Job Required Skills: {{ right.required_skills }}
+    Job Desired Experience: {{ right.desired_experience }}
+
+    Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.""",
+    )
+    frame.write_json("/path/to/matched_candidates_jobs.json")
+    ```
 
 This pipeline configuration demonstrates how to use the Equijoin operation to match job candidates with job postings. The pipeline reads candidate and job posting data from JSON files, performs the matching using the defined comparison prompt, and outputs the results to a new JSON file.
 

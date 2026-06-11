@@ -18,10 +18,21 @@ You can set the default model for a pipeline in the YAML configuration file. If 
 
 You can also tell DocETL to skip the dataset-level cache for the entire pipeline by enabling `bypass_cache`. When set to `true`, DocETL will neither read from nor write to its cache for any operation in that pipeline—which is helpful when you want to force fresh executions during development or debugging.
 
-```yaml
-default_model: gpt-4o-mini
-bypass_cache: true  # optional – defaults to false
-```
+=== "YAML"
+
+    ```yaml
+    default_model: gpt-4o-mini
+    bypass_cache: true  # optional – defaults to false
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+    docetl.bypass_cache = True  # optional – defaults to False
+    ```
 
 `bypass_cache` can still be overridden at the operator level if required.
 
@@ -46,23 +57,46 @@ System prompts provide context to the language model about the data it's process
 
 Here's an example of how to define system prompts in your pipeline configuration:
 
-```yaml
-system_prompt:
-  dataset_description: a collection of transcripts of doctor visits
-  persona: a medical practitioner analyzing patient symptoms and reactions to medications
-```
+=== "YAML"
+
+    ```yaml
+    system_prompt:
+      dataset_description: a collection of transcripts of doctor visits
+      persona: a medical practitioner analyzing patient symptoms and reactions to medications
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.system_prompt = {
+        "dataset_description": "a collection of transcripts of doctor visits",
+        "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
+    }
+    ```
 
 
 ### Datasets
 
 Datasets define the input data for your pipeline. They are collections of items/chunks, where each item/chunk is an object in a JSON list (or row in a CSV file). Datasets are typically specified in the YAML configuration file, indicating the type and path of the data source. For example:
 
-```yaml
-datasets:
-  user_logs:
-    type: file
-    path: "user_logs.json"
-```
+=== "YAML"
+
+    ```yaml
+    datasets:
+      user_logs:
+        type: file
+        path: "user_logs.json"
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    user_logs = docetl.read_json("user_logs.json")
+    ```
 
 #### Dynamic Data Loading
 
@@ -70,17 +104,36 @@ DocETL supports dynamic data loading, allowing you to process various file types
 
 To implement dynamic data loading, you can use parsing tools in your dataset configuration. Here's an example:
 
-```yaml
-datasets:
-  audio_transcripts:
-    type: file
-    source: local
-    path: "audio_files/audio_paths.json"
-    parsing_tools:
-      - input_key: audio_path
-        function: whisper_speech_to_text
-        output_key: transcript
-```
+=== "YAML"
+
+    ```yaml
+    datasets:
+      audio_transcripts:
+        type: file
+        source: local
+        path: "audio_files/audio_paths.json"
+        parsing_tools:
+          - input_key: audio_path
+            function: whisper_speech_to_text
+            output_key: transcript
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    audio_transcripts = docetl.read_json(
+        "audio_files/audio_paths.json",
+        parsing=[
+            {
+                "input_key": "audio_path",
+                "function": "whisper_speech_to_text",
+                "output_key": "transcript",
+            }
+        ],
+    )
+    ```
 
 In this example, the dataset configuration specifies a JSON file (audio_paths.json) that contains paths to audio files. The parsing_tools section defines how to process these files:
 
@@ -98,11 +151,26 @@ This approach allows DocETL to dynamically load and process various file types, 
 
 You can define a description of your dataset and persona you want the LLM to adopt when executing operations on your dataset. This is useful for providing context to the LLM and for optimizing the operations.
 
-```yaml
-system_prompt: # This is optional, but recommended for better performance. It is applied to all operations in the pipeline.
-  dataset_description: a collection of transcripts of doctor visits
-  persona: a medical practitioner analyzing patient symptoms and reactions to medications
-```
+=== "YAML"
+
+    ```yaml
+    system_prompt: # This is optional, but recommended for better performance. It is applied to all operations in the pipeline.
+      dataset_description: a collection of transcripts of doctor visits
+      persona: a medical practitioner analyzing patient symptoms and reactions to medications
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    # This is optional, but recommended for better performance.
+    # It is applied to all operations in the pipeline.
+    docetl.system_prompt = {
+        "dataset_description": "a collection of transcripts of doctor visits",
+        "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
+    }
+    ```
 
 ### Operators
 
@@ -117,19 +185,37 @@ The pipeline specification outlines the sequence of steps to be executed and the
 
 For example:
 
-```yaml
-pipeline:
-  steps:
-    - name: analyze_user_logs
-      input: user_logs
-      operations:
-        - extract_insights
-        - unnest_insights
-        - summarize_by_country
-  output:
-    type: file
-    path: "country_summaries.json"
-    intermediate_dir: "intermediate_data" # Optional: If you want to store intermediate outputs in a directory
-```
+=== "YAML"
+
+    ```yaml
+    pipeline:
+      steps:
+        - name: analyze_user_logs
+          input: user_logs
+          operations:
+            - extract_insights
+            - unnest_insights
+            - summarize_by_country
+      output:
+        type: file
+        path: "country_summaries.json"
+        intermediate_dir: "intermediate_data" # Optional: If you want to store intermediate outputs in a directory
+    ```
+
+=== "Python"
+
+    In the Frame API, the pipeline is the chain of operations itself, and the terminal write method defines the output:
+
+    ```python
+    import docetl
+
+    docetl.intermediate_dir = "intermediate_data"  # Optional: If you want to store intermediate outputs in a directory
+
+    pipeline = docetl.read_json("user_logs.json")
+    pipeline = pipeline.map(name="extract_insights", ...)
+    pipeline = pipeline.unnest(name="unnest_insights", ...)
+    pipeline = pipeline.reduce(name="summarize_by_country", ...)
+    pipeline.write_json("country_summaries.json")
+    ```
 
 For a practical example of how these components come together, refer to the [Tutorial](../tutorial.md), which demonstrates a complete pipeline for analyzing user behavior data.

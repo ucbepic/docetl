@@ -67,24 +67,53 @@ Test your evaluation function independently and check MOAR logs for errors.
 
 !!! tip "Avoid Overfitting"
     Always use a sample or hold-out dataset for optimization to avoid optimizing on your test set:
-    
-    ```yaml
-    optimizer_config:
-      dataset_path: data/sample_100.json  # Use sample/hold-out for optimization
-    ```
+
+    === "YAML"
+
+        ```yaml
+        optimizer_config:
+          dataset_path: data/sample_100.json  # Use sample/hold-out for optimization
+        ```
+
+    === "Python"
+
+        ```python
+        optimized = frame.optimize(
+            dataset_path="data/sample_100.json",  # Use sample/hold-out for optimization
+            eval_fn=my_eval,
+            metric_key="score",
+        )
+        ```
 
 ### Choosing Models
 
 !!! tip "Model Selection"
     Include a range of models in `available_models` to explore cost-accuracy trade-offs:
-    
-    ```yaml
-    available_models:
-      - gpt-5.1-nano      # Cheapest, lower accuracy
-      - gpt-5.1-mini      # Low cost, decent accuracy
-      - gpt-5.1           # Balanced
-      - gpt-4o             # Higher cost, better accuracy
-    ```
+
+    === "YAML"
+
+        ```yaml
+        available_models:
+          - gpt-5.1-nano      # Cheapest, lower accuracy
+          - gpt-5.1-mini      # Low cost, decent accuracy
+          - gpt-5.1           # Balanced
+          - gpt-4o             # Higher cost, better accuracy
+        ```
+
+    === "Python"
+
+        ```python
+        optimized = frame.optimize(
+            eval_fn=my_eval,
+            metric_key="score",
+            models=[
+                "gpt-5.1-nano",  # Cheapest, lower accuracy
+                "gpt-5.1-mini",  # Low cost, decent accuracy
+                "gpt-5.1",       # Balanced
+                "gpt-4o",        # Higher cost, better accuracy
+            ],
+        )
+        ```
 
 ### Iteration Count
 

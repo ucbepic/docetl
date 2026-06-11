@@ -155,27 +155,52 @@ By unnesting the quotes, we enable more granular analysis that wouldn't be possi
 
 When dealing with deeply nested structures, you can use the `recursive` parameter to apply the unnest operation at multiple levels:
 
-```yaml
-- name: recursive_unnest
-  type: unnest
-  unnest_key: nested_data
-  recursive: true
-  depth: 3 # Limit recursion to 3 levels deep
-```
+=== "YAML"
+
+    ```yaml
+    - name: recursive_unnest
+      type: unnest
+      unnest_key: nested_data
+      recursive: true
+      depth: 3 # Limit recursion to 3 levels deep
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.unnest(
+        name="recursive_unnest",
+        unnest_key="nested_data",
+        recursive=True,
+        depth=3,  # Limit recursion to 3 levels deep
+    )
+    ```
 
 ### Dictionary Expansion
 
 When unnesting dictionaries, you can use the `expand_fields` parameter to flatten specific fields into the parent structure:
 
-```yaml
-- name: expand_user_data
-  type: unnest
-  unnest_key: user_info
-  expand_fields:
-    - name
-    - age
-    - location
-```
+=== "YAML"
+
+    ```yaml
+    - name: expand_user_data
+      type: unnest
+      unnest_key: user_info
+      expand_fields:
+        - name
+        - age
+        - location
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.unnest(
+        name="expand_user_data",
+        unnest_key="user_info",
+        expand_fields=["name", "age", "location"],
+    )
+    ```
 
 In this case, `name`, `age`, and `location` would be added as new keys in the parent dictionary, alongside the original `user_info` key.
 

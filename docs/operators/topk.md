@@ -28,101 +28,219 @@ The operation supports three distinct retrieval methods, each optimized for diff
 | `batch_size` | `int` | `llm_compare` | Batch size for LLM ranking | `10` |
 | `stratify_key` | `str` or `list[str]` | `embedding`, `fts` | Keys for stratified retrieval | `None` |
 
+!!! note "Python API"
+
+    TopK has no dedicated Frame method, so in Python you construct the pipeline as a config dict and run it with `DSLRunner`. The first example below shows the full pattern; subsequent examples show the operation config dict to place in `config["operations"]`.
+
 ## Examples
 
 ### Semantic Search with Embeddings
 
 When you need to find documents based on meaning rather than exact keywords, the embedding method excels. This example finds support tickets semantically similar to payment processing issues:
 
-```yaml
-- name: find_relevant_tickets
-  type: topk
-  method: embedding
-  k: 5
-  keys: 
-    - subject
-    - description
-    - customer_feedback
-  query: "payment processing errors with international transactions"
-  embedding_model: text-embedding-3-small
-```
+=== "YAML"
+
+    ```yaml
+    - name: find_relevant_tickets
+      type: topk
+      method: embedding
+      k: 5
+      keys: 
+        - subject
+        - description
+        - customer_feedback
+      query: "payment processing errors with international transactions"
+      embedding_model: text-embedding-3-small
+    ```
+
+=== "Python"
+
+    ```python
+    from docetl.runner import DSLRunner
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "tickets": {"type": "file", "path": "tickets.json"},
+        },
+        "operations": [
+            {
+                "name": "find_relevant_tickets",
+                "type": "topk",
+                "method": "embedding",
+                "k": 5,
+                "keys": ["subject", "description", "customer_feedback"],
+                "query": "payment processing errors with international transactions",
+                "embedding_model": "text-embedding-3-small",
+            }
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "retrieve",
+                    "input": "tickets",
+                    "operations": ["find_relevant_tickets"],
+                }
+            ],
+            "output": {"type": "file", "path": "out.json"},
+        },
+    }
+    runner = DSLRunner(config)
+    results, _ = runner.run()
+    ```
 
 ### Keyword Search with FTS
 
 For cases where specific terms matter, such as searching a product catalog, the FTS method provides fast, accurate keyword matching without API costs:
 
-```yaml
-- name: search_products
-  type: topk
-  method: fts
-  k: 20
-  keys:
-    - product_name
-    - description
-    - category
-    - tags
-  query: "wireless noise cancelling headphones bluetooth"
-```
+=== "YAML"
+
+    ```yaml
+    - name: search_products
+      type: topk
+      method: fts
+      k: 20
+      keys:
+        - product_name
+        - description
+        - category
+        - tags
+      query: "wireless noise cancelling headphones bluetooth"
+    ```
+
+=== "Python"
+
+    ```python
+    # Add to config["operations"] and reference in a pipeline step
+    {
+        "name": "search_products",
+        "type": "topk",
+        "method": "fts",
+        "k": 20,
+        "keys": ["product_name", "description", "category", "tags"],
+        "query": "wireless noise cancelling headphones bluetooth",
+    }
+    ```
 
 ### Complex Ranking with LLM Compare
 
 When you need to rank items based on multiple factors or subjective criteria, the LLM compare method allows you to specify complex ranking logic. Note that this method requires consistent criteria across all documents and doesn't support Jinja templates:
 
-```yaml
-- name: screen_resumes
-  type: topk
-  method: llm_compare
-  k: 10
-  keys:
-    - skills
-    - experience
-    - education
-  query: |
-    Rank candidates based on their fit for a Senior Backend Engineer role requiring:
+=== "YAML"
+
+    ```yaml
+    - name: screen_resumes
+      type: topk
+      method: llm_compare
+      k: 10
+      keys:
+        - skills
+        - experience
+        - education
+      query: |
+        Rank candidates based on their fit for a Senior Backend Engineer role requiring:
+        - 5+ years Python experience
+        - Distributed systems expertise
+        - Strong knowledge of PostgreSQL and Redis
+        - Experience with microservices architecture
+        - Leadership experience is a plus
+        
+        Prioritize hands-on technical experience over academic credentials.
+      model: gpt-4o
+      batch_size: 5
+    ```
+
+=== "Python"
+
+    ```python
+    # Add to config["operations"] and reference in a pipeline step
+    {
+        "name": "screen_resumes",
+        "type": "topk",
+        "method": "llm_compare",
+        "k": 10,
+        "keys": ["skills", "experience", "education"],
+        "query": """Rank candidates based on their fit for a Senior Backend Engineer role requiring:
     - 5+ years Python experience
     - Distributed systems expertise
     - Strong knowledge of PostgreSQL and Redis
     - Experience with microservices architecture
     - Leadership experience is a plus
-    
-    Prioritize hands-on technical experience over academic credentials.
-  model: gpt-4o
-  batch_size: 5
-```
+
+    Prioritize hands-on technical experience over academic credentials.""",
+        "model": "gpt-4o",
+        "batch_size": 5,
+    }
+    ```
 
 ### Dynamic Queries with Templates
 
 The embedding and FTS methods support Jinja templates for dynamic queries that adapt based on input data. This enables personalized search experiences:
 
-```yaml
-- name: personalized_search
-  type: topk
-  method: embedding
-  k: 10
-  keys:
-    - content
-    - tags
-  query: |
-    {{ input.user_preferences }} 
+=== "YAML"
+
+    ```yaml
+    - name: personalized_search
+      type: topk
+      method: embedding
+      k: 10
+      keys:
+        - content
+        - tags
+      query: |
+        {{ input.user_preferences }} 
+        Focus on {{ input.topic_of_interest }}
+        Exclude anything related to {{ input.blocked_topics }}
+    ```
+
+=== "Python"
+
+    ```python
+    # Add to config["operations"] and reference in a pipeline step
+    {
+        "name": "personalized_search",
+        "type": "topk",
+        "method": "embedding",
+        "k": 10,
+        "keys": ["content", "tags"],
+        "query": """{{ input.user_preferences }}
     Focus on {{ input.topic_of_interest }}
-    Exclude anything related to {{ input.blocked_topics }}
-```
+    Exclude anything related to {{ input.blocked_topics }}""",
+    }
+    ```
 
 ### Stratified Retrieval
 
 Both embedding and FTS methods support stratification, which ensures you retrieve top items from each group. This is useful for maintaining diversity in results:
 
-```yaml
-- name: recommendations_by_category
-  type: topk
-  method: fts
-  k: 3  # Get top 3 from each category
-  keys:
-    - product_name
-    - description
-  query: "premium quality bestseller"
-  stratify_key: category
-```
+=== "YAML"
+
+    ```yaml
+    - name: recommendations_by_category
+      type: topk
+      method: fts
+      k: 3  # Get top 3 from each category
+      keys:
+        - product_name
+        - description
+      query: "premium quality bestseller"
+      stratify_key: category
+    ```
+
+=== "Python"
+
+    ```python
+    # Add to config["operations"] and reference in a pipeline step
+    {
+        "name": "recommendations_by_category",
+        "type": "topk",
+        "method": "fts",
+        "k": 3,  # Get top 3 from each category
+        "keys": ["product_name", "description"],
+        "query": "premium quality bestseller",
+        "stratify_key": "category",
+    }
+    ```
 
 ## Common Patterns
 
@@ -130,64 +248,157 @@ Both embedding and FTS methods support stratification, which ensures you retriev
 
 A retrieval-augmented generation pipeline for answering questions about a single document typically retrieves the most relevant chunks, then synthesizes them into a coherent answer using reduce:
 
-```yaml
-# Step 1: Retrieve most relevant document chunks
-- name: retrieve_context
-  type: topk
-  method: embedding
-  k: 5
-  keys: [content]
-  query: "{{ input.user_question }}"
+=== "YAML"
 
-# Step 2: Generate comprehensive answer from all retrieved chunks
-- name: generate_answer
-  type: reduce
-  reduce_key: user_question  # Group by the question
-  prompt: |
-    Based on the following document excerpts, provide a comprehensive answer to the question.
-    
+    ```yaml
+    # Step 1: Retrieve most relevant document chunks
+    - name: retrieve_context
+      type: topk
+      method: embedding
+      k: 5
+      keys: [content]
+      query: "{{ input.user_question }}"
+
+    # Step 2: Generate comprehensive answer from all retrieved chunks
+    - name: generate_answer
+      type: reduce
+      reduce_key: user_question  # Group by the question
+      prompt: |
+        Based on the following document excerpts, provide a comprehensive answer to the question.
+        
+        Question: {{ inputs[0].user_question }}
+        
+        Retrieved context from document:
+        {% for chunk in inputs %}
+        - {{ chunk.content }}
+        {% endfor %}
+        
+        Synthesize the information from all excerpts into a single, coherent answer.
+      output_schema:
+        answer: string
+    ```
+
+=== "Python"
+
+    ```python
+    from docetl.runner import DSLRunner
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "chunks": {"type": "file", "path": "chunks.json"},
+        },
+        "operations": [
+            # Step 1: Retrieve most relevant document chunks
+            {
+                "name": "retrieve_context",
+                "type": "topk",
+                "method": "embedding",
+                "k": 5,
+                "keys": ["content"],
+                "query": "{{ input.user_question }}",
+            },
+            # Step 2: Generate comprehensive answer from all retrieved chunks
+            {
+                "name": "generate_answer",
+                "type": "reduce",
+                "reduce_key": "user_question",  # Group by the question
+                "prompt": """Based on the following document excerpts, provide a comprehensive answer to the question.
+
     Question: {{ inputs[0].user_question }}
-    
+
     Retrieved context from document:
     {% for chunk in inputs %}
     - {{ chunk.content }}
     {% endfor %}
-    
-    Synthesize the information from all excerpts into a single, coherent answer.
-  output_schema:
-    answer: string
-```
+
+    Synthesize the information from all excerpts into a single, coherent answer.""",
+                "output_schema": {"answer": "string"},
+            },
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "rag",
+                    "input": "chunks",
+                    "operations": ["retrieve_context", "generate_answer"],
+                }
+            ],
+            "output": {"type": "file", "path": "answers.json"},
+        },
+    }
+    runner = DSLRunner(config)
+    results, _ = runner.run()
+    ```
 
 ### Multi-Stage Filtering
 
 For complex retrieval tasks, you might combine multiple TopK operations with different methods, progressively refining your results:
 
-```yaml
-# Cast a wide net with keyword search
-- name: initial_search
-  type: topk
-  method: fts
-  k: 100
-  keys: [title, content]
-  query: "machine learning"
+=== "YAML"
 
-# Refine with semantic search
-- name: refine_results
-  type: topk
-  method: embedding
-  k: 20
-  keys: [title, content]
-  query: "practical applications of deep learning in healthcare"
+    ```yaml
+    # Cast a wide net with keyword search
+    - name: initial_search
+      type: topk
+      method: fts
+      k: 100
+      keys: [title, content]
+      query: "machine learning"
 
-# Final ranking with LLM
-- name: final_ranking
-  type: topk
-  method: llm_compare
-  k: 5
-  keys: [title, abstract, impact_factor]
-  query: "Rank by potential clinical impact and implementation feasibility"
-  model: gpt-4o
-```
+    # Refine with semantic search
+    - name: refine_results
+      type: topk
+      method: embedding
+      k: 20
+      keys: [title, content]
+      query: "practical applications of deep learning in healthcare"
+
+    # Final ranking with LLM
+    - name: final_ranking
+      type: topk
+      method: llm_compare
+      k: 5
+      keys: [title, abstract, impact_factor]
+      query: "Rank by potential clinical impact and implementation feasibility"
+      model: gpt-4o
+    ```
+
+=== "Python"
+
+    ```python
+    # Add to config["operations"] and reference in a pipeline step
+    [
+        # Cast a wide net with keyword search
+        {
+            "name": "initial_search",
+            "type": "topk",
+            "method": "fts",
+            "k": 100,
+            "keys": ["title", "content"],
+            "query": "machine learning",
+        },
+        # Refine with semantic search
+        {
+            "name": "refine_results",
+            "type": "topk",
+            "method": "embedding",
+            "k": 20,
+            "keys": ["title", "content"],
+            "query": "practical applications of deep learning in healthcare",
+        },
+        # Final ranking with LLM
+        {
+            "name": "final_ranking",
+            "type": "topk",
+            "method": "llm_compare",
+            "k": 5,
+            "keys": ["title", "abstract", "impact_factor"],
+            "query": "Rank by potential clinical impact and implementation feasibility",
+            "model": "gpt-4o",
+        },
+    ]
+    ```
 
 ## Performance Considerations
 

@@ -34,22 +34,49 @@ Schemas are defined in the `output` section of an operator. They support various
 
 ### Simple Schema
 
-```yaml
-output:
-  schema:
-    summary: string
-    sentiment: string
-    include_item: boolean # For filter operations
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        summary: string
+        sentiment: string
+        include_item: boolean # For filter operations
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "summary": "string",
+            "sentiment": "string",
+            "include_item": "boolean",  # For filter operations
+        }
+    }
+    ```
 
 ### Complex Schema
 
-```yaml
-output:
-  schema:
-    insights: "list[{insight: string, confidence: number}]"
-    metadata: "{timestamp: string, source: string}"
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        insights: "list[{insight: string, confidence: number}]"
+        metadata: "{timestamp: string, source: string}"
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "insights": "list[{insight: string, confidence: number}]",
+            "metadata": "{timestamp: string, source: string}",
+        }
+    }
+    ```
 
 ## Lists and Objects
 
@@ -65,31 +92,59 @@ Objects are defined using curly braces and must have typed fields:
 
 !!! example "Complex List Example"
 
-    ```yaml
-    output:
-      schema:
-        users: "list[{name: string, age: integer, hobbies: list[string]}]"
-    ```
+    === "YAML"
 
-    Make sure that you put the type in quotation marks, if it references an object type (i.e., has curly braces)! Otherwise the yaml won't compile!
+        ```yaml
+        output:
+          schema:
+            users: "list[{name: string, age: integer, hobbies: list[string]}]"
+        ```
+
+        Make sure that you put the type in quotation marks, if it references an object type (i.e., has curly braces)! Otherwise the yaml won't compile!
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "users": "list[{name: string, age: integer, hobbies: list[string]}]"
+            }
+        }
+        ```
 
 ## Enum Types
 
 You can also specify enum types, which will be validated against a set of possible values. Suppose we have an operation to extract sentiments from a document, and we want to ensure that the sentiment is one of the three possible values. Our schema would look like this:
 
-```yaml
-output:
-  schema:
-    sentiment: "enum[positive, negative, neutral]"
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        sentiment: "enum[positive, negative, neutral]"
+    ```
+
+=== "Python"
+
+    ```python
+    output={"schema": {"sentiment": "enum[positive, negative, neutral]"}}
+    ```
 
 You can also specify a list of enum types (say, if we wanted to extract _multiple_ sentiments from a document):
 
-```yaml
-output:
-  schema:
-    possible_sentiments: "list[enum[positive, negative, neutral]]"
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        possible_sentiments: "list[enum[positive, negative, neutral]]"
+    ```
+
+=== "Python"
+
+    ```python
+    output={"schema": {"possible_sentiments": "list[enum[positive, negative, neutral]]"}}
+    ```
 
 ## How We Enforce Schemas
 
@@ -101,24 +156,51 @@ DocETL supports two output modes that determine how the LLM generates structured
 
 Uses the OpenAI tools/function calling API to enforce schema structure. This is the default mode and provides robust schema validation.
 
-```yaml
-output:
-  schema:
-    summary: string
-    sentiment: string
-  mode: "tools"  # Optional - this is the default
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        summary: string
+        sentiment: string
+      mode: "tools"  # Optional - this is the default
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "summary": "string",
+            "sentiment": "string",
+        },
+        "mode": "tools",  # Optional - this is the default
+    }
+    ```
 
 ### Structured Output Mode
 
 Uses LiteLLM's structured output feature with JSON schema validation. This mode can provide more reliable schema adherence for complex outputs.
 
-```yaml
-output:
-  schema:
-    insights: "list[{insight: string, confidence: number}]"
-  mode: "structured_output"
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        insights: "list[{insight: string, confidence: number}]"
+      mode: "structured_output"
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "insights": "list[{insight: string, confidence: number}]",
+        },
+        "mode": "structured_output",
+    }
+    ```
 
 !!! tip "When to Use Structured Output Mode"
 
@@ -134,17 +216,33 @@ output:
 
 The output mode can be configured in the `output` section of any operation:
 
-```yaml
-operations:
-  - name: analyze_text
-    type: map
-    prompt: "Analyze the following text..."
-    output:
-      schema:
-        topics: "list[{topic: string, relevance: number}]"
-      mode: "structured_output"  # or "tools"
-    model: gpt-4o-mini
-```
+=== "YAML"
+
+    ```yaml
+    operations:
+      - name: analyze_text
+        type: map
+        prompt: "Analyze the following text..."
+        output:
+          schema:
+            topics: "list[{topic: string, relevance: number}]"
+          mode: "structured_output"  # or "tools"
+        model: gpt-4o-mini
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="analyze_text",
+        prompt="Analyze the following text...",
+        output={
+            "schema": {"topics": "list[{topic: string, relevance: number}]"},
+            "mode": "structured_output",  # or "tools"
+        },
+        model="gpt-4o-mini",
+    )
+    ```
 
 If no mode is specified, DocETL defaults to `"tools"` mode for backward compatibility.
 
@@ -161,20 +259,48 @@ If no mode is specified, DocETL defaults to `"tools"` mode for backward compatib
 !!! example "Breaking Down Complex Schemas"
 
     Instead of:
-    ```yaml
-    output:
-      schema:
-        summary: string
-        key_points: "list[{point: string, sentiment: string}]"
-    ```
+
+    === "YAML"
+
+        ```yaml
+        output:
+          schema:
+            summary: string
+            key_points: "list[{point: string, sentiment: string}]"
+        ```
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "summary": "string",
+                "key_points": "list[{point: string, sentiment: string}]",
+            }
+        }
+        ```
 
     Consider:
-    ```yaml
-    output:
-      schema:
-        summary: string
-        key_points: "string"
-    ```
+
+    === "YAML"
+
+        ```yaml
+        output:
+          schema:
+            summary: string
+            key_points: "string"
+        ```
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "summary": "string",
+                "key_points": "string",
+            }
+        }
+        ```
 
     Where in the prompt you can say something like: `In your key points, please include the sentiment of each point.`
 

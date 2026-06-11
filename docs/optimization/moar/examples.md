@@ -57,57 +57,93 @@ for plan in optimized.search_results.frontier:
     print(f"Cost: ${plan.cost:.4f}, Accuracy: {plan.accuracy}")
 ```
 
-### pipeline.yaml
+### Full pipeline configuration
 
-```yaml
-datasets:
-  transcripts:
-    path: workloads/medical/raw.json
-    type: file
+=== "YAML"
 
-default_model: gpt-4o-mini
-bypass_cache: true
+    ```yaml
+    datasets:
+      transcripts:
+        path: workloads/medical/raw.json
+        type: file
 
-optimizer_config:
-  dataset_path: workloads/medical/raw_sample.json  # Use sample for faster optimization
-  save_dir: workloads/medical/moar_results
-  available_models:  # LiteLLM model names - ensure API keys are set in your environment
-    - gpt-5.1-nano
-    - gpt-5.1-mini
-    - gpt-5.1
-    - gpt-4o
-    - gpt-4o-mini
-  evaluation_file: workloads/medical/evaluate_medications.py
-  metric_key: medication_extraction_score
-  max_iterations: 40
-  rewrite_agent_model: gpt-5.1
+    default_model: gpt-4o-mini
+    bypass_cache: true
 
-system_prompt:
-  dataset_description: a collection of transcripts of doctor visits
-  persona: a medical practitioner analyzing patient symptoms and reactions to medications
+    optimizer_config:
+      dataset_path: workloads/medical/raw_sample.json  # Use sample for faster optimization
+      save_dir: workloads/medical/moar_results
+      available_models:  # LiteLLM model names - ensure API keys are set in your environment
+        - gpt-5.1-nano
+        - gpt-5.1-mini
+        - gpt-5.1
+        - gpt-4o
+        - gpt-4o-mini
+      evaluation_file: workloads/medical/evaluate_medications.py
+      metric_key: medication_extraction_score
+      max_iterations: 40
+      rewrite_agent_model: gpt-5.1
 
-operations:
-  - name: extract_medications
-    type: map
-    output:
-      schema:
-        medication: list[str]
-    prompt: |
-      Analyze the following transcript of a conversation between a doctor and a patient:
-      {{ input.src }}
-      Extract and list all medications mentioned in the transcript.
-      If no medications are mentioned, return an empty list.
+    system_prompt:
+      dataset_description: a collection of transcripts of doctor visits
+      persona: a medical practitioner analyzing patient symptoms and reactions to medications
 
-pipeline:
-  steps:
-    - name: medication_extraction
-      input: transcripts
-      operations:
-        - extract_medications
-  output:
-    type: file
-    path: workloads/medical/extracted_medications_results.json
-```
+    operations:
+      - name: extract_medications
+        type: map
+        output:
+          schema:
+            medication: list[str]
+        prompt: |
+          Analyze the following transcript of a conversation between a doctor and a patient:
+          {{ input.src }}
+          Extract and list all medications mentioned in the transcript.
+          If no medications are mentioned, return an empty list.
+
+    pipeline:
+      steps:
+        - name: medication_extraction
+          input: transcripts
+          operations:
+            - extract_medications
+      output:
+        type: file
+        path: workloads/medical/extracted_medications_results.json
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+    docetl.bypass_cache = True
+    docetl.system_prompt = {
+        "dataset_description": "a collection of transcripts of doctor visits",
+        "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
+    }
+
+    frame = docetl.read_json("workloads/medical/raw.json")
+    frame = frame.map(
+        "extract_medications",
+        prompt="""Analyze the following transcript of a conversation between a doctor and a patient:
+    {{ input.src }}
+    Extract and list all medications mentioned in the transcript.
+    If no medications are mentioned, return an empty list.""",
+        output={"schema": {"medication": "list[str]"}},
+    )
+
+    optimized = frame.optimize(
+        eval_fn=evaluate_medications,  # the function from the Python API section above
+        metric_key="medication_extraction_score",
+        models=["gpt-5.1-nano", "gpt-5.1-mini", "gpt-5.1", "gpt-4o", "gpt-4o-mini"],
+        max_iterations=40,
+        agent_model="gpt-5.1",
+        save_dir="workloads/medical/moar_results",
+        dataset_path="workloads/medical/raw_sample.json",  # Use sample for faster optimization
+    )
+    optimized.write_json("workloads/medical/extracted_medications_results.json")
+    ```
 
 ### evaluate_medications.py (for CLI)
 

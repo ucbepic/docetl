@@ -1,5 +1,9 @@
 # Model Cascades for DocETL operators
 
+Based on **BARGAIN**: Sepanta Zeighami, Shreya Shankar, Aditya Parameswaran.
+["Cut Costs, Not Accuracy: LLM-Powered Data Processing with Guarantees."](https://arxiv.org/abs/2509.02896)
+*ACM SIGMOD 2026.* ([code](https://github.com/ucbepic/BARGAIN))
+
 Status: complete — engine, proxy logprob path, filter / resolve / equijoin
 wiring, caching + cost reporting + user docs at `docs/concepts/cascades.md`.
 Owner: (you)
@@ -144,8 +148,10 @@ dataset signature) so re-runs don't re-pay the labeling cost.
   self-reported-confidence fallback.
 - **Calibration cost** — `label_budget` is a hard ceiling; tiny datasets may
   not afford a meaningful sample (warn + fall back to all-oracle).
-- **target must be strict (0, 1)** — BARGAIN cannot guarantee 100% with finite
-  samples; `target=1.0` is rejected at config validation.
+- **target must be strictly inside (0, 1)** — `target=1.0` is rejected at
+  config validation. Separately: certifying exactly 100% from a finite oracle
+  sample is statistically impossible; the closest achievable guarantee is
+  "≥ 99% w.p. 1 − δ".
 
 ## Attribution
 

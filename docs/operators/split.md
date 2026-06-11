@@ -84,15 +84,29 @@ The delimiter method splits the text based on a specified delimiter string. This
 
     If you set the `delimiter` to `"\n\n"` (double newline) and `num_splits_to_group` to 3, each chunk will contain 3 paragraphs.
 
-    ```yaml
-    - name: split_by_paragraphs
-      type: split
-      split_key: document
-      method: delimiter
-      method_kwargs:
-        delimiter: "\n\n"
-      num_splits_to_group: 3
-    ```
+    === "YAML"
+
+        ```yaml
+        - name: split_by_paragraphs
+          type: split
+          split_key: document
+          method: delimiter
+          method_kwargs:
+            delimiter: "\n\n"
+          num_splits_to_group: 3
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.split(
+            name="split_by_paragraphs",
+            split_key="document",
+            method="delimiter",
+            method_kwargs={"delimiter": "\n\n"},
+            num_splits_to_group=3,
+        )
+        ```
 
 ## Output
 
@@ -120,25 +134,67 @@ Let's walk through a complete example of using Split, Map, and Reduce operations
 
 ### Step 1: Split Operation
 
-```yaml
-- name: split_transcript
-  type: split
-  split_key: transcript
-  method: token_count
-  method_kwargs:
-    num_tokens: 500
-    model: gpt-4o-mini
-```
+=== "YAML"
+
+    ```yaml
+    - name: split_transcript
+      type: split
+      split_key: transcript
+      method: token_count
+      method_kwargs:
+        num_tokens: 500
+        model: gpt-4o-mini
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    pipeline = docetl.read_json("transcripts.json")
+    pipeline = pipeline.split(
+        name="split_transcript",
+        split_key="transcript",
+        method="token_count",
+        method_kwargs={"num_tokens": 500, "model": "gpt-4o-mini"},
+    )
+    ```
 
 ### Step 2: Map Operation (Identify Frustration Indicators)
 
-```yaml
-- name: identify_frustration
-  type: map
-  input:
-    - transcript_chunk
-  prompt: |
-    Analyze the following customer support transcript chunk for signs of customer frustration:
+=== "YAML"
+
+    ```yaml
+    - name: identify_frustration
+      type: map
+      input:
+        - transcript_chunk
+      prompt: |
+        Analyze the following customer support transcript chunk for signs of customer frustration:
+
+        {{ input.transcript_chunk }}
+
+        Identify any indicators of frustration, such as:
+        1. Use of negative language
+        2. Repetition of issues
+        3. Expressions of dissatisfaction
+        4. Requests for escalation
+
+        Provide a list of frustration indicators found, if any.
+      output:
+        schema:
+          frustration_indicators: list[string]
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="identify_frustration",
+        input=["transcript_chunk"],
+        prompt="""Analyze the following customer support transcript chunk for signs of customer frustration:
 
     {{ input.transcript_chunk }}
 
@@ -148,21 +204,46 @@ Let's walk through a complete example of using Split, Map, and Reduce operations
     3. Expressions of dissatisfaction
     4. Requests for escalation
 
-    Provide a list of frustration indicators found, if any.
-  output:
-    schema:
-      frustration_indicators: list[string]
-```
+    Provide a list of frustration indicators found, if any.""",
+        output={"schema": {"frustration_indicators": "list[string]"}},
+    )
+    ```
 
 ### Step 3: Reduce Operation (Summarize Frustration Points)
 
-```yaml
-- name: summarize_frustration
-  type: reduce
-  reduce_key: split_transcript_id
-  associative: false
-  prompt: |
-    Summarize the customer frustration points for this support transcript:
+=== "YAML"
+
+    ```yaml
+    - name: summarize_frustration
+      type: reduce
+      reduce_key: split_transcript_id
+      associative: false
+      prompt: |
+        Summarize the customer frustration points for this support transcript:
+
+        {% for item in inputs %}
+        Chunk {{ item.split_transcript_chunk_num }}:
+        {% for indicator in item.frustration_indicators %}
+        - {{ indicator }}
+        {% endfor %}
+        {% endfor %}
+
+        Provide a concise summary of the main frustration points and their frequency or intensity across the entire transcript.
+      output:
+        schema:
+          frustration_summary: string
+          primary_issues: list[string]
+          frustration_level: string # e.g., "low", "medium", "high"
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.reduce(
+        name="summarize_frustration",
+        reduce_key="split_transcript_id",
+        associative=False,
+        prompt="""Summarize the customer frustration points for this support transcript:
 
     {% for item in inputs %}
     Chunk {{ item.split_transcript_chunk_num }}:
@@ -171,13 +252,17 @@ Let's walk through a complete example of using Split, Map, and Reduce operations
     {% endfor %}
     {% endfor %}
 
-    Provide a concise summary of the main frustration points and their frequency or intensity across the entire transcript.
-  output:
-    schema:
-      frustration_summary: string
-      primary_issues: list[string]
-      frustration_level: string # e.g., "low", "medium", "high"
-```
+    Provide a concise summary of the main frustration points and their frequency or intensity across the entire transcript.""",
+        output={
+            "schema": {
+                "frustration_summary": "string",
+                "primary_issues": "list[string]",
+                "frustration_level": "string",  # e.g., "low", "medium", "high"
+            }
+        },
+    )
+    df = pipeline.collect()
+    ```
 
 !!! important "Non-Associative Reduce Operation"
 

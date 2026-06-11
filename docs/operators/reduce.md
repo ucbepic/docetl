@@ -111,27 +111,50 @@ For large datasets, the Reduce operation supports incremental folding. This allo
 
 To enable incremental folding, provide a `fold_prompt` and `fold_batch_size`:
 
-```yaml
-- name: large_data_reduce
-  type: reduce
-  reduce_key: category
-  prompt: |
-    Summarize the data for category {{ inputs[0].category }}:
+=== "YAML"
+
+    ```yaml
+    - name: large_data_reduce
+      type: reduce
+      reduce_key: category
+      prompt: |
+        Summarize the data for category {{ inputs[0].category }}:
+        {% for item in inputs %}
+        Item {{ loop.index }}: {{ item.data }}
+        {% endfor %}
+      fold_prompt: |
+        Combine the following summaries for category {{ inputs[0].category }}:
+        Current summary: {{ output.summary }}
+        New data:
+        {% for item in inputs %}
+        Item {{ loop.index }}: {{ item.data }}
+        {% endfor %}
+      fold_batch_size: 100
+      output:
+        schema:
+          summary: string
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.reduce(
+        name="large_data_reduce",
+        reduce_key="category",
+        prompt="""Summarize the data for category {{ inputs[0].category }}:
     {% for item in inputs %}
     Item {{ loop.index }}: {{ item.data }}
-    {% endfor %}
-  fold_prompt: |
-    Combine the following summaries for category {{ inputs[0].category }}:
+    {% endfor %}""",
+        fold_prompt="""Combine the following summaries for category {{ inputs[0].category }}:
     Current summary: {{ output.summary }}
     New data:
     {% for item in inputs %}
     Item {{ loop.index }}: {{ item.data }}
-    {% endfor %}
-  fold_batch_size: 100
-  output:
-    schema:
-      summary: string
-```
+    {% endfor %}""",
+        fold_batch_size=100,
+        output={"schema": {"summary": "string"}},
+    )
+    ```
 
 #### Example Rendered Prompt
 
@@ -186,23 +209,44 @@ To enable value sampling, add a `value_sampling` configuration to your reduce op
 
 !!! example "Value Sampling Configuration"
 
-    ```yaml
-    - name: sampled_reduce
-      type: reduce
-      reduce_key: product_id
-      prompt: |
-        Summarize the reviews for product {{ inputs[0].product_id }}:
+    === "YAML"
+
+        ```yaml
+        - name: sampled_reduce
+          type: reduce
+          reduce_key: product_id
+          prompt: |
+            Summarize the reviews for product {{ inputs[0].product_id }}:
+            {% for item in inputs %}
+            Review {{ loop.index }}: {{ item.review }}
+            {% endfor %}
+          value_sampling:
+            enabled: true
+            method: cluster
+            sample_size: 50
+          output:
+            schema:
+              summary: string
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.reduce(
+            name="sampled_reduce",
+            reduce_key="product_id",
+            prompt="""Summarize the reviews for product {{ inputs[0].product_id }}:
         {% for item in inputs %}
         Review {{ loop.index }}: {{ item.review }}
-        {% endfor %}
-      value_sampling:
-        enabled: true
-        method: cluster
-        sample_size: 50
-      output:
-        schema:
-          summary: string
-    ```
+        {% endfor %}""",
+            value_sampling={
+                "enabled": True,
+                "method": "cluster",
+                "sample_size": 50,
+            },
+            output={"schema": {"summary": "string"}},
+        )
+        ```
 
     In this example, the Reduce operation will use K-means clustering to select a representative sample of 50 reviews for each product_id.
 
@@ -210,27 +254,51 @@ For semantic similarity sampling, you can use a query to select the most relevan
 
 !!! example "Semantic Similarity Sampling"
 
-    ```yaml
-    - name: sampled_reduce_sem_sim
-      type: reduce
-      reduce_key: product_id
-      prompt: |
-        Summarize the reviews for product {{ inputs[0].product_id }}, focusing on comments about battery life and performance:
+    === "YAML"
+
+        ```yaml
+        - name: sampled_reduce_sem_sim
+          type: reduce
+          reduce_key: product_id
+          prompt: |
+            Summarize the reviews for product {{ inputs[0].product_id }}, focusing on comments about battery life and performance:
+            {% for item in inputs %}
+            Review {{ loop.index }}: {{ item.review }}
+            {% endfor %}
+          value_sampling:
+            enabled: true
+            method: sem_sim
+            sample_size: 30
+            embedding_model: text-embedding-3-small
+            embedding_keys:
+              - review
+            query_text: "Battery life and performance"
+          output:
+            schema:
+              summary: string
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.reduce(
+            name="sampled_reduce_sem_sim",
+            reduce_key="product_id",
+            prompt="""Summarize the reviews for product {{ inputs[0].product_id }}, focusing on comments about battery life and performance:
         {% for item in inputs %}
         Review {{ loop.index }}: {{ item.review }}
-        {% endfor %}
-      value_sampling:
-        enabled: true
-        method: sem_sim
-        sample_size: 30
-        embedding_model: text-embedding-3-small
-        embedding_keys:
-          - review
-        query_text: "Battery life and performance"
-      output:
-        schema:
-          summary: string
-    ```
+        {% endfor %}""",
+            value_sampling={
+                "enabled": True,
+                "method": "sem_sim",
+                "sample_size": 30,
+                "embedding_model": "text-embedding-3-small",
+                "embedding_keys": ["review"],
+                "query_text": "Battery life and performance",
+            },
+            output={"schema": {"summary": "string"}},
+        )
+        ```
 
     In this example, the Reduce operation will use semantic similarity to select the 30 reviews most relevant to battery life and performance for each product_id. This allows you to focus the summarization on specific aspects of the product reviews.
 
@@ -238,21 +306,40 @@ For semantic similarity sampling, you can use a query to select the most relevan
 
 The Reduce operation supports lineage, which allows you to track the original input data for each output. This can be useful for debugging and auditing. To enable lineage, add a `lineage` configuration to your reduce operation, specifying the keys to include in the lineage. For example:
 
-```yaml
-- name: summarize_reviews_by_category
-  type: reduce
-  reduce_key: category
-  prompt: |
-    Summarize the reviews for category {{ inputs[0].category }}:
+=== "YAML"
+
+    ```yaml
+    - name: summarize_reviews_by_category
+      type: reduce
+      reduce_key: category
+      prompt: |
+        Summarize the reviews for category {{ inputs[0].category }}:
+        {% for item in inputs %}
+        Review {{ loop.index }}: {{ item.review }}
+        {% endfor %}
+      output:
+        schema:
+          summary: string
+        lineage:
+          - product_id
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.reduce(
+        name="summarize_reviews_by_category",
+        reduce_key="category",
+        prompt="""Summarize the reviews for category {{ inputs[0].category }}:
     {% for item in inputs %}
     Review {{ loop.index }}: {{ item.review }}
-    {% endfor %}
-  output:
-    schema:
-      summary: string
-    lineage:
-      - product_id
-```
+    {% endfor %}""",
+        output={
+            "schema": {"summary": "string"},
+            "lineage": ["product_id"],
+        },
+    )
+    ```
 
 This output will include a list of all product_ids for each category in the lineage, saved under the key `summarize_reviews_by_category_lineage`.
 

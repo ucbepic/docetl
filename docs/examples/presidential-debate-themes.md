@@ -13,90 +13,9 @@ You can take a look at the raw data [here](https://github.com/ucbepic/docetl/tre
 
 Let's examine the pipeline structure and its operations:
 
-```yaml
-pipeline:
-  steps:
-    - name: debate_analysis
-      input: debates
-      operations:
-        - extract_themes_and_viewpoints
-        - unnest_themes
-        - summarize_theme_evolution
-```
-
-??? example "Full Pipeline Configuration"
+=== "YAML"
 
     ```yaml
-    datasets:
-      debates:
-        type: file
-        path: "data.json"
-
-    system_prompt:
-      dataset_description: a collection of transcripts of presidential debates
-      persona: a political analyst
-
-    default_model: gpt-4o-mini
-
-    operations:
-      - name: extract_themes_and_viewpoints
-        type: map
-        output:
-          schema:
-            themes: "list[{theme: str, viewpoints: str}]"
-        prompt: |
-          Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
-
-          {{ input.content }}
-
-          Extract the main themes discussed in this debate and the viewpoints of the candidates on these themes.
-          Return a list of themes and corresponding viewpoints (including the specific quotes from the debate) in the following format:
-          [
-            {
-              "theme": "Theme 1",
-              "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
-            },
-            {
-              "theme": "Theme 2",
-              "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
-            },
-            ...
-          ]
-
-      - name: unnest_themes
-        type: unnest
-        unnest_key: themes
-        recursive: true
-
-      - name: summarize_theme_evolution
-        type: reduce
-        reduce_key: theme
-        output:
-          schema:
-            theme: str
-            report: str
-        prompt: |
-          Analyze the following viewpoints on the theme "{{ inputs[0].theme }}" from various debates over the years:
-
-          {% for item in inputs %}
-          Year: {{ item.year }}
-          Date: {{ item.date }}
-          Title: {{ item.title }}
-          Viewpoints: {{ item.viewpoints }}
-
-          {% endfor %}
-
-          Generate a comprehensive summary of how Democratic and Republican viewpoints on this theme have evolved through the years. Include supporting quotes from the debates to illustrate key points or shifts in perspective.
-
-          Your summary should:
-          1. Identify *all* major trends or shifts in each party's stance over time
-          2. Highlight any significant agreements or disagreements between the parties
-          3. Note any external events or factors that may have influenced changes in viewpoints
-          4. Use specific quotes to support your analysis
-          5. The title should contain the start and end years of the analysis
-
-          Format your response as a well-structured report.
-
     pipeline:
       steps:
         - name: debate_analysis
@@ -105,89 +24,336 @@ pipeline:
             - extract_themes_and_viewpoints
             - unnest_themes
             - summarize_theme_evolution
-
-      output:
-        type: file
-        path: "theme_evolution_analysis.json"
-        intermediate_dir: "checkpoints"
-
     ```
+
+=== "Python"
+
+    ```python
+    pipeline = (
+        docetl.read_json("data.json")
+        .map(...)     # extract_themes_and_viewpoints, defined below
+        .unnest(...)  # unnest_themes
+        .reduce(...)  # summarize_theme_evolution
+    )
+    ```
+
+??? example "Full Pipeline Configuration"
+
+    === "YAML"
+
+        ```yaml
+        datasets:
+          debates:
+            type: file
+            path: "data.json"
+
+        system_prompt:
+          dataset_description: a collection of transcripts of presidential debates
+          persona: a political analyst
+
+        default_model: gpt-4o-mini
+
+        operations:
+          - name: extract_themes_and_viewpoints
+            type: map
+            output:
+              schema:
+                themes: "list[{theme: str, viewpoints: str}]"
+            prompt: |
+              Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+
+              {{ input.content }}
+
+              Extract the main themes discussed in this debate and the viewpoints of the candidates on these themes.
+              Return a list of themes and corresponding viewpoints (including the specific quotes from the debate) in the following format:
+              [
+                {
+                  "theme": "Theme 1",
+                  "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+                },
+                {
+                  "theme": "Theme 2",
+                  "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+                },
+                ...
+              ]
+
+          - name: unnest_themes
+            type: unnest
+            unnest_key: themes
+            recursive: true
+
+          - name: summarize_theme_evolution
+            type: reduce
+            reduce_key: theme
+            output:
+              schema:
+                theme: str
+                report: str
+            prompt: |
+              Analyze the following viewpoints on the theme "{{ inputs[0].theme }}" from various debates over the years:
+
+              {% for item in inputs %}
+              Year: {{ item.year }}
+              Date: {{ item.date }}
+              Title: {{ item.title }}
+              Viewpoints: {{ item.viewpoints }}
+
+              {% endfor %}
+
+              Generate a comprehensive summary of how Democratic and Republican viewpoints on this theme have evolved through the years. Include supporting quotes from the debates to illustrate key points or shifts in perspective.
+
+              Your summary should:
+              1. Identify *all* major trends or shifts in each party's stance over time
+              2. Highlight any significant agreements or disagreements between the parties
+              3. Note any external events or factors that may have influenced changes in viewpoints
+              4. Use specific quotes to support your analysis
+              5. The title should contain the start and end years of the analysis
+
+              Format your response as a well-structured report.
+
+        pipeline:
+          steps:
+            - name: debate_analysis
+              input: debates
+              operations:
+                - extract_themes_and_viewpoints
+                - unnest_themes
+                - summarize_theme_evolution
+
+          output:
+            type: file
+            path: "theme_evolution_analysis.json"
+            intermediate_dir: "checkpoints"
+
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gpt-4o-mini"
+        docetl.system_prompt = {
+            "dataset_description": "a collection of transcripts of presidential debates",
+            "persona": "a political analyst",
+        }
+        docetl.intermediate_dir = "checkpoints"
+
+        pipeline = docetl.read_json("data.json")
+
+        pipeline = pipeline.map(
+            name="extract_themes_and_viewpoints",
+            prompt="""
+            Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+
+            {{ input.content }}
+
+            Extract the main themes discussed in this debate and the viewpoints of the candidates on these themes.
+            Return a list of themes and corresponding viewpoints (including the specific quotes from the debate) in the following format:
+            [
+              {
+                "theme": "Theme 1",
+                "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+              },
+              {
+                "theme": "Theme 2",
+                "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+              },
+              ...
+            ]
+            """,
+            output={"schema": {"themes": "list[{theme: str, viewpoints: str}]"}},
+        )
+
+        pipeline = pipeline.unnest(
+            name="unnest_themes",
+            unnest_key="themes",
+            recursive=True,
+        )
+
+        pipeline = pipeline.reduce(
+            name="summarize_theme_evolution",
+            reduce_key="theme",
+            prompt="""
+            Analyze the following viewpoints on the theme "{{ inputs[0].theme }}" from various debates over the years:
+
+            {% for item in inputs %}
+            Year: {{ item.year }}
+            Date: {{ item.date }}
+            Title: {{ item.title }}
+            Viewpoints: {{ item.viewpoints }}
+
+            {% endfor %}
+
+            Generate a comprehensive summary of how Democratic and Republican viewpoints on this theme have evolved through the years. Include supporting quotes from the debates to illustrate key points or shifts in perspective.
+
+            Your summary should:
+            1. Identify *all* major trends or shifts in each party's stance over time
+            2. Highlight any significant agreements or disagreements between the parties
+            3. Note any external events or factors that may have influenced changes in viewpoints
+            4. Use specific quotes to support your analysis
+            5. The title should contain the start and end years of the analysis
+
+            Format your response as a well-structured report.
+            """,
+            output={"schema": {"theme": "str", "report": "str"}},
+        )
+
+        pipeline.write_json("theme_evolution_analysis.json")
+        ```
 
 ## Pipeline Operations
 
 ### 1. Extract Themes and Viewpoints
 
-```yaml
-- name: extract_themes_and_viewpoints
-  type: map
-  output:
-    schema:
-      themes: "list[{theme: str, viewpoints: str}]"
-  prompt: |
-    Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+=== "YAML"
 
-    {{ input.content }}
+    ```yaml
+    - name: extract_themes_and_viewpoints
+      type: map
+      output:
+        schema:
+          themes: "list[{theme: str, viewpoints: str}]"
+      prompt: |
+        Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
 
-    Extract the main themes discussed in this debate and the viewpoints of the candidates on these themes.
-    Return a list of themes and corresponding viewpoints in the following format:
-    [
-      {
-        "theme": "Theme 1",
-        "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
-      },
-      {
-        "theme": "Theme 2",
-        "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
-      },
-      ...
-    ]
-```
+        {{ input.content }}
+
+        Extract the main themes discussed in this debate and the viewpoints of the candidates on these themes.
+        Return a list of themes and corresponding viewpoints in the following format:
+        [
+          {
+            "theme": "Theme 1",
+            "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+          },
+          {
+            "theme": "Theme 2",
+            "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+          },
+          ...
+        ]
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="extract_themes_and_viewpoints",
+        prompt="""
+        Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+
+        {{ input.content }}
+
+        Extract the main themes discussed in this debate and the viewpoints of the candidates on these themes.
+        Return a list of themes and corresponding viewpoints in the following format:
+        [
+          {
+            "theme": "Theme 1",
+            "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+          },
+          {
+            "theme": "Theme 2",
+            "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
+          },
+          ...
+        ]
+        """,
+        output={"schema": {"themes": "list[{theme: str, viewpoints: str}]"}},
+    )
+    ```
 
 This operation processes each debate transcript to identify main themes and candidates' viewpoints. It uses AI to analyze the content and structure the output in a consistent format.
 
 ### 2. Unnest Themes
 
-```yaml
-- name: unnest_themes
-  type: unnest
-  unnest_key: themes
-  recursive: true
-```
+=== "YAML"
+
+    ```yaml
+    - name: unnest_themes
+      type: unnest
+      unnest_key: themes
+      recursive: true
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.unnest(
+        name="unnest_themes",
+        unnest_key="themes",
+        recursive=True,
+    )
+    ```
 
 The unnest operation flattens the list of themes extracted from each debate. This step prepares the data for further analysis by creating individual entries for each theme.
 
 ### 3. Summarize Theme Evolution
 
-```yaml
-- name: summarize_theme_evolution
-  type: reduce
-  reduce_key: theme
-  output:
-    schema:
-      theme: str
-      report: str
-  prompt: |
-    Analyze the following viewpoints on the theme "{{ inputs[0].theme }}" from various debates over the years:
+=== "YAML"
 
-    {% for item in inputs %}
-    Year: {{ item.year }}
-    Date: {{ item.date }}
-    Title: {{ item.title }}
-    Viewpoints: {{ item.viewpoints }}
+    ```yaml
+    - name: summarize_theme_evolution
+      type: reduce
+      reduce_key: theme
+      output:
+        schema:
+          theme: str
+          report: str
+      prompt: |
+        Analyze the following viewpoints on the theme "{{ inputs[0].theme }}" from various debates over the years:
 
-    {% endfor %}
+        {% for item in inputs %}
+        Year: {{ item.year }}
+        Date: {{ item.date }}
+        Title: {{ item.title }}
+        Viewpoints: {{ item.viewpoints }}
 
-    Generate a comprehensive summary of how Democratic and Republican viewpoints on this theme have evolved through the years. Include supporting quotes from the debates to illustrate key points or shifts in perspective.
+        {% endfor %}
 
-    Your summary should:
-    1. Identify all major trends or shifts in each party's stance over time
-    2. Highlight any significant agreements or disagreements between the parties
-    3. Note any external events or factors that may have influenced changes in viewpoints
-    4. Use specific quotes to support your analysis
-    5. The title should contain the start and end years of the analysis
+        Generate a comprehensive summary of how Democratic and Republican viewpoints on this theme have evolved through the years. Include supporting quotes from the debates to illustrate key points or shifts in perspective.
 
-    Format your response as a well-structured report.
-```
+        Your summary should:
+        1. Identify all major trends or shifts in each party's stance over time
+        2. Highlight any significant agreements or disagreements between the parties
+        3. Note any external events or factors that may have influenced changes in viewpoints
+        4. Use specific quotes to support your analysis
+        5. The title should contain the start and end years of the analysis
+
+        Format your response as a well-structured report.
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.reduce(
+        name="summarize_theme_evolution",
+        reduce_key="theme",
+        prompt="""
+        Analyze the following viewpoints on the theme "{{ inputs[0].theme }}" from various debates over the years:
+
+        {% for item in inputs %}
+        Year: {{ item.year }}
+        Date: {{ item.date }}
+        Title: {{ item.title }}
+        Viewpoints: {{ item.viewpoints }}
+
+        {% endfor %}
+
+        Generate a comprehensive summary of how Democratic and Republican viewpoints on this theme have evolved through the years. Include supporting quotes from the debates to illustrate key points or shifts in perspective.
+
+        Your summary should:
+        1. Identify all major trends or shifts in each party's stance over time
+        2. Highlight any significant agreements or disagreements between the parties
+        3. Note any external events or factors that may have influenced changes in viewpoints
+        4. Use specific quotes to support your analysis
+        5. The title should contain the start and end years of the analysis
+
+        Format your response as a well-structured report.
+        """,
+        output={"schema": {"theme": "str", "report": "str"}},
+    )
+    ```
 
 This operation analyzes how each theme has evolved over time. It considers viewpoints from multiple debates, identifies trends, and generates a comprehensive summary of the theme's evolution.
 
@@ -203,16 +369,77 @@ docetl build pipeline.yaml
 
 This command adds a resolve operation to our pipeline, resulting in an optimized version:
 
-```yaml
-operations:
-    ...
-    - name: synthesized_resolve_0
-      type: resolve
-      blocking_keys:
-        - theme
-      blocking_threshold: 0.6465
-      comparison_model: gpt-4o-mini
-      comparison_prompt: |
+=== "YAML"
+
+    ```yaml
+    operations:
+        ...
+        - name: synthesized_resolve_0
+          type: resolve
+          blocking_keys:
+            - theme
+          blocking_threshold: 0.6465
+          comparison_model: gpt-4o-mini
+          comparison_prompt: |
+            Compare the following two debate themes:
+
+            [Entity 1]:
+            {{ input1.theme }}
+
+            [Entity 2]:
+            {{ input2.theme }}
+
+            Are these themes likely referring to the same concept? Consider the following attributes:
+            - The core subject matter being discussed
+            - The context in which the theme is presented
+            - The viewpoints of the candidates associated with each theme
+
+            Respond with "True" if they are likely the same theme, or "False" if they are likely different themes.
+          embedding_model: text-embedding-3-small
+          compare_batch_size: 1000
+          output:
+            schema:
+              theme: string
+          resolution_model: gpt-4o-mini
+          resolution_prompt: |
+            Analyze the following duplicate themes:
+
+            {% for key in inputs %}
+            Entry {{ loop.index }}:
+            {{ key.theme }}
+
+            {% endfor %}
+
+            Create a single, consolidated key that combines the information from all duplicate entries. When merging, follow these guidelines:
+            1. Prioritize the most comprehensive and detailed viewpoint available among the duplicates. If multiple entries discuss the same theme with varying details, select the entry that includes the most information.
+            2. Ensure clarity and coherence in the merged key; if key terms or phrases are duplicated, synthesize them into a single statement or a cohesive description that accurately represents the theme.
+
+            Ensure that the merged key conforms to the following schema:
+            {
+              "theme": "string"
+            }
+
+            Return the consolidated key as a single JSON object.
+
+
+    pipeline:
+      steps:
+        - name: debate_analysis
+          input: debates
+          operations:
+            - extract_themes_and_viewpoints
+            - unnest_themes
+            - synthesized_resolve_0
+            - summarize_theme_evolution
+    ```
+
+=== "Python"
+
+    ```python
+    # Inserted between the unnest and reduce operations
+    pipeline = pipeline.resolve(
+        name="synthesized_resolve_0",
+        comparison_prompt="""
         Compare the following two debate themes:
 
         [Entity 1]:
@@ -227,13 +454,8 @@ operations:
         - The viewpoints of the candidates associated with each theme
 
         Respond with "True" if they are likely the same theme, or "False" if they are likely different themes.
-      embedding_model: text-embedding-3-small
-      compare_batch_size: 1000
-      output:
-        schema:
-          theme: string
-      resolution_model: gpt-4o-mini
-      resolution_prompt: |
+        """,
+        resolution_prompt="""
         Analyze the following duplicate themes:
 
         {% for key in inputs %}
@@ -252,18 +474,16 @@ operations:
         }
 
         Return the consolidated key as a single JSON object.
-
-
-pipeline:
-  steps:
-    - name: debate_analysis
-      input: debates
-      operations:
-        - extract_themes_and_viewpoints
-        - unnest_themes
-        - synthesized_resolve_0
-        - summarize_theme_evolution
-```
+        """,
+        output={"schema": {"theme": "string"}},
+        blocking_keys=["theme"],
+        blocking_threshold=0.6465,
+        comparison_model="gpt-4o-mini",
+        resolution_model="gpt-4o-mini",
+        embedding_model="text-embedding-3-small",
+        compare_batch_size=1000,
+    )
+    ```
 
 The new `synthesized_resolve_0` operation groups similar themes together, ensuring a more accurate and comprehensive analysis of each theme's evolution.
 
@@ -462,18 +682,32 @@ It's possible that trying to summarize all the insights across all debates for a
 
 Let's update our `summarize_theme_evolution` operation in the pipeline:
 
-```yaml
-- name: summarize_theme_evolution
-  type: reduce
-  reduce_key: theme
-  optimize: true
-  output:
-    schema:
-      theme: str
-      report: str
-  prompt: |
-    [... existing prompt ...]
-```
+=== "YAML"
+
+    ```yaml
+    - name: summarize_theme_evolution
+      type: reduce
+      reduce_key: theme
+      optimize: true
+      output:
+        schema:
+          theme: str
+          report: str
+      prompt: |
+        [... existing prompt ...]
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.reduce(
+        name="summarize_theme_evolution",
+        reduce_key="theme",
+        optimize=True,
+        prompt="""[... existing prompt ...]""",
+        output={"schema": {"theme": "str", "report": "str"}},
+    )
+    ```
 
 Rerunning the build command `docetl build pipeline.yaml` will synthesize the optimized reduce operation (make sure `pipeline.yaml` is the pipeline you want to optimize).
 
@@ -481,22 +715,46 @@ Rerunning the build command `docetl build pipeline.yaml` will synthesize the opt
 
 In our optimized pipeline, we see that DocETL added a `gleaning` configuration to the reduce operation:
 
-```yaml
-- name: summarize_theme_evolution
-  type: reduce
-  reduce_key: theme
-  ...
-  gleaning:
-    num_rounds: 1
-    validation_prompt: |
-        1. Does the output adequately summarize the evolution of viewpoints on the theme based on the
-        provided debate texts? Are all critical shifts and trends mentioned?
-        2. Are there any crucial quotes or data points missing from the output that
-        were present in the debate transcripts that could reinforce the analysis?
-        3. Is the output well-structured and easy to follow, following any
-        formatting guidelines specified in the prompt, such as using headings for
-        sections or maintaining a coherent narrative flow?
-```
+=== "YAML"
+
+    ```yaml
+    - name: summarize_theme_evolution
+      type: reduce
+      reduce_key: theme
+      ...
+      gleaning:
+        num_rounds: 1
+        validation_prompt: |
+            1. Does the output adequately summarize the evolution of viewpoints on the theme based on the
+            provided debate texts? Are all critical shifts and trends mentioned?
+            2. Are there any crucial quotes or data points missing from the output that
+            were present in the debate transcripts that could reinforce the analysis?
+            3. Is the output well-structured and easy to follow, following any
+            formatting guidelines specified in the prompt, such as using headings for
+            sections or maintaining a coherent narrative flow?
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.reduce(
+        name="summarize_theme_evolution",
+        reduce_key="theme",
+        # ... same prompt and output as before ...
+        gleaning={
+            "num_rounds": 1,
+            "validation_prompt": """
+            1. Does the output adequately summarize the evolution of viewpoints on the theme based on the
+            provided debate texts? Are all critical shifts and trends mentioned?
+            2. Are there any crucial quotes or data points missing from the output that
+            were present in the debate transcripts that could reinforce the analysis?
+            3. Is the output well-structured and easy to follow, following any
+            formatting guidelines specified in the prompt, such as using headings for
+            sections or maintaining a coherent narrative flow?
+            """,
+        },
+    )
+    ```
 
 !!! tip
 

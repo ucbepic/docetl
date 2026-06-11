@@ -29,14 +29,19 @@ When dealing with long documents, it's often necessary to break them down into s
 
 Here's a breakdown of the pipeline defined in trump-immunity_opt.yaml:
 
-1.  **Dataset Definition**:
-    We define a dataset (json file) with a single document.
+### 1. Dataset Definition
 
-2.  **Metadata Extraction**:
-    We define a map operation to extract any document-level metadata that we want to pass to each chunk being processed.
+We define a dataset (json file) with a single document.
 
-3.  **Split Operation**:
-    The document is split into chunks using the following configuration:
+### 2. Metadata Extraction
+
+We define a map operation to extract any document-level metadata that we want to pass to each chunk being processed.
+
+### 3. Split Operation
+
+The document is split into chunks using the following configuration:
+
+=== "YAML"
 
     ```yaml
     - name: split_find_people_and_involvements
@@ -47,13 +52,28 @@ Here's a breakdown of the pipeline defined in trump-immunity_opt.yaml:
       split_key: extracted_text
     ```
 
-    This operation splits the document into chunks of approximately 3993 tokens each. This size is chosen to balance between maintaining context and staying within model token limits. `split_key` should be the field in the document that contains the text to split.
+=== "Python"
 
-4.  **Header Extraction**:
-    We define a map operation to extract headers from each chunk. Then, when rendering each chunk, we can also render the headers in levels above the headers in the chunk--ensuring that we can maintain hierarchical context, even when the headers are in other chunks.
+    ```python
+    pipeline = pipeline.split(
+        "split_find_people_and_involvements",
+        method="token_count",
+        method_kwargs={"num_tokens": 3993},
+        split_key="extracted_text",
+    )
+    ```
 
-5.  **Gather Operation**:
-    Context is gathered for each chunk using the following configuration:
+This operation splits the document into chunks of approximately 3993 tokens each. This size is chosen to balance between maintaining context and staying within model token limits. `split_key` should be the field in the document that contains the text to split.
+
+### 4. Header Extraction
+
+We define a map operation to extract headers from each chunk. Then, when rendering each chunk, we can also render the headers in levels above the headers in the chunk--ensuring that we can maintain hierarchical context, even when the headers are in other chunks.
+
+### 5. Gather Operation
+
+Context is gathered for each chunk using the following configuration:
+
+=== "YAML"
 
     ```yaml
     - name: gather_extracted_text_find_people_and_involvements
@@ -76,13 +96,37 @@ Here's a breakdown of the pipeline defined in trump-immunity_opt.yaml:
     3. The unique identifier for each document; the split operation name with "\_id" appended. Automatically exists as a result of the split operation. **This is required.**
     4. The field indicating the order of chunks; the split operation name with "\_chunk_num" appended. Automatically exists as a result of the split operation. **This is required.**
 
-    This operation gathers context for each chunk, including the previous chunk, the current chunk, and the next chunk. We also render the headers populated by the previous operation.
+=== "Python"
 
-6.  **Chunk Analysis**:
-    We define a map operation to analyze each chunk.
+    ```python
+    pipeline = pipeline.gather(
+        "gather_extracted_text_find_people_and_involvements",
+        # The chunk content field: split_key with "_chunk" appended.
+        # Automatically exists as a result of the split operation. Required.
+        content_key="extracted_text_chunk",
+        # The extracted headers for each chunk; omit if you don't have a
+        # header extraction map operation.
+        doc_header_key="headers",
+        # Document id: split operation name with "_id" appended. Required.
+        doc_id_key="split_find_people_and_involvements_id",
+        # Chunk order: split operation name with "_chunk_num" appended. Required.
+        order_key="split_find_people_and_involvements_chunk_num",
+        peripheral_chunks={
+            "next": {"head": {"count": 1}},
+            "previous": {"tail": {"count": 1}},
+        },
+    )
+    ```
 
-7.  **Result Reduction**:
-    We define a reduce operation to reduce the results of the map operation (applied to each chunk) to a single list of people and their involvements in the case.
+This operation gathers context for each chunk, including the previous chunk, the current chunk, and the next chunk. We also render the headers populated by the previous operation.
+
+### 6. Chunk Analysis
+
+We define a map operation to analyze each chunk.
+
+### 7. Result Reduction
+
+We define a reduce operation to reduce the results of the map operation (applied to each chunk) to a single list of people and their involvements in the case.
 
 Here is the full pipeline configuration, with the split and gather operations highlighted. Assuming the sample dataset looks like this:
 
@@ -96,130 +140,235 @@ Here is the full pipeline configuration, with the split and gather operations hi
 
 ??? example "Full Pipeline Configuration"
 
-    ```yaml linenums="1" hl_lines="26-31 55-67"
-    datasets:
-      legal_doc:
-        type: file
-        path: /path/to/your/dataset.json
-        parsing: # (1)!
-          - function: azure_di_read
-            input_key: pdf_url
-            output_key: extracted_text
-            function_kwargs:
-              use_url: true
-              include_line_numbers: true
+    === "YAML"
 
-    default_model: gpt-4o-mini
+        ```yaml linenums="1" hl_lines="26-31 55-67"
+        datasets:
+          legal_doc:
+            type: file
+            path: /path/to/your/dataset.json
+            parsing: # (1)!
+              - function: azure_di_read
+                input_key: pdf_url
+                output_key: extracted_text
+                function_kwargs:
+                  use_url: true
+                  include_line_numbers: true
 
-    system_prompt:
-      dataset_description: the Trump vs. United States case
-      persona: a legal analyst
+        default_model: gpt-4o-mini
 
-    operations:
-      - name: extract_metadata_find_people_and_involvements
-        type: map
-        model: gpt-4o-mini
-        prompt: |
-          Given the document excerpt: {{ input.extracted_text }}
-          Extract all the people mentioned and summarize their involvements in the case described.
-        output:
-          schema:
-            metadata: str
+        system_prompt:
+          dataset_description: the Trump vs. United States case
+          persona: a legal analyst
 
-      - name: split_find_people_and_involvements
-        type: split
-        method: token_count
-        method_kwargs:
-          num_tokens: 3993
-        split_key: extracted_text
+        operations:
+          - name: extract_metadata_find_people_and_involvements
+            type: map
+            model: gpt-4o-mini
+            prompt: |
+              Given the document excerpt: {{ input.extracted_text }}
+              Extract all the people mentioned and summarize their involvements in the case described.
+            output:
+              schema:
+                metadata: str
 
-      - name: header_extraction_extracted_text_find_people_and_involvements
-        type: map
-        model: gpt-4o-mini
-        output:
-          schema:
-            headers: "list[{header: string, level: integer}]"
-        prompt: |
-          Analyze the following chunk of a document and extract any headers you see.
+          - name: split_find_people_and_involvements
+            type: split
+            method: token_count
+            method_kwargs:
+              num_tokens: 3993
+            split_key: extracted_text
 
-          { input.extracted_text_chunk }
+          - name: header_extraction_extracted_text_find_people_and_involvements
+            type: map
+            model: gpt-4o-mini
+            output:
+              schema:
+                headers: "list[{header: string, level: integer}]"
+            prompt: |
+              Analyze the following chunk of a document and extract any headers you see.
 
-          Examples of headers and their levels based on the document structure:
-          - "GOVERNMENT'S MOTION FOR IMMUNITY DETERMINATIONS" (level 1)
-          - "Legal Framework" (level 1)
-          - "Section I" (level 2)
-          - "Section II" (level 2)
-          - "Section III" (level 2)
-          - "A. Formation of the Conspiracies" (level 3)
-          - "B. The Defendant Knew that His Claims of Outcome-Determinative Fraud Were False" (level 3)
-          - "1. Arizona" (level 4)
-          - "2. Georgia" (level 4)
+              { input.extracted_text_chunk }
 
-      - name: gather_extracted_text_find_people_and_involvements
-        type: gather
-        content_key: extracted_text_chunk
-        doc_header_key: headers
-        doc_id_key: split_find_people_and_involvements_id
-        order_key: split_find_people_and_involvements_chunk_num
-        peripheral_chunks:
-          next:
-            head:
-              count: 1
-          previous:
-            tail:
-              count: 1
+              Examples of headers and their levels based on the document structure:
+              - "GOVERNMENT'S MOTION FOR IMMUNITY DETERMINATIONS" (level 1)
+              - "Legal Framework" (level 1)
+              - "Section I" (level 2)
+              - "Section II" (level 2)
+              - "Section III" (level 2)
+              - "A. Formation of the Conspiracies" (level 3)
+              - "B. The Defendant Knew that His Claims of Outcome-Determinative Fraud Were False" (level 3)
+              - "1. Arizona" (level 4)
+              - "2. Georgia" (level 4)
 
-      - name: submap_find_people_and_involvements
-        type: map
-        model: gpt-4o-mini
-        output:
-          schema:
-            people_and_involvements: list[str]
-        prompt: |
-          Given the document excerpt: {{ input.extracted_text_chunk_rendered }}
-          Extract all the people mentioned and summarize their involvements in the case described. Only process the main chunk.
+          - name: gather_extracted_text_find_people_and_involvements
+            type: gather
+            content_key: extracted_text_chunk
+            doc_header_key: headers
+            doc_id_key: split_find_people_and_involvements_id
+            order_key: split_find_people_and_involvements_chunk_num
+            peripheral_chunks:
+              next:
+                head:
+                  count: 1
+              previous:
+                tail:
+                  count: 1
 
-      - name: subreduce_find_people_and_involvements
-        type: reduce
-        model: gpt-4o-mini
-        associative: true
-        pass_through: true
-        synthesize_resolve: false
-        output:
-          schema:
-            people_and_involvements: list[str]
-        reduce_key:
-          - split_find_people_and_involvements_id
-        prompt: |
-          Given the following extracted information about individuals involved in the case, compile a comprehensive list of people and their specific involvements in the case:
+          - name: submap_find_people_and_involvements
+            type: map
+            model: gpt-4o-mini
+            output:
+              schema:
+                people_and_involvements: list[str]
+            prompt: |
+              Given the document excerpt: {{ input.extracted_text_chunk_rendered }}
+              Extract all the people mentioned and summarize their involvements in the case described. Only process the main chunk.
 
-          {% for chunk in inputs %}
-          {% for involvement in chunk.people_and_involvements %}
-          - {{ involvement }}
-          {% endfor %}
-          {% endfor %}
+          - name: subreduce_find_people_and_involvements
+            type: reduce
+            model: gpt-4o-mini
+            associative: true
+            pass_through: true
+            synthesize_resolve: false
+            output:
+              schema:
+                people_and_involvements: list[str]
+            reduce_key:
+              - split_find_people_and_involvements_id
+            prompt: |
+              Given the following extracted information about individuals involved in the case, compile a comprehensive list of people and their specific involvements in the case:
 
-          Make sure to include all the people and their involvements. If a person has multiple involvements, group them together.
+              {% for chunk in inputs %}
+              {% for involvement in chunk.people_and_involvements %}
+              - {{ involvement }}
+              {% endfor %}
+              {% endfor %}
 
-    pipeline:
-      steps:
-        - name: analyze_document
-          input: legal_doc
-          operations:
-            - extract_metadata_find_people_and_involvements
-            - split_find_people_and_involvements
-            - header_extraction_extracted_text_find_people_and_involvements
-            - gather_extracted_text_find_people_and_involvements
-            - submap_find_people_and_involvements
-            - subreduce_find_people_and_involvements
+              Make sure to include all the people and their involvements. If a person has multiple involvements, group them together.
 
-      output:
-        type: file
-        path: /path/to/your/output/people_and_involvements.json
-        intermediate_dir: /path/to/your/intermediates
-    ```
+        pipeline:
+          steps:
+            - name: analyze_document
+              input: legal_doc
+              operations:
+                - extract_metadata_find_people_and_involvements
+                - split_find_people_and_involvements
+                - header_extraction_extracted_text_find_people_and_involvements
+                - gather_extracted_text_find_people_and_involvements
+                - submap_find_people_and_involvements
+                - subreduce_find_people_and_involvements
 
-    1. This is an example parsing function, as explained in the [Parsing](../examples/custom-parsing.md) docs. You can define your own parsing function to extract the text you want to split, or just have the text be directly in the json file.
+          output:
+            type: file
+            path: /path/to/your/output/people_and_involvements.json
+            intermediate_dir: /path/to/your/intermediates
+        ```
+
+        1. This is an example parsing function, as explained in the [Parsing](../examples/custom-parsing.md) docs. You can define your own parsing function to extract the text you want to split, or just have the text be directly in the json file.
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gpt-4o-mini"
+        docetl.system_prompt = {
+            "dataset_description": "the Trump vs. United States case",
+            "persona": "a legal analyst",
+        }
+        docetl.intermediate_dir = "/path/to/your/intermediates"
+
+        # azure_di_read is an example parsing function, as explained in the
+        # Parsing docs. You can also have the text directly in the json file.
+        pipeline = docetl.read_json(
+            "/path/to/your/dataset.json",
+            parsing=[
+                {
+                    "function": "azure_di_read",
+                    "input_key": "pdf_url",
+                    "output_key": "extracted_text",
+                    "function_kwargs": {"use_url": True, "include_line_numbers": True},
+                }
+            ],
+        )
+
+        pipeline = pipeline.map(
+            "extract_metadata_find_people_and_involvements",
+            model="gpt-4o-mini",
+            prompt="""Given the document excerpt: {{ input.extracted_text }}
+        Extract all the people mentioned and summarize their involvements in the case described.""",
+            output={"schema": {"metadata": "str"}},
+        )
+
+        pipeline = pipeline.split(
+            "split_find_people_and_involvements",
+            method="token_count",
+            method_kwargs={"num_tokens": 3993},
+            split_key="extracted_text",
+        )
+
+        pipeline = pipeline.map(
+            "header_extraction_extracted_text_find_people_and_involvements",
+            model="gpt-4o-mini",
+            output={"schema": {"headers": "list[{header: string, level: integer}]"}},
+            prompt="""Analyze the following chunk of a document and extract any headers you see.
+
+        { input.extracted_text_chunk }
+
+        Examples of headers and their levels based on the document structure:
+        - "GOVERNMENT'S MOTION FOR IMMUNITY DETERMINATIONS" (level 1)
+        - "Legal Framework" (level 1)
+        - "Section I" (level 2)
+        - "Section II" (level 2)
+        - "Section III" (level 2)
+        - "A. Formation of the Conspiracies" (level 3)
+        - "B. The Defendant Knew that His Claims of Outcome-Determinative Fraud Were False" (level 3)
+        - "1. Arizona" (level 4)
+        - "2. Georgia" (level 4)""",
+        )
+
+        pipeline = pipeline.gather(
+            "gather_extracted_text_find_people_and_involvements",
+            content_key="extracted_text_chunk",
+            doc_header_key="headers",
+            doc_id_key="split_find_people_and_involvements_id",
+            order_key="split_find_people_and_involvements_chunk_num",
+            peripheral_chunks={
+                "next": {"head": {"count": 1}},
+                "previous": {"tail": {"count": 1}},
+            },
+        )
+
+        pipeline = pipeline.map(
+            "submap_find_people_and_involvements",
+            model="gpt-4o-mini",
+            output={"schema": {"people_and_involvements": "list[str]"}},
+            prompt="""Given the document excerpt: {{ input.extracted_text_chunk_rendered }}
+        Extract all the people mentioned and summarize their involvements in the case described. Only process the main chunk.""",
+        )
+
+        pipeline = pipeline.reduce(
+            "subreduce_find_people_and_involvements",
+            model="gpt-4o-mini",
+            associative=True,
+            pass_through=True,
+            synthesize_resolve=False,
+            reduce_key=["split_find_people_and_involvements_id"],
+            output={"schema": {"people_and_involvements": "list[str]"}},
+            prompt="""Given the following extracted information about individuals involved in the case, compile a comprehensive list of people and their specific involvements in the case:
+
+        {% for chunk in inputs %}
+        {% for involvement in chunk.people_and_involvements %}
+        - {{ involvement }}
+        {% endfor %}
+        {% endfor %}
+
+        Make sure to include all the people and their involvements. If a person has multiple involvements, group them together.""",
+        )
+
+        pipeline.write_json("/path/to/your/output/people_and_involvements.json")
+        ```
 
 Running the pipeline with `docetl run pipeline.yaml` will execute the pipeline and save the output to the path specified in the output section. It cost $0.05 and took 23.8 seconds with gpt-4o-mini.
 
@@ -268,48 +417,86 @@ Here's a table with one column listing all the people mentioned in the case and 
 
 You can also compile a pipeline into a split-gather pipeline using the `docetl build` command. Say we had a much simpler pipeline for the same document analysis task as above, with just one map operation to extract people and their involvements.
 
-```yaml
-default_model: gpt-4o-mini
+=== "YAML"
 
-datasets:
-  legal_doc: # (1)!
-    path: /path/to/dataset.json
-    type: file
-    parsing: # (2)!
-      - input_key: pdf_url
-        function: azure_di_read
-        output_key: extracted_text
-        function_kwargs:
-          use_url: true
-          include_line_numbers: true
+    ```yaml
+    default_model: gpt-4o-mini
 
-operations:
-  - name: find_people_and_involvements
-    type: map
-    optimize: true
-    prompt: |
-      Given this document, extract all the people and their involvements in the case described by the document.
+    datasets:
+      legal_doc: # (1)!
+        path: /path/to/dataset.json
+        type: file
+        parsing: # (2)!
+          - input_key: pdf_url
+            function: azure_di_read
+            output_key: extracted_text
+            function_kwargs:
+              use_url: true
+              include_line_numbers: true
 
-      {{ input.extracted_text }}
+    operations:
+      - name: find_people_and_involvements
+        type: map
+        optimize: true
+        prompt: |
+          Given this document, extract all the people and their involvements in the case described by the document.
 
-      Return a list of people and their involvements in the case.
-    output:
-      schema:
-        people_and_involvements: list[str]
+          {{ input.extracted_text }}
 
-pipeline:
-  steps:
-    - name: analyze_document
-      input: legal_doc
-      operations:
-        - find_people_and_involvements
+          Return a list of people and their involvements in the case.
+        output:
+          schema:
+            people_and_involvements: list[str]
 
-  output:
-    type: file
-    path: "/path/to/output/people_and_involvements.json"
-```
+    pipeline:
+      steps:
+        - name: analyze_document
+          input: legal_doc
+          operations:
+            - find_people_and_involvements
 
-1. This is an example parsing function, as explained in the [Parsing](../examples/custom-parsing.md) docs. You can define your own parsing function to extract the text you want to split, or just have the text be directly in the json file. If you want the text directly in the json file, you can have your json be a list of objects with a single field "extracted_text".
-2. You can remove this parsing section if you don't need to parse the document (i.e., if the text is already in the json file in the "extracted_text" field in the object).
+      output:
+        type: file
+        path: "/path/to/output/people_and_involvements.json"
+    ```
+
+    1. This is an example parsing function, as explained in the [Parsing](../examples/custom-parsing.md) docs. You can define your own parsing function to extract the text you want to split, or just have the text be directly in the json file. If you want the text directly in the json file, you can have your json be a list of objects with a single field "extracted_text".
+    2. You can remove this parsing section if you don't need to parse the document (i.e., if the text is already in the json file in the "extracted_text" field in the object).
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    # azure_di_read is an example parsing function, as explained in the
+    # Parsing docs. Omit parsing= if the text is already in the json file
+    # under the "extracted_text" field.
+    pipeline = docetl.read_json(
+        "/path/to/dataset.json",
+        parsing=[
+            {
+                "input_key": "pdf_url",
+                "function": "azure_di_read",
+                "output_key": "extracted_text",
+                "function_kwargs": {"use_url": True, "include_line_numbers": True},
+            }
+        ],
+    )
+
+    pipeline = pipeline.map(
+        "find_people_and_involvements",
+        optimize=True,
+        prompt="""Given this document, extract all the people and their involvements in the case described by the document.
+
+    {{ input.extracted_text }}
+
+    Return a list of people and their involvements in the case.""",
+        output={"schema": {"people_and_involvements": "list[str]"}},
+    )
+
+    pipeline.write_json("/path/to/output/people_and_involvements.json")
+    ```
 
 In the pipeline above, we don't have any split or gather operations. Running `docetl build pipeline.yaml [--model=gpt-4o-mini]` will output a new pipeline_opt.yaml file with the split and gather operations highlighted--like we had defined in the previous example. Note that this cost us $20 to compile, since we tried a bunch of different plans...

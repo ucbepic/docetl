@@ -88,13 +88,26 @@ The Extract operation offers two output formats controlled by the `format_extrac
 
 With `format_extraction: true`, extracted text segments are joined with newlines into a single string:
 
-```yaml
-- name: findings
-  type: extract
-  prompt: "Extract the key findings from this research report."
-  document_keys: ["report_text"]
-  format_extraction: true  # Default setting
-```
+=== "YAML"
+
+    ```yaml
+    - name: findings
+      type: extract
+      prompt: "Extract the key findings from this research report."
+      document_keys: ["report_text"]
+      format_extraction: true  # Default setting
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.extract(
+        name="findings",
+        prompt="Extract the key findings from this research report.",
+        document_keys=["report_text"],
+        format_extraction=True,  # Default setting
+    )
+    ```
 
 The resulting output combines all extractions:
 
@@ -112,13 +125,26 @@ This format works well for human readability, further LLM processing, and when e
 
 With `format_extraction: false`, each extracted text segment remains separate in a list:
 
-```yaml
-- name: findings
-  type: extract
-  prompt: "Extract the key findings from this research report."
-  document_keys: ["report_text"]
-  format_extraction: false
-```
+=== "YAML"
+
+    ```yaml
+    - name: findings
+      type: extract
+      prompt: "Extract the key findings from this research report."
+      document_keys: ["report_text"]
+      format_extraction: false
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.extract(
+        name="findings",
+        prompt="Extract the key findings from this research report.",
+        document_keys=["report_text"],
+        format_extraction=False,
+    )
+    ```
 
 The resulting output preserves each extraction as a distinct item:
 

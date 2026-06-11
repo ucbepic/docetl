@@ -118,16 +118,30 @@ You can add a `cascade` block to run a cheap proxy model on all items first and
 only escalate uncertain cases to the expensive oracle model — with a statistical
 quality guarantee. This can dramatically reduce cost on large datasets.
 
-```yaml
-- name: is_relevant
-  type: filter
-  model: gpt-4o
-  prompt: "Is this document about climate policy? {{ input.text }}"
-  output: { schema: { keep: "bool" } }
-  cascade:
-    proxy_model: gpt-4o-mini
-    target: 0.95
-```
+=== "YAML"
+
+    ```yaml
+    - name: is_relevant
+      type: filter
+      model: gpt-4o
+      prompt: "Is this document about climate policy? {{ input.text }}"
+      output: { schema: { keep: "bool" } }
+      cascade:
+        proxy_model: gpt-4o-mini
+        target: 0.95
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.filter(
+        name="is_relevant",
+        model="gpt-4o",
+        prompt="Is this document about climate policy? {{ input.text }}",
+        output={"schema": {"keep": "bool"}},
+        cascade={"proxy_model": "gpt-4o-mini", "target": 0.95},
+    )
+    ```
 
 | Parameter | Description | Default |
 |---|---|---|

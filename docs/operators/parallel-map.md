@@ -52,35 +52,82 @@ Each prompt configuration in the `prompts` list should contain:
 
 Here's an example of a parallel map operation that processes job applications by extracting key information and evaluating candidates:
 
-```yaml
-- name: process_job_application
-  type: parallel_map
-  prompts:
-    - name: extract_skills
-      prompt: "Given the following resume: '{{ input.resume }}', list the top 5 relevant skills for a software engineering position."
-      output_keys:
-        - skills
-      gleaning:
-        num_rounds: 1
-        validation_prompt: |
-          Confirm the skills list contains **exactly** 5 distinct skills and each skill is one or two words long.
-      model: gpt-4o-mini
-    - name: calculate_experience
-      prompt: "Based on the work history in this resume: '{{ input.resume }}', calculate the total years of relevant experience for a software engineering role."
-      output_keys:
-        - years_experience
-      model: gpt-4o-mini
-    - name: evaluate_cultural_fit
-      prompt: "Analyze the following cover letter: '{{ input.cover_letter }}'. Rate the candidate's potential cultural fit on a scale of 1-10, where 10 is the highest."
-      output_keys:
-        - cultural_fit_score
-      model: gpt-4o-mini
-  output:
-    schema:
-      skills: list[string]
-      years_experience: float
-      cultural_fit_score: integer
-```
+=== "YAML"
+
+    ```yaml
+    - name: process_job_application
+      type: parallel_map
+      prompts:
+        - name: extract_skills
+          prompt: "Given the following resume: '{{ input.resume }}', list the top 5 relevant skills for a software engineering position."
+          output_keys:
+            - skills
+          gleaning:
+            num_rounds: 1
+            validation_prompt: |
+              Confirm the skills list contains **exactly** 5 distinct skills and each skill is one or two words long.
+          model: gpt-4o-mini
+        - name: calculate_experience
+          prompt: "Based on the work history in this resume: '{{ input.resume }}', calculate the total years of relevant experience for a software engineering role."
+          output_keys:
+            - years_experience
+          model: gpt-4o-mini
+        - name: evaluate_cultural_fit
+          prompt: "Analyze the following cover letter: '{{ input.cover_letter }}'. Rate the candidate's potential cultural fit on a scale of 1-10, where 10 is the highest."
+          output_keys:
+            - cultural_fit_score
+          model: gpt-4o-mini
+      output:
+        schema:
+          skills: list[string]
+          years_experience: float
+          cultural_fit_score: integer
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("applications.json")
+    frame = frame.parallel_map(
+        name="process_job_application",
+        prompts=[
+            {
+                "name": "extract_skills",
+                "prompt": "Given the following resume: '{{ input.resume }}', list the top 5 relevant skills for a software engineering position.",
+                "output_keys": ["skills"],
+                "gleaning": {
+                    "num_rounds": 1,
+                    "validation_prompt": "Confirm the skills list contains **exactly** 5 distinct skills and each skill is one or two words long.",
+                },
+                "model": "gpt-4o-mini",
+            },
+            {
+                "name": "calculate_experience",
+                "prompt": "Based on the work history in this resume: '{{ input.resume }}', calculate the total years of relevant experience for a software engineering role.",
+                "output_keys": ["years_experience"],
+                "model": "gpt-4o-mini",
+            },
+            {
+                "name": "evaluate_cultural_fit",
+                "prompt": "Analyze the following cover letter: '{{ input.cover_letter }}'. Rate the candidate's potential cultural fit on a scale of 1-10, where 10 is the highest.",
+                "output_keys": ["cultural_fit_score"],
+                "model": "gpt-4o-mini",
+            },
+        ],
+        output={
+            "schema": {
+                "skills": "list[string]",
+                "years_experience": "float",
+                "cultural_fit_score": "integer",
+            }
+        },
+    )
+    df = frame.collect()
+    ```
 
 This Parallel Map operation processes job applications by concurrently extracting skills, calculating experience, and evaluating cultural fit.
 
@@ -90,48 +137,105 @@ Each prompt in a Parallel Map operation can include its own `gleaning` configura
 
 The structure of the `gleaning` block is identical:
 
-```yaml
-gleaning:
-  num_rounds: 1               # maximum refinement iterations
-  validation_prompt: |        # judge prompt appended to the chat thread
-    Ensure the extracted skills list contains at least 5 distinct items.
-  model: gpt-4o-mini          # (optional) model for the validator LLM
-```
+=== "YAML"
+
+    ```yaml
+    gleaning:
+      num_rounds: 1               # maximum refinement iterations
+      validation_prompt: |        # judge prompt appended to the chat thread
+        Ensure the extracted skills list contains at least 5 distinct items.
+      model: gpt-4o-mini          # (optional) model for the validator LLM
+    ```
+
+=== "Python"
+
+    ```python
+    # Set on an individual prompt config inside prompts=[...]
+    "gleaning": {
+        "num_rounds": 1,  # maximum refinement iterations
+        "validation_prompt": "Ensure the extracted skills list contains at least 5 distinct items.",
+        "model": "gpt-4o-mini",  # (optional) model for the validator LLM
+    }
+    ```
 
 ### Example with Per-Prompt Gleaning
 
-```yaml
-- name: process_job_application
-  type: parallel_map
-  prompts:
-    - name: extract_skills
-      prompt: "Given the following resume: '{{ input.resume }}', list the top 5 relevant skills for a software engineering position."
-      output_keys:
-        - skills
-      gleaning:
-        num_rounds: 1
-        validation_prompt: |
-          Confirm the skills list contains **exactly** 5 distinct skills and each skill is one or two words long.
-      model: gpt-4o-mini
-    - name: calculate_experience
-      prompt: "Based on the work history in this resume: '{{ input.resume }}', calculate the total years of relevant experience for a software engineering role."
-      output_keys:
-        - years_experience
-      gleaning:
-        num_rounds: 2
-        validation_prompt: |
-          Verify that the years of experience is a non-negative number and round to one decimal place if necessary.
-    - name: evaluate_cultural_fit
-      prompt: "Analyze the following cover letter: '{{ input.cover_letter }}'. Rate the candidate's potential cultural fit on a scale of 1-10, where 10 is the highest."
-      output_keys:
-        - cultural_fit_score
-      model: gpt-4o-mini
-  output:
-    schema:
-      skills: list[string]
-      years_experience: float
-      cultural_fit_score: integer
-```
+=== "YAML"
+
+    ```yaml
+    - name: process_job_application
+      type: parallel_map
+      prompts:
+        - name: extract_skills
+          prompt: "Given the following resume: '{{ input.resume }}', list the top 5 relevant skills for a software engineering position."
+          output_keys:
+            - skills
+          gleaning:
+            num_rounds: 1
+            validation_prompt: |
+              Confirm the skills list contains **exactly** 5 distinct skills and each skill is one or two words long.
+          model: gpt-4o-mini
+        - name: calculate_experience
+          prompt: "Based on the work history in this resume: '{{ input.resume }}', calculate the total years of relevant experience for a software engineering role."
+          output_keys:
+            - years_experience
+          gleaning:
+            num_rounds: 2
+            validation_prompt: |
+              Verify that the years of experience is a non-negative number and round to one decimal place if necessary.
+        - name: evaluate_cultural_fit
+          prompt: "Analyze the following cover letter: '{{ input.cover_letter }}'. Rate the candidate's potential cultural fit on a scale of 1-10, where 10 is the highest."
+          output_keys:
+            - cultural_fit_score
+          model: gpt-4o-mini
+      output:
+        schema:
+          skills: list[string]
+          years_experience: float
+          cultural_fit_score: integer
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.parallel_map(
+        name="process_job_application",
+        prompts=[
+            {
+                "name": "extract_skills",
+                "prompt": "Given the following resume: '{{ input.resume }}', list the top 5 relevant skills for a software engineering position.",
+                "output_keys": ["skills"],
+                "gleaning": {
+                    "num_rounds": 1,
+                    "validation_prompt": "Confirm the skills list contains **exactly** 5 distinct skills and each skill is one or two words long.",
+                },
+                "model": "gpt-4o-mini",
+            },
+            {
+                "name": "calculate_experience",
+                "prompt": "Based on the work history in this resume: '{{ input.resume }}', calculate the total years of relevant experience for a software engineering role.",
+                "output_keys": ["years_experience"],
+                "gleaning": {
+                    "num_rounds": 2,
+                    "validation_prompt": "Verify that the years of experience is a non-negative number and round to one decimal place if necessary.",
+                },
+            },
+            {
+                "name": "evaluate_cultural_fit",
+                "prompt": "Analyze the following cover letter: '{{ input.cover_letter }}'. Rate the candidate's potential cultural fit on a scale of 1-10, where 10 is the highest.",
+                "output_keys": ["cultural_fit_score"],
+                "model": "gpt-4o-mini",
+            },
+        ],
+        output={
+            "schema": {
+                "skills": "list[string]",
+                "years_experience": "float",
+                "cultural_fit_score": "integer",
+            }
+        },
+    )
+    ```
 
 In this configuration, only the `extract_skills` and `calculate_experience` prompts use gleaning. Each prompt's validator runs **immediately after** its own LLM call and before the overall outputs are merged.
 

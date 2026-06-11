@@ -9,24 +9,72 @@ We adapt algorithms from Human-Powered Sorts and Joins ([VLDB 2012](https://www.
 
 Let's see a practical example of using the Rank operation to rank political debates based on how controversial they are:
 
-```yaml
-- name: rank_by_controversy
-  type: rank
-  prompt: |
-    Order these debate transcripts based on how controversial the discussion is.
+=== "YAML"
+
+    ```yaml
+    - name: rank_by_controversy
+      type: rank
+      prompt: |
+        Order these debate transcripts based on how controversial the discussion is.
+        Consider factors like:
+        - The level of disagreement between candidates
+        - Discussion of divisive topics
+        - Strong emotional language
+        - Presence of conflicting viewpoints
+        - Public reaction mentioned in the transcript
+        
+        Debates with the most controversial content should be ranked highest.
+      input_keys: ["content", "title", "date"]
+      direction: desc
+      rerank_call_budget: 10 # max number of LLM calls to use; also optional
+      initial_ordering_method: "likert"
+    ```
+
+=== "Python"
+
+    Rank has no dedicated Frame method, so construct the pipeline as a config dict and run it with `DSLRunner`:
+
+    ```python
+    from docetl.runner import DSLRunner
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "debates": {"type": "file", "path": "debates.json"},
+        },
+        "operations": [
+            {
+                "name": "rank_by_controversy",
+                "type": "rank",
+                "prompt": """Order these debate transcripts based on how controversial the discussion is.
     Consider factors like:
     - The level of disagreement between candidates
     - Discussion of divisive topics
     - Strong emotional language
     - Presence of conflicting viewpoints
     - Public reaction mentioned in the transcript
-    
-    Debates with the most controversial content should be ranked highest.
-  input_keys: ["content", "title", "date"]
-  direction: desc
-  rerank_call_budget: 10 # max number of LLM calls to use; also optional
-  initial_ordering_method: "likert"
-```
+
+    Debates with the most controversial content should be ranked highest.""",
+                "input_keys": ["content", "title", "date"],
+                "direction": "desc",
+                "rerank_call_budget": 10,  # max number of LLM calls to use; also optional
+                "initial_ordering_method": "likert",
+            }
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "controversy_ranking",
+                    "input": "debates",
+                    "operations": ["rank_by_controversy"],
+                }
+            ],
+            "output": {"type": "file", "path": "ranked_debates.json"},
+        },
+    }
+    runner = DSLRunner(config)
+    results, _ = runner.run()
+    ```
 
 This Rank operation ranks debate transcripts from most controversial to least controversial by:
 
@@ -136,45 +184,114 @@ For more complex ranking tasks, a two-step approach can be more effective:
 
 ??? example "Two-Step Ranking Example"
 
-    ```yaml
-    operations:
-      - name: extract_hostile_exchanges
-        type: map
-        output:
-          schema:
-            meanness_summary: "str"
-            hostility_level: "int"
-            key_examples: "list[str]"
-        prompt: |
-          Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+    === "YAML"
 
-          {{ input.content }}
+        ```yaml
+        operations:
+          - name: extract_hostile_exchanges
+            type: map
+            output:
+              schema:
+                meanness_summary: "str"
+                hostility_level: "int"
+                key_examples: "list[str]"
+            prompt: |
+              Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
 
-          Extract and summarize exchanges where candidates are mean or hostile to each other.
-          [... prompt details ...]
+              {{ input.content }}
 
-      - name: rank_by_meanness
-        type: rank
-        prompt: |
-          Order these debate transcripts based on how mean or hostile the candidates are to each other.
-          Focus on the meanness summaries and examples that have been extracted.
-          
-          Consider:
-          - The overall hostility level rating
-          - Severity of personal attacks in the key examples
-          [... prompt details ...]
-        input_keys: ["meanness_summary", "hostility_level", "key_examples", "title", "date"]
-        direction: desc
-        rerank_call_budget: 10
+              Extract and summarize exchanges where candidates are mean or hostile to each other.
+              [... prompt details ...]
 
-    pipeline:
-      steps:
-        - name: meanness_analysis
-          input: debates
-          operations:
-            - extract_hostile_exchanges
-            - rank_by_meanness
-    ```
+          - name: rank_by_meanness
+            type: rank
+            prompt: |
+              Order these debate transcripts based on how mean or hostile the candidates are to each other.
+              Focus on the meanness summaries and examples that have been extracted.
+              
+              Consider:
+              - The overall hostility level rating
+              - Severity of personal attacks in the key examples
+              [... prompt details ...]
+            input_keys: ["meanness_summary", "hostility_level", "key_examples", "title", "date"]
+            direction: desc
+            rerank_call_budget: 10
+
+        pipeline:
+          steps:
+            - name: meanness_analysis
+              input: debates
+              operations:
+                - extract_hostile_exchanges
+                - rank_by_meanness
+        ```
+
+    === "Python"
+
+        ```python
+        from docetl.runner import DSLRunner
+
+        config = {
+            "default_model": "gpt-4o-mini",
+            "datasets": {
+                "debates": {"type": "file", "path": "debates.json"},
+            },
+            "operations": [
+                {
+                    "name": "extract_hostile_exchanges",
+                    "type": "map",
+                    "output": {
+                        "schema": {
+                            "meanness_summary": "str",
+                            "hostility_level": "int",
+                            "key_examples": "list[str]",
+                        }
+                    },
+                    "prompt": """Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+
+        {{ input.content }}
+
+        Extract and summarize exchanges where candidates are mean or hostile to each other.
+        [... prompt details ...]""",
+                },
+                {
+                    "name": "rank_by_meanness",
+                    "type": "rank",
+                    "prompt": """Order these debate transcripts based on how mean or hostile the candidates are to each other.
+        Focus on the meanness summaries and examples that have been extracted.
+
+        Consider:
+        - The overall hostility level rating
+        - Severity of personal attacks in the key examples
+        [... prompt details ...]""",
+                    "input_keys": [
+                        "meanness_summary",
+                        "hostility_level",
+                        "key_examples",
+                        "title",
+                        "date",
+                    ],
+                    "direction": "desc",
+                    "rerank_call_budget": 10,
+                },
+            ],
+            "pipeline": {
+                "steps": [
+                    {
+                        "name": "meanness_analysis",
+                        "input": "debates",
+                        "operations": [
+                            "extract_hostile_exchanges",
+                            "rank_by_meanness",
+                        ],
+                    }
+                ],
+                "output": {"type": "file", "path": "ranked.json"},
+            },
+        }
+        runner = DSLRunner(config)
+        results, _ = runner.run()
+        ```
 
 This approach:
 1. First extracts structured data about hostility in each debate

@@ -79,33 +79,31 @@ pipeline.yaml` or `.collect()` as usual.
 | `delta` | float | Failure probability; the guarantee holds with probability `1 - delta` | `0.05` |
 | `label_budget` | int | Maximum oracle calls spent learning the confidence threshold | `400` |
 
-The raw confidence threshold is deliberately **not** exposed — it is learned
-from the data, and pinning it would defeat the guarantee. You stay in
-metric-space.
-
-Two notes on `target`: it is validated to be strictly between 0 and 1
-(`target: 1.0` is rejected). And that's a statistical limit, not a style
-choice — from a finite oracle sample, BARGAIN can certify "at least 99% with
-probability `1 - delta`," but certifying exactly 100% would require labeling
-every item. Use `0.99` when you want near-perfect quality.
+`target` must be strictly between 0 and 1; `target: 1.0` is rejected at
+validation. A target of exactly 100% cannot be certified from a finite oracle
+sample — use `0.99` instead.
 
 ### Embedding models as the proxy
 
-`proxy_model` can also name an embedding model (e.g.
-`text-embedding-3-small`), detected automatically from litellm's registry.
-Instead of one cheap LLM call per item, the cascade embeds every item
-(batched), oracle-labels a training slice out of `label_budget`, fits a small
-logistic-regression head on those embeddings, and uses its probabilities as
-the proxy scores. The threshold search then runs on the *remaining* budget
-with disjoint labels, so the bounds stay valid; training rows keep their
-oracle answers, so no label is wasted.
+`proxy_model` can be an embedding model (e.g. `text-embedding-3-small`),
+detected from litellm's model registry. The cascade then:
 
-This is the cheapest proxy by far for high-volume, semantically separable
-predicates (topical filters, near-duplicate checks). It is weaker on
-reasoning-shaped predicates — there the scores won't separate and items
-simply escalate to the oracle, the same graceful failure as a weak LLM proxy.
-Because part of the budget fits the head, give embedding proxies roughly
-**2× the `label_budget`** of an LLM proxy (≥ 100 recommended).
+- embeds every item (in batches),
+- oracle-labels a training sample (half of `label_budget`, at most 200) and
+  fits a logistic regression on those embeddings,
+- uses the regression's probabilities as the proxy scores,
+- runs the threshold search with the remaining budget, on rows disjoint from
+  the training sample.
+
+Training rows keep their oracle answers in the output. If all training labels
+come back the same class, the regression cannot be fit and every item goes to
+the oracle.
+
+Embeddings cost far less per item than LLM calls, so use this proxy when the
+predicate is separable in embedding space — for example, topic filters. When
+it is not separable, the scores do not separate and most items escalate to
+the oracle. Because half the budget goes to training, set `label_budget` to
+at least 100 for precision/recall guarantees.
 
 ## Guarantees
 

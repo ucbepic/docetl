@@ -124,6 +124,7 @@ retriever = docetl.Retriever(
 
 df = (
     docetl.read_json("queries.json")
+    .with_dataset("kb", "knowledge_base.json")   # the dataset the retriever indexes
     .map(
         prompt="Answer: {{ input.question }}\nContext: {{ retrieval_context }}",
         output={"schema": {"answer": "str"}},
@@ -133,7 +134,7 @@ df = (
 )
 ```
 
-The `retriever` parameter is available on `map`, `filter`, `reduce`, and `extract`. The retrieved context is injected as `{{ retrieval_context }}` in your prompt template.
+The `retriever` parameter is available on `map`, `filter`, `reduce`, and `extract`. The retrieved context is injected as `{{ retrieval_context }}` in your prompt template. The retriever's `dataset` can be an auxiliary dataset registered with `.with_dataset()`, the frame's own input, or a previous step's output (`step_<operation_name>`) — see the [Retrievers guide](../retrievers.md) for the full reference.
 
 ## Inspection (no execution)
 

@@ -11,6 +11,77 @@ LanceDB supports built-in full-text search, vector search, and hybrid with RRF r
 - Operations do not override retriever settings. One source of truth = consistency.
 - `{{ retrieval_context }}` is available to your prompt; if not used, DocETL prepends a short "extra context" section automatically.
 
+This page covers both APIs: [YAML configuration](#configuration) and the [Python Frame API](#python-api).
+
+## Python API
+
+Create a `docetl.Retriever` object and pass it to any LLM operation (`.map()`, `.filter()`, `.reduce()`, `.extract()`) via the `retriever=` parameter. The constructor takes the same fields as the YAML config (`dataset`, `index_dir`, `index_types`, `fts`, `embedding`, `query`, `build_index`), documented in the [configuration reference](#configuration-reference) below.
+
+The `dataset` field names what gets indexed. In the Python API that can be:
+
+- **An auxiliary dataset** registered with `.with_dataset(name, data)` — a file path or in-memory list of dicts, equivalent to a separate `datasets` entry in YAML.
+- **The frame's own input** — the reader's dataset name (the file's basename for `read_json`/`read_csv`/`read_parquet`, or the `name=` given to `from_list`, default `"data"`).
+- **A previous step's output** — step names are `step_<operation_name>`, e.g. `step_extract_facts`.
+
+```python
+import docetl
+
+docetl.default_model = "gpt-4o-mini"
+
+retriever = docetl.Retriever(
+    dataset="kb",                       # the auxiliary dataset registered below
+    index_dir="./lance_index",
+    index_types=["fts", "embedding"],
+    fts={
+        "index_phrase": "{{ input.text }}",
+        "query_phrase": "{{ input.question }}",
+    },
+    embedding={
+        "model": "openai/text-embedding-3-small",
+        "index_phrase": "{{ input.text }}",
+        "query_phrase": "{{ input.question }}",
+    },
+    query={"mode": "hybrid", "top_k": 5},
+)
+
+results = (
+    docetl.read_json("questions.json")
+    .with_dataset("kb", "knowledge_base.json")   # what the retriever indexes
+    .map(
+        prompt="Answer: {{ input.question }}\nContext: {{ retrieval_context }}",
+        output={"schema": {"answer": "str"}},
+        retriever=retriever,
+    )
+    .collect()
+)
+```
+
+To index an intermediate result instead, point `dataset` at the producing step:
+
+```python
+facts = (
+    docetl.read_json("articles.json")
+    .map("extract_facts", prompt="...", output={"schema": {"facts": "list[str]"}})
+    .unnest("explode", unnest_key="facts")
+)
+
+facts_index = docetl.Retriever(
+    dataset="step_explode",             # output of the unnest step
+    index_dir="./facts_index",
+    index_types=["fts"],
+    fts={"index_phrase": "{{ input.facts }}", "query_phrase": "{{ input.facts }}"},
+)
+
+conflicts = facts.map(
+    "find_conflicts",
+    prompt="Does this fact conflict with any of these?\nFact: {{ input.facts }}\n{{ retrieval_context }}",
+    output={"schema": {"has_conflict": "bool"}},
+    retriever=facts_index,
+).collect()
+```
+
+As in YAML, pass `save_retriever_output=True` on the operation to keep the retrieved context in the output (under `_<operation_name>_retrieved_context`) for debugging.
+
 ## Configuration
 
 Add a top-level `retrievers` section. Each retriever has:

@@ -566,7 +566,7 @@ retrievers:
 **Python API** — create a `docetl.Retriever` object and pass it to operations:
 ```python
 retriever = docetl.Retriever(
-    dataset="extracted_facts",
+    dataset="facts",  # the frame's input dataset (basename of facts.json)
     index_dir="workloads/wiki/lance_index",
     index_types=["fts", "embedding"],
     fts={"index_phrase": "{{ input.fact }}", "query_phrase": "{{ input.fact }}"},
@@ -589,6 +589,8 @@ results = (
 )
 ```
 The `retriever` parameter is available on `.map()`, `.filter()`, `.reduce()`, and `.extract()`.
+
+In the Python API, `dataset` must name a dataset visible to the pipeline: the frame's own input (file basename, or `from_list`'s `name=`, default `"data"`), a previous step's output (`step_<operation_name>`), or an auxiliary dataset registered with `.with_dataset("kb", path_or_records)` (the equivalent of a separate YAML `datasets` entry — use this for external knowledge bases).
 
 **Key points:**
 - `{{ retrieval_context }}` is injected into prompts automatically

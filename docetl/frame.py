@@ -175,6 +175,29 @@ class Frame:
         )
         return new
 
+    def with_dataset(
+        self,
+        name: str,
+        data: str | list[dict],
+        *,
+        parsing: list[dict[str, str]] | None = None,
+    ) -> Frame:
+        """Register an auxiliary dataset alongside this frame's input.
+
+        *data* is a file path (JSON/CSV/Parquet) or an in-memory list of
+        dicts. The dataset does not flow through the operation chain; it is
+        available by *name* to retrievers (``Retriever(dataset=name, ...)``)
+        the same way a separate ``datasets`` entry is in a YAML pipeline.
+        """
+        ds: dict[str, Any] = (
+            {"type": "file", "path": data}
+            if isinstance(data, str)
+            else {"type": "memory", "path": data}
+        )
+        if parsing:
+            ds["parsing"] = parsing
+        return self._copy(datasets={**self._datasets, name: ds})
+
     def _append_equijoin(
         self, name: str | None, left: str, right: str, config: dict[str, Any]
     ) -> Frame:

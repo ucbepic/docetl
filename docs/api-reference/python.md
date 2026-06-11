@@ -222,6 +222,20 @@ retriever = docetl.Retriever(
 
 Pass to any LLM operation via `retriever=`. Retrieved context is available as `{{ retrieval_context }}` in prompts.
 
+`dataset` must name a dataset visible to the pipeline: an auxiliary dataset registered with `.with_dataset()`, the frame's own input dataset, or a previous step's output (`step_<operation_name>`). See the [Retrievers guide](../retrievers.md) for details.
+
+### `Frame.with_dataset(name, data, *, parsing=None)`
+
+Register an auxiliary dataset (e.g. a retriever's knowledge base) alongside the frame's input. `data` is a file path (JSON/CSV/Parquet) or an in-memory list of dicts. The dataset does not flow through the operation chain.
+
+```python
+frame = (
+    docetl.read_json("questions.json")
+    .with_dataset("kb", "knowledge_base.json")
+    .map(prompt="...", output={...}, retriever=docetl.Retriever(dataset="kb", ...))
+)
+```
+
 ---
 
 ## Inspection (no execution)

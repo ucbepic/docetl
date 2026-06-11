@@ -15,7 +15,10 @@
 
 ## What is DocETL
 
-DocETL is a declarative query engine and optimizer for LLM-powered data processing. Think of DocETL as an agentic map-reduce framework. DocETL exposes high-level operations (map, reduce, filter, resolve, extract) that can be authored in natural language and executed by agents, and an optimizer that rewrites pipelines by searching over models, prompts, and operation decompositions.
+DocETL is a declarative query engine and optimizer for LLM-powered data processing. Think of DocETL as an agentic map-reduce framework. It provides
+
+- high-level operations (map, reduce, filter, resolve, extract) that you author in natural language and agents execute, and
+- an optimizer that rewrites pipelines to be high-accuracy and cost-efficient, searching over models, prompts, and operation decompositions.
 
 <p align="center"><img src="docs/assets/docetl-overview.svg" alt="DocETL pipeline overview" width="720"></p>
 
@@ -56,17 +59,18 @@ docetl.rate_limits = {
     "llm_tokens": [{"count": 200_000, "per": 1, "unit": "minute"}],
 }
 
-pipeline = (
-    docetl.read_json("tickets.json")
-    .map(
-        prompt="Classify this support ticket: {{ input.text }}",
-        output={"schema": {"category": "str", "priority": "str"}},
-    )
-    .reduce(
-        reduce_key="category",
-        prompt="Summarize these tickets: {% for t in inputs %}{{ t.text }}{% endfor %}",
-        output={"schema": {"summary": "str"}},
-    )
+# Classify support tickets, then summarize each category
+pipeline = docetl.read_json("tickets.json")
+
+pipeline = pipeline.map(
+    prompt="Classify this support ticket: {{ input.text }}",
+    output={"schema": {"category": "str", "priority": "str"}},
+)
+
+pipeline = pipeline.reduce(
+    reduce_key="category",
+    prompt="Summarize these tickets: {% for t in inputs %}{{ t.text }}{% endfor %}",
+    output={"schema": {"summary": "str"}},
 )
 
 pipeline.schema()  # {'category': 'str', 'summary': 'str'}

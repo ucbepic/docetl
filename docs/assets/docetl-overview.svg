@@ -1,103 +1,107 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 400" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 1 L 9 5 L 0 9 z" fill="#6b7280"/>
     </marker>
   </defs>
 
-  <rect x="0.5" y="0.5" width="759" height="359" rx="12" fill="#ffffff" stroke="#e3e5e8"/>
+  <rect x="0.5" y="0.5" width="779" height="399" rx="12" fill="#ffffff" stroke="#e3e5e8"/>
+
+  <!-- you provide -->
+  <rect x="28" y="40" width="272" height="330" rx="10" fill="none" stroke="#c4c8ce" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="44" y="64" font-size="12" fill="#8a8f98" font-weight="600" letter-spacing="0.4">YOU PROVIDE</text>
 
   <!-- pipeline -->
-  <rect x="60" y="40" width="200" height="96" rx="10" fill="#fcfcfd" stroke="#9aa0a8" stroke-width="1.2"/>
-  <text x="160" y="64" text-anchor="middle" font-size="13" fill="#3b4252" font-weight="600">pipeline</text>
+  <rect x="52" y="84" width="222" height="92" rx="10" fill="#fcfcfd" stroke="#9aa0a8" stroke-width="1.2"/>
+  <text x="163" y="108" text-anchor="middle" font-size="13" fill="#3b4252" font-weight="600">pipeline</text>
   <g font-size="12.5" fill="#2b3147" text-anchor="middle">
-    <rect x="78" y="80" width="68" height="36" rx="7" fill="#eef0fb" stroke="#4051b5" stroke-width="1.3"/>
-    <text x="112" y="103">map</text>
-    <rect x="174" y="80" width="68" height="36" rx="7" fill="#eef0fb" stroke="#4051b5" stroke-width="1.3"/>
-    <text x="208" y="103">reduce</text>
+    <rect x="70" y="122" width="68" height="36" rx="7" fill="#eef0fb" stroke="#4051b5" stroke-width="1.3"/>
+    <text x="104" y="145">map</text>
+    <rect x="188" y="122" width="68" height="36" rx="7" fill="#eef0fb" stroke="#4051b5" stroke-width="1.3"/>
+    <text x="222" y="145">reduce</text>
   </g>
-  <line x1="146" y1="98" x2="170" y2="98" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <line x1="260" y1="88" x2="346" y2="88" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
-
-  <!-- optimizer -->
-  <rect x="354" y="28" width="226" height="152" rx="10" fill="#fcfcfd" stroke="#9aa0a8" stroke-width="1.2"/>
-  <text x="467" y="52" text-anchor="middle" font-size="13" fill="#3b4252" font-weight="600">optimizer</text>
-
-  <!-- candidate chains: plain boxes, one picked -->
-  <g fill="#f4f5f7" stroke="#c4c8ce" stroke-width="1.1">
-    <rect x="384" y="66" width="36" height="20" rx="5"/>
-    <rect x="430" y="66" width="36" height="20" rx="5"/>
-    <rect x="384" y="134" width="36" height="20" rx="5"/>
-    <rect x="430" y="134" width="36" height="20" rx="5"/>
-    <rect x="476" y="134" width="36" height="20" rx="5"/>
-  </g>
-  <g fill="#eef0fb" stroke="#4051b5" stroke-width="1.4">
-    <rect x="384" y="100" width="36" height="20" rx="5"/>
-    <rect x="430" y="100" width="36" height="20" rx="5"/>
-    <rect x="476" y="100" width="36" height="20" rx="5"/>
-  </g>
-  <g stroke="#c4c8ce" stroke-width="1.1">
-    <line x1="420" y1="76" x2="430" y2="76"/>
-    <line x1="420" y1="144" x2="430" y2="144"/>
-    <line x1="466" y1="144" x2="476" y2="144"/>
-  </g>
-  <g stroke="#4051b5" stroke-width="1.2">
-    <line x1="420" y1="110" x2="430" y2="110"/>
-    <line x1="466" y1="110" x2="476" y2="110"/>
-  </g>
-  <!-- marks -->
-  <g stroke="#b3b8bf" stroke-width="1.8" stroke-linecap="round">
-    <line x1="534" y1="70" x2="546" y2="82"/>
-    <line x1="546" y1="70" x2="534" y2="82"/>
-    <line x1="534" y1="138" x2="546" y2="150"/>
-    <line x1="546" y1="138" x2="534" y2="150"/>
-  </g>
-  <path d="M 532 110 L 538 117 L 549 102" fill="none" stroke="#4051b5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- optimizer picks, engine executes -->
-  <line x1="467" y1="180" x2="467" y2="222" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
-
-  <!-- execution engine -->
-  <rect x="354" y="226" width="226" height="64" rx="10" fill="#eef0fb" stroke="#4051b5" stroke-width="1.4"/>
-  <text x="467" y="264" text-anchor="middle" font-size="13.5" fill="#2b3147" font-weight="600">execution engine</text>
+  <line x1="138" y1="140" x2="184" y2="140" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrow)"/>
 
   <!-- documents -->
   <g stroke="#9aa0a8" fill="#fafafa" stroke-width="1.2">
-    <rect x="92" y="222" width="56" height="72" rx="5"/>
-    <rect x="98" y="216" width="56" height="72" rx="5"/>
-    <rect x="104" y="210" width="56" height="72" rx="5" fill="#ffffff"/>
+    <rect x="129" y="252" width="56" height="72" rx="5"/>
+    <rect x="135" y="246" width="56" height="72" rx="5"/>
+    <rect x="141" y="240" width="56" height="72" rx="5" fill="#ffffff"/>
   </g>
   <g stroke="#c4c8ce" stroke-width="2" stroke-linecap="round">
-    <line x1="112" y1="226" x2="152" y2="226"/>
-    <line x1="112" y1="238" x2="146" y2="238"/>
-    <line x1="112" y1="250" x2="150" y2="250"/>
-    <line x1="112" y1="262" x2="140" y2="262"/>
+    <line x1="149" y1="256" x2="189" y2="256"/>
+    <line x1="149" y1="268" x2="183" y2="268"/>
+    <line x1="149" y1="280" x2="187" y2="280"/>
+    <line x1="149" y1="292" x2="177" y2="292"/>
   </g>
-  <text x="126" y="322" text-anchor="middle" font-size="13" fill="#3b4252">documents</text>
+  <text x="163" y="350" text-anchor="middle" font-size="13" fill="#3b4252">documents</text>
 
-  <line x1="166" y1="258" x2="346" y2="258" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- DocETL -->
+  <rect x="332" y="40" width="276" height="330" rx="10" fill="none" stroke="#c4c8ce" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="348" y="64" font-size="12" fill="#8a8f98" font-weight="600" letter-spacing="0.4">DOCETL</text>
 
-  <line x1="580" y1="258" x2="618" y2="258" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- optimizer -->
+  <rect x="356" y="78" width="228" height="148" rx="10" fill="#fcfcfd" stroke="#9aa0a8" stroke-width="1.2"/>
+  <text x="470" y="102" text-anchor="middle" font-size="13" fill="#3b4252" font-weight="600">optimizer</text>
+  <g fill="#f4f5f7" stroke="#c4c8ce" stroke-width="1.1">
+    <rect x="386" y="114" width="36" height="20" rx="5"/>
+    <rect x="432" y="114" width="36" height="20" rx="5"/>
+    <rect x="386" y="182" width="36" height="20" rx="5"/>
+    <rect x="432" y="182" width="36" height="20" rx="5"/>
+    <rect x="478" y="182" width="36" height="20" rx="5"/>
+  </g>
+  <g fill="#eef0fb" stroke="#4051b5" stroke-width="1.4">
+    <rect x="386" y="148" width="36" height="20" rx="5"/>
+    <rect x="432" y="148" width="36" height="20" rx="5"/>
+    <rect x="478" y="148" width="36" height="20" rx="5"/>
+  </g>
+  <g stroke="#c4c8ce" stroke-width="1.1">
+    <line x1="422" y1="124" x2="432" y2="124"/>
+    <line x1="422" y1="192" x2="432" y2="192"/>
+    <line x1="468" y1="192" x2="478" y2="192"/>
+  </g>
+  <g stroke="#4051b5" stroke-width="1.2">
+    <line x1="422" y1="158" x2="432" y2="158"/>
+    <line x1="468" y1="158" x2="478" y2="158"/>
+  </g>
+  <g stroke="#b3b8bf" stroke-width="1.8" stroke-linecap="round">
+    <line x1="538" y1="118" x2="550" y2="130"/>
+    <line x1="550" y1="118" x2="538" y2="130"/>
+    <line x1="538" y1="186" x2="550" y2="198"/>
+    <line x1="550" y1="186" x2="538" y2="198"/>
+  </g>
+  <path d="M 536 158 L 542 165 L 553 150" fill="none" stroke="#4051b5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <line x1="470" y1="226" x2="470" y2="258" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- execution engine -->
+  <rect x="356" y="262" width="228" height="62" rx="10" fill="#eef0fb" stroke="#4051b5" stroke-width="1.4"/>
+  <text x="470" y="299" text-anchor="middle" font-size="13.5" fill="#2b3147" font-weight="600">execution engine</text>
+
+  <!-- flows -->
+  <line x1="274" y1="140" x2="352" y2="140" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="197" y1="293" x2="352" y2="293" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 197 268 L 322 268 L 322 178 L 348 178" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="608" y1="293" x2="638" y2="293" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
 
   <!-- output -->
   <g>
-    <rect x="626" y="212" width="104" height="84" rx="6" fill="#ffffff" stroke="#9aa0a8" stroke-width="1.2"/>
-    <rect x="626" y="212" width="104" height="20" rx="6" fill="#f1f2f4" stroke="#9aa0a8" stroke-width="1.2"/>
-    <line x1="626" y1="232" x2="730" y2="232" stroke="#9aa0a8" stroke-width="1.2"/>
-    <line x1="626" y1="253" x2="730" y2="253" stroke="#e3e5e8"/>
-    <line x1="626" y1="274" x2="730" y2="274" stroke="#e3e5e8"/>
-    <line x1="678" y1="212" x2="678" y2="296" stroke="#e3e5e8"/>
+    <rect x="646" y="251" width="104" height="84" rx="6" fill="#ffffff" stroke="#9aa0a8" stroke-width="1.2"/>
+    <rect x="646" y="251" width="104" height="20" rx="6" fill="#f1f2f4" stroke="#9aa0a8" stroke-width="1.2"/>
+    <line x1="646" y1="271" x2="750" y2="271" stroke="#9aa0a8" stroke-width="1.2"/>
+    <line x1="646" y1="292" x2="750" y2="292" stroke="#e3e5e8"/>
+    <line x1="646" y1="313" x2="750" y2="313" stroke="#e3e5e8"/>
+    <line x1="698" y1="251" x2="698" y2="335" stroke="#e3e5e8"/>
   </g>
   <g stroke="#c4c8ce" stroke-width="2" stroke-linecap="round">
-    <line x1="634" y1="222" x2="668" y2="222"/>
-    <line x1="686" y1="222" x2="720" y2="222"/>
-    <line x1="634" y1="243" x2="662" y2="243"/>
-    <line x1="686" y1="243" x2="722" y2="243"/>
-    <line x1="634" y1="264" x2="670" y2="264"/>
-    <line x1="686" y1="264" x2="714" y2="264"/>
-    <line x1="634" y1="285" x2="656" y2="285"/>
-    <line x1="686" y1="285" x2="718" y2="285"/>
+    <line x1="654" y1="261" x2="688" y2="261"/>
+    <line x1="706" y1="261" x2="740" y2="261"/>
+    <line x1="654" y1="282" x2="682" y2="282"/>
+    <line x1="706" y1="282" x2="742" y2="282"/>
+    <line x1="654" y1="303" x2="690" y2="303"/>
+    <line x1="706" y1="303" x2="734" y2="303"/>
+    <line x1="654" y1="324" x2="676" y2="324"/>
+    <line x1="706" y1="324" x2="738" y2="324"/>
   </g>
-  <text x="678" y="322" text-anchor="middle" font-size="13" fill="#3b4252">output</text>
+  <text x="698" y="364" text-anchor="middle" font-size="13" fill="#3b4252">output</text>
 </svg>

@@ -7,13 +7,15 @@
 [![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
 
 DocETL is a declarative query engine and optimizer for LLM-powered data
-processing. Think of DocETL as an agentic map-reduce framework. It exposes
-high-level operations (map, reduce, filter, resolve, extract) that can be
-authored in natural language and executed by agents, and an optimizer that
-rewrites pipelines by searching over models, prompts, and operation
-decompositions.
+processing. Think of DocETL as an agentic map-reduce framework. It provides
 
-![DocETL pipeline overview](assets/docetl-overview.svg)
+- high-level operations (map, reduce, filter, resolve, extract) that you
+  author in natural language and agents execute, and
+- an optimizer that rewrites pipelines to be high-accuracy and
+  cost-efficient, searching over models, prompts, and operation
+  decompositions.
+
+<p align="center"><img src="assets/docetl-overview.svg" alt="DocETL pipeline overview" width="680"></p>
 
 Use it when you have a task over a collection of documents or unstructured
 records, e.g. extracting and aggregating themes across thousands of
@@ -30,41 +32,64 @@ Pipelines can be written in Python or YAML. Both are first class:
 
     docetl.default_model = "gpt-4o-mini"
 
-    results = (
-        docetl.read_json("input.json")
-        .map(prompt="Classify: {{ input.text }}", output={"schema": {"category": "str"}})
-        .reduce(reduce_key="category", prompt="Summarize: {{ inputs }}", output={"schema": {"summary": "str"}})
-        .collect()
+    # What themes come up across customer interviews?
+    interviews = docetl.read_json("interviews.json")
+
+    # Extract themes from each interview
+    interviews = interviews.map(
+        prompt="List the themes discussed in this interview: {{ input.transcript }}",
+        output={"schema": {"themes": "list[str]"}},
     )
+
+    # Synthesize the top themes across all interviews
+    themes = interviews.reduce(
+        reduce_key="_all",
+        prompt="""Identify the top recurring themes across these interviews:
+    {% for item in inputs %}- {{ item.themes }}
+    {% endfor %}""",
+        output={"schema": {"top_themes": "list[{name: str, description: str, num_mentions: int}]"}},
+    )
+
+    df = themes.collect()
     ```
 
     See the [Python API reference](api-reference/python.md) for the full reference.
 
 === "YAML"
 
-    Define your pipeline declaratively, then run it from the CLI:
+    Define the same pipeline declaratively, then run it from the CLI:
 
     ```yaml
     default_model: gpt-4o-mini
     datasets:
-      docs:
+      interviews:
         type: file
-        path: input.json
+        path: interviews.json
     operations:
-      - name: classify
+      - name: extract_themes
         type: map
-        prompt: "Classify: {{ input.text }}"
+        prompt: "List the themes discussed in this interview: {{ input.transcript }}"
         output:
           schema:
-            category: str
+            themes: list[str]
+      - name: synthesize_themes
+        type: reduce
+        reduce_key: _all
+        prompt: |
+          Identify the top recurring themes across these interviews:
+          {% for item in inputs %}- {{ item.themes }}
+          {% endfor %}
+        output:
+          schema:
+            top_themes: "list[{name: str, description: str, num_mentions: int}]"
     pipeline:
       steps:
-        - name: step1
-          input: docs
-          operations: [classify]
+        - name: analyze
+          input: interviews
+          operations: [extract_themes, synthesize_themes]
       output:
         type: file
-        path: output.json
+        path: themes.json
     ```
 
     ```bash
@@ -82,9 +107,6 @@ df.semantic.map(prompt="...", output={"schema": {"field": "str"}})
 ```
 
 See the [Pandas integration guide](pandas/index.md) for details.
-
-!!! tip "Fastest Way: Claude Code"
-    Clone this repo and run `claude` to use the built-in DocETL skill. Just describe your data processing task and Claude will create and run the pipeline for you. See [Quick Start (Claude Code)](quickstart-claude-code.md) for details.
 
 ## Project Origin
 

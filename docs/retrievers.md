@@ -5,14 +5,20 @@ processed — e.g., answering each question in a dataset requires the relevant
 entry from a knowledge base. Putting the whole knowledge base in every prompt
 is expensive and often exceeds the context window.
 
-A **retriever** indexes a dataset once (full-text, vector, or both, via local
-[LanceDB](https://lancedb.com)) and, for each item an operation processes,
-injects the top matches into the prompt as `{{ retrieval_context }}`. Define retrievers once at the top level, attach one to any LLM-powered operation with `retriever: <name>`, and DocETL runs full-text, vector, or hybrid search at runtime and injects the results into your prompt as `{{ retrieval_context }}`.
+A **retriever** indexes a dataset once and, for each item an operation
+processes, searches the index and injects the top matches into the prompt as
+`{{ retrieval_context }}`. You define a retriever at the top level of the
+pipeline and attach it to any LLM-powered operation.
 
-- Always OSS LanceDB (local `index_dir`). Hybrid search uses RRF reranking; see the [LanceDB docs](https://lancedb.com/docs/search/hybrid-search/).
-- A retriever references a dataset from the pipeline config, or the output of a previous pipeline step.
-- Operations do not override retriever settings.
-- If your prompt does not use `{{ retrieval_context }}`, DocETL prepends a short "extra context" section automatically.
+- The index is built with the [LanceDB](https://lancedb.com) library and
+  stored in a local directory (`index_dir`) — there is no server or external
+  service. It supports full-text search, vector search, or both combined
+  ([hybrid search](https://lancedb.com/docs/search/hybrid-search/)).
+- The indexed dataset can be any dataset in the pipeline config or the output
+  of a previous pipeline step.
+- Retriever settings live on the retriever, not on operations.
+- If your prompt does not use `{{ retrieval_context }}`, DocETL appends the
+  retrieved matches to the prompt automatically.
 
 All fields are documented in the [configuration reference](#configuration-reference). This page covers both the [YAML configuration](#configuration) and the [Python Frame API](#python-api).
 

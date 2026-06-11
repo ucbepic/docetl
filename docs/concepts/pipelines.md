@@ -23,35 +23,13 @@ The required pieces are:
 2. **Operators**: the processing steps.
 3. **Pipeline specification**: the order of steps and the output location.
 
-Optional settings (default model, system prompts, parsing tools) are covered
+Optional settings (default model, system prompts) are covered
 [below](#configuration).
 
 ## Datasets
 
-A dataset is a JSON list of objects (or a CSV file of rows):
-
-=== "YAML"
-
-    ```yaml
-    datasets:
-      user_logs:
-        type: file
-        path: "user_logs.json"
-    ```
-
-=== "Python"
-
-    ```python
-    import docetl
-
-    user_logs = docetl.read_json("user_logs.json")
-    ```
-
-DocETL accepts JSON, CSV, and Parquet files. A directory path also works:
-every file in it (recursively) becomes one row with `path`, `filename`, and
-`text` keys. PDF, Word, PowerPoint, and Excel files are converted to text;
-other files are read as UTF-8, and binary files with no extractor are
-skipped with a warning.
+The input data: JSON, CSV, or Parquet files, a directory of documents, or an
+in-memory list of dicts. See [Datasets](datasets.md).
 
 ## Operators
 
@@ -199,47 +177,3 @@ applied to every operation in the pipeline:
         "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
     }
     ```
-
-### Parsing Tools (non-JSON inputs)
-
-To process other file types (audio, PDFs, ...), point the dataset at a JSON
-file of paths and attach a parsing function:
-
-=== "YAML"
-
-    ```yaml
-    datasets:
-      audio_transcripts:
-        type: file
-        source: local
-        path: "audio_files/audio_paths.json"
-        parsing_tools:
-          - input_key: audio_path
-            function: whisper_speech_to_text
-            output_key: transcript
-    ```
-
-=== "Python"
-
-    ```python
-    import docetl
-
-    audio_transcripts = docetl.read_json(
-        "audio_files/audio_paths.json",
-        parsing=[
-            {
-                "input_key": "audio_path",
-                "function": "whisper_speech_to_text",
-                "output_key": "transcript",
-            }
-        ],
-    )
-    ```
-
-- `input_key`: the key holding the path to the file to parse.
-- `function`: the parsing function (built-in or custom).
-- `output_key`: the key the parsed content is stored under — accessible in
-  prompts as `{{ input.transcript }}`.
-
-See [Custom Parsing](../examples/custom-parsing.md) for the available built-in
-tools and how to define your own.

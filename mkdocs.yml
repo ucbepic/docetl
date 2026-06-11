@@ -36,6 +36,7 @@ nav:
   
   - User Guide:
       - Pipelines: concepts/pipelines.md
+      - Datasets: concepts/datasets.md
       - Operators & Validation: concepts/operators.md
       - Output Schemas: concepts/schemas.md
       - LLM-Powered Operators:

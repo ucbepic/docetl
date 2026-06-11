@@ -20,7 +20,7 @@ pipeline and attach it to any LLM-powered operation.
 - If your prompt does not use `{{ retrieval_context }}`, DocETL appends the
   retrieved matches to the prompt automatically.
 
-All fields are documented in the [configuration reference](#configuration-reference). This page covers both the [YAML configuration](#configuration) and the [Python Frame API](#python-api).
+All fields are documented in the [configuration reference](#configuration-reference).
 
 ## Example
 
@@ -274,7 +274,7 @@ Extract structured data in step 1, index it, retrieve over it in step 2.
 
 ## Configuration reference
 
-All retriever fields, for both YAML and the `docetl.Retriever` constructor. For a complete example, see [Configuration](#configuration).
+All retriever fields, for both YAML and the `docetl.Retriever` constructor. For a complete example, see [Example](#example).
 
 ### Required fields
 

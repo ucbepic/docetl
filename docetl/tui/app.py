@@ -184,15 +184,15 @@ class DocetlTUI(App):
 
             op = self._selected_op()
             middle = self.query_one("#middle")
-            middle.border_title = (
-                f"{op.op_type}:{op.name.split('/')[-1]}" if op else "Documents"
-            ) + (" ◀" if self.focus_pane == "grid" else "")
-            self.query_one("#grid_title", Static).update(self._render_grid_title(state))
+            middle.border_title = (_op_label(op) if op else "Documents") + (
+                " ◀" if self.focus_pane == "grid" else ""
+            )
+            self.query_one("#grid_title", Static).update(self._render_grid_title())
             self.query_one("#grid", Static).update(self._render_grid(state))
 
             detail_container = self.query_one("#detail", VerticalScroll)
             detail_body = self.query_one("#detail_body", Static)
-            title, body = self._render_detail(state)
+            title, body = self._render_detail()
             detail_body.update(body)
             detail_container.border_title = title
         except Exception:
@@ -232,7 +232,7 @@ class DocetlTUI(App):
             line = Text()
             line.append(f" {glyph} ", style=gstyle)
             line.append(
-                _trunc(f"{op.op_type}:{op.name.split('/')[-1]}", 30),
+                _trunc(_op_label(op), 30),
                 style="bold" if selected else "",
             )
             if selected:
@@ -300,7 +300,7 @@ class DocetlTUI(App):
 
         return Group(head, body)
 
-    def _render_grid_title(self, state: RunState) -> Text:
+    def _render_grid_title(self) -> Text:
         op = self._selected_op()
         if op is None:
             return Text("")
@@ -431,7 +431,7 @@ class DocetlTUI(App):
             op.status == "done" or get_profile(op.op_type).grid_is_docs
         )
 
-    def _render_detail(self, state: RunState) -> tuple[str, Group | Text]:
+    def _render_detail(self) -> tuple[str, Group | Text]:
         op = self._selected_op()
         if op is None:
             return "Detail", Text("")
@@ -488,7 +488,7 @@ class DocetlTUI(App):
         if idx >= op.grid_count:
             return Group(Text("(no document)", style="grey42"))
         if not op.outputs or idx >= len(op.outputs):
-            st = op.cell_status(idx, op_runband(op))
+            st = op.cell_status(idx, 0)
             return Group(
                 _kv("status", st, value_style=_STATUS_STYLE.get(st, "grey42")),
                 Text(
@@ -573,8 +573,9 @@ class DocetlTUI(App):
         return result
 
 
-def op_runband(op: OpState) -> int:
-    return 0
+def _op_label(op: OpState) -> str:
+    """Short operator label shown in the ops list and pane titles."""
+    return f"{op.op_type}:{op.name.split('/')[-1]}"
 
 
 # -- formatting helpers --------------------------------------------------
@@ -871,15 +872,8 @@ class _QuietConsole:
     def __init__(self) -> None:
         self.file = io.StringIO()
 
-    def log(self, *a, **k):
-        pass
-
-    def print(self, *a, **k):
-        pass
-
-    def rule(self, *a, **k):
-        pass
-
+    # __getattr__ no-ops everything else; status stays explicit because
+    # callers use it as a context manager.
     def status(self, *a, **k):
         return _NullStatus()
 

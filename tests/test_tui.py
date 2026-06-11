@@ -440,3 +440,63 @@ def test_doc_view_resolves_observability_by_bare_op_name():
     }
     rows, prompt, provenance = app._doc_view(op, get_profile(op.op_type), 0, doc)
     assert prompt == "the rendered prompt"
+
+
+def test_live_tui_drive_headless(tmp_path):
+    """Drive the real TUI with textual's pilot: run an actual pipeline in the
+    worker thread, navigate ops pane -> grid -> doc cells, and quit."""
+    pytest.importorskip("textual")
+    import asyncio
+    import json
+
+    import docetl
+    from docetl.progress.tracker import set_active_tracker
+    from docetl.runner import DSLRunner
+    from docetl.tui.app import DocetlTUI
+
+    async def drive():
+        data = [{"x": i} for i in range(24)]
+        frame = (
+            docetl.from_list(data)
+            .code_map("double", code="def transform(doc): return {'y': doc['x'] * 2}")
+            .code_filter("keep_big", code="def transform(doc): return doc['y'] >= 10")
+        )
+        out_path = str(tmp_path / "out.json")
+        runner = DSLRunner(frame._build_config(output_path=out_path), max_threads=4)
+
+        from tqdm import tqdm as _tqdm
+
+        _tqdm.set_lock(threading.RLock())
+        tracker = ProgressTracker(concurrency=4)
+        runner.progress_tracker = tracker
+        runner._tui_active = True
+        set_active_tracker(tracker)
+        tracker.pipeline_start(runner.list_pipeline_operations())
+
+        app = DocetlTUI(tracker, runner)
+        try:
+            async with app.run_test(size=(120, 40)) as pilot:
+                for _ in range(100):
+                    await pilot.pause(0.1)
+                    if app.result_cost is not None or app.error is not None:
+                        break
+                assert app.error is None, f"pipeline failed in TUI: {app.error}"
+                assert app.result_cost is not None, "pipeline never finished"
+
+                await pilot.press("down")
+                await pilot.press("up")
+                await pilot.press("enter")  # focus grid
+                for key in ("right", "right", "down", "left", "up"):
+                    await pilot.press(key)
+                await pilot.pause(0.3)
+                app.render_all()  # force a detail-pane build at the cursor
+                await pilot.press("tab")
+                await pilot.press("q")
+        finally:
+            set_active_tracker(None)
+
+        out = json.load(open(out_path))
+        assert len(out) == 19 and all(r["y"] >= 10 for r in out)
+        assert all(op.status == "done" for op in tracker.snapshot().ops)
+
+    asyncio.run(drive())

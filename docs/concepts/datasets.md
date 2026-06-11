@@ -90,10 +90,10 @@ ticket_id,customer,message
 
 ### A directory of documents
 
-Every non-hidden file under the directory (recursively) becomes one row with
-`path`, `filename`, and `text` keys. PDF, Word, PowerPoint, and Excel files
-are converted to text; other files are read as UTF-8; binary files with no
-extractor are skipped with a warning.
+Every non-hidden file under the directory (recursively) becomes one row:
+`content` holds the file's text, with `filename` and `path` alongside. PDF,
+Word, PowerPoint, and Excel files are converted to text; other files are read
+as UTF-8; binary files with no extractor are skipped with a warning.
 
 ```text
 contracts/
@@ -115,8 +115,12 @@ contracts/
 
     ```python
     contracts = docetl.read_dir("contracts")
-    # one row per file, e.g.
-    # {"path": "contracts/acme_msa.pdf", "filename": "acme_msa.pdf", "text": "..."}
+    # one row per file:
+    # {
+    #     "filename": "acme_msa.pdf",
+    #     "path": "contracts/acme_msa.pdf",
+    #     "content": "MASTER SERVICE AGREEMENT\nThis Agreement is entered into by...",
+    # }
     ```
 
 ### An in-memory list (Python only)

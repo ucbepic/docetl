@@ -1,28 +1,21 @@
 # Optimization
 
-DocETL has two optimizers. They solve different problems:
+LLM pipelines have two competing objectives: **accuracy** (is the output
+right?) and **cost** (how much do the model calls cost?). DocETL has two
+optimizers for improving them:
 
-| | [Model cascades (BARGAIN)](cascades.md) | [MOAR](moar.md) |
-|---|---|---|
-| Optimizes | a single operator | the whole pipeline |
-| Objective | cost, under a statistical quality guarantee | accuracy and cost jointly |
-| When it runs | during execution itself | as an offline search, before you run |
-| What it costs | at most `label_budget` oracle calls | many sample-pipeline runs plus agent calls |
-| How to use it | add a `cascade:` block to the operator | provide an evaluation function |
+- **[MOAR](moar.md)** optimizes accuracy and cost together, for the whole
+  pipeline. It tries rewritten variants of your pipeline on a sample of your
+  data, scores them with an evaluation function you write, and returns the
+  best ones. You run it once, before your real runs.
+- **[Model cascades](cascades.md)** reduce the cost of a single `filter`,
+  `resolve`, or `equijoin`: a cheap model answers the easy items and the
+  expensive model only sees the hard ones, with a statistical guarantee on
+  quality. They run as part of normal execution — there is no separate step.
 
-**Model cascades** are lightweight cost optimization. A `cascade:` block on a
-`filter`, `resolve`, or `equijoin` runs a cheap proxy model on every item and
-escalates only the uncertain ones to the operator's model, preserving a
-statistical guarantee. There is no separate optimization step — it happens
-while the pipeline executes. See [Model Cascades with BARGAIN](cascades.md).
-
-**MOAR** is joint accuracy and cost optimization. It searches over pipeline
-rewrites and model choices, executes candidate pipelines on a sample, scores
-them with your evaluation function, and returns a Pareto frontier of plans.
-See the [MOAR Optimizer Guide](moar.md).
-
-The two compose: a MOAR-optimized pipeline can still use cascades on its
-binary operators. Merging them into a single optimizer is on our roadmap.
+**Recommendation:** use MOAR if you can write an evaluation function for your
+task. Add a cascade when one expensive binary operator dominates your cost.
+The two compose, and merging them into a single optimizer is on our roadmap.
 
 ## Running MOAR
 

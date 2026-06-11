@@ -137,8 +137,13 @@ of the YAML file or Python script.
 
 ## Parsing tools (non-standard inputs)
 
-To process file types beyond the above (audio, scanned PDFs, ...), point the
-dataset at a JSON file of paths and attach a parsing function:
+DocETL ships built-in parsing functions for file types beyond the above,
+e.g., `whisper_speech_to_text` for audio, and you can register your own.
+See [Custom Parsing](../examples/custom-parsing.md) for the available
+built-in tools and how to define custom ones.
+
+To use one, point the dataset at a JSON file of paths and attach the
+parsing function:
 
 === "YAML"
 
@@ -173,8 +178,5 @@ dataset at a JSON file of paths and attach a parsing function:
 
 - `input_key`: the key holding the path to the file to parse.
 - `function`: the parsing function (built-in or custom).
-- `output_key`: the key the parsed content is stored under — accessible in
+- `output_key`: the key the parsed content is stored under, accessible in
   prompts as `{{ input.transcript }}`.
-
-See [Custom Parsing](../examples/custom-parsing.md) for the available built-in
-tools and how to define your own.

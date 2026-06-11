@@ -7,6 +7,7 @@ flowchart LR
     a1["doc (key=A)"] --> A["one output for A"]
     a2["doc (key=A)"] --> A
     b1["doc (key=B)"] --> B["one output for B"]
+    c1["..."] --> C["..."]
 ```
 
 ## Example: Summarizing Customer Feedback

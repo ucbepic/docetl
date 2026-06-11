@@ -94,3 +94,8 @@ a {
   background-color: var(--card);
   color: var(--card-foreground);
 }
+
+/* Center mermaid diagrams */
+.mermaid {
+  text-align: center;
+}

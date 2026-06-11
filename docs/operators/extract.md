@@ -12,6 +12,7 @@
 flowchart LR
     d1["doc 1"] --> e1["doc 1 + extracted text"]
     d2["doc 2"] --> e2["doc 2 + extracted text"]
+    dn["..."] --> en["..."]
 ```
 The Extract operation pulls specific sections of text from documents based on provided criteria.
 

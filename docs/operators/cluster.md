@@ -10,6 +10,7 @@ flowchart LR
     d1["doc 1"] --> c1["doc 1 + cluster path"]
     d2["doc 2"] --> c2["doc 2 + cluster path"]
     d3["doc 3"] --> c3["doc 3 + cluster path"]
+    dn["..."] --> cn["..."]
 ```
 
 ## Example: Grouping concepts from a knowledge-graph

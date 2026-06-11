@@ -7,8 +7,10 @@ flowchart LR
     d1["doc 1"] --> f{"keep?"}
     d2["doc 2"] --> f
     d3["doc 3"] --> f
+    dn["..."] --> f
     f --> o1["doc 1"]
     f --> o3["doc 3"]
+    f --> on["..."]
 ```
 
 ## Example: Filtering High-Impact News Articles

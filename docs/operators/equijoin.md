@@ -8,6 +8,8 @@ flowchart LR
     r2["right 2"] --> m1
     l2["left 2"] --> m2["left 2 + right 1"]
     r1["right 1"] --> m2
+    ln["..."] --> mn["..."]
+    rn["..."] --> mn
 ```
 
 ## Example: Matching Job Candidates to Job Postings

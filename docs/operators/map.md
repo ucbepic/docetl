@@ -7,6 +7,7 @@ flowchart LR
     d1["doc 1"] --> o1["doc 1 + new fields"]
     d2["doc 2"] --> o2["doc 2 + new fields"]
     d3["doc 3"] --> o3["doc 3 + new fields"]
+    dn["..."] --> on["..."]
 ```
 
 ## Example: Analyzing Long-Form News Articles

@@ -7,6 +7,7 @@ flowchart LR
     a["doc: 'Jon Smith'"] --> a2["doc: 'John Smith'"]
     b["doc: 'John Smith'"] --> b2["doc: 'John Smith'"]
     c["doc: 'Alice Wong'"] --> c2["doc: 'Alice Wong'"]
+    d["..."] --> d2["..."]
 ```
 
 ## Example: Standardizing Patient Names

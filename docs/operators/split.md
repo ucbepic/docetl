@@ -7,6 +7,7 @@ flowchart LR
     d["long doc"] --> c1["chunk 1"]
     d --> c2["chunk 2"]
     d --> c3["chunk 3"]
+    d --> cn["..."]
 ```
 
 ## Operation Example: Splitting Customer Support Transcripts

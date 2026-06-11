@@ -31,27 +31,30 @@ def format_query_plan(
         b.step_name: colors[i % len(colors)] for i, b in enumerate(step_boundaries)
     }
 
-    def _fmt(op: OpContainer, indent: int = 0) -> str:
+    def _fmt(
+        op: OpContainer, indent: int = 0, label: str = "", tee: bool = False
+    ) -> str:
+        glyph = "├" if tee else "└"
+        connector = f"{'  ' * (indent - 1)}[dim]{glyph} [/dim]" if indent else ""
+
         if isinstance(op, StepBoundary):
             if show_boundaries:
                 s = "  " * indent
                 color = step_colors.get(op.step_name, "white")
                 lines = [
-                    f"{s}[{color}][bold]{op.name}[/bold][/{color}]",
+                    f"{connector}[{color}][bold]{op.name}[/bold][/{color}]{label}",
                     f"{s}Type: step_boundary",
                 ]
-                if op.children:
-                    lines.append(f"{s}[yellow]▼[/yellow]")
-                    lines.extend(_fmt(c, indent + 1) for c in op.children)
+                lines.extend(_fmt(c, indent + 1) for c in op.children)
                 return "\n".join(lines)
             elif op.children:
-                return _fmt(op.children[0], indent)
+                return _fmt(op.children[0], indent, label, tee)
             return ""
 
         s = "  " * indent
         color = step_colors.get(op.step_name, "white")
         lines = [
-            f"{s}[{color}][bold]{op.name}[/bold][/{color}]",
+            f"{connector}[{color}][bold]{op.name}[/bold][/{color}]{label}",
             f"{s}[dim]type[/dim]  [cyan]{op.config['type']}[/cyan]",
         ]
 
@@ -76,12 +79,11 @@ def format_query_plan(
 
         if op.children:
             if op.is_equijoin:
-                lines.append(f"{s}[yellow]▼ LEFT[/yellow]")
-                lines.append(_fmt(op.children[0], indent + 1))
-                lines.append(f"{s}[yellow]▼ RIGHT[/yellow]")
-                lines.append(_fmt(op.children[1], indent + 1))
+                lines.append(
+                    _fmt(op.children[0], indent + 1, " [dim](left)[/dim]", tee=True)
+                )
+                lines.append(_fmt(op.children[1], indent + 1, " [dim](right)[/dim]"))
             else:
-                lines.append(f"{s}[yellow]▼[/yellow]")
                 lines.extend(_fmt(c, indent + 1) for c in op.children)
 
         return "\n".join(lines)

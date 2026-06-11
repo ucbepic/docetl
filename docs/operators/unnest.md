@@ -1,6 +1,6 @@
 # Unnest Operation
 
-The Unnest operation in DocETL is designed to expand an array field or a dictionary in the input data into multiple items. This operation is particularly useful when you need to process or analyze individual elements of an array or specific fields of a nested dictionary separately.
+The Unnest operation expands an array field or a dictionary in the input data into multiple items, so individual elements can be processed separately.
 
 !!! warning "How Unnest Works"
 
@@ -10,15 +10,6 @@ The Unnest operation in DocETL is designed to expand an array field or a diction
     - For dictionary-type unnesting: It adds new keys to the parent dictionary based on the `expand_fields` parameter.
 
     Unnest does not have an output schema. It modifies the structure of your data in place.
-
-## Motivation
-
-The Unnest operation is valuable in scenarios where you need to:
-
-- Process individual items from a list of products in an order
-- Analyze separate entries in a list of comments or reviews
-- Expand nested data structures for more granular processing
-- Flatten complex data structures for easier analysis
 
 ## Configuration
 
@@ -61,8 +52,6 @@ All other original key-value pairs from the input item are preserved in the outp
 4. **Processing Time Series Data**: Unnest time series data stored in arrays to analyze individual time points.
 
 ## Example: Analyzing Product Reviews
-
-Let's walk through an example of using the Unnest operation to prepare product reviews for detailed analysis.
 
 === "YAML"
 
@@ -141,13 +130,7 @@ Let's walk through an example of using the Unnest operation to prepare product r
     df = frame.collect()
     ```
 
-This example demonstrates how the Unnest operation fits into a pipeline for analyzing product reviews:
-
-1. The first Map operation extracts salient quotes from each review.
-2. The Unnest operation expands the 'salient_quotes' array, creating individual items for each quote. Each quote can now be accessed via `input.salient_quotes`.
-3. The second Map operation performs a detailed analysis on each individual quote.
-
-By unnesting the quotes, we enable more granular analysis that wouldn't be possible if we processed the entire review as a single unit.
+After unnesting, each quote becomes its own item, accessible via `input.salient_quotes` in the second map.
 
 ## Advanced Features
 
@@ -206,12 +189,8 @@ In this case, `name`, `age`, and `location` would be added as new keys in the pa
 
 ## Best Practices
 
-1. **Choose the Right Unnest Key**: Ensure you're unnesting the correct field that contains the array or nested structure you want to expand.
+1. **Consider Data Volume**: Unnesting multiplies the number of items in your data stream; design subsequent operations accordingly.
 
-2. **Consider Data Volume**: Unnesting can significantly increase the number of items in your data stream. Be mindful of this when designing subsequent operations in your pipeline.
+2. **Use Expand Fields Wisely**: When unnesting dictionaries with `expand_fields`, watch for key conflicts with the parent dictionary.
 
-3. **Use Expand Fields Wisely**: When unnesting dictionaries, use the `expand_fields` parameter to flatten your data structure if needed, but be cautious of potential key conflicts.
-
-4. **Handle Empty Arrays**: Decide whether empty arrays should be kept (using `keep_empty`) based on your specific use case and how subsequent operations should handle null values.
-
-5. **Preserve Context**: When unnesting, consider whether you need to carry forward any context from the parent item. The unnest operation preserves all other fields, which helps maintain context.
+3. **Handle Empty Arrays**: Decide whether empty arrays should be kept (`keep_empty`) based on how subsequent operations handle null values.

@@ -1,114 +1,6 @@
 # Python API Examples
 
-## Example 1: Extract and Summarize Product Review Themes
-
-Extract themes from product reviews, then summarize across all documents:
-
-```python
-import docetl
-
-docetl.default_model = "gpt-4o-mini"
-
-results = (
-    docetl.read_csv("product_reviews.csv")
-    .map(
-        prompt="""Analyze this product review and extract the key themes and representative quotes:
-
-        Review: {{ input.review_text }}
-        Rating: {{ input.rating }}
-
-        Identify 2-3 major themes (e.g., usability, quality, value) and extract
-        direct quotes that best represent each theme.""",
-        output={"schema": {
-            "themes": "list[string]",
-            "quotes": "list[string]",
-            "sentiment": "string",
-        }},
-    )
-    .reduce(
-        reduce_key="_all",
-        prompt="""Synthesize themes and quotes from these product reviews:
-
-        {% for item in inputs %}
-        Review ID: {{ item.review_id }}
-        Themes: {{ item.themes | join(", ") }}
-        Quotes: {% for q in item.quotes %}"{{ q }}" {% endfor %}
-        Sentiment: {{ item.sentiment }}
-        {% endfor %}
-
-        Summarize the most frequent themes and representative quotes.""",
-        output={"schema": {"summary": "string"}},
-    )
-    .collect()
-)
-
-print(results)
-```
-
-## Example 2: Map → Unnest → Resolve → Reduce
-
-Extract theme-quote pairs, unnest into rows, deduplicate similar themes, then aggregate by theme. This example also runs optimization:
-
-```python
-import docetl
-
-docetl.default_model = "gpt-4o"
-
-frame = (
-    docetl.read_csv("product_reviews.csv")
-    .map(
-        prompt="""Extract theme and quote pairs from this product review:
-
-        Review: {{ input.review_text }}
-        Product: {{ input.product_name }}
-        Rating: {{ input.rating }}
-
-        Return each theme and its representative quote as a separate object
-        in the "theme_quotes" array.""",
-        output={"schema": {"theme_quotes": "list[{theme: string, quote: string}]"}},
-    )
-    .unnest(unnest_key="theme_quotes")
-    .resolve(
-        comparison_prompt="""Are these two themes the same or closely related?
-
-        Theme 1: {{ input1.theme }}
-        Theme 2: {{ input2.theme }}""",
-        resolution_prompt="""Choose a canonical name for these similar themes:
-
-        {% for item in inputs %}Theme: {{ item.theme }}
-        {% endfor %}""",
-    )
-    .reduce(
-        reduce_key="theme",
-        prompt="""Summarize all quotes related to "{{ reduce_key }}":
-
-        {% for item in inputs %}
-        Product: {{ item.product_name }}, Rating: {{ item.rating }}
-        Quote: "{{ item.quote }}"
-        {% endfor %}""",
-        output={"schema": {"summary": "string"}},
-    )
-)
-
-# Optionally optimize before running
-@docetl.register_eval
-def eval_themes(results):
-    return {"quality": score_summaries(results)}
-
-optimized = frame.optimize(
-    eval_fn=eval_themes,
-    metric_key="quality",
-    models=["gpt-4o-mini", "gpt-4o"],
-    max_iterations=15,
-    save_dir="theme_optimization",
-)
-
-df = optimized.collect()
-print(f"Cost: ${optimized.total_cost:.4f}")
-print(df)
-```
-
-## Example 3: Document Chunking with Context
+## Example 1: Document Chunking with Context
 
 Split long documents into chunks, add surrounding context, then extract structured information:
 
@@ -164,9 +56,9 @@ df = (
 print(df)
 ```
 
-## Example 4: Fuzzy Aggregation with the Pandas Accessor
+## Example 2: Fuzzy Aggregation with the Pandas Accessor
 
-The pandas `.semantic` accessor provides a quick way to run operations on existing DataFrames:
+The pandas `.semantic` accessor runs operations on existing DataFrames:
 
 ```python
 import pandas as pd
@@ -207,4 +99,4 @@ print(f"Cost: ${summaries.semantic.total_cost:.4f}")
 print(summaries)
 ```
 
-Note that datasets can be JSON, CSV, or Parquet.
+Datasets can be JSON, CSV, or Parquet.

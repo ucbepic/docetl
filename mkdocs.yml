@@ -38,10 +38,8 @@ nav:
           - Operators & Validation: concepts/operators.md
           - Output Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
-      - Retrieval:
-          - Retrievers: retrievers.md
-      - Running Pipelines:
-          - Interactive Progress View: execution/interactive-progress.md
+      - Retrievers: retrievers.md
+      - Interactive Progress View: execution/interactive-progress.md
       - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md
@@ -60,15 +58,11 @@ nav:
           - Sample: operators/sample.md
           - TopK: operators/topk.md
           - Code: operators/code.md
-      - APIs:
-          - Python API Guide:
-              - Overview: python/index.md
-              - Examples: python/examples.md
-              - API Reference: api-reference/python.md
-          - Pandas Integration:
-              - Overview: pandas/index.md
-              - Operations: pandas/operations.md
-              - Examples: pandas/examples.md
+      - Python API:
+          - Guide: python/index.md
+          - Examples: python/examples.md
+          - API Reference: api-reference/python.md
+          - Pandas Accessor: pandas/index.md
   
   - Optimization:
       - Overview: optimization/overview.md

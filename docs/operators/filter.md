@@ -1,19 +1,8 @@
 # Filter Operation
 
-The Filter operation in DocETL is used to selectively process data items based on specific conditions. It behaves similarly to the Map operation, but with a key difference: items that evaluate to false are filtered out of the dataset, allowing you to include or exclude data points from further processing in your pipeline.
-
-## Motivation
-
-Filtering is crucial when you need to:
-
-- Focus on the most relevant data points
-- Remove noise or irrelevant information from your dataset
-- Create subsets of data for specialized analysis
-- Optimize downstream processing by reducing data volume
+The Filter operation behaves like Map, except items whose boolean output evaluates to false are dropped from the dataset.
 
 ## Example: Filtering High-Impact News Articles
-
-Let's look at a practical example of using the Filter operation to identify high-impact news articles based on certain criteria.
 
 === "YAML"
 
@@ -69,8 +58,6 @@ Let's look at a practical example of using the Filter operation to identify high
     df = frame.collect()
     ```
 
-This Filter operation processes news articles and determines whether they are "high-impact" based on specific criteria. Unlike a Map operation, which would process all articles and add an "is_high_impact" field to each, this Filter operation will only pass through articles that meet the criteria, effectively removing low-impact articles from the dataset.
-
 ??? example "Sample Input and Output"
 
     **Input:**
@@ -97,8 +84,6 @@ This Filter operation processes news articles and determines whether they are "h
     ]
     ```
 
-This example demonstrates how the Filter operation distinguishes between high-impact news articles and those of more local or limited significance. The climate summit article is retained in the dataset due to its global significance, long-term consequences, and wide-ranging effects. The local bakery story, while interesting, doesn't meet the criteria for a high-impact article and is filtered out of the dataset.
-
 ## Configuration
 
 ### Required Parameters
@@ -114,9 +99,7 @@ See [map optional parameters](./map.md#optional-parameters) for additional confi
 
 ### Model Cascade (cost reduction)
 
-You can add a `cascade` block to run a cheap proxy model on all items first and
-only escalate uncertain cases to the expensive oracle model — with a statistical
-quality guarantee. This can dramatically reduce cost on large datasets.
+A `cascade` block runs a cheap proxy model on all items first and only escalates uncertain cases to the expensive oracle model, with a statistical quality guarantee.
 
 === "YAML"
 
@@ -160,7 +143,7 @@ guarantee explanations, and examples.
 
 ### Limiting filtered outputs
 
-`limit` behaves slightly differently for filter operations than for map operations. Because filter drops documents whose predicate evaluates to `false`, the limit counts only the documents that would be retained (i.e., the ones whose boolean output is `true`). DocETL will continue evaluating additional inputs until it has collected `limit` passing documents and then stop scheduling further LLM calls. This ensures you can request “the first N matches” without paying to score the entire dataset.
+For filter, `limit` counts only retained documents (boolean output `true`). DocETL evaluates inputs until it has collected `limit` passing documents, then stops scheduling LLM calls — so you can request "the first N matches" without scoring the entire dataset.
 
 !!! info "Validation"
 
@@ -168,6 +151,5 @@ guarantee explanations, and examples.
 
 ## Best Practices
 
-1. **Clear Criteria**: Define clear and specific criteria for filtering in your prompt.
-2. **Boolean Output**: Ensure your prompt guides the LLM to produce a clear boolean output.
-3. **Data Flow Awareness**: Remember that unlike Map, Filter will reduce the size of your dataset. Ensure this aligns with your pipeline's objectives.
+1. **Boolean Output**: The output schema must have exactly one boolean field; write the prompt so the LLM produces a clear true/false judgment.
+2. **Data Flow Awareness**: Unlike Map, Filter reduces the size of your dataset.

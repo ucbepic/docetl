@@ -1,17 +1,6 @@
 # Code Operations
 
-Code operations in DocETL allow you to define transformations using Python code rather than LLM prompts. This is useful when you need deterministic processing, complex calculations, or want to leverage existing Python libraries.
-
-## Motivation
-
-While LLM-powered operations are powerful for natural language tasks, sometimes you need operations that are:
-
-- Deterministic and reproducible
-- Integrated with external Python libraries
-- Focused on structured data transformations
-- Math-based or computationally intensive (something an LLM is not good at)
-
-Code operations provide a way to handle these cases efficiently without LLM overhead.
+Code operations define transformations using Python code rather than LLM prompts. Use them for processing that should be deterministic, math-based, or built on existing Python libraries — no LLM calls are made.
 
 ## Types of Code Operations
 

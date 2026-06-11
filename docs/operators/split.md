@@ -1,19 +1,8 @@
 # Split Operation
 
-The Split operation in DocETL is designed to divide long text content into smaller, manageable chunks. This is particularly useful when dealing with large documents that exceed the token limit of language models or when the LLM's performance degrades with increasing input size for complex tasks.
-
-## Motivation
-
-Some common scenarios where the Split operation is valuable include:
-
-- Processing long customer support transcripts to analyze specific sections
-- Dividing extensive research papers or reports for detailed analysis
-- Breaking down large legal documents to extract relevant clauses or sections
-- Preparing long-form content for summarization or topic extraction
+The Split operation divides long text content into smaller chunks. Use it when documents exceed token limits or when LLM accuracy degrades on long inputs.
 
 ## Operation Example: Splitting Customer Support Transcripts
-
-Here's an example of using the Split operation to divide customer support transcripts into manageable chunks:
 
 === "YAML"
 
@@ -43,13 +32,7 @@ Here's an example of using the Split operation to divide customer support transc
     df = frame.collect()
     ```
 
-This Split operation processes long customer support transcripts:
-
-1. Splits the 'transcript' field into chunks of approximately 500 tokens each.
-2. Uses the gpt-4o-mini model's tokenizer for accurate token counting.
-3. Generates multiple output items for each input item, one for each chunk.
-
-Note that chunks will not overlap in content.
+This splits the 'transcript' field into chunks of approximately 500 tokens (counted with the gpt-4o-mini tokenizer), producing one output item per chunk. Chunks do not overlap in content.
 
 ## Configuration
 
@@ -74,11 +57,11 @@ Note that chunks will not overlap in content.
 
 #### Token Count Method
 
-The token count method splits the text into chunks based on a specified number of tokens. This is useful when you need to ensure that each chunk fits within the token limit of your language model, or you know that smaller chunks lead to higher performance.
+Splits the text into chunks of a specified number of tokens. Use it to keep each chunk within a model's token limit, or when smaller chunks give better accuracy.
 
 #### Delimiter Method
 
-The delimiter method splits the text based on a specified delimiter string. This is particularly useful when you want to split your text at logical boundaries, such as paragraphs or sections.
+Splits the text on a specified delimiter string. Use it to split at logical boundaries such as paragraphs or sections.
 
 !!! note "Delimiter Method Example"
 
@@ -119,18 +102,13 @@ The Split operation generates multiple output items for each input item:
 
 ## Use Cases
 
-1. **Analyzing Customer Frustration**:
-   Split long support transcripts, then use a map operation to identify frustration indicators in each chunk, followed by a reduce operation to summarize frustration points across the chunks (per transcript).
+Split is typically followed by a map over each chunk and a reduce per original document:
 
-2. **Document Summarization**:
-   Split large documents, apply a map operation for section-wise summarization, then use a reduce operation to compile an overall summary.
-
-3. **Topic Extraction from Research Papers**:
-   Divide research papers into sections, use a map operation to extract key topics from each section, then apply a reduce operation to synthesize main themes across the entire paper.
+1. **Analyzing Customer Frustration**: split transcripts, map to identify frustration indicators per chunk, reduce to summarize per transcript.
+2. **Document Summarization**: split, map for section-wise summaries, reduce to compile an overall summary.
+3. **Topic Extraction**: split papers into sections, map to extract topics, reduce to synthesize main themes.
 
 ## End-to-End Pipeline Example: Analyzing Customer Frustration
-
-Let's walk through a complete example of using Split, Map, and Reduce operations to analyze customer frustration in support transcripts.
 
 ### Step 1: Split Operation
 
@@ -266,28 +244,16 @@ Let's walk through a complete example of using Split, Map, and Reduce operations
 
 !!! important "Non-Associative Reduce Operation"
 
-    Note the `associative: false` parameter in the reduce operation. This is crucial when the order of the chunks matters for your analysis. It ensures that the reduce operation processes the chunks in the order they appear in the original transcript, which is often important for understanding the context and progression of customer frustration.
-
-### Explanation
-
-1. The **Split** operation divides long transcripts into 500-token chunks.
-2. The **Map** operation analyzes each chunk for frustration indicators.
-3. The **Reduce** operation combines the frustration indicators from all chunks of a transcript, summarizing the overall frustration points, primary issues, and assessing the overall frustration level. The `associative: false` setting ensures that the chunks are processed in their original order.
-
-This pipeline allows for detailed analysis of customer frustration in long support transcripts, which would be challenging to process in a single pass due to token limitations or degraded LLM performance on very long inputs.
+    Note the `associative: false` parameter in the reduce operation. When chunk order matters, it ensures the reduce processes chunks in the order they appear in the original transcript.
 
 ## Best Practices
 
-1. **Choose the Right Splitting Method**: Use the token count method when working with models that have strict token limits. Use the delimiter method when you need to split at logical boundaries in your text.
+1. **Balance Chunk Size**: Smaller chunks may lose context, while larger chunks may degrade model accuracy. The DocETL optimizer can find the chunk size that works best for your task.
 
-2. **Balance Chunk Size**: When using the token count method, choose a chunk size that balances between context preservation and model performance. Smaller chunks may lose context, while larger chunks may degrade model performance. The DocETL optimizer can find the chunk size that works best for your task, if you choose to use the optimizer.
+2. **Consider Overlap**: Overlap between chunks isn't built into the Split operation, but you can achieve it by post-processing the split chunks.
 
-3. **Consider Overlap**: In some cases, you might want to implement overlap between chunks to maintain context. This isn't built into the Split operation, but you can achieve it by post-processing the split chunks.
+3. **Use Appropriate Delimiters**: Choose a delimiter that logically divides your text (e.g., double newlines for paragraphs, custom markers for sections), and adjust `num_splits_to_group` so chunks contain enough context for your task.
 
-4. **Use Appropriate Delimiters**: When using the delimiter method, choose a delimiter that logically divides your text. Common choices include double newlines for paragraphs, or custom markers for document sections. When using the delimiter method, adjust the `num_splits_to_group` parameter to create chunks that contain an appropriate amount of context for your task.
+4. **Mind the Order**: If chunk order matters for your analysis, set `associative: false` in subsequent reduce operations.
 
-5. **Mind the Order**: If the order of chunks matters for your analysis, always set `associative: false` in your subsequent reduce operations.
-
-6. **Optimize for Performance**: For very large documents, consider using a combination of delimiter and token count methods. First split into large sections using delimiters, then apply token count splitting to ensure no chunk exceeds model limits.
-
-By leveraging the Split operation effectively, you can process large documents efficiently and extract meaningful insights using subsequent map and reduce operations.
+5. **Combine Methods**: For very large documents, first split into large sections using delimiters, then apply token count splitting so no chunk exceeds model limits.

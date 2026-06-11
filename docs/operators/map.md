@@ -1,10 +1,8 @@
 # Map Operation
 
-The Map operation in DocETL applies a specified transformation to each item in your input data, allowing for complex processing and insight extraction from large, unstructured documents.
+The Map operation applies a transformation to each item in your input data.
 
 ## Example: Analyzing Long-Form News Articles
-
-Let's see a practical example of using the Map operation to analyze long-form news articles, extracting key information and generating insights.
 
 === "YAML"
 
@@ -88,18 +86,6 @@ Let's see a practical example of using the Map operation to analyze long-form ne
     df = frame.collect()
     ```
 
-This Map operation processes long-form news articles to extract valuable insights:
-
-1. Identifies the main topic of the article.
-2. Generates a concise summary.
-3. Extracts key entities (people, organizations, locations) mentioned in the article.
-4. Analyzes the overall sentiment towards the main topic.
-5. Identifies potential biases or slants in the reporting.
-6. Categorizes the article into relevant topics.
-7. Assigns a credibility score based on the content and sources.
-
-The operation includes validation to ensure the output meets our expectations and will retry up to 2 times if validation fails.
-
 ??? example "Sample Input and Output"
 
     Input:
@@ -166,8 +152,6 @@ The operation includes validation to ensure the output meets our expectations an
     ]
     ```
 
-This example demonstrates how the Map operation can transform long, unstructured news articles into structured, actionable insights. These insights can be used for various purposes such as trend analysis, policy impact assessment, and public opinion monitoring.
-
 ## Required Parameters
 
 - `name`: A unique name for the operation.
@@ -195,7 +179,6 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `drop_keys`                       | List of keys to drop from the input before processing                                           | None                          |
 | `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 | `max_retries_per_timeout`         | Maximum number of retries per timeout                                                           | 2                             |
-| `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 | `skip_on_error` | If true, skip the operation if the LLM returns an error. | False                          |
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
@@ -218,7 +201,7 @@ Set `limit` when you only need the first _N_ map results or want to cap LLM spen
 
 ### Batch Processing
 
-The Map operation supports processing multiple documents in a single prompt using the `batch_prompt` parameter. This can be more efficient than processing documents individually, especially for simpler tasks and shorter documents, especially when there are LLM call limits. However, larger batch sizes (even > 5) can lead to more incorrect results, so use this feature judiciously.
+The `batch_prompt` parameter processes multiple documents in a single prompt. This reduces LLM call counts for simple tasks and short documents, but larger batch sizes (even > 5) can lead to more incorrect results.
 
 ??? example "Batch Processing Example"
 
@@ -282,12 +265,12 @@ When using batch processing:
 
 ### Calibration for Consistency
 
-The Map operation supports calibration to improve consistency across documents, especially for classification tasks or operations that require relative positioning (like rating scales). When enabled, calibration samples a subset of your documents, processes them with the original prompt, and then uses those results to generate reference anchors that help maintain consistency across all documents.
+With `calibrate: true`, the operation samples a subset of documents, processes them with the original prompt, and uses those results to generate reference anchors that are appended to the prompt for all documents. Use it for:
 
-This is particularly useful for:
-- **Classification tasks** where documents need to be evaluated relative to each other
-- **Rating/scoring operations** where you want consistent scales
-- **Subjective judgments** that benefit from concrete examples
+- Classification tasks where documents are evaluated relative to each other
+- Rating/scoring operations that need consistent scales
+- Subjective judgments that benefit from concrete examples
+- Datasets that vary widely, when consistency matters more than individual accuracy (works best with 20+ documents)
 
 ??? example "Document Priority Classification with Calibration"
 
@@ -350,15 +333,6 @@ This is particularly useful for:
     # Documents similar to 'Login button not working for one user' → low priority.
     # For reference, consider 'Payment processing delays affecting checkout' → high as your standard for high priority issues.
     ```
-
-!!! tip "When to Use Calibration"
-
-    Calibration is most beneficial when:
-    
-    - Your task requires relative judgments (rating scales, classifications)
-    - You're processing documents that vary widely in characteristics
-    - Consistency across the entire dataset is more important than individual accuracy
-    - You have enough data for meaningful sampling (at least 20+ documents)
 
 !!! note "Calibration Considerations"
 
@@ -506,9 +480,7 @@ If the input doesn't fit within the token limit, DocETL automatically truncates 
 
 ### Batching
 
-If you have a really large collection of documents and you don't want to run them through the Map operation at the same time, you can use the `batch_size` parameter to process data in smaller chunks. This can significantly reduce memory usage and improve performance.
-
-To enable batching in your map operations, you need to specify the `max_batch_size` parameter in your configuration.
+To limit how many documents are processed concurrently, set `max_batch_size`.
 
 === "YAML"
 
@@ -540,7 +512,7 @@ In the above config, there will be no more than 5 API calls to the LLM at a time
 
 ### Dropping Keys
 
-You can use a map operation to act as an LLM no-op, and just drop any key-value pairs you don't want to save to the output file. To do this, you can use the `drop_keys` parameter.
+A map operation with only `drop_keys` acts as a no-op that removes the listed key-value pairs (no LLM calls).
 
 === "YAML"
 
@@ -563,22 +535,12 @@ You can use a map operation to act as an LLM no-op, and just drop any key-value 
 
 ## Best Practices
 
-1. **Clear Prompts**: Write clear, specific prompts that guide the LLM to produce the desired output.
-2. **Robust Validation**: Use validation to ensure output quality and consistency.
-3. **Appropriate Model Selection**: Choose the right model for your task, balancing performance and cost.
-4. **Optimize for Scale**: For large datasets, consider using `sample` to test your operation before running on the full dataset.
-5. **Use Tools Wisely**: Leverage tools for complex calculations or operations that the LLM might struggle with. You can write any Python code in the tools, so you can even use tools to call other APIs or search the internet.
+1. **Optimize for Scale**: For large datasets, use `sample` to test your operation before running on the full dataset.
+2. **Use Tools**: Tools can run any Python code, including calling other APIs, for calculations the LLM might get wrong.
 
 ### Synthetic Data Generation
 
-The Map operation supports generating multiple outputs for each input using the `output.n` parameter. This is particularly useful for synthetic data generation, content variations, or when you need multiple alternatives for each input item.
-
-When you set `output.n` to a value greater than 1, the operation will:
-1. Process each input once
-2. Generate multiple outputs based on the same input
-3. Return all generated outputs as separate items in the result list
-
-This multiplies your dataset size by the factor of `n`.
+Set `output.n` greater than 1 to generate multiple outputs per input, returned as separate items. This multiplies your dataset size by `n`.
 
 ??? example "Synthetic Email Generation Example"
 

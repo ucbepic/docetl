@@ -1,15 +1,9 @@
 # Cluster operation
 
-The Cluster operation in DocETL groups all items into a binary tree
-using [agglomerative
-clustering](https://en.wikipedia.org/wiki/Hierarchical_clustering#Agglomerative_clustering_example)
-of the embedding of some keys, and annotates each item with the path
-through this tree down to the item (Note that the path is reversed,
-starting with the most specific grouping, and ending in the root of
-the tree, the cluster that encompasses all your input).
+The Cluster operation groups all items into a binary tree using [agglomerative clustering](https://en.wikipedia.org/wiki/Hierarchical_clustering#Agglomerative_clustering_example) of the embeddings of some keys, and annotates each item with its path through the tree:
 
-Each cluster is summarized using an llm prompt, taking the summaries
-of its children as inputs (or for the leaf nodes, the actual items).
+- The path is reversed: it starts with the most specific grouping and ends at the root (the cluster encompassing all input).
+- Each cluster is summarized with an LLM prompt, taking the summaries of its children as inputs (or, for leaf nodes, the actual items).
 
 ## Example: Grouping concepts from a knowledge-graph
 
@@ -68,9 +62,6 @@ of its children as inputs (or for the leaf nodes, the actual items).
     )
     df = frame.collect()
     ```
-
-This cluster operation processes a set of concepts, each with a title
-and a description, and groups them into a tree of categories.
 
 ??? example "Sample Input and Output"
 

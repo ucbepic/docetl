@@ -1,44 +1,16 @@
 # Gather Operation
 
-The Gather operation in DocETL is designed to maintain context when processing divided documents. It complements the Split operation by adding contextual information from surrounding chunks to each segment.
-
-## Motivation
-
-When splitting long documents, such as complex legal contracts or court transcripts, individual chunks often lack sufficient context for accurate analysis or processing. This can lead to several challenges:
-
-- Loss of reference information (e.g., terms defined in earlier sections)
-- Incomplete representation of complex clauses that span multiple chunks
-- Difficulty in understanding the broader document structure
-- Missing important context from preambles or introductory sections
-
-!!! example "Context Challenge in Legal Documents"
-
-    Imagine a lengthy merger agreement split into chunks. A single segment might contain clauses referencing "the Company" or "Effective Date" without clearly defining these terms. Without context from previous chunks, it becomes challenging to interpret the legal implications accurately.
+The Gather operation complements Split by adding context from surrounding chunks to each chunk. Split chunks often lack context on their own — e.g., a merger agreement chunk may reference "the Company" or "Effective Date" defined in earlier chunks.
 
 ## How Gather Works
 
-The Gather operation addresses these challenges by:
-
-1. Identifying relevant surrounding chunks (peripheral context)
-2. Adding this context to each chunk
-3. Preserving document structure information
-
-### Peripheral Context
-
-Peripheral context refers to the surrounding text or information that helps provide a more complete understanding of a specific chunk of content. In legal documents, this can include:
-
-- Preceding text that introduces key terms, parties, or conditions
-- Following text that elaborates on clauses presented in the current chunk
-- Document structure information, such as article or section headers
-- Summarized versions of nearby chunks for efficient context provision
-
-### Document Structure
-
-The Gather operation can maintain document structure through header hierarchies. This is particularly useful for preserving the overall structure of complex legal documents like contracts, agreements, or regulatory filings.
+1. Identifies relevant surrounding chunks (peripheral context): preceding/following text, or summarized versions of nearby chunks
+2. Adds this context to each chunk
+3. Preserves document structure via header hierarchies (see `doc_header_key`)
 
 ## Example: Enhancing Context in Legal Document Analysis
 
-Let's walk through an example of using the Gather operation to process a long merger agreement.
+This example processes a long merger agreement.
 
 ### Step 1: Extract Metadata (Map operation before splitting)
 
@@ -267,18 +239,12 @@ Finally, we analyze each chunk with its gathered context:
     df = frame.collect()
     ```
 
-This configuration:
+The gather step in this pipeline includes, for each chunk:
 
-1. Extracts important metadata from the full document before splitting
-2. Splits the document into manageable chunks
-3. Extracts headers from each chunk
-4. Gathers context for each chunk, including:
-   - Summaries of the chunks before the previous chunk
-   - The full content of the previous chunk
-   - The full content of the current chunk
-   - The full content of the next chunk
-   - Extracted headers for levels directly above headers in the current chunk, for structural context
-5. Analyzes each chunk with its gathered context and the extracted metadata
+- Summaries of the chunks before the previous chunk
+- The full content of the previous chunk
+- The full content of the next chunk
+- Extracted headers for levels directly above headers in the current chunk, for structural context
 
 ## Configuration
 
@@ -294,11 +260,11 @@ The Gather operation includes several key components:
 
 ### Peripheral Chunks Configuration
 
-The `peripheral_chunks` configuration in the Gather operation is highly flexible, allowing users to precisely control how context is added to each chunk. This configuration determines which surrounding chunks are included and how they are presented.
+The `peripheral_chunks` configuration determines which surrounding chunks are included and how they are presented.
 
 #### Structure
 
-The `peripheral_chunks` configuration is divided into two main sections:
+It is divided into two main sections:
 
 1. `previous`: Defines how chunks preceding the current chunk are included.
 2. `next`: Defines how chunks following the current chunk are included.
@@ -376,15 +342,13 @@ This configuration would:
 
 ### Best Practices
 
-1. **Balance Context and Conciseness**: Use full content for immediate context (`head`) and summaries for `middle` sections to provide context without overwhelming the main content.
+1. **Balance Context and Conciseness**: Use full content for immediate context (`head`/`tail`) and summaries for `middle` sections.
 
 2. **Adapt to Document Structure**: Adjust the `count` for `head` and `tail` based on the typical length of your document sections.
 
-3. **Use Asymmetric Configurations**: You might want more previous context than next context, or vice versa, depending on your specific use case.
+3. **Use Asymmetric Configurations**: Many tasks need more previous context than next context, or vice versa.
 
-4. **Consider Performance**: Including too much context can increase processing time and token usage. Use summaries and selective inclusion to optimize performance.
-
-By leveraging this flexible configuration, you can tailor the Gather operation to provide the most relevant context for your specific document processing needs, balancing completeness with efficiency.
+4. **Consider Cost**: More context means more tokens; use summaries and selective inclusion.
 
 ## Output
 
@@ -420,7 +384,7 @@ The Gather operation adds a new field to each input document, named by appending
 
 ## Handling Document Structure
 
-A key feature of the Gather operation is its ability to maintain document structure through header hierarchies. This is particularly useful for preserving the overall structure of complex documents like legal contracts, technical manuals, or research papers.
+The Gather operation maintains document structure through header hierarchies.
 
 ### How Header Handling Works
 
@@ -430,8 +394,6 @@ A key feature of the Gather operation is its ability to maintain document struct
 4. This ensures that each rendered chunk includes a complete "path" of headers leading to its content, preserving the document's overall structure and context.
 
 ### Example: Header Handling in Legal Contracts
-
-Let's look at an example of how the Gather operation handles document headers in the context of legal contracts:
 
 ![Example of Document Header Handling in a Gather Operation](../assets/headerdiagram.png)
 
@@ -446,39 +408,18 @@ In this figure:
    - A level 2 header from Chunk 19 (not pictured, but included in the rendered output)
    - The current level 3 header from Chunk 20 ("ctDNA Licenses")
 
-This hierarchical structure provides crucial context for understanding the content of Chunk 20, even though the higher-level headers are not directly present in that chunk.
-
-!!! note "Importance of Header Hierarchy"
-
-    By maintaining the header hierarchy, the Gather operation ensures that each chunk is placed in its proper context within the overall document structure. This is especially crucial for complex documents where understanding the relationship between different sections is key to accurate analysis or processing.
+Chunk 20 thus gets its full header path even though the higher-level headers are not present in that chunk.
 
 ## Best Practices
 
-1.  **Extract Metadata Before Splitting**: Run a map operation on the full document before splitting to extract any metadata that could be useful when processing any chunk (e.g., agreement dates, parties involved). Reference this metadata in subsequent map operations after the gather step.
+1.  **Extract Metadata Before Splitting**: Run a map on the full document before splitting to extract metadata useful for every chunk (e.g., agreement dates, parties), and reference it in map operations after the gather step.
 
-2.  **Balance Context and Efficiency**: For ultra-long documents, consider using summarized versions of chunks in the "middle" sections to strike a balance between providing context and managing the overall size of the processed data.
+2.  **Balance Context and Efficiency**: For ultra-long documents, use summarized versions of chunks in the "middle" sections.
 
-3.  **Preserve Document Structure**: Utilize the `doc_header_key` parameter to include relevant structural information from the original document, which can be important for understanding the context of complex or structured content.
+3.  **Preserve Document Structure**: Use `doc_header_key` to include structural information from the original document.
 
-4.  **Tailor Context to Your Task**: Adjust the `peripheral_chunks` configuration based on the specific needs of your analysis. Some tasks may require more preceding context, while others might benefit from more following context.
+4.  **Tailor Context to Your Task**: Some tasks need more preceding context; others more following context.
 
-5.  **Combine with Other Operations**: The Gather operation is most powerful when used in conjunction with Split, Map (for summarization or header extraction), and subsequent analysis operations to process long documents effectively.
+5.  **Consider Cost**: Added context increases token counts; downstream operations must handle the larger inputs.
 
-6.  **Consider Performance**: Be mindful of the increased token count when adding context. Adjust your downstream operations accordingly to handle the larger input sizes, and use summarized context where appropriate to manage token usage.
-
-7.  **Use `next` Sparingly**: The `next` parameter in the Gather operation should be used judiciously. It's primarily beneficial in specific scenarios:
-
-    - When dealing with structured data or tables where the next chunk provides essential context for understanding the current chunk.
-    - In cases where the end of a chunk might cut off a sentence or important piece of information that continues in the next chunk.
-
-    For most text-based documents, focusing on the `prev` context is usually sufficient. Overuse of `next` can lead to unnecessary token consumption and potential redundancy in the gathered output.
-
-    !!! example "When to Use `next`"
-
-        Consider using `next` when processing:
-
-            - Financial reports with multi-page tables
-            - Technical documents where diagrams span multiple pages
-            - Legal contracts where clauses might be split across chunk boundaries
-
-        By default, it's recommended to set `next=0` unless you have a specific need for forward context in your document processing pipeline.
+6.  **Use `next` Sparingly**: For most text documents, `prev` context is sufficient. Use `next` when the next chunk provides essential context — e.g., multi-page tables in financial reports, diagrams spanning pages, or clauses split across chunk boundaries.

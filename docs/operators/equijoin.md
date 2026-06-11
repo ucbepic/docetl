@@ -1,14 +1,8 @@
 # Equijoin Operation (Experimental)
 
-The Equijoin operation in DocETL is an experimental feature designed for joining two datasets based on flexible, LLM-powered criteria. It leverages many of the same techniques as the [Resolve operation](resolve.md), but applies them to the task of joining datasets rather than deduplicating within a single dataset.
-
-## Motivation
-
-While traditional database joins rely on exact matches, real-world data often requires more nuanced joining criteria. Equijoin allows for joins based on semantic similarity or complex conditions, making it ideal for scenarios where exact matches are impossible or undesirable.
+The Equijoin operation (experimental) joins two datasets based on LLM-evaluated criteria, allowing matches based on semantic similarity or complex conditions rather than exact equality. It uses many of the same techniques as the [Resolve operation](resolve.md).
 
 ## Example: Matching Job Candidates to Job Postings
-
-Let's explore a practical example of using the Equijoin operation to match job candidates with suitable job postings based on skills and experience.
 
 === "YAML"
 
@@ -51,14 +45,9 @@ Let's explore a practical example of using the Equijoin operation to match job c
     df = frame.collect()
     ```
 
-This Equijoin operation matches job candidates to job postings:
-
-1. It uses the `comparison_prompt` to determine if a candidate is a good match for a job.
-2. The operation can be optimized to use efficient blocking rules, reducing the number of comparisons.
-
 !!! note "Jinja2 Syntax with left and right"
 
-    The prompt template uses Jinja2 syntax, allowing you to reference input fields directly (e.g., `left.skills`). You can reference the left and right documents using `left` and `right` respectively.
+    The `comparison_prompt` uses Jinja2 syntax; reference the left and right documents via `left` and `right` (e.g., `left.skills`).
 
 !!! info "Automatic Blocking"
 
@@ -66,7 +55,7 @@ This Equijoin operation matches job candidates to job postings:
 
 ## Blocking
 
-Like the Resolve operation, Equijoin supports blocking techniques to improve efficiency. For details on how blocking works and how to implement it, please refer to the [Blocking section in the Resolve operation documentation](resolve.md#blocking).
+Equijoin supports the same blocking techniques as Resolve; see the [Blocking section in the Resolve documentation](resolve.md#blocking).
 
 ### Adding Blocking Rules
 
@@ -165,7 +154,7 @@ A full Equijoin step combining both ideas might look like:
 
 ## Parameters
 
-Equijoin shares many parameters with the Resolve operation. For a detailed list of required and optional parameters, please see the [Parameters section in the Resolve operation documentation](resolve.md#required-parameters).
+Equijoin shares many parameters with Resolve; see the [Parameters section in the Resolve documentation](resolve.md#required-parameters).
 
 ### Equijoin-Specific Parameters
 
@@ -189,8 +178,6 @@ Default guarantee is `precision` (don't over-join). See
 [Model Cascades with BARGAIN](../optimization/cascades.md) for full details.
 
 ## Incorporating Into a Pipeline
-
-Here's an example of how to incorporate the Equijoin operation into a pipeline using the job candidate matching scenario:
 
 === "YAML"
 
@@ -257,17 +244,13 @@ Here's an example of how to incorporate the Equijoin operation into a pipeline u
     frame.write_json("/path/to/matched_candidates_jobs.json")
     ```
 
-This pipeline configuration demonstrates how to use the Equijoin operation to match job candidates with job postings. The pipeline reads candidate and job posting data from JSON files, performs the matching using the defined comparison prompt, and outputs the results to a new JSON file.
-
 ## Best Practices
 
-1. **Leverage the Optimizer**: Use `docetl build pipeline.yaml` to automatically generate efficient blocking rules for your Equijoin operation.
-2. **Craft Thoughtful Comparison Prompts**: Design prompts that effectively determine whether two records should be joined based on your specific use case.
-3. **Balance Precision and Recall**: When optimizing, consider the trade-off between catching all potential matches and reducing unnecessary comparisons.
-4. **Mind Resource Constraints**: Use `limit_comparisons` if you need to cap the total number of comparisons for large datasets.
-5. **Iterate and Refine**: Start with a small sample of your data to test and refine your join criteria before running on the full dataset.
+1. **Use the Optimizer**: `docetl build pipeline.yaml` can generate efficient blocking rules for your Equijoin operation.
+2. **Balance Precision and Recall**: When optimizing, consider the trade-off between catching all potential matches and reducing unnecessary comparisons.
+3. **Mind Resource Constraints**: Use `limit_comparisons` to cap the total number of comparisons for large datasets.
 
-For additional best practices that apply to both Resolve and Equijoin operations, see the [Best Practices section in the Resolve operation documentation](resolve.md#best-practices).
+For best practices that apply to both Resolve and Equijoin, see the [Best Practices section in the Resolve documentation](resolve.md#best-practices).
 
 <!-- ## Performance Considerations
 

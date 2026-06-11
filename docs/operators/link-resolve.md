@@ -1,17 +1,9 @@
 # Link Resolve operation
 
-The `link_resolve` operation in DocETL is used to fix links between
-items, e.g. in a knoweldge graph. It assumes you have already ensured
-that the item id:s themselves are canonical, e.g. by running resolve
-first.
+The `link_resolve` operation fixes links between items, e.g. in a knowledge graph:
 
-It will examine every id specified in a link from one item to another
-and compare it to all item id:s. If it is not present with an exact
-match, it is going to be compared to each of them using an llm prompt
-to try to find a match.
-
-Note that this is a one-sided approach, compared to the resolve
-operation: It assumes that item id:s are canonical / correct.
+- It examines every id specified in a link from one item to another. If the id has no exact match among item ids, it is compared to each of them using an LLM prompt to find a match.
+- Unlike resolve, it is one-sided: it assumes the item ids themselves are already canonical, e.g. from running resolve first.
 
 ## Example: Knowledge graph of boating terms
 
@@ -92,7 +84,7 @@ operation: It assumes that item id:s are canonical / correct.
 
 ??? example "Sample Input and Output"
 
-The above make two replacements in the `related_to` keys: `Main sail` -> `Sail (main)` and `Sailing boat` -> `Sailing vessel`.
+    The above makes two replacements in the `related_to` keys: `Main sail` -> `Sail (main)` and `Sailing boat` -> `Sailing vessel`.
 
     Input:
     ```json

@@ -1,14 +1,8 @@
 # Resolve Operation
 
-The Resolve operation in DocETL identifies and canonicalizes duplicate entities in your data. It's particularly useful when dealing with inconsistencies that can arise from LLM-generated content, or data from multiple sources.
-
-## Motivation
-
-Map operations executed by LLMs may sometimes yield inconsistent results, even when referring to the same entity. For example, when extracting patient names from medical transcripts, you might end up with variations like "Mrs. Smith" and "Jane Smith" for the same person. In such cases, a Resolve operation on the `patient_name` field can help standardize patient names before conducting further analysis.
+The Resolve operation identifies and canonicalizes duplicate entities in your data. LLM-generated fields and multi-source data often refer to the same entity inconsistently (e.g., "Mrs. Smith" vs. "Jane Smith"); resolving the field standardizes it before further analysis.
 
 ## Example: Standardizing Patient Names
-
-Let's see a practical example of using the Resolve operation to standardize patient names extracted from medical transcripts.
 
 === "YAML"
 
@@ -70,12 +64,9 @@ Let's see a practical example of using the Resolve operation to standardize pati
     df = frame.collect()
     ```
 
-This Resolve operation processes patient names to identify and standardize duplicates:
-
-1. Compares all pairs of patient names using the `comparison_prompt`. In the prompt, you can reference to the documents via `input1` and `input2`.
-2. For identified duplicates, it applies the `resolution_prompt` to generate a standardized name. You can reference all matched entries via the `inputs` variable.
-
-Note: The prompt templates use Jinja2 syntax, allowing you to reference input fields directly (e.g., `input1.patient_name`).
+- The `comparison_prompt` compares pairs of entries; reference the two documents via `input1` and `input2`.
+- For identified duplicates, the `resolution_prompt` generates a standardized value; reference all matched entries via the `inputs` variable.
+- Prompts use Jinja2 syntax (e.g., `input1.patient_name`).
 
 !!! info "Automatic Blocking"
 
@@ -83,7 +74,7 @@ Note: The prompt templates use Jinja2 syntax, allowing you to reference input fi
 
 ## Blocking
 
-To improve efficiency, the Resolve operation supports "blocking" - a technique to reduce the number of comparisons by only comparing entries that are likely to be matches. DocETL supports two types of blocking that work together:
+Blocking reduces the number of comparisons by only comparing entries that are likely to be matches. Two types work together:
 
 1. **Code-based blocking**: Apply custom Python expressions to determine if a pair should be compared.
 2. **Embedding-based blocking**: Compare embeddings of specified fields and only process pairs above a certain similarity threshold.
@@ -95,7 +86,7 @@ The Resolve operation creates a **union** of pairs that pass either blocking met
 - Then, pairs that meet the `blocking_threshold` for embedding similarity are added (if not already included)
 - When sampling is needed (via `limit_comparisons`), code-based pairs are prioritized over embedding-based pairs
 
-Here's an example of a Resolve operation with both blocking methods:
+Example with both blocking methods:
 
 === "YAML"
 
@@ -152,11 +143,9 @@ In this example, pairs will be considered for comparison if they satisfy **any**
 **Embedding-based condition:**
 - The embedding similarity of their `last_name` and `date_of_birth` fields is above 0.8
 
-This union approach maximizes recall while maintaining efficiency - exact rule matches are preserved while semantic similarities that might not match the rules are also captured.
-
 ## How the Comparison Algorithm Works
 
-After determining eligible pairs for comparison, the Resolve operation uses a Union-Find (Disjoint Set Union) algorithm to efficiently group similar items. Here's a breakdown of the process:
+After determining eligible pairs, the Resolve operation groups similar items with a Union-Find (Disjoint Set Union) algorithm:
 
 1. **Initialization**: Each item starts in its own cluster.
 2. **Pair Generation**: All possible pairs of items are generated for comparison.
@@ -169,7 +158,7 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 
 !!! note "Efficiency"
 
-    The batch processing of comparisons allows for efficient, incremental clustering as matches are found, without needing to rebuild the entire cluster structure after each match. This allows for parallelization of LLM calls, improving overall performance. However, this also limits parallelism to the batch size, so choose an appropriate value for `compare_batch_size` based on your dataset size and system capabilities.
+    Batched comparisons let clusters update incrementally as matches are found, with LLM calls running in parallel. Parallelism is capped at the batch size, so set `compare_batch_size` based on your dataset size and rate limits.
 
 ## Required Parameters
 
@@ -202,10 +191,7 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 
 ### Model Cascade (cost reduction)
 
-You can add a `cascade` block to run a cheap proxy model on all candidate pairs
-first and only escalate uncertain comparisons to the expensive oracle — with a
-statistical quality guarantee. This is especially effective when blocking produces
-many candidate pairs.
+A `cascade` block runs a cheap proxy model on all candidate pairs first and only escalates uncertain comparisons to the expensive oracle, with a statistical quality guarantee. Most effective when blocking produces many candidate pairs.
 
 === "YAML"
 
@@ -239,14 +225,5 @@ guarantee explanations, and examples.
 ## Best Practices
 
 1. **Anticipate Resolve Needs**: If you anticipate needing a Resolve operation and want to control the prompts, create it in your pipeline and let the optimizer find the appropriate blocking rules and thresholds.
-2. **Let the Optimizer Help**: The optimizer can detect if you need a Resolve operation (e.g., because there's a downstream reduce operation you're optimizing) and can create a Resolve operation with suitable prompts and blocking rules.
-3. **Effective Comparison Prompts**: Design comparison prompts that consider all relevant factors for determining matches.
-4. **Detailed Resolution Prompts**: Create resolution prompts that effectively standardize or combine information from matched records.
-5. **Appropriate Model Selection**: Choose suitable models for embedding (if used) and language tasks.
-6. **Optimize Batch Size**: If you expect to compare a large number of pairs, consider increasing the `compare_batch_size`. This parameter effectively limits parallelism, so a larger value can improve performance for large datasets.
-
-!!! tip "Balancing Batch Size"
-
-    While increasing `compare_batch_size` can improve parallelism, be cautious not to set it too high. Extremely large batch sizes might overwhelm system memory or exceed API rate limits. Consider your system's capabilities and the characteristics of your dataset when adjusting this parameter.
-
-The Resolve operation is particularly useful for data cleaning, deduplication, and creating standardized records from multiple data sources. It can significantly improve data quality and consistency in your dataset.
+2. **Let the Optimizer Help**: The optimizer can detect if you need a Resolve operation (e.g., because there's a downstream reduce operation you're optimizing) and can create one with suitable prompts and blocking rules.
+3. **Optimize Batch Size**: `compare_batch_size` caps parallelism, so increase it when comparing many pairs — but very large values can exceed memory or API rate limits.

@@ -1,6 +1,6 @@
 # Python API
 
-DocETL's Python API lets you build, run, and optimize LLM-powered data pipelines with chainable operations — similar to PySpark or pandas.
+Build, run, and optimize LLM-powered data pipelines with chainable operations.
 
 ## Quick Start
 
@@ -83,7 +83,7 @@ frame = docetl.Frame.from_yaml("pipeline.yaml")
 
 ## Operations
 
-All operations return a new `Frame` (immutable). Chain them freely:
+All operations return a new `Frame` (immutable):
 
 ```python
 frame = docetl.read_json("input.json")
@@ -119,7 +119,7 @@ frame = frame.code_reduce(reduce_key="category", code="def aggregate(items): ...
 
 ## Retrievers
 
-Augment LLM operations with context retrieved from a LanceDB index. Create a `Retriever` object and pass it directly to operations:
+Augment LLM operations with context retrieved from a LanceDB index:
 
 ```python
 retriever = docetl.Retriever(

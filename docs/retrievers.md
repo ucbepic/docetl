@@ -1,21 +1,17 @@
 ## Retrievers (LanceDB OSS)
 
-Retrievers let you augment LLM operations with retrieved context from a LanceDB index built over a DocETL dataset. You define retrievers once at the top-level, then attach them to any LLM-powered operation using `retriever: <name>`. At runtime, DocETL performs full-text, vector, or hybrid search and injects the results into your prompt as `{{ retrieval_context }}`.
+Retrievers augment LLM operations with context retrieved from a LanceDB index built over a DocETL dataset. Define retrievers once at the top level, attach one to any LLM-powered operation with `retriever: <name>`, and DocETL runs full-text, vector, or hybrid search at runtime and injects the results into your prompt as `{{ retrieval_context }}`.
 
-LanceDB supports built-in full-text search, vector search, and hybrid with RRF reranking. See the official docs: [LanceDB Hybrid Search docs](https://lancedb.com/docs/search/hybrid-search/).
-
-### Key points
-
-- Always OSS LanceDB (local `index_dir`).
+- Always OSS LanceDB (local `index_dir`). Hybrid search uses RRF reranking; see the [LanceDB docs](https://lancedb.com/docs/search/hybrid-search/).
 - A retriever references a dataset from the pipeline config, or the output of a previous pipeline step.
-- Operations do not override retriever settings. One source of truth = consistency.
-- `{{ retrieval_context }}` is available to your prompt; if not used, DocETL prepends a short "extra context" section automatically.
+- Operations do not override retriever settings.
+- If your prompt does not use `{{ retrieval_context }}`, DocETL prepends a short "extra context" section automatically.
 
-This page covers both APIs: [YAML configuration](#configuration) and the [Python Frame API](#python-api).
+All fields are documented in the [configuration reference](#configuration-reference). This page covers both the [YAML configuration](#configuration) and the [Python Frame API](#python-api).
 
 ## Python API
 
-Create a `docetl.Retriever` object and pass it to any LLM operation (`.map()`, `.filter()`, `.reduce()`, `.extract()`) via the `retriever=` parameter. The constructor takes the same fields as the YAML config (`dataset`, `index_dir`, `index_types`, `fts`, `embedding`, `query`, `build_index`), documented in the [configuration reference](#configuration-reference) below.
+Create a `docetl.Retriever` and pass it to any LLM operation (`.map()`, `.filter()`, `.reduce()`, `.extract()`) via `retriever=`. The constructor takes the same fields as the YAML config; see the [configuration reference](#configuration-reference).
 
 The `dataset` field names what gets indexed. In the Python API that can be:
 
@@ -84,18 +80,7 @@ As in YAML, pass `save_retriever_output=True` on the operation to keep the retri
 
 ## Configuration
 
-Add a top-level `retrievers` section. Each retriever has:
-
-- `dataset`: dataset name to index (can be a dataset or output of a previous pipeline step)
-- `index_dir`: LanceDB path
-- `index_types`: which indexes to build: `fts`, `embedding`, or `hybrid` (both)
-- `fts.index_phrase`: Jinja template for indexing each row for full-text search
-- `fts.query_phrase`: Jinja template for building the FTS query at runtime
-- `embedding.model`: embedding model for vector index and queries
-- `embedding.index_phrase`: Jinja template for indexing each row for embeddings
-- `embedding.query_phrase`: Jinja template for building the embedding query
-- `query.mode`: `fts` | `embedding` | `hybrid` (defaults to `hybrid` when both indexes exist)
-- `query.top_k`: number of results to retrieve
+Add a top-level `retrievers` section. Each retriever names a dataset (or pipeline step) to index, where to store the index, which index types to build, and how to query. See the [configuration reference](#configuration-reference) for all fields.
 
 ### Basic example
 
@@ -158,13 +143,7 @@ Add a top-level `retrievers` section. Each retriever has:
 
 ## Multi-step pipelines with retrieval
 
-Most pipelines have a single step, but you can define multiple steps where **the output of one step becomes the input (and retriever source) for the next**. This is powerful for patterns like:
-
-1. Extract structured data from documents
-2. Build a retrieval index on that extracted data
-3. Use retrieval to find related items and process them
-
-### Example: Extract facts, then find conflicts
+A retriever can index the output of a previous pipeline step: extract structured data in step 1, index it, then retrieve over it in step 2.
 
 === "YAML"
 
@@ -303,94 +282,9 @@ Most pipelines have a single step, but you can define multiple steps where **the
     pipeline.write_json("workloads/wiki/conflicts.json")
     ```
 
-In this example:
-- **Step 1** (`extract_facts_step`) extracts facts from articles
-- The **retriever** (`facts_index`) indexes the output of step 1
-- **Step 2** (`find_conflicts_step`) processes each fact, using retrieval to find similar facts from other articles
-
 ## Configuration reference
 
-### Minimal example
-
-Here's the simplest possible retriever config (FTS only):
-
-=== "YAML"
-
-    ```yaml
-    retrievers:
-      my_search:                              # name can be anything you want
-        type: lancedb
-        dataset: my_dataset                   # must match a dataset name or pipeline step
-        index_dir: ./my_lance_index
-        index_types: ["fts"]
-        fts:
-          index_phrase: "{{ input.text }}"    # what to index from each row
-          query_phrase: "{{ input.query }}"   # what to search for at runtime
-    ```
-
-=== "Python"
-
-    ```python
-    my_search = docetl.Retriever(
-        dataset="my_dataset",                     # must match a dataset name or pipeline step
-        index_dir="./my_lance_index",
-        index_types=["fts"],
-        fts={
-            "index_phrase": "{{ input.text }}",   # what to index from each row
-            "query_phrase": "{{ input.query }}",  # what to search for at runtime
-        },
-    )
-    ```
-
-### Full example with all options
-
-=== "YAML"
-
-    ```yaml
-    retrievers:
-      my_search:
-        type: lancedb
-        dataset: my_dataset
-        index_dir: ./my_lance_index
-        build_index: if_missing               # optional, default: if_missing
-        index_types: ["fts", "embedding"]     # can be ["fts"], ["embedding"], or both
-        fts:
-          index_phrase: "{{ input.text }}"
-          query_phrase: "{{ input.query }}"
-        embedding:
-          model: openai/text-embedding-3-small
-          index_phrase: "{{ input.text }}"    # optional, falls back to fts.index_phrase
-          query_phrase: "{{ input.query }}"
-        query:                                # optional section
-          mode: hybrid                        # optional, auto-selects based on index_types
-          top_k: 10                           # optional, default: 5
-    ```
-
-=== "Python"
-
-    ```python
-    my_search = docetl.Retriever(
-        dataset="my_dataset",
-        index_dir="./my_lance_index",
-        build_index="if_missing",              # optional, default: if_missing
-        index_types=["fts", "embedding"],      # can be ["fts"], ["embedding"], or both
-        fts={
-            "index_phrase": "{{ input.text }}",
-            "query_phrase": "{{ input.query }}",
-        },
-        embedding={
-            "model": "openai/text-embedding-3-small",
-            "index_phrase": "{{ input.text }}",   # optional, falls back to fts index_phrase
-            "query_phrase": "{{ input.query }}",
-        },
-        query={                                # optional
-            "mode": "hybrid",                  # optional, auto-selects based on index_types
-            "top_k": 10,                       # optional, default: 5
-        },
-    )
-    ```
-
----
+All retriever fields, for both YAML and the `docetl.Retriever` constructor. For a complete example, see [Configuration](#configuration).
 
 ### Required fields
 
@@ -401,8 +295,6 @@ Here's the simplest possible retriever config (FTS only):
 | `index_dir` | Path where LanceDB stores the index (created if missing) |
 | `index_types` | List of index types: `["fts"]`, `["embedding"]`, or `["fts", "embedding"]` |
 
----
-
 ### Optional fields
 
 | Field | Default | Description |
@@ -411,11 +303,9 @@ Here's the simplest possible retriever config (FTS only):
 | `query.mode` | auto | `fts`, `embedding`, or `hybrid`. Auto-selects based on what indexes exist |
 | `query.top_k` | 5 | Number of results to return |
 
----
-
 ### The `fts` section
 
-Required if `"fts"` is in `index_types`. Configures full-text search.
+Required if `"fts"` is in `index_types`.
 
 | Field | Required | Description |
 | --- | --- | --- |
@@ -502,17 +392,9 @@ Required if `"fts"` is in `index_types`. Configures full-text search.
     )
     ```
 
-When processing `{"symptoms": "headache and fever"}`:
-
-1. `query_phrase` renders to `"headache and fever"`
-2. FTS searches the index and finds `"Aspirin: pain, fever"` as a match
-3. `{{ retrieval_context }}` in your prompt contains the matched results
-
----
-
 ### The `embedding` section
 
-Required if `"embedding"` is in `index_types`. Configures vector/semantic search.
+Required if `"embedding"` is in `index_types`.
 
 | Field | Required | Description |
 | --- | --- | --- |
@@ -520,150 +402,18 @@ Required if `"embedding"` is in `index_types`. Configures vector/semantic search
 | `index_phrase` | no | Jinja template for text to embed. Falls back to `fts.index_phrase` |
 | `query_phrase` | yes | Jinja template for query text to embed |
 
-**Jinja variables:** Same as FTS section.
-
-**Example - Semantic search:**
-
-=== "YAML"
-
-    ```yaml
-    retrievers:
-      semantic_docs:
-        type: lancedb
-        dataset: documentation
-        index_dir: ./docs_index
-        index_types: ["embedding"]
-        embedding:
-          model: openai/text-embedding-3-small
-          index_phrase: "{{ input.content }}"
-          query_phrase: "{{ input.question }}"
-    ```
-
-=== "Python"
-
-    ```python
-    semantic_docs = docetl.Retriever(
-        dataset="documentation",
-        index_dir="./docs_index",
-        index_types=["embedding"],
-        embedding={
-            "model": "openai/text-embedding-3-small",
-            "index_phrase": "{{ input.content }}",
-            "query_phrase": "{{ input.question }}",
-        },
-    )
-    ```
-
----
-
-### The `query` section (optional)
-
-Controls search behavior. You can omit this entire section.
-
-| Field | Default | Description |
-| --- | --- | --- |
-| `mode` | auto | `fts`, `embedding`, or `hybrid`. Auto-selects `hybrid` if both indexes exist |
-| `top_k` | 5 | Number of results to retrieve |
-
-**Example - Override defaults:**
-
-=== "YAML"
-
-    ```yaml
-    retrievers:
-      my_search:
-        # ... other config ...
-        query:
-          mode: fts      # force FTS even if embedding index exists
-          top_k: 20      # return more results
-    ```
-
-=== "Python"
-
-    ```python
-    my_search = docetl.Retriever(
-        # ... other config ...
-        query={
-            "mode": "fts",  # force FTS even if embedding index exists
-            "top_k": 20,    # return more results
-        },
-    )
-    ```
-
----
+**Jinja variables:** Same as FTS section. For an embedding-only index, set `index_types: ["embedding"]` and omit the `fts` section.
 
 ## Using a retriever in operations
 
-Attach a retriever to any LLM operation (map, filter, reduce, extract) with `retriever: <retriever_name>`. The retrieved results are available as `{{ retrieval_context }}` in your prompt.
+Operation-level parameters:
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | retriever | string | - | Name of the retriever to use (must match a key in `retrievers`). |
 | save_retriever_output | bool | false | If true, saves retrieved context to `_<operation_name>_retrieved_context` in output. |
 
-### Map example
-
-=== "YAML"
-
-    ```yaml
-    - name: tag_visit
-      type: map
-      retriever: medical_r
-      save_retriever_output: true
-      output:
-        schema:
-          tag: string
-      prompt: |
-        Classify this medical visit. Related context:
-        {{ retrieval_context }}
-
-        Transcript: {{ input.src }}
-    ```
-
-=== "Python"
-
-    ```python
-    pipeline = pipeline.map(
-        "tag_visit",
-        retriever=medical_r,
-        save_retriever_output=True,
-        prompt="""Classify this medical visit. Related context:
-    {{ retrieval_context }}
-
-    Transcript: {{ input.src }}""",
-        output={"schema": {"tag": "string"}},
-    )
-    ```
-
-### Filter example
-
-=== "YAML"
-
-    ```yaml
-    - name: filter_relevant
-      type: filter
-      retriever: medical_r
-      prompt: |
-        Is this transcript relevant to medication counseling?
-        Context: {{ retrieval_context }}
-        Transcript: {{ input.src }}
-      output:
-        schema:
-          is_relevant: boolean
-    ```
-
-=== "Python"
-
-    ```python
-    pipeline = pipeline.filter(
-        "filter_relevant",
-        retriever=medical_r,
-        prompt="""Is this transcript relevant to medication counseling?
-    Context: {{ retrieval_context }}
-    Transcript: {{ input.src }}""",
-        output={"schema": {"is_relevant": "boolean"}},
-    )
-    ```
+Map examples appear above ([Python API](#python-api), [Multi-step pipelines](#multi-step-pipelines-with-retrieval)); filter and extract work the same way.
 
 ### Reduce example
 

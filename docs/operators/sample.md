@@ -1,8 +1,6 @@
 # Sample operation
 
-The Sample operation in DocETL samples items from the input. It is meant mostly as a debugging tool:
-
-Insert it before the last operation, the one you're currently trying to add to the end of a working pipeline, to limit the amount of data it will be fed, so that the run time is small enough to comfortably debug its prompt. Once it seems to be working, you can remove the sample operation. You can then repeat this for each operation you add while developing your pipeline!
+The Sample operation samples items from the input. It is meant mostly as a debugging tool: insert it before the operation you're currently developing to limit the data that operation is fed, then remove it once the prompt works.
 
 ## Example:
 
@@ -33,7 +31,7 @@ Insert it before the last operation, the one you're currently trying to add to t
     df = frame.collect()
     ```
 
-This sample operation will return a pseudo-randomly selected 10% of the samples (samples: 0.1). The random selection will be seeded with a constant (42), meaning the same sample will be returned if you rerun the pipeline (If no random state is given, a different sample will be returned every time). Additionally, the random sampling will sample each value of the category key proportionally.
+This returns a pseudo-random 10% of the input, sampled proportionally across values of the `category` key. The fixed seed (42) makes the sample reproducible across reruns; without `random_state`, a different sample is returned every time.
 
 ## Required Parameters
 
@@ -573,9 +571,4 @@ Full-text search with multiple stratification keys:
 
 ## Note on TopK Operation
 
-For retrieval use cases, consider using the dedicated [TopK operation](topk.md) which provides a cleaner interface specifically designed for top-k retrieval with three methods:
-- `embedding`: Semantic similarity search
-- `fts`: Full-text search using BM25
-- `llm_compare`: LLM-based ranking
-
-The TopK operation offers the same functionality as the sample operation's `top_embedding` and `top_fts` methods, but with a more intuitive API for retrieval tasks.
+For retrieval use cases, the [TopK operation](topk.md) covers the same functionality as `top_embedding` and `top_fts`, plus LLM-based ranking (`llm_compare`).

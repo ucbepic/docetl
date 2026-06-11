@@ -27,7 +27,7 @@ from docetl.progress.tracker import active_tracker
 if TYPE_CHECKING:
     from docetl.operations.utils.progress import RichLoopBar
 
-_GUARANTEES = ("accuracy", "precision", "recall")
+_GUARANTEES = ("accuracy", "precision", "recall", "precision+recall")
 
 # Default guarantee when the cascade block omits ``guarantee`` (per operator).
 CASCADE_DEFAULT_GUARANTEE: dict[str, str] = {
@@ -51,6 +51,8 @@ def format_cascade_plan_lines(
     budget = cfg.get("label_budget", 400)
     if guarantee in ("recall", "precision"):
         oracle_hint = f"≤{budget} oracle labels"
+    elif guarantee == "precision+recall":
+        oracle_hint = "adaptive oracle labels"
     else:
         oracle_hint = "escalated items"
     return [
@@ -109,7 +111,7 @@ def describe_cascade_stats(info: dict) -> dict[str, str]:
     (_render_cascade_info) use this so the wording stays in sync.
     """
     guarantee = info.get("guarantee", "")
-    is_calibrated = guarantee in ("precision", "recall")
+    is_calibrated = guarantee in ("precision", "recall", "precision+recall")
     oracle_calls = info.get("oracle_calls", 0)
     n_items = info.get("n_items", 0)
     served_by_proxy = info.get("served_by_proxy", n_items - oracle_calls)

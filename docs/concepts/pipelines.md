@@ -1,7 +1,23 @@
 # Pipelines
 
 A pipeline applies a sequence of [operators](../concepts/operators.md) to a
-dataset and writes the result. The required pieces are:
+dataset and writes the result.
+
+## Two interfaces
+
+DocETL has two first-class ways to write pipelines:
+
+- **YAML** — declare the pipeline in a config file and run it with
+  `docetl run pipeline.yaml`. No code required.
+- **Python** — build the same pipeline with chained methods (the
+  [Frame API](../api-reference/python.md)) and run it with `.collect()`.
+
+Every example in these docs shows both, in tabs. The two convert into each
+other: `frame.to_yaml("pipeline.yaml")` and `docetl.Frame.from_yaml("pipeline.yaml")`.
+
+## Components
+
+The required pieces are:
 
 1. **Datasets**: the input data.
 2. **Operators**: the processing steps.

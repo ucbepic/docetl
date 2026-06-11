@@ -34,7 +34,7 @@ dependencies = [
   "nltk>=3.8.0",
   "scipy>=1.10.0",
   "numpy>=1.24.0",
-  "bargain>=0.1.2",
+  "bargain>=0.1.3",
   "modal>=0.64.0",
   "google-auth>=2.49.2",
 ]

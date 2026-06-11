@@ -77,7 +77,7 @@ pipeline.yaml` or `.collect()` as usual.
 | `guarantee` | string | `accuracy`, `precision`, or `recall` (see [Guarantees](#guarantees)) | operator-specific |
 | `target` | float | Target value for the guarantee metric, strictly inside `(0, 1)` (required) | — |
 | `delta` | float | Failure probability; the guarantee holds with probability `1 - delta` | `0.05` |
-| `label_budget` | int | Maximum oracle calls spent learning the confidence threshold | `400` |
+| `label_budget` | int | Maximum oracle calls spent learning the confidence threshold (`precision` / `recall` only; `precision+recall` adapts its oracle usage and ignores this) | `400` |
 
 `target` must be strictly between 0 and 1; `target: 1.0` is rejected at
 validation. A target of exactly 100% cannot be certified from a finite oracle
@@ -136,6 +136,12 @@ the oracle.
 | `accuracy` | Output matches the oracle on ≥ `target` fraction of items | Any binary operator | BARGAIN_A |
 | `precision` | Of items returned positive, ≥ `target` are truly positive | `resolve` / `equijoin` (don't over-merge) | BARGAIN_P |
 | `recall` | Of truly-positive items, ≥ `target` are returned | `filter` (don't drop relevant docs) | BARGAIN_R |
+| `precision+recall` | Both precision and recall ≥ `target`, jointly | When neither error direction is acceptable | BARGAIN_PR |
+
+`precision+recall` learns two thresholds: items above the precision
+threshold take the proxy's positive answer, items below the recall threshold
+take the proxy's negative answer, and the oracle labels the band in between.
+Oracle usage adapts to how well the proxy separates the data.
 
 When `guarantee` is omitted, the operator's natural default applies:
 `filter` → `recall`, `resolve` / `equijoin` → `precision`. Quality is always

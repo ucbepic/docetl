@@ -89,3 +89,5 @@ tests/tui_demo/*_output.json
 
 # Generated cascade progress report (delivered as an artifact, not source)
 cascade-report.html
+.docetl_server_port
+.docetl_feedback.log

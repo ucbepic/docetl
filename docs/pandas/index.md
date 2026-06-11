@@ -1,7 +1,7 @@
 # Pandas Accessor
 
 The `.semantic` accessor runs DocETL operations directly on pandas DataFrames.
-It is a convenience layer over the [Python API](../python/index.md) for quick,
+It is a convenience layer over the [Python API](../api-reference/python.md) for quick,
 single-operation work; for multi-step pipelines (and pipeline optimization),
 use Frames.
 
@@ -30,7 +30,7 @@ print(f"Cost: ${result.semantic.total_cost}")
 ```
 
 Configuration uses the same `docetl.*` globals as the Python API — see
-[Configuration](../python/index.md#configuration). Prompts are Jinja
+[Configuration](../api-reference/python.md#configuration). Prompts are Jinja
 templates over `{{input.<column>}}`; output schemas are documented in
 [Output Schemas](../concepts/schemas.md).
 
@@ -107,5 +107,5 @@ result.semantic.history      # list of (op_type, config, output_columns)
 ## Limits
 
 Accessor calls execute one operation at a time, so sequences of them cannot be
-optimized as a pipeline. Use the [Python API](../python/index.md) or YAML for
+optimized as a pipeline. Use the [Python API](../api-reference/python.md) or YAML for
 pipeline-level optimization.

@@ -13,6 +13,29 @@ import docetl
 
 ---
 
+## Quick start
+
+```python
+import docetl
+
+docetl.default_model = "gpt-4o-mini"
+
+results = (
+    docetl.read_json("input.json")
+    .map(
+        prompt="Classify this document: {{ input.text }}",
+        output={"schema": {"category": "string"}},
+    )
+    .filter(prompt="Is this document about technology? {{ input.text }}")
+    .reduce(
+        reduce_key="category",
+        prompt="Summarize these documents: {% for item in inputs %}{{ item.text }}{% endfor %}",
+        output={"schema": {"summary": "string"}},
+    )
+    .collect()
+)
+```
+
 ## Configuration
 
 Set global defaults as module-level attributes:
@@ -28,6 +51,12 @@ Set global defaults as module-level attributes:
 | `docetl.fallback_models` | `list[str]` | `None` | Fallback chain on failure |
 | `docetl.fallback_embedding_models` | `list[str]` | `None` | Fallback embedding models |
 | `docetl.system_prompt` | `dict` | `None` | `{"dataset_description": ..., "persona": ...}` applied to all operations |
+
+**Precedence.** Settings layer from most to least specific: a per-operation
+parameter (e.g. `model=` on `.map()`) beats per-pipeline settings carried by a
+Frame (set when loading a YAML via `Frame.from_yaml`), which beat the
+module-level `docetl.*` globals above, which beat built-in defaults. Loading a
+YAML never changes the globals — its settings travel with that Frame only.
 
 ---
 

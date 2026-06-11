@@ -45,7 +45,7 @@ DocETL supports two ways to define pipelines:
     )
     ```
 
-    See the [Python API guide](python/index.md) for the full reference.
+    See the [Python API reference](api-reference/python.md) for the full reference.
 
 === "YAML"
 

@@ -15,6 +15,7 @@ remote_branch: gh-pages
 # V1-optimizer pages kept for old links.
 not_in_nav: |
   tutorial-pythonapi.md
+  python/index.md
   advanced/custom-operators.md
   advanced/extending-agents.md
   advanced/performance-tuning.md
@@ -34,12 +35,9 @@ nav:
       - Best Practices: best-practices.md
   
   - User Guide:
-      - Core Concepts:
-          - Operators & Validation: concepts/operators.md
-          - Output Schemas: concepts/schemas.md
-          - Pipelines: concepts/pipelines.md
-      - Retrievers: retrievers.md
-      - Interactive Progress View: execution/interactive-progress.md
+      - Pipelines: concepts/pipelines.md
+      - Operators & Validation: concepts/operators.md
+      - Output Schemas: concepts/schemas.md
       - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md
@@ -58,11 +56,10 @@ nav:
           - Sample: operators/sample.md
           - TopK: operators/topk.md
           - Code: operators/code.md
-      - Python API:
-          - Guide: python/index.md
-          - Examples: python/examples.md
-          - API Reference: api-reference/python.md
-          - Pandas Accessor: pandas/index.md
+      - Retrievers: retrievers.md
+      - Interactive Progress View: execution/interactive-progress.md
+      - Python API Reference: api-reference/python.md
+      - Pandas Accessor: pandas/index.md
   
   - Optimization:
       - Overview: optimization/overview.md
@@ -82,6 +79,7 @@ nav:
       #     - Python API Example: optimization/python-api.md  # V1 optimizer - commented out
   
   - Tutorials & Examples:
+    - Python API Examples: python/examples.md
     - Presidential Debate Analysis: examples/presidential-debate-themes.md
     - Product Review Mining: examples/mining-product-reviews.md
     - Medical Document Classification: examples/ollama.md

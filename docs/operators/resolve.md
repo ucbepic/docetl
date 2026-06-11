@@ -214,7 +214,7 @@ A `cascade` block runs a cheap proxy model on all candidate pairs first and only
 | Parameter | Description | Default |
 |---|---|---|
 | `proxy_model` | The cheap model for the proxy pass (required) | — |
-| `guarantee` | `accuracy`, `precision`, or `recall` | `precision` |
+| `guarantee` | `accuracy`, `precision`, `recall`, or `precision+recall` | `precision` |
 | `target` | Target value for the guarantee metric, in `(0, 1)` (required) | — |
 | `delta` | Failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
 | `label_budget` | Max oracle calls spent learning the threshold | `400` |

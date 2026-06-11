@@ -34,14 +34,14 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Hashable, Optional
 
 import numpy as np
-
-from BARGAIN.models.AbstractModels import Oracle as _BargainOracle, Proxy as _BargainProxy
+from BARGAIN.models.AbstractModels import Oracle as _BargainOracle
+from BARGAIN.models.AbstractModels import Proxy as _BargainProxy
 from BARGAIN.process.BARGAIN_A import BARGAIN_A
 from BARGAIN.process.BARGAIN_P import BARGAIN_P
+from BARGAIN.process.BARGAIN_PR import BARGAIN_PR
 from BARGAIN.process.BARGAIN_R import BARGAIN_R
 
-Guarantee = str  # "accuracy" | "precision" | "recall"
-
+Guarantee = str  # "accuracy" | "precision" | "recall" | "precision+recall"
 
 
 ProxyPredict = Callable[[Any], "tuple[Hashable, float]"]
@@ -187,7 +187,9 @@ class CascadeSpec:
     guarantee: Guarantee  # "accuracy" | "precision" | "recall"
     target: float
     delta: float = 0.05
-    label_budget: int = 400  # oracle calls for threshold learning (precision/recall)
+    label_budget: int = (
+        400  # oracle calls for threshold learning (precision/recall; not used by precision+recall, which adapts)
+    )
     positive_label: Hashable = True  # which label counts as "positive" (P/R)
     negative_label: Hashable = False  # label assigned to non-positive items (P/R)
     n_thresholds: int = 20  # candidate thresholds considered (accuracy/precision)
@@ -226,7 +228,7 @@ class CategoricalCascade:
     See module docstring for the proxy/oracle callable contract.
     """
 
-    _VALID_GUARANTEES = ("accuracy", "precision", "recall")
+    _VALID_GUARANTEES = ("accuracy", "precision", "recall", "precision+recall")
 
     def __init__(
         self,
@@ -262,17 +264,23 @@ class CategoricalCascade:
             return CascadeResult(
                 labels=[],
                 escalated=[],
-                stats=CascadeStats(0, 0, 0, 0.0, spec.guarantee, spec.target, spec.delta),
+                stats=CascadeStats(
+                    0, 0, 0, 0.0, spec.guarantee, spec.target, spec.delta
+                ),
                 positive_indices=[],
             )
 
         proxy = _ProxyAdapter(
-            self._proxy_predict, positive_label=spec.positive_label,
-            console=self._console, max_threads=self._max_threads,
+            self._proxy_predict,
+            positive_label=spec.positive_label,
+            console=self._console,
+            max_threads=self._max_threads,
         )
         oracle = _OracleAdapter(
-            self._oracle_predict, positive_label=spec.positive_label,
-            console=self._console, max_threads=self._max_threads,
+            self._oracle_predict,
+            positive_label=spec.positive_label,
+            console=self._console,
+            max_threads=self._max_threads,
         )
 
         if self._console:
@@ -286,6 +294,8 @@ class CategoricalCascade:
             result = self._run_accuracy(items, proxy, oracle)
         elif spec.guarantee == "precision":
             result = self._run_precision(items, proxy, oracle)
+        elif spec.guarantee == "precision+recall":
+            result = self._run_precision_recall(items, proxy, oracle)
         else:
             result = self._run_recall(items, proxy, oracle)
 
@@ -396,7 +406,9 @@ class CategoricalCascade:
     # ------------------------------------------------------------------
     # Shared helper for precision / recall (only the BARGAIN class differs)
     # ------------------------------------------------------------------
-    def _run_positive_set(self, items, bargain, proxy, oracle, label: str) -> CascadeResult:
+    def _run_positive_set(
+        self, items, bargain, proxy, oracle, label: str
+    ) -> CascadeResult:
         if self._console:
             self._console.log(f"[dim]Cascade: determining {label} threshold...[/dim]")
 
@@ -426,10 +438,14 @@ class CategoricalCascade:
     # ------------------------------------------------------------------
     def _run_precision(self, items, proxy, oracle) -> CascadeResult:
         bargain = BARGAIN_P(
-            proxy, oracle,
-            delta=self.spec.delta, target=self.spec.target,
-            budget=self.spec.label_budget, M=self.spec.n_thresholds,
-            eta=0, seed=None,
+            proxy,
+            oracle,
+            delta=self.spec.delta,
+            target=self.spec.target,
+            budget=self.spec.label_budget,
+            M=self.spec.n_thresholds,
+            eta=0,
+            seed=None,
         )
         return self._run_positive_set(items, bargain, proxy, oracle, "precision")
 
@@ -438,9 +454,30 @@ class CategoricalCascade:
     # ------------------------------------------------------------------
     def _run_recall(self, items, proxy, oracle) -> CascadeResult:
         bargain = BARGAIN_R(
-            proxy, oracle,
-            delta=self.spec.delta, target=self.spec.target,
-            budget=self.spec.label_budget, beta=0, seed=None,
+            proxy,
+            oracle,
+            delta=self.spec.delta,
+            target=self.spec.target,
+            budget=self.spec.label_budget,
+            beta=0,
+            seed=None,
         )
         return self._run_positive_set(items, bargain, proxy, oracle, "recall")
 
+    # ------------------------------------------------------------------
+    # Joint precision+recall guarantee via BARGAIN_PR
+    # ------------------------------------------------------------------
+    def _run_precision_recall(self, items, proxy, oracle) -> CascadeResult:
+        # BARGAIN_PR learns two thresholds and oracle-labels the band
+        # between them; oracle usage is adaptive, so label_budget does
+        # not apply to this guarantee.
+        bargain = BARGAIN_PR(
+            proxy,
+            oracle,
+            delta=self.spec.delta,
+            target=self.spec.target,
+            M=self.spec.n_thresholds,
+            verbose=False,
+            seed=0,
+        )
+        return self._run_positive_set(items, bargain, proxy, oracle, "precision+recall")

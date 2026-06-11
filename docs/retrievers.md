@@ -22,108 +22,61 @@ pipeline and attach it to any LLM-powered operation.
 
 All fields are documented in the [configuration reference](#configuration-reference). This page covers both the [YAML configuration](#configuration) and the [Python Frame API](#python-api).
 
-## Python API
+## Example
 
-Create a `docetl.Retriever` and pass it to any LLM operation (`.map()`, `.filter()`, `.reduce()`, `.extract()`) via `retriever=`. The constructor takes the same fields as the YAML config; see the [configuration reference](#configuration-reference).
-
-The `dataset` field names what gets indexed. In the Python API that can be:
-
-- **An auxiliary dataset** registered with `.with_dataset(name, data)` — a file path or in-memory list of dicts, equivalent to a separate `datasets` entry in YAML.
-- **The frame's own input** — the reader's dataset name (the file's basename for `read_json`/`read_csv`/`read_parquet`, or the `name=` given to `from_list`, default `"data"`).
-- **A previous step's output** — step names are `step_<operation_name>`, e.g. `step_extract_facts`.
-
-```python
-import docetl
-
-docetl.default_model = "gpt-4o-mini"
-
-retriever = docetl.Retriever(
-    dataset="kb",                       # the auxiliary dataset registered below
-    index_dir="./lance_index",
-    index_types=["fts", "embedding"],
-    fts={
-        "index_phrase": "{{ input.text }}",
-        "query_phrase": "{{ input.question }}",
-    },
-    embedding={
-        "model": "openai/text-embedding-3-small",
-        "index_phrase": "{{ input.text }}",
-        "query_phrase": "{{ input.question }}",
-    },
-    query={"mode": "hybrid", "top_k": 5},
-)
-
-results = (
-    docetl.read_json("questions.json")
-    .with_dataset("kb", "knowledge_base.json")   # what the retriever indexes
-    .map(
-        prompt="Answer: {{ input.question }}\nContext: {{ retrieval_context }}",
-        output={"schema": {"answer": "str"}},
-        retriever=retriever,
-    )
-    .collect()
-)
-```
-
-To index an intermediate result instead, point `dataset` at the producing step:
-
-```python
-facts = (
-    docetl.read_json("articles.json")
-    .map("extract_facts", prompt="...", output={"schema": {"facts": "list[str]"}})
-    .unnest("explode", unnest_key="facts")
-)
-
-facts_index = docetl.Retriever(
-    dataset="step_explode",             # output of the unnest step
-    index_dir="./facts_index",
-    index_types=["fts"],
-    fts={"index_phrase": "{{ input.facts }}", "query_phrase": "{{ input.facts }}"},
-)
-
-conflicts = facts.map(
-    "find_conflicts",
-    prompt="Does this fact conflict with any of these?\nFact: {{ input.facts }}\n{{ retrieval_context }}",
-    output={"schema": {"has_conflict": "bool"}},
-    retriever=facts_index,
-).collect()
-```
-
-As in YAML, pass `save_retriever_output=True` on the operation to keep the retrieved context in the output (under `_<operation_name>_retrieved_context`) for debugging.
-
-## Configuration
-
-Add a top-level `retrievers` section. Each retriever names a dataset (or pipeline step) to index, where to store the index, which index types to build, and how to query. See the [configuration reference](#configuration-reference) for all fields.
-
-### Basic example
+Answer questions using a knowledge base. The retriever indexes the knowledge
+base; for each question, the top matches are injected into the prompt.
 
 === "YAML"
 
     ```yaml
     datasets:
-      transcripts:
+      questions:
         type: file
-        path: workloads/medical/raw.json
+        path: questions.json
+      kb:
+        type: file
+        path: knowledge_base.json
 
     default_model: gpt-4o-mini
 
     retrievers:
-      medical_r:
+      kb_search:
         type: lancedb
-        dataset: transcripts
-        index_dir: workloads/medical/lance_index
-        build_index: if_missing  # if_missing | always | never
+        dataset: kb                        # what to index
+        index_dir: ./lance_index
         index_types: ["fts", "embedding"]
         fts:
-          index_phrase: "{{ input.src }}"
-          query_phrase: "{{ input.src[:1000] }}"
+          index_phrase: "{{ input.text }}"
+          query_phrase: "{{ input.question }}"
         embedding:
           model: openai/text-embedding-3-small
-          index_phrase: "{{ input.src }}"
-          query_phrase: "{{ input.src[:1000] }}"
+          index_phrase: "{{ input.text }}"
+          query_phrase: "{{ input.question }}"
         query:
           mode: hybrid
-          top_k: 8
+          top_k: 5
+
+    operations:
+      - name: answer
+        type: map
+        retriever: kb_search               # attach to the operation
+        prompt: |
+          Answer: {{ input.question }}
+          Context: {{ retrieval_context }}
+        output:
+          schema:
+            answer: str
+
+    pipeline:
+      steps:
+        - name: answer_step
+          input: questions
+          operations:
+            - answer
+      output:
+        type: file
+        path: answers.json
     ```
 
 === "Python"
@@ -133,30 +86,54 @@ Add a top-level `retrievers` section. Each retriever names a dataset (or pipelin
 
     docetl.default_model = "gpt-4o-mini"
 
-    medical_r = docetl.Retriever(
-        dataset="raw",  # the frame's own input: basename of raw.json
-        index_dir="workloads/medical/lance_index",
+    kb_search = docetl.Retriever(
+        dataset="kb",                       # what to index
+        index_dir="./lance_index",
         index_types=["fts", "embedding"],
-        build_index="if_missing",  # if_missing | always | never
         fts={
-            "index_phrase": "{{ input.src }}",
-            "query_phrase": "{{ input.src[:1000] }}",
+            "index_phrase": "{{ input.text }}",
+            "query_phrase": "{{ input.question }}",
         },
         embedding={
             "model": "openai/text-embedding-3-small",
-            "index_phrase": "{{ input.src }}",
-            "query_phrase": "{{ input.src[:1000] }}",
+            "index_phrase": "{{ input.text }}",
+            "query_phrase": "{{ input.question }}",
         },
-        query={"mode": "hybrid", "top_k": 8},
+        query={"mode": "hybrid", "top_k": 5},
     )
 
-    pipeline = docetl.read_json("workloads/medical/raw.json")
-    # ... attach medical_r to operations via retriever=medical_r
+    results = (
+        docetl.read_json("questions.json")
+        .with_dataset("kb", "knowledge_base.json")   # register the KB dataset
+        .map(
+            prompt="Answer: {{ input.question }}\nContext: {{ retrieval_context }}",
+            output={"schema": {"answer": "str"}},
+            retriever=kb_search,             # attach to the operation
+        )
+        .collect()
+    )
     ```
 
-## Multi-step pipelines with retrieval
+The operation-level parameters:
 
-A retriever can index the output of a previous pipeline step: extract structured data in step 1, index it, then retrieve over it in step 2.
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `retriever` | string / `Retriever` | - | The retriever to use. Available on `map`, `filter`, `reduce`, and `extract`. |
+| `save_retriever_output` | bool | false | Save the retrieved context to `_<operation_name>_retrieved_context` in the output. |
+
+For `reduce`, the context is retrieved once per group (the `query_phrase` sees
+`reduce_key` and `inputs` instead of `input` — see the
+[Jinja variables table](#the-fts-section)).
+
+In the Python API, the retriever's `dataset` can name
+
+- an auxiliary dataset registered with `.with_dataset(name, data)`, as above;
+- the frame's own input (the file's basename for `read_json`/`read_csv`/`read_parquet`, or the `name=` given to `from_list`);
+- a previous step's output, named `step_<operation_name>`.
+
+## Indexing a previous step's output
+
+Extract structured data in step 1, index it, retrieve over it in step 2.
 
 === "YAML"
 
@@ -416,59 +393,6 @@ Required if `"embedding"` is in `index_types`.
 | `query_phrase` | yes | Jinja template for query text to embed |
 
 **Jinja variables:** Same as FTS section. For an embedding-only index, set `index_types: ["embedding"]` and omit the `fts` section.
-
-## Using a retriever in operations
-
-Operation-level parameters:
-
-| Parameter | Type | Default | Description |
-| --- | --- | --- | --- |
-| retriever | string | - | Name of the retriever to use (must match a key in `retrievers`). |
-| save_retriever_output | bool | false | If true, saves retrieved context to `_<operation_name>_retrieved_context` in output. |
-
-Map examples appear above ([Python API](#python-api), [Multi-step pipelines](#multi-step-pipelines-with-retrieval)); filter and extract work the same way.
-
-### Reduce example
-
-When using reduce, the retrieval context is computed per group.
-
-=== "YAML"
-
-    ```yaml
-    - name: summarize_by_medication
-      type: reduce
-      retriever: medical_r
-      reduce_key: medication
-      output:
-        schema:
-          summary: string
-      prompt: |
-        Summarize key points for medication '{{ reduce_key.medication }}'.
-        Related context: {{ retrieval_context }}
-
-        Inputs:
-        {% for item in inputs %}
-        - {{ item.src }}
-        {% endfor %}
-    ```
-
-=== "Python"
-
-    ```python
-    pipeline = pipeline.reduce(
-        "summarize_by_medication",
-        retriever=medical_r,
-        reduce_key="medication",
-        prompt="""Summarize key points for medication '{{ reduce_key.medication }}'.
-    Related context: {{ retrieval_context }}
-
-    Inputs:
-    {% for item in inputs %}
-    - {{ item.src }}
-    {% endfor %}""",
-        output={"schema": {"summary": "string"}},
-    )
-    ```
 
 ## Troubleshooting
 

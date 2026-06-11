@@ -16,8 +16,9 @@ DocETL
 
 - provides the operators you need (map, reduce, filter, and more) and
   orchestrates them, parallelizing work across your data,
-- returns structured tables you can query (every operation declares a typed
-  schema), and
+- returns tables instead of free text (you declare each operation's output
+  fields, e.g., `complaint` and `severity`, and every result row has them),
+  and
 - optimizes your pipeline automatically, swapping models, rewriting prompts,
   decomposing operations, and replacing subtasks with code wherever possible,
   to raise accuracy and cut cost.

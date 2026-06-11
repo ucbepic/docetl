@@ -15,7 +15,9 @@
 
 ## What is DocETL
 
-DocETL is a declarative query engine and optimizer for LLM-powered data processing. Think of DocETL as an agentic map-reduce framework. DocETL exposes high-level operations — e.g., map, reduce, filter, resolve, extract — that can be authored in natural language and executed by agents, and an optimizer that rewrites pipelines by searching over models, prompts, and operation decompositions.
+DocETL is a declarative query engine and optimizer for LLM-powered data processing. Think of DocETL as an agentic map-reduce framework. DocETL exposes high-level operations (map, reduce, filter, resolve, extract) that can be authored in natural language and executed by agents, and an optimizer that rewrites pipelines by searching over models, prompts, and operation decompositions.
+
+<p align="center"><img src="docs/assets/docetl-overview.svg" alt="DocETL pipeline overview" width="720"></p>
 
 <table>
 <tr>
@@ -77,7 +79,7 @@ print(f"Cost: ${pipeline.total_cost:.4f}")
 
 ## YAML (low-code)
 
-Declare your pipeline in a config file — no Python needed. [Tutorial](https://ucbepic.github.io/docetl/tutorial/)
+Declare your pipeline in a config file, no Python needed. [Tutorial](https://ucbepic.github.io/docetl/tutorial/)
 
 ```yaml
 datasets:
@@ -122,7 +124,7 @@ Visual playground for interactive prompt development. Edit prompts, see results 
 
 | | |
 |---|---|
-| [Python API Guide](https://ucbepic.github.io/docetl/python/) | Frame API reference — operations, config, optimization |
+| [Python API Guide](https://ucbepic.github.io/docetl/python/) | Frame API reference: operations, config, optimization |
 | [YAML Tutorial](https://ucbepic.github.io/docetl/tutorial/) | Step-by-step walkthrough of declarative pipelines |
 | [Operators](https://ucbepic.github.io/docetl/operators/map/) | Map, filter, reduce, resolve, split, gather, extract, and more |
 | [Optimization](https://ucbepic.github.io/docetl/optimization/python-api/) | Automatic cost-accuracy optimization with MOAR |
@@ -151,7 +153,7 @@ make tests-basic  # < $0.01 with OpenAI
 
 DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data Systems and Foundations](https://dsf.berkeley.edu/) group at UC Berkeley.
 
-**DocETL** — VLDB 2025 ([paper](https://arxiv.org/abs/2410.12189))
+**DocETL**, VLDB 2025 ([paper](https://arxiv.org/abs/2410.12189))
 
 ```bibtex
 @article{shankar2025docetl,
@@ -162,7 +164,7 @@ DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data 
 }
 ```
 
-**DocWrangler** — UIST 2025, Best Paper Honorable Mention ([paper](https://arxiv.org/abs/2504.14764))
+**DocWrangler**, UIST 2025, Best Paper Honorable Mention ([paper](https://arxiv.org/abs/2504.14764))
 
 ```bibtex
 @inproceedings{shankar2025docwrangler,
@@ -173,7 +175,7 @@ DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data 
 }
 ```
 
-**MOAR** — VLDB 2026 ([paper](https://arxiv.org/abs/2512.02289))
+**MOAR**, VLDB 2026 ([paper](https://arxiv.org/abs/2512.02289))
 
 ```bibtex
 @article{wei2026moar,

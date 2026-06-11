@@ -7,19 +7,21 @@
 [![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
 
 DocETL is a declarative query engine and optimizer for LLM-powered data
-processing. Think of DocETL as an agentic map-reduce framework. DocETL exposes
-high-level operations — e.g., map, reduce, filter, resolve, extract — that can
-be authored in natural language and executed by agents, and an optimizer that
+processing. Think of DocETL as an agentic map-reduce framework. It exposes
+high-level operations (map, reduce, filter, resolve, extract) that can be
+authored in natural language and executed by agents, and an optimizer that
 rewrites pipelines by searching over models, prompts, and operation
 decompositions.
 
+![DocETL pipeline overview](assets/docetl-overview.svg)
+
 Use it when you have a task over a collection of documents or unstructured
-records — e.g., extracting and aggregating themes across thousands of
-transcripts — and you care about output quality, cost, or both.
+records, e.g. extracting and aggregating themes across thousands of
+transcripts, and you care about output quality, cost, or both.
 
 ## Getting Started
 
-Pipelines can be written in Python or YAML — both are first class:
+Pipelines can be written in Python or YAML. Both are first class:
 
 === "Python"
 

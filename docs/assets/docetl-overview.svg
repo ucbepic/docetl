@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 250" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#4051b5"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="759" height="249" rx="12" fill="#ffffff" stroke="#e3e5e8"/>
+
+  <!-- unstructured documents -->
+  <g stroke="#9aa0a8" fill="#fafafa" stroke-width="1.2">
+    <rect x="36" y="92" width="70" height="92" rx="5"/>
+    <rect x="44" y="84" width="70" height="92" rx="5"/>
+    <rect x="52" y="76" width="70" height="92" rx="5" fill="#ffffff"/>
+  </g>
+  <g stroke="#c4c8ce" stroke-width="2" stroke-linecap="round">
+    <line x1="62" y1="94" x2="112" y2="94"/>
+    <line x1="62" y1="106" x2="104" y2="106"/>
+    <line x1="62" y1="118" x2="110" y2="118"/>
+    <line x1="62" y1="130" x2="96" y2="130"/>
+    <line x1="62" y1="142" x2="108" y2="142"/>
+    <line x1="62" y1="154" x2="88" y2="154"/>
+  </g>
+  <text x="79" y="206" text-anchor="middle" font-size="13" fill="#3b4252">documents</text>
+
+  <line x1="130" y1="130" x2="170" y2="130" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- pipeline operations -->
+  <g font-size="14" fill="#2b3147" text-anchor="middle">
+    <rect x="178" y="105" width="96" height="50" rx="8" fill="#eef0fb" stroke="#4051b5" stroke-width="1.4"/>
+    <text x="226" y="135">map</text>
+    <rect x="302" y="105" width="96" height="50" rx="8" fill="#eef0fb" stroke="#4051b5" stroke-width="1.4"/>
+    <text x="350" y="135">resolve</text>
+    <rect x="426" y="105" width="96" height="50" rx="8" fill="#eef0fb" stroke="#4051b5" stroke-width="1.4"/>
+    <text x="474" y="135">reduce</text>
+  </g>
+  <line x1="274" y1="130" x2="298" y2="130" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="398" y1="130" x2="422" y2="130" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="350" y="178" text-anchor="middle" font-size="13" fill="#3b4252">operations with natural-language prompts</text>
+
+  <!-- optimizer -->
+  <rect x="290" y="26" width="120" height="30" rx="15" fill="#ffffff" stroke="#4051b5" stroke-width="1.4"/>
+  <text x="350" y="46" text-anchor="middle" font-size="13" fill="#4051b5">optimizer</text>
+  <g stroke="#4051b5" stroke-width="1.2" stroke-dasharray="4 3">
+    <line x1="316" y1="56" x2="230" y2="101" marker-end="url(#arrow-accent)"/>
+    <line x1="350" y1="56" x2="350" y2="101" marker-end="url(#arrow-accent)"/>
+    <line x1="384" y1="56" x2="470" y2="101" marker-end="url(#arrow-accent)"/>
+  </g>
+
+  <line x1="526" y1="130" x2="566" y2="130" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- structured output -->
+  <g>
+    <rect x="574" y="84" width="150" height="92" rx="6" fill="#ffffff" stroke="#9aa0a8" stroke-width="1.2"/>
+    <rect x="574" y="84" width="150" height="22" rx="6" fill="#f1f2f4" stroke="#9aa0a8" stroke-width="1.2"/>
+    <line x1="574" y1="106" x2="724" y2="106" stroke="#9aa0a8" stroke-width="1.2"/>
+    <line x1="574" y1="129" x2="724" y2="129" stroke="#e3e5e8"/>
+    <line x1="574" y1="152" x2="724" y2="152" stroke="#e3e5e8"/>
+    <line x1="649" y1="84" x2="649" y2="176" stroke="#e3e5e8"/>
+  </g>
+  <g stroke="#c4c8ce" stroke-width="2" stroke-linecap="round">
+    <line x1="584" y1="96" x2="630" y2="96"/>
+    <line x1="659" y1="96" x2="705" y2="96"/>
+    <line x1="584" y1="118" x2="622" y2="118"/>
+    <line x1="659" y1="118" x2="712" y2="118"/>
+    <line x1="584" y1="141" x2="634" y2="141"/>
+    <line x1="659" y1="141" x2="700" y2="141"/>
+    <line x1="584" y1="164" x2="616" y2="164"/>
+    <line x1="659" y1="164" x2="708" y2="164"/>
+  </g>
+  <text x="649" y="206" text-anchor="middle" font-size="13" fill="#3b4252">structured output</text>
+</svg>

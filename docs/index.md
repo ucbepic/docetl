@@ -19,8 +19,8 @@ ticket," and DocETL
 - optimizes your pipeline automatically, swapping models, rewriting prompts,
   decomposing operations, and replacing subtasks with code wherever possible,
   to raise accuracy and cut cost, and
-- returns tables instead of free text (you declare each operation's output
-  fields, e.g., `complaint` and `severity`, and every result row has them).
+- returns tables instead of free text, easy to query in your favorite
+  database.
 
 Without DocETL, you write each LLM call yourself, wire them together, and
 tune the result for accuracy, cost, and latency by hand.

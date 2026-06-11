@@ -295,20 +295,18 @@ All retriever fields, for both YAML and the `docetl.Retriever` constructor. For 
 
 ### The `fts` section
 
-Required if `"fts"` is in `index_types`.
+Required if `"fts"` is in `index_types`. It has two Jinja templates. Both are
+required, and `{{ input }}` refers to a different row in each:
 
-| Field | Required | Description |
-| --- | --- | --- |
-| `index_phrase` | yes | Jinja template: what text to index from each dataset row |
-| `query_phrase` | yes | Jinja template: what text to search for at query time |
+- `index_phrase` produces the text stored in the index. It runs once per row
+  of the **indexed dataset** when the index is built, and `input` is that row.
+- `query_phrase` produces the search query. It runs once per item the
+  **operation** processes, and `input` is that item. (In a `reduce`
+  operation it runs once per group, with `reduce_key` and `inputs` instead
+  of `input`.)
 
-**Jinja variables available:**
-
-| Template | Variables | When it runs |
-| --- | --- | --- |
-| `index_phrase` | `input` = the dataset row | Once per row when building the index |
-| `query_phrase` | `input` = current item (map/filter/extract) | At query time for each item processed |
-| `query_phrase` | `reduce_key`, `inputs` (reduce operations) | At query time for each group |
+In the example below, `index_phrase` reads drug rows and `query_phrase`
+reads patient rows.
 
 **Example - Medical knowledge base:**
 

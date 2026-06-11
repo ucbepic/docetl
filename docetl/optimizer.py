@@ -10,7 +10,6 @@ from rich.panel import Panel
 from rich.traceback import install
 
 from docetl.containers import OpContainer, StepBoundary
-from docetl.graph_builder import build_operation_graph, compute_operation_hashes
 from docetl.operations.utils import flush_cache
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.map_optimizer import MapOptimizer
@@ -150,7 +149,9 @@ class Optimizer:
 
         step_name = reduce_container.step_name
         self.console.log("[yellow]Synthesizing empty resolver operation:[/yellow]")
-        self.console.log(f"  • [cyan]Reduce operation:[/cyan] [bold]{reduce_container.name}[/bold]")
+        self.console.log(
+            f"  • [cyan]Reduce operation:[/cyan] [bold]{reduce_container.name}[/bold]"
+        )
         self.console.log(f"  • [cyan]Step:[/cyan] [bold]{step_name}[/bold]")
 
         resolve_name = f"synthesized_resolve_{len(self.config['operations'])}"
@@ -168,9 +169,15 @@ class Optimizer:
             },
         }
         self.config["operations"].append(resolve_config)
+        # Keep the runner's op lookup in sync with the manually wired
+        # container below (the synthesized op is in no step's list, so a
+        # graph rebuild can't recover it).
+        self.runner._op_map[resolve_name] = resolve_config
 
         resolve_container = OpContainer(
-            f"{step_name}/{resolve_name}", self.runner, resolve_config,
+            f"{step_name}/{resolve_name}",
+            self.runner,
+            resolve_config,
         )
         resolve_container.children = reduce_container.children
         for child in resolve_container.children:
@@ -252,13 +259,7 @@ class Optimizer:
                     self.console.log(
                         "[yellow]Loading partially optimized pipeline from checkpoint...[/yellow]"
                     )
-                    from docetl.api import Pipeline as PipelineCls
-
-                    self.runner.config = partial_optimized_config
-                    self.runner._raw_ops_list = partial_optimized_config.get("operations", [])
-                    self.runner.pipeline = PipelineCls.from_dict(partial_optimized_config)
-                    build_operation_graph(self.runner)
-                    compute_operation_hashes(self.runner)
+                    self.runner.reload(partial_optimized_config)
             else:
                 self.console.log(
                     "[yellow]No checkpoint found, starting optimization from scratch...[/yellow]"
@@ -289,10 +290,13 @@ class Optimizer:
         new_right_name = right_name
         new_steps = []
 
-        equijoin_cfg = self.runner.config.get("optimizer_config", {}).get("equijoin", {})
+        equijoin_cfg = self.runner.config.get("optimizer_config", {}).get(
+            "equijoin", {}
+        )
         for _ in range(2):
             join_optimizer = JoinOptimizer(
-                self.runner, op_config,
+                self.runner,
+                op_config,
                 target_recall=equijoin_cfg.get("target_recall", 0.95),
                 estimated_selectivity=equijoin_cfg.get("estimated_selectivity", None),
             )
@@ -306,7 +310,12 @@ class Optimizer:
                 break
 
             step, ops = self._synthesize_extraction_step(
-                agent_results, left_name, right_name, left_data, right_data, run_operation,
+                agent_results,
+                left_name,
+                right_name,
+                left_data,
+                right_data,
+                run_operation,
             )
             is_left = agent_results["dataset_to_transform"] == "left"
             if is_left:
@@ -326,7 +335,13 @@ class Optimizer:
         return op_config, new_steps, new_left_name, new_right_name
 
     def _synthesize_extraction_step(
-        self, agent_results, left_name, right_name, left_data, right_data, run_operation,
+        self,
+        agent_results,
+        left_name,
+        right_name,
+        left_data,
+        right_data,
+        run_operation,
     ) -> tuple[dict, list[dict]]:
         output_key = agent_results["output_key"]
         if self.runner.status:
@@ -374,9 +389,7 @@ class Optimizer:
         }
         clean_config["pipeline"]["steps"] = []
 
-        self._collect_operations(
-            self.runner.last_op_container, clean_config, set()
-        )
+        self._collect_operations(self.runner.last_op_container, clean_config, set())
         self._resolve_step_inputs(clean_config["pipeline"]["steps"])
 
         for key, value in self.config.items():
@@ -404,12 +417,19 @@ class Optimizer:
         return clean_op
 
     def _collect_operations(
-        self, container, clean_config: dict, seen: set, current_step=None,
+        self,
+        container,
+        clean_config: dict,
+        seen: set,
+        current_step=None,
     ):
         if isinstance(container, StepBoundary):
             if container.children:
                 return self._collect_operations(
-                    container.children[0], clean_config, seen, current_step,
+                    container.children[0],
+                    clean_config,
+                    seen,
+                    current_step,
                 )
             return None, None
 
@@ -421,36 +441,49 @@ class Optimizer:
         if container.config["type"] == "scan":
             if container.children:
                 return self._collect_operations(
-                    container.children[0], clean_config, seen, current_step,
+                    container.children[0],
+                    clean_config,
+                    seen,
+                    current_step,
                 )
             return None, current_step
 
         if container.name not in seen:
-            clean_config["operations"].append(
-                self._clean_single_operation(container)
-            )
+            clean_config["operations"].append(self._clean_single_operation(container))
             seen.add(container.name)
 
         if container.is_equijoin:
-            current_step["operations"].insert(0, {
-                container.config["name"]: {
-                    "left": container.kwargs["left_name"],
-                    "right": container.kwargs["right_name"],
+            current_step["operations"].insert(
+                0,
+                {
+                    container.config["name"]: {
+                        "left": container.kwargs["left_name"],
+                        "right": container.kwargs["right_name"],
+                    },
                 },
-            })
+            )
             if container.children:
                 self._collect_operations(
-                    container.children[0], clean_config, seen, current_step,
+                    container.children[0],
+                    clean_config,
+                    seen,
+                    current_step,
                 )
                 self._collect_operations(
-                    container.children[1], clean_config, seen, current_step,
+                    container.children[1],
+                    clean_config,
+                    seen,
+                    current_step,
                 )
         else:
             current_step["operations"].insert(0, container.config["name"])
             if container.children:
                 for child in container.children:
                     self._collect_operations(
-                        child, clean_config, seen, current_step,
+                        child,
+                        clean_config,
+                        seen,
+                        current_step,
                     )
 
         return container, current_step

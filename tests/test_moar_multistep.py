@@ -535,3 +535,37 @@ class TestMultipleTargets:
 
         assert step_ops["step1"] == ["extract_a", "extract_b", "summarize"]
         assert step_ops["step2"] == ["classify_a", "classify_b", "filter"]
+
+
+def test_equijoin_dict_preserved_when_ops_inserted_around_it():
+    """A directive inserting ops before/after a kept equijoin must not
+    collapse the {name: {left, right}} entry to a bare string."""
+    from copy import deepcopy
+
+    def _op(name):
+        return {"name": name, "type": "map", "prompt": name}
+
+    config = {
+        "operations": [_op("eq_join"), _op("post")],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "s1",
+                    "operations": [
+                        {"eq_join": {"left": "a", "right": "b"}},
+                        "post",
+                    ],
+                },
+            ]
+        },
+    }
+    old_ops = deepcopy(config["operations"])
+    new_ops = [_op("eq_join"), _op("eq_join_validator"), _op("post")]
+
+    out = update_pipeline(deepcopy(config), new_ops, ["eq_join"], old_ops_list=old_ops)
+    entries = out["pipeline"]["steps"][0]["operations"]
+    assert entries == [
+        {"eq_join": {"left": "a", "right": "b"}},
+        "eq_join_validator",
+        "post",
+    ]

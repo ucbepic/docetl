@@ -7,6 +7,7 @@ import json
 from typing import TYPE_CHECKING
 
 from docetl.containers import OpContainer, StepBoundary
+from docetl.utils import op_ref_name
 
 if TYPE_CHECKING:
     from docetl.runner import DSLRunner
@@ -57,7 +58,7 @@ def _make_scan_container(
 
 
 def _add_equijoin_operation(runner: DSLRunner, step: dict) -> None:
-    equijoin_op_name = list(step["operations"][0].keys())[0]
+    equijoin_op_name = op_ref_name(step["operations"][0])
     join_cfg = list(step["operations"][0].values())[0]
     left_name, right_name = join_cfg["left"], join_cfg["right"]
 
@@ -158,11 +159,10 @@ def compute_operation_hashes(runner: DSLRunner) -> None:
             input_token(step.input),
         ]
         for entry in step.operations:
+            op_name = op_ref_name(entry)
             if isinstance(entry, str):
-                op_name = entry
                 chain.append(effective(runner._op_map[op_name]))
             else:
-                op_name = next(iter(entry))
                 join_cfg = entry[op_name]
                 chain.append(
                     {

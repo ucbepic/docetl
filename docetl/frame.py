@@ -19,9 +19,11 @@ Usage::
 from __future__ import annotations
 
 import os
+import re
 from typing import TYPE_CHECKING, Any
 
 from docetl import _config
+from docetl.utils import op_ref_name
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -39,13 +41,13 @@ _SETTING_KEYS = (
 )
 
 
-def _load_dataset(
+def _data_loader(
     ds: dict[str, Any],
     parsing_tools: list[dict] | None = None,
     apply_parsing: bool = True,
-) -> list[dict]:
-    """Load a dataset config through DataLoader (the same loader execution
-    uses), so file formats and parsing tools behave identically here."""
+):
+    """A DataLoader for a dataset config (the same loader execution uses),
+    so file formats and parsing tools behave identically here."""
     from docetl.dataset import DataLoader, create_parsing_tool_map
 
     parsing = ds.get("parsing") if apply_parsing else None
@@ -55,7 +57,7 @@ def _load_dataset(
         ds.get("path", []),
         parsing=parsing,
         user_defined_parsing_tool_map=create_parsing_tool_map(parsing_tools),
-    ).load()
+    )
 
 
 class Retriever:
@@ -901,7 +903,7 @@ class Frame:
         import pandas as pd
 
         if not self._operations:
-            data = self._load_input_data()[:max]
+            data = self._load_input_data(limit=max)
             df = pd.DataFrame(data)
         else:
             sampled = self._copy(datasets=self._sample_datasets(max))
@@ -920,32 +922,38 @@ class Frame:
         counts the results.
         """
         if not self._operations:
-            return len(self._load_input_data())
+            ds = self._datasets.get(self._first_dataset)
+            if not ds:
+                return 0
+            # Cheap when possible: parquet metadata / CSV streaming.
+            return _data_loader(ds, self._settings.get("parsing_tools")).count()
         data, _ = self._execute(max_threads=max_threads)
         return len(data)
 
-    def _load_input_data(self) -> list[dict]:
+    def _load_input_data(self, limit: int | None = None) -> list[dict]:
         """Load the primary input dataset (with parsing applied) without
-        executing operations."""
+        executing operations. *limit* caps the raw rows read (parsing then
+        applies to just those rows)."""
         ds = self._datasets.get(self._first_dataset)
         if not ds:
             return []
-        return _load_dataset(ds, self._settings.get("parsing_tools"))
+        return _data_loader(ds, self._settings.get("parsing_tools")).load(limit=limit)
 
     def _sample_datasets(self, n: int) -> dict[str, dict[str, Any]]:
         """Return a copy of the datasets dict with each dataset truncated to
         its first *n* raw rows.
 
-        Parsing configs are kept on the truncated datasets, so parsing tools
-        still run at execution time — but only over the sampled rows.
+        File reads stop after *n* rows where the format allows. Parsing
+        configs are kept on the truncated datasets, so parsing tools still
+        run at execution time — but only over the sampled rows.
         """
         sampled = {}
         for name, ds in self._datasets.items():
             if ds.get("type") == "file":
-                raw = _load_dataset(ds, apply_parsing=False)
+                raw = _data_loader(ds, apply_parsing=False).load(limit=n)
             else:
-                raw = ds.get("path", [])
-            sampled[name] = {**ds, "type": "memory", "path": raw[:n]}
+                raw = ds.get("path", [])[:n]
+            sampled[name] = {**ds, "type": "memory", "path": raw}
         return sampled
 
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
@@ -1126,15 +1134,10 @@ class Frame:
                 step["input"] = step_cfg["input"]
 
             for op_ref in step_cfg.get("operations", []):
-                if isinstance(op_ref, str):
-                    if op_ref in ops_by_name:
-                        operations.append(ops_by_name[op_ref])
-                    step["operations"].append(op_ref)
-                elif isinstance(op_ref, dict):
-                    op_name = list(op_ref.keys())[0]
-                    if op_name in ops_by_name:
-                        operations.append(ops_by_name[op_name])
-                    step["operations"].append(op_ref)
+                ref_name = op_ref_name(op_ref)
+                if ref_name in ops_by_name:
+                    operations.append(ops_by_name[ref_name])
+                step["operations"].append(op_ref)
 
             steps.append(step)
             last_step = step["name"]
@@ -1183,12 +1186,43 @@ class Frame:
             val = self._settings.get(attr, getattr(_config, attr, None))
             if val is not None and val is not False:
                 lines.append(f"docetl.{attr} = {repr(val)}")
+        dropped = [
+            k for k in ("parsing_tools", "system_prompt") if self._settings.get(k)
+        ]
+        if dropped:
+            lines.append(
+                f"# NOTE: settings with no Frame API equivalent were dropped "
+                f"(configure via YAML): {', '.join(dropped)}"
+            )
         if lines[-1] != "":
+            lines.append("")
+
+        # Retriever objects, referenced by ops via retriever=<var>.
+        retriever_vars: dict[str, str] = {}
+        for rname, rcfg in self._retrievers.items():
+            var = re.sub(r"\W", "_", rname)
+            retriever_vars[rname] = var
+            parts = [
+                f"{k}={_fmt(rcfg[k])}"
+                for k in (
+                    "dataset",
+                    "index_dir",
+                    "index_types",
+                    "fts",
+                    "embedding",
+                    "query",
+                    "build_index",
+                )
+                if k in rcfg and not (k == "build_index" and rcfg[k] == "if_missing")
+            ]
+            lines.append(_format_call(f"{var} = docetl.Retriever(", parts))
+        if self._retrievers:
             lines.append("")
 
         # Steps that feed the right side of an equijoin are rendered inline
         # as a nested expression, not as part of the main chain.
         right_branch: set[str] = set()
+        branch_sources: set[str] = set()
         for step in self._steps:
             entries = step.get("operations", [])
             if entries and isinstance(entries[0], dict):
@@ -1196,6 +1230,8 @@ class Frame:
                 while cur in steps_by_name and cur not in right_branch:
                     right_branch.add(cur)
                     cur = steps_by_name[cur].get("input")
+                if cur in self._datasets:
+                    branch_sources.add(cur)
 
         def branch_expr(tip: str | None) -> str:
             """One-line expression for the sub-pipeline that produces *tip*."""
@@ -1213,14 +1249,14 @@ class Frame:
                     if isinstance(entry, str):
                         op = ops_by_name.get(entry)
                         if op is not None:
-                            expr += f".{op.get('type', 'map')}({', '.join(_format_op_args(op))})"
+                            expr += f".{op.get('type', 'map')}({', '.join(_format_op_args(op, retriever_vars))})"
                     else:
-                        join_name = next(iter(entry))
+                        join_name = op_ref_name(entry)
                         op = ops_by_name.get(join_name)
                         if op is not None:
                             args = [
                                 branch_expr(entry[join_name].get("right"))
-                            ] + _format_op_args(op)
+                            ] + _format_op_args(op, retriever_vars)
                             expr += f".equijoin({', '.join(args)})"
             return expr
 
@@ -1232,6 +1268,16 @@ class Frame:
         lines.append("frame = (")
         lines.append(f"    {source}")
 
+        # Datasets not consumed by any reader (auxiliary datasets, e.g.
+        # retriever knowledge bases) are registered via with_dataset.
+        for ds_name, ds_cfg in self._datasets.items():
+            if ds_name == self._first_dataset or ds_name in branch_sources:
+                continue
+            parts = [repr(ds_name), _fmt(ds_cfg.get("path"))]
+            if ds_cfg.get("parsing"):
+                parts.append(f"parsing={_fmt(ds_cfg['parsing'])}")
+            lines.append(_format_call("    .with_dataset(", parts))
+
         for step in self._steps:
             if step["name"] in right_branch:
                 continue
@@ -1242,17 +1288,18 @@ class Frame:
                         continue
                     lines.append(
                         _format_call(
-                            f"    .{op.get('type', 'map')}(", _format_op_args(op)
+                            f"    .{op.get('type', 'map')}(",
+                            _format_op_args(op, retriever_vars),
                         )
                     )
                 else:
-                    join_name = next(iter(entry))
+                    join_name = op_ref_name(entry)
                     op = ops_by_name.get(join_name)
                     if op is None:
                         continue
                     args = [
                         branch_expr(entry[join_name].get("right"))
-                    ] + _format_op_args(op)
+                    ] + _format_op_args(op, retriever_vars)
                     lines.append(_format_call("    .equijoin(", args))
 
         lines.append("    .collect()")
@@ -1349,11 +1396,23 @@ def _format_reader(ds_name: str, ds_cfg: dict[str, Any]) -> str:
     return f"{reader}({', '.join(parts)})"
 
 
-def _format_op_args(op: dict[str, Any]) -> list[str]:
-    """The argument list for a Frame method call recreating *op*."""
-    return [repr(op["name"])] + [
-        f"{k}={_fmt(v)}" for k, v in op.items() if k not in _SKIP_KEYS and v is not None
-    ]
+def _format_op_args(
+    op: dict[str, Any], retriever_vars: dict[str, str] | None = None
+) -> list[str]:
+    """The argument list for a Frame method call recreating *op*.
+
+    *retriever_vars* maps retriever names to the variable names of the
+    ``docetl.Retriever`` objects emitted earlier in the generated source.
+    """
+    parts = [repr(op["name"])]
+    for k, v in op.items():
+        if k in _SKIP_KEYS or v is None:
+            continue
+        if k == "retriever" and retriever_vars and v in retriever_vars:
+            parts.append(f"retriever={retriever_vars[v]}")
+        else:
+            parts.append(f"{k}={_fmt(v)}")
+    return parts
 
 
 def _format_call(prefix: str, parts: list[str]) -> str:

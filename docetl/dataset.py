@@ -207,9 +207,15 @@ class DataLoader:
         """
         return f"DataLoader(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing={self.parsing})"
 
-    def load(self) -> list[dict]:
+    def load(self, limit: int | None = None) -> list[dict]:
         """
         Load the dataset from the specified path or return the in-memory data.
+
+        Args:
+            limit (int | None): If given, load only the first *limit* raw
+                rows (streaming for CSV/Parquet, so a small sample of a
+                large file is cheap). Parsing tools are applied after the
+                limit, i.e. to just the sampled rows.
 
         Returns:
             list[dict]: A list of dictionaries representing the dataset.
@@ -218,7 +224,10 @@ class DataLoader:
             ValueError: If the file extension is unsupported.
         """
         if self.type == "memory":
-            return self._apply_parsing_tools(self.path_or_data)
+            data = self.path_or_data
+            if limit is not None:
+                data = data[:limit]
+            return self._apply_parsing_tools(data)
 
         _, ext = os.path.splitext(self.path_or_data.lower())
 
@@ -227,18 +236,77 @@ class DataLoader:
 
             with open(self.path_or_data, "r") as f:
                 data = json.load(f)
+            if limit is not None:
+                data = data[:limit]
         elif ext == ".csv":
             import csv
+            import itertools
 
             with open(self.path_or_data, "r") as f:
                 reader = csv.DictReader(f)
-                data = list(reader)
+                data = list(
+                    itertools.islice(reader, limit) if limit is not None else reader
+                )
         elif ext == ".parquet":
-            data = pd.read_parquet(self.path_or_data).to_dict(orient="records")
+            data = self._read_parquet(limit)
         else:
             raise ValueError(f"Unsupported file extension: {ext}")
 
         return self._apply_parsing_tools(data)
+
+    def _read_parquet(self, limit: int | None) -> list[dict]:
+        if limit is not None:
+            try:
+                import pyarrow.parquet as pq
+
+                batches = []
+                rows = 0
+                for batch in pq.ParquetFile(self.path_or_data).iter_batches():
+                    batches.append(batch)
+                    rows += batch.num_rows
+                    if rows >= limit:
+                        break
+                if batches:
+                    import pyarrow as pa
+
+                    table = pa.Table.from_batches(batches)
+                    return table.to_pylist()[:limit]
+                return []
+            except ImportError:
+                pass
+            return (
+                pd.read_parquet(self.path_or_data).head(limit).to_dict(orient="records")
+            )
+        return pd.read_parquet(self.path_or_data).to_dict(orient="records")
+
+    def count(self) -> int:
+        """Number of rows the dataset loads to, computed cheaply when possible.
+
+        With parsing tools configured the data must be fully loaded and
+        parsed (parsing can change the row count). Otherwise Parquet uses
+        file metadata and CSV streams line counts without building dicts.
+        """
+        if self.parsing:
+            return len(self.load())
+
+        if self.type == "memory":
+            return len(self.path_or_data)
+
+        _, ext = os.path.splitext(self.path_or_data.lower())
+        if ext == ".parquet":
+            try:
+                import pyarrow.parquet as pq
+
+                return pq.ParquetFile(self.path_or_data).metadata.num_rows
+            except ImportError:
+                pass
+        elif ext == ".csv":
+            import csv
+
+            with open(self.path_or_data, "r") as f:
+                return sum(1 for _ in csv.DictReader(f))
+
+        return len(self.load())
 
     def _process_item(
         self,

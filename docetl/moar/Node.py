@@ -6,12 +6,11 @@ import random
 from datetime import datetime
 from typing import Any
 
-import yaml
 from dotenv import load_dotenv
 
 from docetl.reasoning_optimizer.directives import Directive
 from docetl.runner import DSLRunner
-from docetl.utils import extract_output_from_json
+from docetl.utils import extract_output_from_json, op_ref_name
 
 
 class Node:
@@ -61,10 +60,8 @@ class Node:
         self.children = []
         self.c = c
         self.cost = -1.0
-        self.scaled_cost = -1.0
         self.sample_result = []
         self.latest_action = None
-        self.optimization_goal = None
         self.message_history = message_history
         self.memo = []
         self.is_multi_instance = is_multi_instance
@@ -79,6 +76,7 @@ class Node:
     def pipeline(self):
         if self._pipeline is None:
             from docetl.api import Pipeline
+
             self._pipeline = Pipeline.from_dict(self.parsed_yaml)
         return self._pipeline
 
@@ -87,7 +85,7 @@ class Node:
         mapping = {}
         for step in self.pipeline.steps:
             for op in step.operations:
-                name = op if isinstance(op, str) else list(op.keys())[0]
+                name = op_ref_name(op)
                 mapping[name] = step.name
         return mapping
 
@@ -104,7 +102,9 @@ class Node:
                 self.parsed_yaml,
                 max_threads=max_threads,
                 base_name=str(self.yaml_file_path).rsplit(".", 1)[0],
-                yaml_file_suffix=os.path.basename(str(self.yaml_file_path)).split(".")[0],
+                yaml_file_suffix=os.path.basename(str(self.yaml_file_path)).split(".")[
+                    0
+                ],
             )
             runner.print_query_plan()
             runner.load()
@@ -136,9 +136,10 @@ class Node:
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")
 
     def _load_yaml(self) -> dict[str, Any]:
+        from docetl.utils import load_config
+
         try:
-            with open(self.yaml_file_path, "r", encoding="utf-8") as file:
-                return yaml.safe_load(file)
+            return load_config(str(self.yaml_file_path))
         except Exception as e:
             self.console.log(
                 f"[yellow]Error loading YAML file {self.yaml_file_path}: {e}[/yellow]"
@@ -168,14 +169,8 @@ class Node:
         self.children.append(child)
         child.parent = self
 
-    def is_leaf(self) -> bool:
-        return len(self.children) == 0
-
     def mark_action_used(self, op_name, action: Directive):
-        self.used_actions[op_name].add(action)
-
-    def is_root(self) -> bool:
-        return self.parent is None
+        self.used_actions.setdefault(op_name, set()).add(action)
 
     def update_value(self, value: float):
         if (
@@ -197,16 +192,6 @@ class Node:
 
     def update_visit(self):
         self.visits += 1
-
-    def get_ucb(self) -> float:
-        if self.visits == 0:
-            return float("inf")
-        if self.parent is None:
-            return self.value / self.visits
-
-        exploitation = self.value / self.visits
-        exploration = self.c * math.sqrt(math.log(self.parent.visits) / self.visits)
-        return exploitation + exploration
 
     def get_id(self) -> int:
         return self.id
@@ -268,15 +253,10 @@ class Node:
                 self.result_path = new_result_path
 
                 if hasattr(self, "parsed_yaml") and self.parsed_yaml:
+                    from docetl.moar.search_utils import write_pipeline_yaml
+
                     self.parsed_yaml["pipeline"]["output"]["path"] = new_result_path
-                    with open(self.yaml_file_path, "w") as f:
-                        yaml.dump(
-                            self.parsed_yaml,
-                            f,
-                            default_flow_style=False,
-                            allow_unicode=True,
-                            sort_keys=False,
-                        )
+                    write_pipeline_yaml(self.parsed_yaml, self.yaml_file_path)
         except Exception as e:
             self.console.log(
                 f"[yellow]Warning: Could not rename result file from {old_id} to {new_id}: {e}[/yellow]"
@@ -298,7 +278,7 @@ class Node:
     def get_exploration_tree_summary(
         self, root: Node, node_accuracies: dict["Node", float] | None = None
     ) -> str:
-        successful, failed = self._collect_exploration_paths(root, node_accuracies)
+        successful = self._collect_exploration_paths(root, node_accuracies)
 
         summary_parts = [f"CURRENT POSITION: {self.get_optimization_path()}"]
 
@@ -312,10 +292,11 @@ class Node:
         return "\n".join(summary_parts)
 
     def _collect_exploration_paths(
-        self, root: Node, node_accuracies: dict["Node", float] | None,
-    ) -> tuple[list[str], list[str]]:
+        self,
+        root: Node,
+        node_accuracies: dict["Node", float] | None,
+    ) -> list[str]:
         successful = []
-        failed = []
 
         def traverse(node, current_path="ROOT"):
             if node != root:
@@ -324,20 +305,20 @@ class Node:
                     if node_accuracies and node in node_accuracies:
                         label += f", accuracy: {node_accuracies[node]:.3f}"
                     successful.append(f"{current_path} ({label})")
-                else:
-                    failed.append(f"{current_path} (failed)")
 
             for child in node.children:
                 if child.memo:
                     d, t = child.memo[-1]
                     child_path = f"{current_path} → {d}({t})"
                 else:
-                    action = child.latest_action.name if child.latest_action else "unknown"
+                    action = (
+                        child.latest_action.name if child.latest_action else "unknown"
+                    )
                     child_path = f"{current_path} → {action}"
                 traverse(child, child_path)
 
         traverse(root)
-        return successful, failed
+        return successful
 
     @staticmethod
     def _path_sort_key(path: str) -> tuple[float, float]:
@@ -352,11 +333,6 @@ class Node:
             return (0, float(cost_part.split(")")[0]))
         except (ValueError, IndexError):
             return (0, float("inf"))
-
-    def get_memo_for_llm(
-        self, root_node: Node, node_accuracies: dict["Node", float] | None = None
-    ) -> str:
-        return self.get_exploration_tree_summary(root_node, node_accuracies)
 
     def delete(self, selected_node_final_id=None):
         if self.parent and self in self.parent.children:
@@ -424,7 +400,10 @@ class Node:
             if os.path.exists(self.yaml_file_path) and str(
                 self.yaml_file_path
             ).endswith((".yaml", ".yml")):
-                if any(char.isdigit() for char in os.path.basename(str(self.yaml_file_path))):
+                if any(
+                    char.isdigit()
+                    for char in os.path.basename(str(self.yaml_file_path))
+                ):
                     os.remove(self.yaml_file_path)
                     self.console.log(
                         f"[dim]Deleted generated YAML file:[/dim] {self.yaml_file_path}"

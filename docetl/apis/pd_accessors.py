@@ -28,6 +28,10 @@ class OpHistory(NamedTuple):
     output_columns: list[str]
 
 
+# (settings key, DSLRunner) reused across accessor calls — see _bare_runner.
+_CACHED_RUNNER: tuple[str, Any] | None = None
+
+
 @pd.api.extensions.register_dataframe_accessor("semantic")
 class SemanticAccessor:
     def __init__(self, df: pd.DataFrame):
@@ -51,19 +55,37 @@ class SemanticAccessor:
 
     def _bare_runner(self):
         """A pipeline-less DSLRunner carrying all module-level settings
-        (model, rate limits, cache, fallbacks, threads)."""
+        (model, rate limits, cache, fallbacks, threads).
+
+        Cached module-wide while the settings are unchanged, so a loop of
+        accessor calls doesn't rebuild the runner (env copy, rate limiter,
+        routers) every time.
+        """
+        global _CACHED_RUNNER
+        import json
+
         from docetl.runner import DSLRunner
 
+        settings = {"default_model": "gpt-4o-mini", **_config.runner_settings()}
+        key = json.dumps(
+            {**settings, "max_threads": _config.max_threads},
+            sort_keys=True,
+            default=str,
+        )
+        if _CACHED_RUNNER is not None and _CACHED_RUNNER[0] == key:
+            return _CACHED_RUNNER[1]
+
         runner_config: dict[str, Any] = {
-            "default_model": "gpt-4o-mini",
-            **_config.runner_settings(),
+            **settings,
             "operations": [],
             "datasets": {},
             "pipeline": {"steps": []},
         }
-        return DSLRunner(
+        runner = DSLRunner(
             runner_config, max_threads=_config.max_threads, from_df_accessors=True
         )
+        _CACHED_RUNNER = (key, runner)
+        return runner
 
     def _run_op_direct(
         self, op_type: str, data: list[dict], config: dict[str, Any], runner=None

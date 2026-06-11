@@ -253,7 +253,6 @@ def run_moar_experiment(
         root_yaml_path=yaml_path,
         available_actions=available_actions,
         sample_input=sample_input_data,
-        dataset_stats=dataset_stats,
         dataset_name=dataset,
         available_models=available_models,
         evaluate_func=evaluate_func,
@@ -261,7 +260,6 @@ def run_moar_experiment(
         max_iterations=max_iterations,
         model=model,
         output_dir=str(output_path),
-        build_first_layer=build_first_layer,
         custom_metric_key=accuracy_metric_key,
     )
     print(f"✅ MOARSearch initialized with root node: {yaml_path}")

@@ -8,6 +8,7 @@ import yaml
 from rich import print
 
 from docetl.runner import DSLRunner
+from docetl.utils import op_ref_name
 
 if TYPE_CHECKING:
     from docetl.moar.optimizer import MOARResult
@@ -98,7 +99,7 @@ class Pipeline:
     def get_step_for_op(self, op_name: str) -> PipelineStep:
         for step in self.steps:
             for entry in step.operations:
-                name = entry if isinstance(entry, str) else list(entry.keys())[0]
+                name = op_ref_name(entry)
                 if name == op_name:
                     return step
         raise KeyError(f"Operation {op_name!r} not found in any step")

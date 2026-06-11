@@ -149,6 +149,16 @@ def load_config(config_path: str) -> dict[str, Any]:
         raise yaml.YAMLError(f"Error parsing YAML configuration: {e}")
 
 
+def op_ref_name(entry: "str | dict[str, Any]") -> str:
+    """The operation name of a pipeline step's ``operations`` entry.
+
+    An entry is either a plain operation name, or — for equijoins — a
+    single-key ``{name: {"left": ..., "right": ...}}`` dict. This is the
+    one place that knows that encoding; use it instead of re-parsing.
+    """
+    return entry if isinstance(entry, str) else next(iter(entry))
+
+
 def count_tokens(text: str, model: str) -> int:
     model_name = model.replace("azure/", "")
     try:

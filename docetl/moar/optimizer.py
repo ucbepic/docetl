@@ -42,7 +42,6 @@ import yaml
 from docetl.console import DOCETL_CONSOLE
 from docetl.moar.models import default_agent_model, detect_available_models
 from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES
-from docetl.utils_dataset import get_dataset_stats
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -411,7 +410,6 @@ class MOAROptimizer:
             dataset_data[:5] if isinstance(dataset_data, list) else dataset_data
         )
 
-        dataset_stats = get_dataset_stats(self.pipeline_path, self._dataset_name)
         available_actions = set(ALL_DIRECTIVES)
 
         DOCETL_CONSOLE.log(
@@ -428,7 +426,6 @@ class MOAROptimizer:
             root_yaml_path=self.pipeline_path,
             available_actions=available_actions,
             sample_input=sample_input,
-            dataset_stats=dataset_stats,
             dataset_name=self._dataset_name,
             available_models=self.models,
             evaluate_func=self._eval_fn,
@@ -436,7 +433,6 @@ class MOAROptimizer:
             max_iterations=self.max_iterations,
             model=self.agent_model,
             output_dir=str(self._save_dir),
-            build_first_layer=False,
             custom_metric_key=self.metric_key,
             sample_dataset_path=self._dataset_path,
             max_threads=self._max_threads,

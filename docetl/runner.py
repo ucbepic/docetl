@@ -25,7 +25,7 @@ from docetl.operations import get_operation
 from docetl.operations.utils import APIWrapper
 from docetl.optimizer import Optimizer
 from docetl.ratelimiter import create_bucket_factory
-from docetl.utils import decrypt, load_config
+from docetl.utils import decrypt, load_config, op_ref_name
 
 if TYPE_CHECKING:
     from docetl.api import Pipeline as PipelineType
@@ -102,22 +102,11 @@ class DSLRunner:
     def __init__(
         self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs
     ):
-        from docetl.api import Pipeline as PipelineCls
-
-        if isinstance(config, PipelineCls):
-            self.pipeline: PipelineCls = config
-            config_dict = config._to_dict()
-        else:
-            config_dict = config
-            self.pipeline = PipelineCls.from_dict(config_dict)
-
-        self._raw_ops_list = config_dict.get("operations", [])
-        self.config = config_dict
+        self._set_config(config)
         self.base_name = kwargs.pop("base_name", None)
         self.yaml_file_suffix = kwargs.pop("yaml_file_suffix", None) or (
             datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         )
-        self.default_model = self.config.get("default_model", "gpt-4o-mini")
         self.console = kwargs.pop("console", None) or get_console()
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
@@ -149,6 +138,33 @@ class DSLRunner:
         self._from_df_accessors = kwargs.get("from_df_accessors", False)
         if not self._from_df_accessors:
             self.syntax_check()
+
+    def _set_config(self, config: "dict | PipelineType") -> None:
+        from docetl.api import Pipeline as PipelineCls
+
+        if isinstance(config, PipelineCls):
+            self.pipeline: PipelineCls = config
+            self.config = config._to_dict()
+        else:
+            self.config = config
+            self.pipeline = PipelineCls.from_dict(config)
+        self._raw_ops_list = self.config.get("operations", [])
+        self.default_model = self.config.get("default_model", "gpt-4o-mini")
+
+    def reload(self, config: "dict | PipelineType") -> None:
+        """Replace the pipeline config and rebuild all derived state.
+
+        The one place that keeps ``config``, the typed ``pipeline``, the op
+        map, the operation graph, and checkpoint hashes in sync — use this
+        instead of reassigning any of them by hand. Loaded datasets are
+        preserved.
+        """
+        self._set_config(config)
+        self.intermediate_dir = self.pipeline.output.intermediate_dir
+        self._setup_parsing_tools()
+        self._setup_retrievers()
+        build_operation_graph(self)
+        compute_operation_hashes(self)
 
     def _setup_api_keys(self) -> None:
         encrypted_llm_api_keys = self.config.get("llm_api_keys", {})
@@ -325,7 +341,7 @@ class DSLRunner:
         ops: list[tuple[str, str, str, str | None]] = []
         for step in self.pipeline.steps:
             for entry in step.operations:
-                op_name = entry if isinstance(entry, str) else list(entry.keys())[0]
+                op_name = op_ref_name(entry)
                 typed_op = ops_by_name.get(op_name)
                 op_type = typed_op.type if typed_op else "?"
                 if op_type in ("scan", "step_boundary"):

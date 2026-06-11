@@ -102,17 +102,17 @@ or Python script.
 
 For a complete worked pipeline, see the [Tutorial](../tutorial.md).
 
-### The `run` command
+The `docetl run` command's options:
 
 ::: docetl.cli.run
   handler: python
   options:
     members: - run
-  show_root_full_path: true
-  show_root_toc_entry: true
-  show_root_heading: true
+  show_root_full_path: false
+  show_root_toc_entry: false
+  show_root_heading: false
   show_source: false
-  show_name: true
+  show_name: false
 
 ## Configuration
 

@@ -99,11 +99,35 @@ Training rows keep their oracle answers in the output. If all training labels
 come back the same class, the regression cannot be fit and every item goes to
 the oracle.
 
-Embeddings cost far less per item than LLM calls, so use this proxy when the
-predicate is separable in embedding space — for example, topic filters. When
-it is not separable, the scores do not separate and most items escalate to
-the oracle. Because half the budget goes to training, set `label_budget` to
-at least 100 for precision/recall guarantees.
+=== "YAML"
+
+    ```yaml
+    - name: is_relevant
+      type: filter
+      model: gpt-4o
+      prompt: "Is this review about shipping problems? {{ input.text }}"
+      output: { schema: { keep: "bool" } }
+      cascade:
+        proxy_model: text-embedding-3-small
+        target: 0.95
+        label_budget: 200   # half is used to fit the regression
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.filter(
+        name="is_relevant",
+        model="gpt-4o",
+        prompt="Is this review about shipping problems? {{ input.text }}",
+        output={"schema": {"keep": "bool"}},
+        cascade={
+            "proxy_model": "text-embedding-3-small",
+            "target": 0.95,
+            "label_budget": 200,  # half is used to fit the regression
+        },
+    )
+    ```
 
 ## Guarantees
 

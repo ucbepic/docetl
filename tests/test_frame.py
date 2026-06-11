@@ -474,3 +474,29 @@ class TestSchema:
                      summary_schema={"label": "string"})
         )
         assert frame.schema().get("clusters") == "list"
+
+
+class TestCascadeParam:
+    def test_cascade_flows_into_op_config(self):
+        cascade = {"proxy_model": "text-embedding-3-small", "target": 0.9}
+        frame = from_list([{"t": "x"}]).filter(
+            "f", prompt="p {{ input.t }}",
+            output={"schema": {"keep": "bool"}}, cascade=cascade,
+        )
+        assert frame._operations[0]["cascade"] == cascade
+
+    def test_cascade_omitted_not_in_config(self):
+        frame = from_list([{"t": "x"}]).filter(
+            prompt="p", output={"schema": {"keep": "bool"}})
+        assert "cascade" not in frame._operations[0]
+
+    def test_cascade_on_resolve_and_equijoin(self):
+        cascade = {"proxy_model": "gpt-4o-mini", "target": 0.9}
+        resolved = from_list([{"t": "x"}]).resolve(
+            comparison_prompt="same?", cascade=cascade)
+        assert resolved._operations[0]["cascade"] == cascade
+
+        joined = from_list([{"k": 1}], name="l").equijoin(
+            from_list([{"k": 2}], name="r"),
+            comparison_prompt="c", cascade=cascade)
+        assert joined._operations[0]["cascade"] == cascade

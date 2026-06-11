@@ -423,6 +423,7 @@ class Frame:
         litellm_completion_kwargs: dict[str, Any] | None = None,
         limit: int | None = None,
         retriever: Retriever | str | None = None,
+        cascade: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op(
@@ -441,6 +442,7 @@ class Frame:
                 "litellm_completion_kwargs": litellm_completion_kwargs,
                 "limit": limit,
                 "retriever": retriever,
+                "cascade": cascade,
                 **kwargs,
             },
         )
@@ -521,6 +523,7 @@ class Frame:
         timeout: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
         enable_observability: bool | None = None,
+        cascade: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Frame:
         return self._append_op(
@@ -545,6 +548,7 @@ class Frame:
                 "timeout": timeout,
                 "litellm_completion_kwargs": litellm_completion_kwargs,
                 "enable_observability": enable_observability,
+                "cascade": cascade,
                 **kwargs,
             },
         )
@@ -569,6 +573,7 @@ class Frame:
         blocking_keys: dict[str, list[str]] | None = None,
         timeout: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
+        cascade: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Frame:
         config = {
@@ -589,6 +594,7 @@ class Frame:
                 "blocking_keys": blocking_keys,
                 "timeout": timeout,
                 "litellm_completion_kwargs": litellm_completion_kwargs,
+                "cascade": cascade,
                 **kwargs,
             }.items()
             if v is not None

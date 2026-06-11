@@ -91,6 +91,16 @@ frame.filter(
 | `model` | `str` | `None` | Override default model |
 | `validate` | `list[str]` | `None` | Validation expressions |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
+| `cascade` | `dict` | `None` | [Model cascade](../concepts/cascades.md): run a cheap proxy (chat or embedding model) on all items and escalate only uncertain ones, with a statistical guarantee. Also available on `resolve` and `equijoin`. |
+
+```python
+frame.filter(
+    prompt="Is this review about shipping problems? {{ input.text }}",
+    output={"schema": {"keep": "bool"}},
+    cascade={"proxy_model": "text-embedding-3-small", "guarantee": "recall",
+             "target": 0.9, "label_budget": 120},
+)
+```
 
 #### `.reduce()`
 

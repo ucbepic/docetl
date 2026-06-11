@@ -161,7 +161,8 @@ Now, let's create a DocETL pipeline to analyze this data. We'll use a series of 
 
 === "Python"
 
-    Build the same pipeline with chained operations:
+    Build the pipeline one operation at a time — frames are immutable, so each
+    operation returns a new frame you can assign back:
 
     ```python
     import docetl
@@ -169,70 +170,72 @@ Now, let's create a DocETL pipeline to analyze this data. We'll use a series of 
     docetl.default_model = "gpt-4o-mini"
     docetl.intermediate_dir = "intermediate_results"
 
-    pipeline = (
-        docetl.read_json("medical_transcripts.json")
+    pipeline = docetl.read_json("medical_transcripts.json")
 
-        # 1. Extract medications from each transcript
-        .map(
-            name="extract_medications",
-            prompt="""
-            Analyze the following transcript of a conversation between a doctor and a patient:
-            {{ input.src }}
-            Extract and list all medications mentioned in the transcript.
-            If no medications are mentioned, return an empty list.
-            """,
-            output={"schema": {"medication": "list[str]"}},
-        )
+    # 1. Extract medications from each transcript
+    pipeline = pipeline.map(
+        name="extract_medications",
+        prompt="""
+        Analyze the following transcript of a conversation between a doctor and a patient:
+        {{ input.src }}
+        Extract and list all medications mentioned in the transcript.
+        If no medications are mentioned, return an empty list.
+        """,
+        output={"schema": {"medication": "list[str]"}},
+    )
 
-        # 2. Flatten so each medication is its own row
-        .unnest(unnest_key="medication")
+    # 2. Flatten so each medication is its own row
+    pipeline = pipeline.unnest(unnest_key="medication")
 
-        # 3. Resolve similar medication names
-        .resolve(
-            name="resolve_medications",
-            comparison_prompt="""
-            Compare the following two medication entries:
-            Entry 1: {{ input1.medication }}
-            Entry 2: {{ input2.medication }}
-            Are these medications likely to be the same or closely related?
-            """,
-            resolution_prompt="""
-            Given the following matched medication entries:
-            {% for entry in inputs %}
-            Entry {{ loop.index }}: {{ entry.medication }}
-            {% endfor %}
-            Determine the best resolved medication name for this group.
-            """,
-            output={"schema": {"medication": "str"}},
-            blocking_keys=["medication"],
-            blocking_threshold=0.6162,
-            embedding_model="text-embedding-3-small",
-        )
+    # 3. Resolve similar medication names
+    pipeline = pipeline.resolve(
+        name="resolve_medications",
+        comparison_prompt="""
+        Compare the following two medication entries:
+        Entry 1: {{ input1.medication }}
+        Entry 2: {{ input2.medication }}
+        Are these medications likely to be the same or closely related?
+        """,
+        resolution_prompt="""
+        Given the following matched medication entries:
+        {% for entry in inputs %}
+        Entry {{ loop.index }}: {{ entry.medication }}
+        {% endfor %}
+        Determine the best resolved medication name for this group.
+        """,
+        output={"schema": {"medication": "str"}},
+        blocking_keys=["medication"],
+        blocking_threshold=0.6162,
+        embedding_model="text-embedding-3-small",
+    )
 
-        # 4. Summarize side effects and uses per medication
-        .reduce(
-            name="summarize_prescriptions",
-            reduce_key="medication",
-            prompt="""
-            Here are some transcripts of conversations between a doctor and a patient:
+    # 4. Summarize side effects and uses per medication
+    pipeline = pipeline.reduce(
+        name="summarize_prescriptions",
+        reduce_key="medication",
+        prompt="""
+        Here are some transcripts of conversations between a doctor and a patient:
 
-            {% for value in inputs %}
-            Transcript {{ loop.index }}:
-            {{ value.src }}
-            {% endfor %}
+        {% for value in inputs %}
+        Transcript {{ loop.index }}:
+        {{ value.src }}
+        {% endfor %}
 
-            For the medication {{ reduce_key }}, provide:
+        For the medication {{ reduce_key }}, provide:
 
-            1. Side Effects: Summarize all mentioned side effects.
-            2. Therapeutic Uses: Explain the conditions for which it was prescribed.
+        1. Side Effects: Summarize all mentioned side effects.
+        2. Therapeutic Uses: Explain the conditions for which it was prescribed.
 
-            Base your summary solely on the provided transcripts.
-            Include relevant quotes.
-            """,
-            output={"schema": {"side_effects": "str", "uses": "str"}},
-        )
+        Base your summary solely on the provided transcripts.
+        Include relevant quotes.
+        """,
+        output={"schema": {"side_effects": "str", "uses": "str"}},
     )
     ```
+
+    Nothing executes yet — operations are recorded lazily and only run when you
+    call a terminal action like `.collect()` or `.write_json()`. (You can also
+    chain all four calls into one expression if you prefer.)
 
 !!! note "Relative paths"
 
@@ -280,7 +283,8 @@ Now, let's create a DocETL pipeline to analyze this data. We'll use a series of 
     Or write directly to a file:
 
     ```python
-    cost = pipeline.write_json("medication_summaries.json")
+    pipeline.write_json("medication_summaries.json")
+    print(f"Total cost: ${pipeline.total_cost:.2f}")
     ```
 
     You can also inspect the data at any point in the chain:

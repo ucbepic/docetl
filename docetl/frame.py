@@ -1054,24 +1054,27 @@ class Frame:
         """Token usage per model from the last execution."""
         return self._token_usage
 
-    def _write(self, path: str, max_threads: int | None = None) -> float:
+    def _write(self, path: str, max_threads: int | None = None) -> None:
         from docetl.runner import save_output
 
-        data, cost = self._execute(max_threads=max_threads)
+        data, _ = self._execute(max_threads=max_threads)
         save_output(data, path, get_console())
-        return cost
 
-    def write_json(self, path: str, max_threads: int | None = None) -> float:
-        """Execute the pipeline and write results to a JSON file. Returns total cost."""
-        return self._write(path, max_threads)
+    def write_json(self, path: str, max_threads: int | None = None) -> None:
+        """Execute the pipeline and write results to a JSON file.
 
-    def write_csv(self, path: str, max_threads: int | None = None) -> float:
-        """Execute the pipeline and write results to a CSV file. Returns total cost."""
-        return self._write(path, max_threads)
+        Cost and token usage are available afterwards via
+        ``frame.total_cost`` and ``frame.token_usage``.
+        """
+        self._write(path, max_threads)
 
-    def write_parquet(self, path: str, max_threads: int | None = None) -> float:
-        """Execute the pipeline and write results to a Parquet file. Returns total cost."""
-        return self._write(path, max_threads)
+    def write_csv(self, path: str, max_threads: int | None = None) -> None:
+        """Execute the pipeline and write results to a CSV file. See write_json."""
+        self._write(path, max_threads)
+
+    def write_parquet(self, path: str, max_threads: int | None = None) -> None:
+        """Execute the pipeline and write results to a Parquet file. See write_json."""
+        self._write(path, max_threads)
 
     # ── optimization ───────────────────────────────────────────────
 

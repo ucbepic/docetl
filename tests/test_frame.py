@@ -500,3 +500,13 @@ class TestCascadeParam:
             from_list([{"k": 2}], name="r"),
             comparison_prompt="c", cascade=cascade)
         assert joined._operations[0]["cascade"] == cascade
+
+
+def test_system_prompt_global_flows_into_config():
+    saved = _config.system_prompt
+    try:
+        _config.system_prompt = {"dataset_description": "transcripts", "persona": "a doctor"}
+        frame = from_list([{"x": 1}]).map(prompt="p", output={"schema": {"y": "str"}})
+        assert frame._build_config()["system_prompt"]["persona"] == "a doctor"
+    finally:
+        _config.system_prompt = saved

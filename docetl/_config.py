@@ -18,6 +18,10 @@ intermediate_dir: str | None = None
 # Rate limiting
 rate_limits: dict | None = None
 
+# Optional system prompt applied to all operations:
+# {"dataset_description": ..., "persona": ...}
+system_prompt: dict | None = None
+
 
 def runner_settings() -> dict:
     """Top-level runner config entries derived from the module-level settings.
@@ -36,4 +40,6 @@ def runner_settings() -> dict:
         settings["fallback_models"] = fallback_models
     if fallback_embedding_models:
         settings["fallback_embedding_models"] = fallback_embedding_models
+    if system_prompt:
+        settings["system_prompt"] = system_prompt
     return settings

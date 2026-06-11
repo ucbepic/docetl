@@ -27,6 +27,7 @@ Set global defaults as module-level attributes:
 | `docetl.rate_limits` | `dict` | `None` | Rate limits per model |
 | `docetl.fallback_models` | `list[str]` | `None` | Fallback chain on failure |
 | `docetl.fallback_embedding_models` | `list[str]` | `None` | Fallback embedding models |
+| `docetl.system_prompt` | `dict` | `None` | `{"dataset_description": ..., "persona": ...}` applied to all operations |
 
 ---
 
@@ -272,9 +273,9 @@ frame = (
 | `frame.show(max=5)` | `DataFrame` | Run on a sample and print results. Works on bare datasets too. |
 | `frame.collect()` | `DataFrame` | Execute full pipeline, return DataFrame |
 | `frame.to_list()` | `list[dict]` | Execute full pipeline, return list of dicts |
-| `frame.write_json(path)` | `float` | Execute and write to JSON. Returns cost. |
-| `frame.write_csv(path)` | `float` | Execute and write to CSV. Returns cost. |
-| `frame.write_parquet(path)` | `float` | Execute and write to Parquet. Returns cost. |
+| `frame.write_json(path)` | `None` | Execute and write to JSON |
+| `frame.write_csv(path)` | `None` | Execute and write to CSV |
+| `frame.write_parquet(path)` | `None` | Execute and write to Parquet |
 
 Terminal actions are memoized on the Frame: repeated calls with an unchanged configuration reuse the previous result instead of re-running the pipeline. Changing ops, in-memory data, or `docetl.*` settings invalidates the memo; edits to input *files* between calls are not detected.
 

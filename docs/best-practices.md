@@ -27,17 +27,31 @@ This guide outlines best practices for using DocETL effectively, focusing on the
 
    Example: Start with a simple extraction operation before adding resolution and summarization.
 
-   ```yaml
-   operations:
-     - name: extract_medications
-       type: map
-       output:
-         schema:
-           medication: list[str]
-       prompt: |
-         Extract and list all medications mentioned in the transcript:
-         {{ input.src }}
-   ```
+   === "YAML"
+
+       ```yaml
+       operations:
+         - name: extract_medications
+           type: map
+           output:
+             schema:
+               medication: list[str]
+           prompt: |
+             Extract and list all medications mentioned in the transcript:
+             {{ input.src }}
+       ```
+
+   === "Python"
+
+       ```python
+       pipeline = docetl.read_json("medical_transcripts.json")
+       pipeline = pipeline.map(
+           name="extract_medications",
+           prompt="""Extract and list all medications mentioned in the transcript:
+       {{ input.src }}""",
+           output={"schema": {"medication": "list[str]"}},
+       )
+       ```
 
 2. **Modular Design**: Break down complex tasks into smaller, manageable operations.
 
@@ -47,49 +61,89 @@ This guide outlines best practices for using DocETL effectively, focusing on the
 
    Example: After implementing the basic pipeline, you might optimize the `extract_medications` operation first:
 
-   ```yaml
-   operations:
-     - name: extract_medications
-       type: map
-       optimize: true
-       output:
-         schema:
-           medication: list[str]
-       prompt: |
-         Extract and list all medications mentioned in the transcript:
-         {{ input.src }}
-   ```
+   === "YAML"
+
+       ```yaml
+       operations:
+         - name: extract_medications
+           type: map
+           optimize: true
+           output:
+             schema:
+               medication: list[str]
+           prompt: |
+             Extract and list all medications mentioned in the transcript:
+             {{ input.src }}
+       ```
+
+   === "Python"
+
+       ```python
+       pipeline = pipeline.map(
+           name="extract_medications",
+           prompt="""Extract and list all medications mentioned in the transcript:
+       {{ input.src }}""",
+           output={"schema": {"medication": "list[str]"}},
+           optimize=True,
+       )
+       ```
 
 ## Schema and Prompt Design
 
 1. **Configure System Prompts**: Set up system prompts to provide context and establish the LLM's role for each operation. This helps generate more accurate and relevant responses.
 
-   Example:
-   ```yaml
-   system_prompt:
-     dataset_description: a collection of transcripts of doctor visits
-     persona: a medical practitioner analyzing patient symptoms and reactions to medications
-   ```
+   === "YAML"
 
-  The system prompt will be used as a system prompt for all operations in the pipeline.
+       ```yaml
+       system_prompt:
+         dataset_description: a collection of transcripts of doctor visits
+         persona: a medical practitioner analyzing patient symptoms and reactions to medications
+       ```
+
+   === "Python"
+
+       ```python
+       docetl.system_prompt = {
+           "dataset_description": "a collection of transcripts of doctor visits",
+           "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
+       }
+       ```
+
+   The system prompt will be used as a system prompt for all operations in the pipeline.
 
 2. **Keep Schemas Simple**: Use simple output schemas whenever possible. Complex nested structures can be difficult for LLMs to produce consistently.
 
    Good Example (Simple Schema):
 
-   ```yaml
-   output:
-     schema:
-       medication: list[str] # Note that this is different from the example in the tutorial.
-   ```
+   === "YAML"
+
+       ```yaml
+       output:
+         schema:
+           medication: list[str] # Note that this is different from the example in the tutorial.
+       ```
+
+   === "Python"
+
+       ```python
+       output={"schema": {"medication": "list[str]"}}
+       ```
 
    Avoid (Complex Nested Structure):
 
-   ```yaml
-   output:
-     schema:
-       medications: "list[{name: str, dosage: {amount: float, unit: str, frequency: str}}]"
-   ```
+   === "YAML"
+
+       ```yaml
+       output:
+         schema:
+           medications: "list[{name: str, dosage: {amount: float, unit: str, frequency: str}}]"
+       ```
+
+   === "Python"
+
+       ```python
+       output={"schema": {"medications": "list[{name: str, dosage: {amount: float, unit: str, frequency: str}}]"}}
+       ```
 
 3. **Clear and Concise Prompts**: Write clear, concise prompts for LLM operations, providing relevant context from input data. Instruct quantities (e.g., 2-3 insights, one summary) to guide the LLM.
 
@@ -140,21 +194,39 @@ This guide outlines best practices for using DocETL effectively, focusing on the
 
    Example: Adding validation to the `extract_medications` operation:
 
-   ```yaml
-   operations:
-     - name: extract_medications
-       type: map
-       output:
-         schema:
-           medication: list[str]
-       prompt: |
-         Extract and list all medications mentioned in the transcript:
-         {{ input.src }}
-       validate: |
-         len(output.medication) > 0
-         all(isinstance(med, str) for med in output.medication)
-         all(len(med) > 1 for med in output.medication)
-   ```
+   === "YAML"
+
+       ```yaml
+       operations:
+         - name: extract_medications
+           type: map
+           output:
+             schema:
+               medication: list[str]
+           prompt: |
+             Extract and list all medications mentioned in the transcript:
+             {{ input.src }}
+           validate: |
+             len(output.medication) > 0
+             all(isinstance(med, str) for med in output.medication)
+             all(len(med) > 1 for med in output.medication)
+       ```
+
+   === "Python"
+
+       ```python
+       pipeline = pipeline.map(
+           name="extract_medications",
+           prompt="""Extract and list all medications mentioned in the transcript:
+       {{ input.src }}""",
+           output={"schema": {"medication": "list[str]"}},
+           validate=[
+               "len(output.medication) > 0",
+               "all(isinstance(med, str) for med in output.medication)",
+               "all(len(med) > 1 for med in output.medication)",
+           ],
+       )
+       ```
 
 ## Handling Large Documents and Entity Resolution
 
@@ -164,14 +236,35 @@ This guide outlines best practices for using DocETL effectively, focusing on the
 
    Example: A more specific `resolve_medications` operation:
 
-   ```yaml
-   - name: resolve_medications
-     type: resolve
-     blocking_keys:
-       - medication
-     blocking_threshold: 0.6162
-     comparison_prompt: |
-       Compare the following two medication entries:
+   === "YAML"
+
+       ```yaml
+       - name: resolve_medications
+         type: resolve
+         blocking_keys:
+           - medication
+         blocking_threshold: 0.6162
+         comparison_prompt: |
+           Compare the following two medication entries:
+           Entry 1: {{ input1.medication }}
+           Entry 2: {{ input2.medication }}
+
+           Are these medications the same or closely related? Consider the following:
+           1. Are they different brand names for the same active ingredient?
+           2. Are they in the same drug class with similar effects?
+           3. Are they commonly used as alternatives for the same condition?
+
+           Respond with YES if they are the same or closely related, and NO if they are distinct medications.
+       ```
+
+   === "Python"
+
+       ```python
+       pipeline = pipeline.resolve(
+           name="resolve_medications",
+           blocking_keys=["medication"],
+           blocking_threshold=0.6162,
+           comparison_prompt="""Compare the following two medication entries:
        Entry 1: {{ input1.medication }}
        Entry 2: {{ input2.medication }}
 
@@ -180,18 +273,30 @@ This guide outlines best practices for using DocETL effectively, focusing on the
        2. Are they in the same drug class with similar effects?
        3. Are they commonly used as alternatives for the same condition?
 
-       Respond with YES if they are the same or closely related, and NO if they are distinct medications.
-   ```
+       Respond with YES if they are the same or closely related, and NO if they are distinct medications.""",
+       )
+       ```
 
 ## Optimization and Execution
 
 1. **Use the Optimizer**: Leverage DocETL's optimizer for complex pipelines or when dealing with large documents.
 
-   Example: Run the optimizer on your pipeline:
+   === "YAML"
 
-   ```bash
-   docetl build pipeline.yaml
-   ```
+       ```bash
+       docetl build pipeline.yaml
+       ```
+
+   === "Python"
+
+       ```python
+       optimized = pipeline.optimize(
+           eval_fn=my_eval_function,
+           metric_key="accuracy",
+       )
+       ```
+
+   See the [MOAR optimizer docs](optimization/moar.md) for details on evaluation functions.
 
 2. **Leverage Caching**: Take advantage of DocETL's caching mechanism to avoid redundant computations. DocETL caches by default.
 
@@ -209,29 +314,52 @@ This guide outlines best practices for using DocETL effectively, focusing on the
 
   Example:
 
-  ```yaml
-  operations:
-    - name: extract_medications
-      type: map
-      sample: 100
-      output:
-        schema:
-          medication: list[str]
-      prompt: |
-        Extract and list all medications mentioned in the transcript:
-        {{ input.src }}
-  ```
+  === "YAML"
+
+      ```yaml
+      operations:
+        - name: extract_medications
+          type: map
+          sample: 100
+          output:
+            schema:
+              medication: list[str]
+          prompt: |
+            Extract and list all medications mentioned in the transcript:
+            {{ input.src }}
+      ```
+
+  === "Python"
+
+      ```python
+      pipeline = pipeline.map(
+          name="extract_medications",
+          prompt="""Extract and list all medications mentioned in the transcript:
+      {{ input.src }}""",
+          output={"schema": {"medication": "list[str]"}},
+          sample=100,
+      )
+      ```
 
 - **Intermediate Output**: If you provide an intermediate directory in your configuration, the outputs of each operation will be saved to this directory. This allows you to inspect the results of individual steps in the pipeline and can be useful for debugging or analyzing the pipeline's progress.
 
   Example:
 
-  ```yaml
-  pipeline:
-    output:
-      type: file
-      path: medication_summaries.json
-      intermediate_dir: intermediate_results
-  ```
+  === "YAML"
+
+      ```yaml
+      pipeline:
+        output:
+          type: file
+          path: medication_summaries.json
+          intermediate_dir: intermediate_results
+      ```
+
+  === "Python"
+
+      ```python
+      docetl.intermediate_dir = "intermediate_results"  # relative to the CWD you run from
+      pipeline.write_json("medication_summaries.json")
+      ```
 
 By following these comprehensive best practices and examples, you can create more efficient, reliable, and maintainable DocETL pipelines for your data processing tasks. Remember to iterate on your pipeline design, continuously refine your prompts, and leverage DocETL's optimization features to get the best results.

@@ -55,6 +55,7 @@ _CONFIG_ATTRS = {
     "bypass_cache",
     "intermediate_dir",
     "rate_limits",
+    "system_prompt",
 }
 
 

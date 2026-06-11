@@ -49,6 +49,12 @@ docetl.intermediate_dir = ".cache" # intermediate results; relative to the CWD y
 docetl.rate_limits = {
     "llm_call": [{"count": 10, "per": 1, "unit": "second"}]
 }
+
+# Optional system prompt applied to all operations
+docetl.system_prompt = {
+    "dataset_description": "a collection of doctor visit transcripts",
+    "persona": "a medical practitioner analyzing patient symptoms",
+}
 ```
 
 **Precedence.** Settings layer from most to least specific: a per-operation
@@ -197,11 +203,11 @@ print(f"Tokens: {frame.token_usage}")
 print(f"Cost: ${df.attrs['_total_cost']:.4f}")
 ```
 
-Write methods return the cost directly:
+The same accessors work after a write:
 
 ```python
-cost = frame.write_json("output.json")
-print(f"Cost: ${cost:.4f}")
+frame.write_json("output.json")
+print(f"Cost: ${frame.total_cost:.4f}")
 ```
 
 ## Optimization

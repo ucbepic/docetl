@@ -139,6 +139,9 @@ packages = ["docetl"]
 include = ["docetl/**", "server/**", "README.md", "LICENSE", ".claude/skills/**"]
 exclude = ["website/**/*"]
 
+[tool.hatch.build.targets.wheel.force-include]
+".claude/skills/docetl" = "docetl/skills/docetl"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--basetemp=/tmp/pytest"

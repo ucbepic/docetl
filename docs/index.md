@@ -1,4 +1,4 @@
-# DocETL
+# DocETL { .center-title }
 
 <p align="center">
 <a href="https://github.com/ucbepic/docetl"><img src="https://img.shields.io/github/stars/ucbepic/docetl?style=social" alt="GitHub stars"></a>
@@ -14,7 +14,9 @@ DocETL is a declarative query engine and optimizer for LLM-powered data
 processing. Think of DocETL as an agentic map-reduce framework. It provides
 
 - high-level operations (map, reduce, filter, resolve, extract) that you
-  author in natural language and agents execute, and
+  author in natural language and agents execute,
+- structured, relational outputs (every operation declares a typed schema,
+  so results land as tables you can query), and
 - an optimizer that rewrites pipelines to be high-accuracy and
   cost-efficient, searching over models, prompts, and operation
   decompositions.
@@ -26,7 +28,7 @@ transcripts, and you care about output quality, cost, or both.
 
 ## Getting Started
 
-Pipelines can be written in Python or YAML. Both are first class:
+Write pipelines in Python, or in YAML if you prefer low-code / no-code. (There is also a [pandas accessor](pandas/index.md) for quick one-off operations on DataFrames.)
 
 === "Python"
 
@@ -53,10 +55,20 @@ Pipelines can be written in Python or YAML. Both are first class:
         output={"schema": {"top_themes": "list[{name: str, description: str, num_mentions: int}]"}},
     )
 
-    df = themes.collect()
+    df = themes.collect()  # nothing runs until this line
     ```
 
-    See the [Python API reference](api-reference/python.md) for the full reference.
+    `df` is a pandas DataFrame; `df["top_themes"][0]` looks like:
+
+    ```python
+    [
+        {"name": "onboarding friction", "description": "confusion during first-week setup", "num_mentions": 12},
+        {"name": "pricing transparency", "description": "unclear billing and plan limits", "num_mentions": 8},
+        ...
+    ]
+    ```
+
+    See the [User Guide](concepts/pipelines.md) for details.
 
 === "YAML"
 
@@ -100,16 +112,6 @@ Pipelines can be written in Python or YAML. Both are first class:
     ```
 
     See the [tutorial](tutorial.md) for a complete walkthrough.
-
-### Pandas Integration
-
-For quick exploration on existing DataFrames, use the `.semantic` accessor:
-
-```python
-df.semantic.map(prompt="...", output={"schema": {"field": "str"}})
-```
-
-See the [Pandas integration guide](pandas/index.md) for details.
 
 ## Project Origin
 

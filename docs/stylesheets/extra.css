@@ -103,3 +103,8 @@ a {
   max-width: 30rem;
   height: auto;
 }
+
+/* Centered landing-page title */
+.center-title {
+  text-align: center;
+}

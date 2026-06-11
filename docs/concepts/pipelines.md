@@ -1,22 +1,125 @@
 # Pipelines
 
-Pipelines in DocETL are the core structures that define the flow of data processing. They orchestrate the application of operators to datasets, creating a seamless workflow for complex chunk processing tasks.
+A pipeline applies a sequence of [operators](../concepts/operators.md) to a
+dataset and writes the result. The required pieces are:
 
-## Components of a Pipeline
+1. **Datasets**: the input data.
+2. **Operators**: the processing steps.
+3. **Pipeline specification**: the order of steps and the output location.
 
-A pipeline in DocETL consists of five main components:
+Optional settings (default model, system prompts, parsing tools) are covered
+[below](#configuration).
 
-1. **Default Model**: The language model to use for the pipeline.
-2. **System Prompts**: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data.
-3. **Datasets**: The input data sources for your pipeline.
-4. **Operators**: The processing steps that transform your data.
-5. **Pipeline Specification**: The sequence of steps and the output configuration.
+## Datasets
+
+A dataset is a JSON list of objects (or a CSV file of rows):
+
+=== "YAML"
+
+    ```yaml
+    datasets:
+      user_logs:
+        type: file
+        path: "user_logs.json"
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    user_logs = docetl.read_json("user_logs.json")
+    ```
+
+DocETL accepts JSON and CSV files as input (plus Parquet in the Python API).
+
+## Operators
+
+Operators define the transformations applied to your data — map, filter,
+reduce, resolve, and others. See the [Operators](../concepts/operators.md)
+documentation.
+
+## Pipeline Specification
+
+The pipeline specification lists the steps to execute and the output:
+
+=== "YAML"
+
+    ```yaml
+    pipeline:
+      steps:
+        - name: analyze_user_logs
+          input: user_logs
+          operations:
+            - extract_insights
+            - unnest_insights
+            - summarize_by_country
+      output:
+        type: file
+        path: "country_summaries.json"
+        intermediate_dir: "intermediate_data" # Optional: saves each operation's output
+    ```
+
+=== "Python"
+
+    In the Frame API, the pipeline is the chain of operations itself, and the
+    terminal write method defines the output:
+
+    ```python
+    import docetl
+
+    docetl.intermediate_dir = "intermediate_data"  # Optional: saves each operation's output
+
+    pipeline = docetl.read_json("user_logs.json")
+    pipeline = pipeline.map(name="extract_insights", ...)
+    pipeline = pipeline.unnest(name="unnest_insights", ...)
+    pipeline = pipeline.reduce(name="summarize_by_country", ...)
+    pipeline.write_json("country_summaries.json")
+    ```
+
+## Running a Pipeline
+
+=== "YAML"
+
+    ```bash
+    docetl run pipeline.yaml
+    ```
+
+=== "Python"
+
+    ```python
+    df = pipeline.collect()                # results as a DataFrame
+    pipeline.write_json("output.json")     # or write to a file
+    ```
+
+DocETL caches LLM results by default, so re-running a pipeline retrieves
+unchanged results from the cache instead of recomputing them. Clear it with
+`docetl clear-cache`.
+
+Relative paths — dataset `path`, output `path`, and `intermediate_dir` —
+resolve against the directory you run from, not the location of the YAML file
+or Python script.
+
+For a complete worked pipeline, see the [Tutorial](../tutorial.md).
+
+### The `run` command
+
+::: docetl.cli.run
+  handler: python
+  options:
+    members: - run
+  show_root_full_path: true
+  show_root_toc_entry: true
+  show_root_heading: true
+  show_source: false
+  show_name: true
+
+## Configuration
 
 ### Default Model
 
-You can set the default model for a pipeline in the YAML configuration file. If no model is specified at the operation level, the default model will be used.
-
-You can also tell DocETL to skip the dataset-level cache for the entire pipeline by enabling `bypass_cache`. When set to `true`, DocETL will neither read from nor write to its cache for any operation in that pipeline—which is helpful when you want to force fresh executions during development or debugging.
+Operations without an explicit `model` use the pipeline default. `bypass_cache`
+skips the LLM cache for the whole pipeline (overridable per operation):
 
 === "YAML"
 
@@ -34,28 +137,19 @@ You can also tell DocETL to skip the dataset-level cache for the entire pipeline
     docetl.bypass_cache = True  # optional – defaults to False
     ```
 
-`bypass_cache` can still be overridden at the operator level if required.
+!!! note "Self-hosted models"
+    If you're hosting your own models with an OpenAI-compatible API (Ollama,
+    LM Studio, etc.), you can specify the base URLs:
 
-You can also specify default API base URLs for language models and embeddings if you're hosting your own models with an OpenAI-compatible API:
-
-!!! note
-    If you're hosting your own models with an OpenAI-compatible API, you can specify the base URLs:
-    
     ```yaml
     default_lm_api_base: https://your-custom-llm-endpoint.com/v1
     default_embedding_api_base: https://your-custom-embedding-endpoint.com/v1
     ```
-    
-    This is particularly useful when working with self-hosted models or services like Ollama, LM Studio, or other API-compatible LLM servers.
 
 ### System Prompts
 
-System prompts provide context to the language model about the data it's processing and the role it should adopt. This helps guide the model's responses to be more relevant and domain-appropriate. There are two key components to system prompts in DocETL:
-
-1. **Dataset Description**: A concise explanation of what kind of data the model will be processing.
-2. **Persona**: The role or perspective the model should adopt when analyzing the data.
-
-Here's an example of how to define system prompts in your pipeline configuration:
+An optional description of the dataset and the persona the LLM should adopt,
+applied to every operation in the pipeline:
 
 === "YAML"
 
@@ -76,33 +170,10 @@ Here's an example of how to define system prompts in your pipeline configuration
     }
     ```
 
+### Parsing Tools (non-JSON inputs)
 
-### Datasets
-
-Datasets define the input data for your pipeline. They are collections of items/chunks, where each item/chunk is an object in a JSON list (or row in a CSV file). Datasets are typically specified in the YAML configuration file, indicating the type and path of the data source. For example:
-
-=== "YAML"
-
-    ```yaml
-    datasets:
-      user_logs:
-        type: file
-        path: "user_logs.json"
-    ```
-
-=== "Python"
-
-    ```python
-    import docetl
-
-    user_logs = docetl.read_json("user_logs.json")
-    ```
-
-#### Dynamic Data Loading
-
-DocETL supports dynamic data loading, allowing you to process various file types by specifying a key that points to a path or using a custom parsing function. This feature is particularly useful for handling diverse data sources, such as audio files, PDFs, or any other non-standard format.
-
-To implement dynamic data loading, you can use parsing tools in your dataset configuration. Here's an example:
+To process other file types (audio, PDFs, ...), point the dataset at a JSON
+file of paths and attach a parsing function:
 
 === "YAML"
 
@@ -135,87 +206,10 @@ To implement dynamic data loading, you can use parsing tools in your dataset con
     )
     ```
 
-In this example, the dataset configuration specifies a JSON file (audio_paths.json) that contains paths to audio files. The parsing_tools section defines how to process these files:
+- `input_key`: the key holding the path to the file to parse.
+- `function`: the parsing function (built-in or custom).
+- `output_key`: the key the parsed content is stored under — accessible in
+  prompts as `{{ input.transcript }}`.
 
-- `input_key`: Specifies which key in the JSON contains the path to the audio file. In this example, each object in the dataset should have a "audio_path" key, that represents a path to an audio file or mp3.
-- `function`: Names the parsing function to use (in this case, the built-in whisper_speech_to_text function for audio transcription).
-- `output_key`: Defines the key where the processed data (transcript) will be stored. You can access this in the pipeline in any prompts with the `{{ input.transcipt }}` syntax.
-
-This approach allows DocETL to dynamically load and process various file types, extending its capabilities beyond standard JSON or CSV inputs. You can use built-in parsing tools or define custom ones to handle specific file formats or data processing needs. See the [Custom Parsing](../examples/custom-parsing.md) documentation for more details.
-
-!!! note
-
-    Currently, DocETL only supports JSON files or CSV files as input datasets. If you're interested in support for other data types or cloud-based datasets, please reach out to us or join our open-source community and contribute! We welcome new ideas and contributions to expand the capabilities of DocETL.
-
-### Dataset Description and Persona
-
-You can define a description of your dataset and persona you want the LLM to adopt when executing operations on your dataset. This is useful for providing context to the LLM and for optimizing the operations.
-
-=== "YAML"
-
-    ```yaml
-    system_prompt: # This is optional, but recommended for better performance. It is applied to all operations in the pipeline.
-      dataset_description: a collection of transcripts of doctor visits
-      persona: a medical practitioner analyzing patient symptoms and reactions to medications
-    ```
-
-=== "Python"
-
-    ```python
-    import docetl
-
-    # This is optional, but recommended for better performance.
-    # It is applied to all operations in the pipeline.
-    docetl.system_prompt = {
-        "dataset_description": "a collection of transcripts of doctor visits",
-        "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
-    }
-    ```
-
-### Operators
-
-Operators are the building blocks of your pipeline, defining the transformations and analyses to be performed on your data. They are detailed in the [Operators](../concepts/operators.md) documentation. Operators can include map, reduce, filter, and other types of operations.
-
-### Pipeline Specification
-
-The pipeline specification outlines the sequence of steps to be executed and the final output configuration. It typically includes:
-
-- Steps: The sequence of operations to be applied to the data.
-- Output: The configuration for the final output of the pipeline.
-
-For example:
-
-=== "YAML"
-
-    ```yaml
-    pipeline:
-      steps:
-        - name: analyze_user_logs
-          input: user_logs
-          operations:
-            - extract_insights
-            - unnest_insights
-            - summarize_by_country
-      output:
-        type: file
-        path: "country_summaries.json"
-        intermediate_dir: "intermediate_data" # Optional: If you want to store intermediate outputs in a directory
-    ```
-
-=== "Python"
-
-    In the Frame API, the pipeline is the chain of operations itself, and the terminal write method defines the output:
-
-    ```python
-    import docetl
-
-    docetl.intermediate_dir = "intermediate_data"  # Optional: If you want to store intermediate outputs in a directory
-
-    pipeline = docetl.read_json("user_logs.json")
-    pipeline = pipeline.map(name="extract_insights", ...)
-    pipeline = pipeline.unnest(name="unnest_insights", ...)
-    pipeline = pipeline.reduce(name="summarize_by_country", ...)
-    pipeline.write_json("country_summaries.json")
-    ```
-
-For a practical example of how these components come together, refer to the [Tutorial](../tutorial.md), which demonstrates a complete pipeline for analyzing user behavior data.
+See [Custom Parsing](../examples/custom-parsing.md) for the available built-in
+tools and how to define your own.

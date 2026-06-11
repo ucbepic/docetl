@@ -44,7 +44,6 @@ nav:
           - Retrievers: retrievers.md
       - Running Pipelines:
           - Interactive Progress View: execution/interactive-progress.md
-          - Additional Notes: execution/running-pipelines.md
       - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md

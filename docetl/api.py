@@ -41,9 +41,8 @@ class Pipeline:
 
     .. deprecated::
         Prefer the Frame API (``docetl.read_json(...).map(...)``) for new
-        code; YAML pipelines remain fully supported. This class is kept for
-        backward compatibility and internal use (``DSLRunner`` builds one
-        from every config).
+        code. Kept for backward compatibility and internal use
+        (``DSLRunner`` builds one from every config).
     """
 
     _OP_TYPE_REGISTRY: dict[str, type] = {

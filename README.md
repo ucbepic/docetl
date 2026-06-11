@@ -21,7 +21,7 @@ DocETL helps you process large collections of data with LLMs. You write each ope
 - optimizes your pipeline automatically, swapping models, rewriting prompts, decomposing operations, and replacing subtasks with code wherever possible, to raise accuracy and cut cost, and
 - returns tables instead of free text (you declare each operation's output fields, e.g., `complaint` and `severity`, and every result row has them).
 
-Without DocETL, you design the graph of LLM calls and tune it for accuracy and cost yourself.
+Without DocETL, you write each LLM call yourself, wire them together, and tune the result for accuracy, cost, and latency by hand.
 
 <p align="center"><img src="docs/assets/docetl-overview.svg" alt="DocETL pipeline overview" width="720"></p>
 

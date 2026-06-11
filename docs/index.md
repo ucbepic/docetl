@@ -22,8 +22,8 @@ ticket," and DocETL
 - returns tables instead of free text (you declare each operation's output
   fields, e.g., `complaint` and `severity`, and every result row has them).
 
-Without DocETL, you design the graph of LLM calls and tune it for accuracy
-and cost yourself.
+Without DocETL, you write each LLM call yourself, wire them together, and
+tune the result for accuracy, cost, and latency by hand.
 
 
 ## Getting Started

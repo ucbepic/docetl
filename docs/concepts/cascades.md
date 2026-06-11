@@ -54,7 +54,7 @@ Add an opt-in `cascade:` block to a supported operator. The operator's existing
 
 | Parameter | Type | Description | Default |
 |---|---|---|---|
-| `proxy_model` | string | The cheap model to use for the proxy pass (required) | — |
+| `proxy_model` | string | The cheap model to use for the proxy pass (required). A chat model or an embedding model — see below | — |
 | `guarantee` | string | Statistical guarantee to enforce (see [Guarantees](#guarantees)) | operator-specific (see below) |
 | `target` | float | Target value for the guarantee metric, in `(0, 1)` (required) | — |
 | `delta` | float | Failure probability; the guarantee holds with probability `1 - delta` | `0.05` |
@@ -62,6 +62,31 @@ Add an opt-in `cascade:` block to a supported operator. The operator's existing
 
 The raw logprob threshold is deliberately **not** exposed — it is learned from
 the data, and exposing it would defeat the guarantee. You stay in metric-space.
+
+### Embedding models as the proxy
+
+`proxy_model` can also name an embedding model (e.g.
+`text-embedding-3-small`) — detected automatically from litellm's model
+registry. Instead of one cheap LLM call per item, the cascade embeds every
+item (batched), oracle-labels a training slice out of `label_budget`, fits a
+small logistic-regression head on those embeddings, and uses the head's
+probabilities as the proxy scores. The threshold search then runs as usual on
+the *remaining* budget, with disjoint labels so the statistical bounds stay
+valid. Training rows keep their oracle answers in the output, so no label is
+wasted.
+
+Embeddings cost orders of magnitude less than LLM calls and batch into a
+handful of requests, so this is the cheapest proxy for high-volume,
+semantically separable predicates (topical filters, near-duplicate checks).
+It is weaker on reasoning-shaped predicates — there the head's scores won't
+separate, the threshold search can't certify much, and items simply escalate
+to the oracle (the same graceful failure as a weak LLM proxy). If the
+training slice comes back all one class, the head can't be fit and everything
+escalates.
+
+Because part of the budget is spent fitting the head, give embedding proxies
+roughly **2× the `label_budget`** you'd give an LLM proxy (≥ 100 recommended
+for precision/recall guarantees).
 
 ## Guarantees
 

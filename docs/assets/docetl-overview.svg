@@ -42,35 +42,36 @@
 
   <!-- optimizer -->
   <rect x="356" y="78" width="228" height="148" rx="10" fill="#fcfcfd" stroke="#9aa0a8" stroke-width="1.2"/>
-  <text x="470" y="102" text-anchor="middle" font-size="13" fill="#3b4252" font-weight="600">optimizer</text>
+  <text x="470" y="97" text-anchor="middle" font-size="13" fill="#3b4252" font-weight="600">optimizer</text>
+  <text x="470" y="112" text-anchor="middle" font-size="10.5" fill="#8a8f98">(considers many rewrites)</text>
   <g fill="#f4f5f7" stroke="#c4c8ce" stroke-width="1.1">
-    <rect x="386" y="114" width="36" height="20" rx="5"/>
-    <rect x="432" y="114" width="36" height="20" rx="5"/>
-    <rect x="386" y="182" width="36" height="20" rx="5"/>
-    <rect x="432" y="182" width="36" height="20" rx="5"/>
-    <rect x="478" y="182" width="36" height="20" rx="5"/>
+    <rect x="386" y="122" width="36" height="20" rx="5"/>
+    <rect x="432" y="122" width="36" height="20" rx="5"/>
+    <rect x="386" y="188" width="36" height="20" rx="5"/>
+    <rect x="432" y="188" width="36" height="20" rx="5"/>
+    <rect x="478" y="188" width="36" height="20" rx="5"/>
   </g>
   <g fill="#eef0fb" stroke="#4051b5" stroke-width="1.4">
-    <rect x="386" y="148" width="36" height="20" rx="5"/>
-    <rect x="432" y="148" width="36" height="20" rx="5"/>
-    <rect x="478" y="148" width="36" height="20" rx="5"/>
+    <rect x="386" y="155" width="36" height="20" rx="5"/>
+    <rect x="432" y="155" width="36" height="20" rx="5"/>
+    <rect x="478" y="155" width="36" height="20" rx="5"/>
   </g>
   <g stroke="#c4c8ce" stroke-width="1.1">
-    <line x1="422" y1="124" x2="432" y2="124"/>
-    <line x1="422" y1="192" x2="432" y2="192"/>
-    <line x1="468" y1="192" x2="478" y2="192"/>
+    <line x1="422" y1="132" x2="432" y2="132"/>
+    <line x1="422" y1="198" x2="432" y2="198"/>
+    <line x1="468" y1="198" x2="478" y2="198"/>
   </g>
   <g stroke="#4051b5" stroke-width="1.2">
-    <line x1="422" y1="158" x2="432" y2="158"/>
-    <line x1="468" y1="158" x2="478" y2="158"/>
+    <line x1="422" y1="165" x2="432" y2="165"/>
+    <line x1="468" y1="165" x2="478" y2="165"/>
   </g>
   <g stroke="#b3b8bf" stroke-width="1.8" stroke-linecap="round">
-    <line x1="538" y1="118" x2="550" y2="130"/>
-    <line x1="550" y1="118" x2="538" y2="130"/>
-    <line x1="538" y1="186" x2="550" y2="198"/>
-    <line x1="550" y1="186" x2="538" y2="198"/>
+    <line x1="538" y1="126" x2="550" y2="138"/>
+    <line x1="550" y1="126" x2="538" y2="138"/>
+    <line x1="538" y1="192" x2="550" y2="204"/>
+    <line x1="550" y1="192" x2="538" y2="204"/>
   </g>
-  <path d="M 536 158 L 542 165 L 553 150" fill="none" stroke="#4051b5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 536 165 L 542 172 L 553 157" fill="none" stroke="#4051b5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
 
   <line x1="470" y1="226" x2="470" y2="258" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
 

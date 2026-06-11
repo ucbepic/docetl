@@ -17,9 +17,11 @@
 
 DocETL processes collections of documents with LLMs. You write each step in natural language, e.g., "pull out every complaint in this ticket," and DocETL
 
-- runs your steps as map, reduce, filter, resolve, and extract operations, parallelizing LLM calls across your documents,
+- provides the operators you need (map, reduce, filter, and more) and orchestrates them, parallelizing LLM calls across your documents,
 - returns structured tables you can query (every operation declares a typed schema), and
-- rewrites your pipeline to raise accuracy and cut cost, searching over models, prompts, and operation decompositions.
+- optimizes your pipeline automatically, searching over models, prompts, and operation decompositions to raise accuracy and cut cost.
+
+Without DocETL, you design the graph of LLM calls and tune it for accuracy and cost yourself.
 
 <p align="center"><img src="docs/assets/docetl-overview.svg" alt="DocETL pipeline overview" width="720"></p>
 

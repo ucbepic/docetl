@@ -13,9 +13,11 @@ optimizers for improving them:
   expensive model only sees the hard ones, with a statistical guarantee on
   quality. They run as part of normal execution — there is no separate step.
 
-**Recommendation:** use MOAR if you can write an evaluation function for your
-task. Add a cascade when one expensive binary operator dominates your cost.
-The two compose, and merging them into a single optimizer is on our roadmap.
+**Recommendation:** use MOAR when you can write an evaluation function and
+can wait — it runs the pipeline many times on data samples, so a search takes
+tens of minutes. Use a cascade when one expensive `filter`, `resolve`, or
+`equijoin` dominates your cost; it adds no extra runs. You can use both in
+the same pipeline. We plan to merge the two into one optimizer.
 
 ## Running MOAR
 

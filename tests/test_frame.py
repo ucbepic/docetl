@@ -240,3 +240,149 @@ class TestBuildRunner:
         frame = read_json(str(input_path)).map(**self._valid_map_kwargs())
         runner = frame._build_runner()
         assert runner.pipeline.output.path == ""
+
+
+class TestCheckpointSafety:
+    """Regressions for checkpoint hashing: previews, lineage, and mutation."""
+
+    def setup_method(self):
+        self._saved = (_config.default_model, _config.intermediate_dir)
+
+    def teardown_method(self):
+        _config.default_model, _config.intermediate_dir = self._saved
+
+    @staticmethod
+    def _doubler(data):
+        return from_list(data).code_map(
+            "double", code="def transform(doc): return {'y': doc['x'] * 2}"
+        )
+
+    def test_show_does_not_poison_collect(self, tmp_path):
+        _config.intermediate_dir = str(tmp_path / "ckpt")
+        data = [{"x": i} for i in range(20)]
+        frame = self._doubler(data)
+
+        assert len(frame.collect()) == 20
+        assert len(frame.show(max=3)) == 3
+        # show() must neither overwrite nor invalidate the full run's
+        # checkpoint: collect() still returns all rows.
+        assert len(frame.collect()) == 20
+
+    def test_input_data_change_invalidates_checkpoint(self, tmp_path):
+        _config.intermediate_dir = str(tmp_path / "ckpt")
+        first = self._doubler([{"x": 1}]).to_list()
+        second = self._doubler([{"x": 5}]).to_list()
+        assert first[0]["y"] == 2
+        assert second[0]["y"] == 10
+
+    def test_upstream_step_change_invalidates_downstream(self, tmp_path):
+        _config.intermediate_dir = str(tmp_path / "ckpt")
+        data = [{"x": 1}]
+
+        def pipeline(increment):
+            return (
+                from_list(data)
+                .code_map("a", code=f"def transform(doc): return {{'v': doc['x'] + {increment}}}")
+                .code_map("b", code="def transform(doc): return {'w': doc['v'] * 10}")
+            )
+
+        assert pipeline(1).to_list()[0]["w"] == 20
+        # 'b' is unchanged but its input lineage changed — it must re-run.
+        assert pipeline(2).to_list()[0]["w"] == 30
+
+    def test_equijoin_config_flows_into_downstream_hash(self, tmp_path):
+        _config.default_model = "gpt-4o-mini"
+        _config.intermediate_dir = str(tmp_path / "ckpt")
+
+        def hashes(comparison_prompt):
+            left = from_list([{"k": 1}], name="l")
+            right = from_list([{"k": 2}], name="r")
+            joined = left.equijoin(
+                right, "j", comparison_prompt=comparison_prompt
+            ).code_map("post", code="def transform(doc): return {'z': 1}")
+            runner = joined._build_runner()
+            return runner.step_op_hashes
+
+        h1 = hashes("prompt A {{ left.k }} {{ right.k }}")
+        h2 = hashes("prompt B {{ left.k }} {{ right.k }}")
+        assert h1["step_j"]["j"] != h2["step_j"]["j"]
+        assert h1["step_post"]["post"] != h2["step_post"]["post"]
+
+    def test_runner_does_not_mutate_frame_ops(self):
+        _config.default_model = "model-A"
+        frame = from_list([{"x": 1}]).map(
+            "m", prompt="p {{ input.x }}", output={"schema": {"s": "string"}}
+        )
+        frame._build_runner()
+        assert "model" not in frame._operations[0]
+
+
+class TestEquijoinChaining:
+    def test_joins_each_sides_last_step(self):
+        left = from_list([{"k": 1}], name="l").map(
+            "lm", prompt="x", output={"schema": {"a": "string"}})
+        right = from_list([{"k": 2}], name="r").map(
+            "rm", prompt="y", output={"schema": {"b": "string"}})
+        joined = left.equijoin(right, comparison_prompt="c")
+
+        cfg = joined._build_config()
+        op_names = [op["name"] for op in cfg["operations"]]
+        assert "lm" in op_names and "rm" in op_names
+        join_ref = cfg["pipeline"]["steps"][-1]["operations"][0]["equijoin_1"]
+        assert join_ref == {"left": "step_lm", "right": "step_rm"}
+
+    def test_namespace_collisions_renamed(self):
+        left = from_list([{"k": 1}]).map(prompt="L", output={"schema": {"a": "string"}})
+        right = from_list([{"k": 2}]).map(prompt="R", output={"schema": {"a": "string"}})
+        joined = left.equijoin(right, comparison_prompt="c")
+
+        cfg = joined._build_config()
+        names = [op["name"] for op in cfg["operations"]]
+        assert len(names) == len(set(names))
+        # Both default-named 'data' datasets survive, with different contents.
+        assert len(cfg["datasets"]) == 2
+        prompts = {op.get("prompt") for op in cfg["operations"] if op["type"] == "map"}
+        assert prompts == {"L", "R"}
+
+    def test_shared_ancestry_deduplicated(self):
+        base = from_list([{"k": 1}]).map("shared", prompt="s", output={"schema": {"a": "string"}})
+        left = base.filter("lf", prompt="l", output={"schema": {"keep": "boolean"}})
+        right = base.filter("rf", prompt="r", output={"schema": {"keep": "boolean"}})
+        joined = left.equijoin(right, comparison_prompt="c")
+
+        cfg = joined._build_config()
+        assert [op["name"] for op in cfg["operations"]].count("shared") == 1
+        step_names = [s["name"] for s in cfg["pipeline"]["steps"]]
+        assert step_names.count("step_shared") == 1
+
+    def test_raw_frames_join_datasets(self):
+        left = from_list([{"k": 1}], name="l")
+        right = from_list([{"k": 2}], name="r")
+        joined = left.equijoin(right, "j", comparison_prompt="c")
+        join_ref = joined._steps[-1]["operations"][0]["j"]
+        assert join_ref == {"left": "l", "right": "r"}
+
+
+class TestShowSampling:
+    def test_sampled_datasets_keep_parsing(self, tmp_path):
+        path = tmp_path / "in.json"
+        path.write_text(json.dumps([{"t": "alpha"}, {"t": "beta"}]))
+        frame = read_json(str(path), parsing=[
+            {"function": "txt_to_string", "input_key": "t", "output_key": "c"},
+        ])
+        sampled = frame._sample_datasets(1)
+        ds = sampled["in"]
+        assert ds["type"] == "memory"
+        assert len(ds["path"]) == 1
+        assert ds["parsing"] == frame._datasets["in"]["parsing"]
+
+    def test_bare_show_applies_parsing(self, tmp_path):
+        txt = tmp_path / "doc.txt"
+        txt.write_text("hello world")
+        path = tmp_path / "in.json"
+        path.write_text(json.dumps([{"f": str(txt)}]))
+        frame = read_json(str(path), parsing=[
+            {"function": "txt_to_string", "input_key": "f", "output_key": "content"},
+        ])
+        data = frame._load_input_data()
+        assert data[0]["content"] == "hello world"

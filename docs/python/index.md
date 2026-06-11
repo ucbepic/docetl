@@ -82,7 +82,7 @@ frame = frame.parallel_map(prompt="...", output={"schema": {"field": "type"}})
 frame = frame.filter(prompt="...", output={"schema": {"keep": "bool"}})
 frame = frame.reduce(reduce_key="col", prompt="...", output={"schema": {"result": "str"}})
 frame = frame.resolve(comparison_prompt="...", output={"schema": {"resolved": "str"}})
-frame = frame.extract(prompt="...", output={"schema": {"extracted": "str"}})
+frame = frame.extract(prompt="...", document_keys=["text"])
 
 # Joining two datasets
 right = docetl.read_json("other.json")
@@ -93,7 +93,7 @@ frame = frame.split(split_key="text", method="token_count", method_kwargs={"num_
 frame = frame.gather(content_key="chunk", doc_id_key="doc_id", order_key="chunk_num")
 frame = frame.unnest(unnest_key="items")
 frame = frame.cluster(embedding_keys=["text"])
-frame = frame.sample(samples={"category": {"n": 5}}, random=True)
+frame = frame.sample(method="uniform", samples=5, stratify_key="category")
 
 # Code operations (Python functions, no LLM)
 frame = frame.code_map(code="def transform(doc): return {'word_count': len(doc['text'].split())}")

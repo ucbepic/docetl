@@ -877,3 +877,19 @@ def test_semantic_map_parameter_validation(sample_df):
         model="gpt-4o-mini"
     )
     assert "topic" in result.columns
+
+
+def test_filter_output_schema_backward_compat(monkeypatch):
+    """filter(output_schema=...) maps to output={'schema': ...} like map/reduce."""
+    captured = {}
+
+    def fake_run(self, op_type, data, config, runner=None):
+        captured.update(config)
+        return [{"text": "a", "relevant": True}], 0.0
+
+    monkeypatch.setattr(SemanticAccessor, "_run_op_direct", fake_run)
+    df = pd.DataFrame({"text": ["a"]})
+    df.semantic.filter(prompt="p", output_schema={"relevant": "bool"})
+
+    assert captured["output"] == {"schema": {"relevant": "bool"}}
+    assert "output_schema" not in captured

@@ -89,7 +89,7 @@ class TestFromYaml:
         assert len(frame._steps) == 2
         assert frame._steps[0]["input"] == "docs"
         assert frame._steps[1]["input"] == "step1"
-        assert _config.default_model == "gpt-4o-mini"
+        assert frame._settings["default_model"] == "gpt-4o-mini"
 
     def test_roundtrip_yaml(self, sample_yaml):
         frame = Frame.from_yaml(sample_yaml)
@@ -97,10 +97,16 @@ class TestFromYaml:
         assert frame._operations[0]["prompt"] == "Summarize: {{ input.text }}"
         assert frame._operations[1]["reduce_key"] == "category"
 
-    def test_sets_global_config(self, sample_yaml):
+    def test_settings_stay_on_frame(self, sample_yaml):
+        """Loading a YAML must not touch process-wide settings; the frame
+        carries its own, and they win over the globals in its config."""
         _config.default_model = None
-        Frame.from_yaml(sample_yaml)
-        assert _config.default_model == "gpt-4o-mini"
+        frame = Frame.from_yaml(sample_yaml)
+        assert _config.default_model is None
+        assert frame._build_config()["default_model"] == "gpt-4o-mini"
+
+        _config.default_model = "globally-set"
+        assert frame._build_config()["default_model"] == "gpt-4o-mini"
 
 
 class TestToPython:
@@ -197,3 +203,47 @@ class TestToPython:
         code = frame.to_python()
         assert "docetl.read_parquet(" in code
         compile(code, "<test>", "exec")
+
+
+class TestCodegenEscaping:
+    def _round_trip_prompt(self, prompt):
+        import ast
+        frame = from_list([{"x": 1}]).map(
+            "m", prompt=prompt, output={"schema": {"s": "string"}})
+        code = frame.to_python()
+        tree = ast.parse(code)
+        found = [
+            node.value.value for node in ast.walk(tree)
+            if isinstance(node, ast.keyword) and node.arg == "prompt"
+            and isinstance(node.value, ast.Constant)
+        ]
+        assert found, code
+        return found[0]
+
+    def test_prompt_ending_in_quote(self):
+        prompt = 'Line one\nEnd with "'
+        assert self._round_trip_prompt(prompt) == prompt
+
+    def test_prompt_with_triple_quote(self):
+        prompt = 'Contains """ inside\nsecond line'
+        assert self._round_trip_prompt(prompt) == prompt
+
+    def test_prompt_with_backslashes(self):
+        prompt = "Path C:\\temp\\file\nregex \\d+"
+        assert self._round_trip_prompt(prompt) == prompt
+
+
+class TestEquijoinCodegen:
+    def test_chained_right_branch_rendered_inline(self):
+        left = from_list([{"k": 1}], name="l").map(
+            "lm", prompt="x", output={"schema": {"a": "string"}})
+        right = from_list([{"k": 2}], name="r").map(
+            "rm", prompt="y", output={"schema": {"b": "string"}})
+        joined = left.equijoin(right, comparison_prompt="c")
+
+        code = joined.to_python()
+        compile(code, "<test>", "exec")
+        assert ".equijoin(docetl.from_list(" in code
+        assert ".map('rm'" in code
+        # right-branch ops must not leak into the main chain
+        assert "\n    .map('rm'" not in code

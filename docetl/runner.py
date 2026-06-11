@@ -7,7 +7,10 @@ import json
 import os
 import time
 from collections import defaultdict
-from typing import Any
+
+# Avoid circular import — Pipeline is only needed for isinstance checks
+# and from_dict calls, so import lazily or use TYPE_CHECKING.
+from typing import TYPE_CHECKING, Any
 
 import pyrate_limiter
 from dotenv import load_dotenv
@@ -23,10 +26,6 @@ from docetl.operations.utils import APIWrapper
 from docetl.optimizer import Optimizer
 from docetl.ratelimiter import create_bucket_factory
 from docetl.utils import decrypt, load_config
-
-# Avoid circular import — Pipeline is only needed for isinstance checks
-# and from_dict calls, so import lazily or use TYPE_CHECKING.
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from docetl.api import Pipeline as PipelineType
@@ -57,10 +56,12 @@ def _create_router(console, fallback_models: list, router_type: str) -> Any | No
             continue
         if not name:
             continue
-        model_list.append({
-            "model_name": name,
-            "litellm_params": {**params, "model": name},
-        })
+        model_list.append(
+            {
+                "model_name": name,
+                "litellm_params": {**params, "model": name},
+            }
+        )
         names.append(name)
 
     if not model_list:
@@ -69,7 +70,7 @@ def _create_router(console, fallback_models: list, router_type: str) -> Any | No
         kwargs = {"model_list": model_list}
         if len(names) > 1:
             kwargs["fallbacks"] = [
-                {names[i]: names[i + 1:]} for i in range(len(names) - 1)
+                {names[i]: names[i + 1 :]} for i in range(len(names) - 1)
             ]
         router = Router(**kwargs)
         console.log(
@@ -98,7 +99,9 @@ class DSLRunner:
         config = load_config(yaml_file)
         return cls(config, base_name=base_name, yaml_file_suffix=suffix, **kwargs)
 
-    def __init__(self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs):
+    def __init__(
+        self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs
+    ):
         from docetl.api import Pipeline as PipelineCls
 
         if isinstance(config, PipelineCls):
@@ -133,6 +136,10 @@ class DSLRunner:
 
         self.datasets = {}
         self.intermediate_dir = self.pipeline.output.intermediate_dir
+        # Created once and filled in place by compute_operation_hashes, so the
+        # CheckpointStore's reference stays valid when hashes are recomputed
+        # (e.g. on optimizer resume).
+        self.step_op_hashes: defaultdict[str, dict[str, str]] = defaultdict(dict)
         self._setup_parsing_tools()
         self._setup_retrievers()
         build_operation_graph(self)
@@ -163,22 +170,43 @@ class DSLRunner:
 
     def _setup_routers(self) -> None:
         self.fallback_models_config = self.config.get("fallback_models", [])
-        self.router = _create_router(self.console, self.fallback_models_config, "completion")
+        self.router = _create_router(
+            self.console, self.fallback_models_config, "completion"
+        )
         self.embedding_router = _create_router(
             self.console, self.config.get("fallback_embedding_models", []), "embedding"
         )
         self._router_cache: dict[str, Any] = {}
 
     def _setup_checkpoints(self) -> None:
-        if self.intermediate_dir:
+        self._checkpoints = None
+
+    @property
+    def checkpoints(self):
+        """The checkpoint store for the current ``intermediate_dir``.
+
+        Resolved lazily so that setting ``intermediate_dir`` after
+        construction (e.g. in tests, or before a partial-results run)
+        behaves the same as passing it in the config.
+        """
+        if not self.intermediate_dir:
+            return None
+        if (
+            self._checkpoints is None
+            or self._checkpoints.base_dir != self.intermediate_dir
+        ):
             from docetl.checkpoint import CheckpointStore
-            self.checkpoints: "CheckpointStore | None" = CheckpointStore(
+
+            # Hashes are skipped when no intermediate_dir is configured at
+            # init, so fill them in now that checkpointing is active.
+            if not self.step_op_hashes:
+                compute_operation_hashes(self)
+            self._checkpoints = CheckpointStore(
                 self.intermediate_dir,
                 self.step_op_hashes,
                 bypass=self.config.get("bypass_cache", False),
             )
-        else:
-            self.checkpoints = None
+        return self._checkpoints
 
     def reset_env(self):
         os.environ = self._original_env
@@ -224,6 +252,9 @@ class DSLRunner:
                     raise ValueError(
                         f"Retriever '{name}' missing required key '{key}'."
                     )
+            # Copy before applying defaults — rconf may be a dict shared with
+            # the caller (e.g. a Frame Retriever's config).
+            rconf = dict(rconf)
             rconf.setdefault("query", {"top_k": 5})
             rconf.setdefault("build_index", "if_missing")
 
@@ -268,7 +299,9 @@ class DSLRunner:
     def print_query_plan(self, show_boundaries=False):
         if not self.last_op_container:
             self.console.log("\n[bold]Pipeline Steps:[/bold]")
-            self.console.log(Panel("No operations in pipeline", title="Query Plan", width=100))
+            self.console.log(
+                Panel("No operations in pipeline", title="Query Plan", width=100)
+            )
             self.console.log()
             return
 
@@ -364,7 +397,10 @@ class DSLRunner:
         for name, ds in self.pipeline.datasets.items():
             parsing = ds.parsing or []
             self.datasets[name] = DataLoader(
-                self, ds.type, ds.path, source="local",
+                self,
+                ds.type,
+                ds.path,
+                source="local",
                 parsing=parsing,
                 user_defined_parsing_tool_map=self.parsing_tool_map,
             )
@@ -386,6 +422,7 @@ class DSLRunner:
                     json.dump(data, file, indent=2)
             elif out.path.lower().endswith(".parquet"):
                 import pandas as pd
+
                 pd.DataFrame(data).to_parquet(out.path, index=False)
             else:  # CSV
                 import csv
@@ -397,9 +434,7 @@ class DSLRunner:
                     ]
                     writer.writeheader()
                     writer.writerows(limited_data)
-            self.console.log(
-                f"[green]✓[/green] Saved to [dim]{out.path}[/dim]\n"
-            )
+            self.console.log(f"[green]✓[/green] Saved to [dim]{out.path}[/dim]\n")
         else:
             raise ValueError(
                 f"Unsupported output type: {out.type}. Supported types: file"
@@ -414,8 +449,12 @@ class DSLRunner:
     def _prepare_optimizer_kwargs(self, **kwargs) -> dict:
         opt_cfg = self.pipeline.optimizer_config or {}
         kwargs.setdefault("litellm_kwargs", opt_cfg.get("litellm_kwargs", {}))
-        kwargs.setdefault("rewrite_agent_model", opt_cfg.get("rewrite_agent_model", "gpt-5.1"))
-        kwargs.setdefault("judge_agent_model", opt_cfg.get("judge_agent_model", "gpt-4o-mini"))
+        kwargs.setdefault(
+            "rewrite_agent_model", opt_cfg.get("rewrite_agent_model", "gpt-5.1")
+        )
+        kwargs.setdefault(
+            "judge_agent_model", opt_cfg.get("judge_agent_model", "gpt-4o-mini")
+        )
         return kwargs
 
     def should_optimize(
@@ -480,8 +519,12 @@ class DSLRunner:
     ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation]:
         operation_class = get_operation(op_config["type"])
         operation_instance = operation_class(
-            runner=self, config=op_config, default_model=self.default_model,
-            max_threads=self.max_threads, console=self.console, status=self.status,
+            runner=self,
+            config=op_config,
+            default_model=self.default_model,
+            max_threads=self.max_threads,
+            console=self.console,
+            status=self.status,
         )
         if op_config["type"] == "equijoin":
             output_data, cost = operation_instance.execute(

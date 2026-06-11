@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from docetl.containers import OpContainer, StepBoundary
@@ -42,10 +41,13 @@ def _add_scan_operation(runner: DSLRunner, step: dict, dataset_name: str) -> Non
     runner.last_op_container = _make_scan_container(runner, step["name"], dataset_name)
 
 
-def _make_scan_container(runner: DSLRunner, step_name: str, dataset_name: str) -> OpContainer:
+def _make_scan_container(
+    runner: DSLRunner, step_name: str, dataset_name: str
+) -> OpContainer:
     key = f"{step_name}/scan_{dataset_name}"
     container = OpContainer(
-        key, runner,
+        key,
+        runner,
         {"type": "scan", "dataset_name": dataset_name, "name": f"scan_{dataset_name}"},
     )
     runner.op_container_map[key] = container
@@ -63,9 +65,11 @@ def _add_equijoin_operation(runner: DSLRunner, step: dict) -> None:
     right_scan = _make_scan_container(runner, step["name"], right_name)
 
     equijoin = OpContainer(
-        f"{step['name']}/{equijoin_op_name}", runner,
+        f"{step['name']}/{equijoin_op_name}",
+        runner,
         runner.find_operation(equijoin_op_name),
-        left_name=left_name, right_name=right_name,
+        left_name=left_name,
+        right_name=right_name,
     )
     equijoin.add_child(left_scan)
     equijoin.add_child(right_scan)
@@ -111,24 +115,62 @@ def _add_step_boundary(runner: DSLRunner, step: dict) -> None:
 
 
 def compute_operation_hashes(runner: DSLRunner) -> None:
-    runner.step_op_hashes = defaultdict(dict)
+    """Compute checkpoint-invalidation hashes for every operation.
+
+    An operation's hash covers everything that determines its output: its
+    own config (with the effective model resolved), every upstream op in
+    the same step — including equijoin entries — and the full lineage of
+    the step's input: the input dataset's config (for memory datasets,
+    the data itself) or, when the input is a previous step, that step's
+    final hash. Hashes are built from derived views; the caller's config
+    dicts are never mutated.
+
+    Fills ``runner.step_op_hashes`` in place so references held elsewhere
+    (e.g. the CheckpointStore) stay valid across recomputation.
+    """
+    runner.step_op_hashes.clear()
+    if not runner.intermediate_dir:
+        return  # hashes are only consumed by the checkpoint store
+
+    datasets = runner.config.get("datasets", {})
+    system_prompt = runner.pipeline.other_config.get("system_prompt", {})
+    step_final_hash: dict[str, str] = {}
+
+    def effective(op_cfg: dict) -> dict:
+        if "model" in op_cfg:
+            return op_cfg
+        return {**op_cfg, "model": runner.default_model}
+
+    def input_token(name: str | None) -> dict | None:
+        if name is None:
+            return None
+        if name in step_final_hash:
+            return {"step": name, "hash": step_final_hash[name]}
+        return {"dataset": name, "config": datasets.get(name)}
+
+    def hash_chain(chain: list) -> str:
+        payload = json.dumps(chain, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode()).hexdigest()
 
     for step in runner.pipeline.steps:
-        for idx, entry in enumerate(step.operations):
-            op_name = entry if isinstance(entry, str) else list(entry.keys())[0]
+        chain: list = [
+            {"system_prompt": system_prompt},
+            input_token(step.input),
+        ]
+        for entry in step.operations:
+            if isinstance(entry, str):
+                op_name = entry
+                chain.append(effective(runner._op_map[op_name]))
+            else:
+                op_name = next(iter(entry))
+                join_cfg = entry[op_name]
+                chain.append(
+                    {
+                        "equijoin": effective(runner._op_map[op_name]),
+                        "left": input_token(join_cfg.get("left")),
+                        "right": input_token(join_cfg.get("right")),
+                    }
+                )
+            runner.step_op_hashes[step.name][op_name] = hash_chain(chain)
 
-            all_ops_until_and_including_current = (
-                [runner._op_map[prev] for prev in step.operations[:idx]
-                 if isinstance(prev, str)]
-                + [runner._op_map[op_name]]
-                + [runner.pipeline.other_config.get("system_prompt", {})]
-            )
-
-            for op_cfg in all_ops_until_and_including_current:
-                if isinstance(op_cfg, dict) and "model" not in op_cfg:
-                    op_cfg["model"] = runner.default_model
-
-            all_ops_str = json.dumps(all_ops_until_and_including_current)
-            runner.step_op_hashes[step.name][op_name] = hashlib.sha256(
-                all_ops_str.encode()
-            ).hexdigest()
+        step_final_hash[step.name] = hash_chain(chain)

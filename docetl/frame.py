@@ -19,29 +19,43 @@ Usage::
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from docetl import _config
 
+if TYPE_CHECKING:
+    import pandas as pd
 
-def _read_file(path: str) -> list[dict] | None:
-    """Read a JSON/CSV/Parquet file as a list of dicts.
+# Top-level pipeline config keys a Frame carries with it (set by from_yaml).
+# These take precedence over the module-level ``docetl.<attr>`` globals.
+_SETTING_KEYS = (
+    "default_model",
+    "rate_limits",
+    "bypass_cache",
+    "fallback_models",
+    "fallback_embedding_models",
+    "parsing_tools",
+    "system_prompt",
+)
 
-    Returns ``None`` for unsupported file types so callers can fall back.
-    """
-    lower = path.lower()
-    if lower.endswith(".json"):
-        import json
-        with open(path) as f:
-            return json.load(f)
-    elif lower.endswith(".csv"):
-        import csv
-        with open(path, newline="") as f:
-            return list(csv.DictReader(f))
-    elif lower.endswith(".parquet"):
-        import pandas as pd
-        return pd.read_parquet(path).to_dict(orient="records")
-    return None
+
+def _load_dataset(
+    ds: dict[str, Any],
+    parsing_tools: list[dict] | None = None,
+    apply_parsing: bool = True,
+) -> list[dict]:
+    """Load a dataset config through DataLoader (the same loader execution
+    uses), so file formats and parsing tools behave identically here."""
+    from docetl.dataset import DataLoader, create_parsing_tool_map
+
+    parsing = ds.get("parsing") if apply_parsing else None
+    return DataLoader(
+        None,
+        ds.get("type", "memory"),
+        ds.get("path", []),
+        parsing=parsing,
+        user_defined_parsing_tool_map=create_parsing_tool_map(parsing_tools),
+    ).load()
 
 
 class Retriever:
@@ -90,8 +104,8 @@ class Frame:
         _last_step: str | None = None,
         _first_dataset: str | None = None,
         _op_counter: dict[str, int] | None = None,
-        _extra_datasets: dict[str, dict[str, Any]] | None = None,
         _retrievers: dict[str, dict[str, Any]] | None = None,
+        _settings: dict[str, Any] | None = None,
     ):
         self._datasets = datasets
         self._operations = operations or []
@@ -99,8 +113,10 @@ class Frame:
         self._last_step = _last_step
         self._first_dataset = _first_dataset or next(iter(datasets), None)
         self._op_counter = _op_counter or {}
-        self._extra_datasets = _extra_datasets or {}
         self._retrievers = _retrievers or {}
+        # Per-frame pipeline settings (see _SETTING_KEYS). These travel with
+        # the Frame and take precedence over the docetl.<attr> globals.
+        self._settings = _settings or {}
         self._total_cost: float = 0.0
         self._token_usage: dict[str, dict[str, int]] = {}
 
@@ -112,8 +128,8 @@ class Frame:
             _last_step=self._last_step,
             _first_dataset=self._first_dataset,
             _op_counter=dict(self._op_counter),
-            _extra_datasets=dict(self._extra_datasets),
             _retrievers=dict(self._retrievers),
+            _settings=dict(self._settings),
         )
         kw.update(overrides)
         return Frame(**kw)
@@ -125,8 +141,12 @@ class Frame:
         counter[op_type] = counter.get(op_type, 0) + 1
         return f"{op_type}_{counter[op_type]}", counter
 
-    def _append_op(self, op_type: str, name: str | None, config: dict[str, Any]) -> Frame:
-        name_val, new_counter = self._auto_name(op_type) if name is None else (name, self._op_counter)
+    def _append_op(
+        self, op_type: str, name: str | None, config: dict[str, Any]
+    ) -> Frame:
+        name_val, new_counter = (
+            self._auto_name(op_type) if name is None else (name, self._op_counter)
+        )
 
         new_retrievers = dict(self._retrievers)
         retriever = config.get("retriever")
@@ -134,7 +154,11 @@ class Frame:
             new_retrievers[retriever._name] = retriever._config
             config = {**config, "retriever": retriever._name}
 
-        op = {"name": name_val, "type": op_type, **{k: v for k, v in config.items() if v is not None}}
+        op = {
+            "name": name_val,
+            "type": op_type,
+            **{k: v for k, v in config.items() if v is not None},
+        }
 
         step_input = self._last_step or self._first_dataset
         step_name = f"step_{name_val}"
@@ -151,19 +175,125 @@ class Frame:
         )
         return new
 
-    def _append_equijoin(self, name: str, left: str, right: str, config: dict[str, Any]) -> Frame:
-        op = {"name": name, "type": "equijoin", **{k: v for k, v in config.items() if v is not None}}
-        step_name = f"step_{name}"
+    def _append_equijoin(
+        self, name: str | None, left: str, right: str, config: dict[str, Any]
+    ) -> Frame:
+        name_val, new_counter = (
+            self._auto_name("equijoin") if name is None else (name, self._op_counter)
+        )
+        op = {
+            "name": name_val,
+            "type": "equijoin",
+            **{k: v for k, v in config.items() if v is not None},
+        }
+        step_name = f"step_{name_val}"
         step: dict[str, Any] = {
             "name": step_name,
-            "operations": [{name: {"left": left, "right": right}}],
+            "operations": [{name_val: {"left": left, "right": right}}],
         }
 
         return self._copy(
             operations=self._operations + [op],
             steps=self._steps + [step],
             _last_step=step_name,
+            _op_counter=dict(new_counter),
         )
+
+    def _merge_pipeline(self, right: Frame) -> tuple[dict[str, Any], str | None]:
+        """Merge *right*'s datasets, operations, steps, and retrievers into
+        this frame's namespace so the two can be joined.
+
+        Identically-defined entries (shared ancestry) are shared; a name that
+        collides with a different definition gets a unique suffix on the
+        right side, with all references inside right's steps and ops
+        rewritten to match. Returns ``_copy`` kwargs for the merged frame
+        plus right's join input (its last step, or its source dataset) under
+        its post-merge name.
+        """
+        ds_ren: dict[str, str] = {}
+        op_ren: dict[str, str] = {}
+        step_ren: dict[str, str] = {}
+        ret_ren: dict[str, str] = {}
+
+        datasets = dict(self._datasets)
+        for name, cfg in right._datasets.items():
+            if name in datasets and datasets[name] != cfg:
+                ds_ren[name] = _unique(name, datasets)
+                datasets[ds_ren[name]] = cfg
+            else:
+                datasets[name] = cfg
+
+        retrievers = dict(self._retrievers)
+        for name, cfg in right._retrievers.items():
+            if name in retrievers and retrievers[name] != cfg:
+                ret_ren[name] = _unique(name, retrievers)
+                retrievers[ret_ren[name]] = cfg
+            else:
+                retrievers[name] = cfg
+
+        operations = list(self._operations)
+        ops_by_name = {op["name"]: op for op in operations}
+        for op in right._operations:
+            op = dict(op)
+            if op.get("retriever") in ret_ren:
+                op["retriever"] = ret_ren[op["retriever"]]
+            existing = ops_by_name.get(op["name"])
+            if existing == op:
+                continue
+            if existing is not None:
+                op_ren[op["name"]] = _unique(op["name"], ops_by_name)
+                op["name"] = op_ren[op["name"]]
+            operations.append(op)
+            ops_by_name[op["name"]] = op
+
+        def ref(name: str) -> str:
+            return step_ren.get(name, ds_ren.get(name, name))
+
+        steps = list(self._steps)
+        steps_by_name = {s["name"]: s for s in steps}
+        for step in right._steps:
+            step = dict(step)
+            if step.get("input"):
+                step["input"] = ref(step["input"])
+            step["operations"] = [
+                (
+                    op_ren.get(entry, entry)
+                    if isinstance(entry, str)
+                    else {
+                        op_ren.get(jn, jn): {side: ref(v) for side, v in jc.items()}
+                        for jn, jc in entry.items()
+                    }
+                )
+                for entry in step.get("operations", [])
+            ]
+            existing = steps_by_name.get(step["name"])
+            if existing == step:
+                continue
+            if existing is not None:
+                step_ren[step["name"]] = _unique(step["name"], steps_by_name)
+                step["name"] = step_ren[step["name"]]
+            steps.append(step)
+            steps_by_name[step["name"]] = step
+
+        counter = dict(self._op_counter)
+        for k, v in right._op_counter.items():
+            counter[k] = max(counter.get(k, 0), v)
+
+        right_input = (
+            ref(right._last_step)
+            if right._last_step
+            else ds_ren.get(right._first_dataset, right._first_dataset)
+        )
+
+        kw = dict(
+            datasets=datasets,
+            operations=operations,
+            steps=steps,
+            _op_counter=counter,
+            _retrievers=retrievers,
+            _settings={**right._settings, **self._settings},
+        )
+        return kw, right_input
 
     # ── LLM operations ─────────────────────────────────────────────
 
@@ -195,24 +325,35 @@ class Frame:
         retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("map", name, {
-            "prompt": prompt, "output": output, "model": model,
-            "optimize": optimize, "recursively_optimize": recursively_optimize,
-            "sample": sample, "tools": tools,
-            "validate": validate,
-            "num_retries_on_validate_failure": num_retries_on_validate_failure,
-            "drop_keys": drop_keys, "timeout": timeout,
-            "enable_observability": enable_observability,
-            "max_batch_size": max_batch_size, "clustering_method": clustering_method,
-            "batch_prompt": batch_prompt,
-            "litellm_completion_kwargs": litellm_completion_kwargs,
-            "pdf_url_key": pdf_url_key,
-            "flush_partial_results": flush_partial_results,
-            "limit": limit, "calibrate": calibrate,
-            "num_calibration_docs": num_calibration_docs,
-            "retriever": retriever,
-            **kwargs,
-        })
+        return self._append_op(
+            "map",
+            name,
+            {
+                "prompt": prompt,
+                "output": output,
+                "model": model,
+                "optimize": optimize,
+                "recursively_optimize": recursively_optimize,
+                "sample": sample,
+                "tools": tools,
+                "validate": validate,
+                "num_retries_on_validate_failure": num_retries_on_validate_failure,
+                "drop_keys": drop_keys,
+                "timeout": timeout,
+                "enable_observability": enable_observability,
+                "max_batch_size": max_batch_size,
+                "clustering_method": clustering_method,
+                "batch_prompt": batch_prompt,
+                "litellm_completion_kwargs": litellm_completion_kwargs,
+                "pdf_url_key": pdf_url_key,
+                "flush_partial_results": flush_partial_results,
+                "limit": limit,
+                "calibrate": calibrate,
+                "num_calibration_docs": num_calibration_docs,
+                "retriever": retriever,
+                **kwargs,
+            },
+        )
 
     def parallel_map(
         self,
@@ -225,11 +366,18 @@ class Frame:
         pdf_url_key: str | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("parallel_map", name, {
-            "prompts": prompts, "output": output, "drop_keys": drop_keys,
-            "enable_observability": enable_observability,
-            "pdf_url_key": pdf_url_key, **kwargs,
-        })
+        return self._append_op(
+            "parallel_map",
+            name,
+            {
+                "prompts": prompts,
+                "output": output,
+                "drop_keys": drop_keys,
+                "enable_observability": enable_observability,
+                "pdf_url_key": pdf_url_key,
+                **kwargs,
+            },
+        )
 
     def filter(
         self,
@@ -249,14 +397,25 @@ class Frame:
         retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("filter", name, {
-            "prompt": prompt, "output": output, "model": model,
-            "optimize": optimize, "tools": tools,
-            "validate": validate, "drop_keys": drop_keys,
-            "timeout": timeout, "max_batch_size": max_batch_size,
-            "litellm_completion_kwargs": litellm_completion_kwargs,
-            "limit": limit, "retriever": retriever, **kwargs,
-        })
+        return self._append_op(
+            "filter",
+            name,
+            {
+                "prompt": prompt,
+                "output": output,
+                "model": model,
+                "optimize": optimize,
+                "tools": tools,
+                "validate": validate,
+                "drop_keys": drop_keys,
+                "timeout": timeout,
+                "max_batch_size": max_batch_size,
+                "litellm_completion_kwargs": litellm_completion_kwargs,
+                "limit": limit,
+                "retriever": retriever,
+                **kwargs,
+            },
+        )
 
     def reduce(
         self,
@@ -284,19 +443,33 @@ class Frame:
         retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("reduce", name, {
-            "reduce_key": reduce_key, "prompt": prompt, "output": output,
-            "model": model, "input": input, "optimize": optimize,
-            "synthesize_resolve": synthesize_resolve,
-            "pass_through": pass_through, "associative": associative,
-            "fold_prompt": fold_prompt, "fold_batch_size": fold_batch_size,
-            "merge_prompt": merge_prompt, "merge_batch_size": merge_batch_size,
-            "value_sampling": value_sampling, "verbose": verbose,
-            "timeout": timeout,
-            "litellm_completion_kwargs": litellm_completion_kwargs,
-            "enable_observability": enable_observability,
-            "limit": limit, "retriever": retriever, **kwargs,
-        })
+        return self._append_op(
+            "reduce",
+            name,
+            {
+                "reduce_key": reduce_key,
+                "prompt": prompt,
+                "output": output,
+                "model": model,
+                "input": input,
+                "optimize": optimize,
+                "synthesize_resolve": synthesize_resolve,
+                "pass_through": pass_through,
+                "associative": associative,
+                "fold_prompt": fold_prompt,
+                "fold_batch_size": fold_batch_size,
+                "merge_prompt": merge_prompt,
+                "merge_batch_size": merge_batch_size,
+                "value_sampling": value_sampling,
+                "verbose": verbose,
+                "timeout": timeout,
+                "litellm_completion_kwargs": litellm_completion_kwargs,
+                "enable_observability": enable_observability,
+                "limit": limit,
+                "retriever": retriever,
+                **kwargs,
+            },
+        )
 
     def resolve(
         self,
@@ -322,23 +495,31 @@ class Frame:
         enable_observability: bool | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("resolve", name, {
-            "comparison_prompt": comparison_prompt,
-            "resolution_prompt": resolution_prompt, "output": output,
-            "embedding_model": embedding_model,
-            "resolution_model": resolution_model,
-            "comparison_model": comparison_model,
-            "blocking_keys": blocking_keys,
-            "blocking_threshold": blocking_threshold,
-            "blocking_target_recall": blocking_target_recall,
-            "blocking_conditions": blocking_conditions,
-            "input": input, "embedding_batch_size": embedding_batch_size,
-            "compare_batch_size": compare_batch_size,
-            "limit_comparisons": limit_comparisons, "optimize": optimize,
-            "timeout": timeout,
-            "litellm_completion_kwargs": litellm_completion_kwargs,
-            "enable_observability": enable_observability, **kwargs,
-        })
+        return self._append_op(
+            "resolve",
+            name,
+            {
+                "comparison_prompt": comparison_prompt,
+                "resolution_prompt": resolution_prompt,
+                "output": output,
+                "embedding_model": embedding_model,
+                "resolution_model": resolution_model,
+                "comparison_model": comparison_model,
+                "blocking_keys": blocking_keys,
+                "blocking_threshold": blocking_threshold,
+                "blocking_target_recall": blocking_target_recall,
+                "blocking_conditions": blocking_conditions,
+                "input": input,
+                "embedding_batch_size": embedding_batch_size,
+                "compare_batch_size": compare_batch_size,
+                "limit_comparisons": limit_comparisons,
+                "optimize": optimize,
+                "timeout": timeout,
+                "litellm_completion_kwargs": litellm_completion_kwargs,
+                "enable_observability": enable_observability,
+                **kwargs,
+            },
+        )
 
     def equijoin(
         self,
@@ -362,32 +543,36 @@ class Frame:
         litellm_completion_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Frame:
-        if name is None:
-            name, _ = self._auto_name("equijoin")
-
-        all_datasets = {**self._datasets, **right._datasets}
-        left_ds = self._first_dataset
-        right_ds = right._first_dataset
-
         config = {
-            k: v for k, v in {
-                "comparison_prompt": comparison_prompt, "output": output,
+            k: v
+            for k, v in {
+                "comparison_prompt": comparison_prompt,
+                "output": output,
                 "blocking_threshold": blocking_threshold,
                 "blocking_target_recall": blocking_target_recall,
-                "blocking_conditions": blocking_conditions, "limits": limits,
-                "comparison_model": comparison_model, "optimize": optimize,
+                "blocking_conditions": blocking_conditions,
+                "limits": limits,
+                "comparison_model": comparison_model,
+                "optimize": optimize,
                 "embedding_model": embedding_model,
                 "embedding_batch_size": embedding_batch_size,
                 "compare_batch_size": compare_batch_size,
                 "limit_comparisons": limit_comparisons,
-                "blocking_keys": blocking_keys, "timeout": timeout,
+                "blocking_keys": blocking_keys,
+                "timeout": timeout,
                 "litellm_completion_kwargs": litellm_completion_kwargs,
                 **kwargs,
-            }.items() if v is not None
+            }.items()
+            if v is not None
         }
 
-        new = self._copy(datasets=all_datasets)
-        return new._append_equijoin(name, left_ds, right_ds, config)
+        # Join each side's *current* output: the last step if operations have
+        # been chained, otherwise the raw source dataset.
+        merged_kw, right_input = self._merge_pipeline(right)
+        left_input = self._last_step or self._first_dataset
+        return self._copy(**merged_kw)._append_equijoin(
+            name, left_input, right_input, config
+        )
 
     def extract(
         self,
@@ -405,14 +590,23 @@ class Frame:
         retriever: Retriever | str | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("extract", name, {
-            "prompt": prompt, "document_keys": document_keys, "model": model,
-            "format_extraction": format_extraction,
-            "extraction_key_suffix": extraction_key_suffix,
-            "extraction_method": extraction_method, "timeout": timeout,
-            "litellm_completion_kwargs": litellm_completion_kwargs,
-            "limit": limit, "retriever": retriever, **kwargs,
-        })
+        return self._append_op(
+            "extract",
+            name,
+            {
+                "prompt": prompt,
+                "document_keys": document_keys,
+                "model": model,
+                "format_extraction": format_extraction,
+                "extraction_key_suffix": extraction_key_suffix,
+                "extraction_method": extraction_method,
+                "timeout": timeout,
+                "litellm_completion_kwargs": litellm_completion_kwargs,
+                "limit": limit,
+                "retriever": retriever,
+                **kwargs,
+            },
+        )
 
     # ── structural operations ──────────────────────────────────────
 
@@ -426,10 +620,17 @@ class Frame:
         model: str | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("split", name, {
-            "split_key": split_key, "method": method,
-            "method_kwargs": method_kwargs, "model": model, **kwargs,
-        })
+        return self._append_op(
+            "split",
+            name,
+            {
+                "split_key": split_key,
+                "method": method,
+                "method_kwargs": method_kwargs,
+                "model": model,
+                **kwargs,
+            },
+        )
 
     def gather(
         self,
@@ -444,13 +645,20 @@ class Frame:
         main_chunk_end: str | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("gather", name, {
-            "content_key": content_key, "doc_id_key": doc_id_key,
-            "order_key": order_key, "peripheral_chunks": peripheral_chunks,
-            "doc_header_key": doc_header_key,
-            "main_chunk_start": main_chunk_start,
-            "main_chunk_end": main_chunk_end, **kwargs,
-        })
+        return self._append_op(
+            "gather",
+            name,
+            {
+                "content_key": content_key,
+                "doc_id_key": doc_id_key,
+                "order_key": order_key,
+                "peripheral_chunks": peripheral_chunks,
+                "doc_header_key": doc_header_key,
+                "main_chunk_start": main_chunk_start,
+                "main_chunk_end": main_chunk_end,
+                **kwargs,
+            },
+        )
 
     def unnest(
         self,
@@ -463,11 +671,18 @@ class Frame:
         depth: int | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("unnest", name, {
-            "unnest_key": unnest_key, "keep_empty": keep_empty,
-            "expand_fields": expand_fields, "recursive": recursive,
-            "depth": depth, **kwargs,
-        })
+        return self._append_op(
+            "unnest",
+            name,
+            {
+                "unnest_key": unnest_key,
+                "keep_empty": keep_empty,
+                "expand_fields": expand_fields,
+                "recursive": recursive,
+                "depth": depth,
+                **kwargs,
+            },
+        )
 
     def cluster(
         self,
@@ -483,14 +698,21 @@ class Frame:
         validate: list[str] | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("cluster", name, {
-            "embedding_keys": embedding_keys,
-            "summary_schema": summary_schema,
-            "summary_prompt": summary_prompt, "output_key": output_key,
-            "model": model, "embedding_model": embedding_model,
-            "max_batch_size": max_batch_size, "validate": validate,
-            **kwargs,
-        })
+        return self._append_op(
+            "cluster",
+            name,
+            {
+                "embedding_keys": embedding_keys,
+                "summary_schema": summary_schema,
+                "summary_prompt": summary_prompt,
+                "output_key": output_key,
+                "model": model,
+                "embedding_model": embedding_model,
+                "max_batch_size": max_batch_size,
+                "validate": validate,
+                **kwargs,
+            },
+        )
 
     def sample(
         self,
@@ -504,13 +726,19 @@ class Frame:
         random_state: int | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("sample", name, {
-            "method": method, "samples": samples,
-            "stratify_key": stratify_key,
-            "samples_per_group": samples_per_group,
-            "method_kwargs": method_kwargs, "random_state": random_state,
-            **kwargs,
-        })
+        return self._append_op(
+            "sample",
+            name,
+            {
+                "method": method,
+                "samples": samples,
+                "stratify_key": stratify_key,
+                "samples_per_group": samples_per_group,
+                "method_kwargs": method_kwargs,
+                "random_state": random_state,
+                **kwargs,
+            },
+        )
 
     def code_map(
         self,
@@ -522,11 +750,17 @@ class Frame:
         limit: int | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("code_map", name, {
-            "code": code, "drop_keys": drop_keys,
-            "concurrent_thread_count": concurrent_thread_count,
-            "limit": limit, **kwargs,
-        })
+        return self._append_op(
+            "code_map",
+            name,
+            {
+                "code": code,
+                "drop_keys": drop_keys,
+                "concurrent_thread_count": concurrent_thread_count,
+                "limit": limit,
+                **kwargs,
+            },
+        )
 
     def code_reduce(
         self,
@@ -539,12 +773,18 @@ class Frame:
         limit: int | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("code_reduce", name, {
-            "code": code, "reduce_key": reduce_key,
-            "pass_through": pass_through,
-            "concurrent_thread_count": concurrent_thread_count,
-            "limit": limit, **kwargs,
-        })
+        return self._append_op(
+            "code_reduce",
+            name,
+            {
+                "code": code,
+                "reduce_key": reduce_key,
+                "pass_through": pass_through,
+                "concurrent_thread_count": concurrent_thread_count,
+                "limit": limit,
+                **kwargs,
+            },
+        )
 
     def code_filter(
         self,
@@ -555,10 +795,16 @@ class Frame:
         limit: int | None = None,
         **kwargs: Any,
     ) -> Frame:
-        return self._append_op("code_filter", name, {
-            "code": code, "concurrent_thread_count": concurrent_thread_count,
-            "limit": limit, **kwargs,
-        })
+        return self._append_op(
+            "code_filter",
+            name,
+            {
+                "code": code,
+                "concurrent_thread_count": concurrent_thread_count,
+                "limit": limit,
+                **kwargs,
+            },
+        )
 
     # ── inspection ─────────────────────────────────────────────────
 
@@ -580,15 +826,15 @@ class Frame:
 
     # ── terminal actions ───────────────────────────────────────────
 
-    def _build_config(self, output_path: str = "") -> dict[str, Any]:
+    def _build_config(
+        self, output_path: str = "", checkpoint: bool = True
+    ) -> dict[str, Any]:
         output_cfg: dict[str, Any] = {"type": "file", "path": output_path}
-        if _config.intermediate_dir:
+        if checkpoint and _config.intermediate_dir:
             output_cfg["intermediate_dir"] = _config.intermediate_dir
 
-        all_datasets = {**self._datasets, **self._extra_datasets}
-
         config: dict[str, Any] = {
-            "datasets": all_datasets,
+            "datasets": self._datasets,
             "operations": self._operations,
             "pipeline": {
                 "steps": self._steps,
@@ -597,28 +843,30 @@ class Frame:
         }
         if self._retrievers:
             config["retrievers"] = self._retrievers
-        if _config.default_model:
-            config["default_model"] = _config.default_model
-        if _config.rate_limits:
-            config["rate_limits"] = _config.rate_limits
-        if _config.bypass_cache:
-            config["bypass_cache"] = True
-        if _config.fallback_models:
-            config["fallback_models"] = _config.fallback_models
-        if _config.fallback_embedding_models:
-            config["fallback_embedding_models"] = _config.fallback_embedding_models
+        # Frame-level settings (e.g. from from_yaml) win over the globals.
+        config.update({**_config.runner_settings(), **self._settings})
         return config
 
-    def _build_runner(self, output_path: str = "", max_threads: int | None = None):
+    def _build_runner(
+        self,
+        output_path: str = "",
+        max_threads: int | None = None,
+        checkpoint: bool = True,
+    ):
         from docetl.runner import DSLRunner
+
         threads = max_threads or _config.max_threads
-        return DSLRunner(self._build_config(output_path), max_threads=threads)
+        return DSLRunner(
+            self._build_config(output_path, checkpoint=checkpoint),
+            max_threads=threads,
+        )
 
     def show(self, max: int = 5, max_threads: int | None = None) -> "pd.DataFrame":
         """Run the pipeline on the first *max* input documents and print results.
 
         If no operations have been added yet, just shows the raw input data.
-        Returns the resulting DataFrame.
+        Sampled runs never read or write checkpoints, so a ``show()`` can't
+        interfere with a later ``collect()``. Returns the resulting DataFrame.
         """
         import pandas as pd
 
@@ -627,7 +875,7 @@ class Frame:
             df = pd.DataFrame(data)
         else:
             sampled = self._copy(datasets=self._sample_datasets(max))
-            data, cost = sampled._execute(max_threads=max_threads)
+            data, cost = sampled._execute(max_threads=max_threads, checkpoint=False)
             df = pd.DataFrame(data)
             df.attrs["_total_cost"] = cost
             df.attrs["_token_usage"] = sampled._token_usage
@@ -647,34 +895,33 @@ class Frame:
         return len(data)
 
     def _load_input_data(self) -> list[dict]:
-        """Load the primary input dataset without executing operations."""
-        ds = self._datasets.get(self._first_dataset, {})
-        if ds.get("type") == "memory":
-            return ds.get("path", [])
-        elif ds.get("type") == "file":
-            return _read_file(ds.get("path", "")) or []
-        return []
+        """Load the primary input dataset (with parsing applied) without
+        executing operations."""
+        ds = self._datasets.get(self._first_dataset)
+        if not ds:
+            return []
+        return _load_dataset(ds, self._settings.get("parsing_tools"))
 
     def _sample_datasets(self, n: int) -> dict[str, dict[str, Any]]:
-        """Return a copy of the datasets dict with each dataset truncated to *n* rows."""
+        """Return a copy of the datasets dict with each dataset truncated to
+        its first *n* raw rows.
+
+        Parsing configs are kept on the truncated datasets, so parsing tools
+        still run at execution time — but only over the sampled rows.
+        """
         sampled = {}
         for name, ds in self._datasets.items():
-            if ds.get("type") == "memory":
-                data = ds["path"][:n] if isinstance(ds.get("path"), list) else ds["path"]
-                sampled[name] = {**ds, "path": data}
-            elif ds.get("type") == "file":
-                data = _read_file(ds.get("path", ""))
-                if data is not None:
-                    sampled[name] = {"type": "memory", "path": data[:n]}
-                else:
-                    sampled[name] = ds
+            if ds.get("type") == "file":
+                raw = _load_dataset(ds, apply_parsing=False)
             else:
-                sampled[name] = ds
+                raw = ds.get("path", [])
+            sampled[name] = {**ds, "type": "memory", "path": raw[:n]}
         return sampled
 
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
         """Execute the pipeline and return results as a DataFrame."""
         import pandas as pd
+
         data, cost = self._execute(max_threads=max_threads)
         df = pd.DataFrame(data)
         df.attrs["_total_cost"] = cost
@@ -686,11 +933,14 @@ class Frame:
         data, _ = self._execute(max_threads=max_threads)
         return data
 
-    def _execute(self, max_threads: int | None = None) -> tuple[list[dict], float]:
+    def _execute(
+        self, max_threads: int | None = None, checkpoint: bool = True
+    ) -> tuple[list[dict], float]:
         import time
+
         from docetl.display import format_execution_summary
 
-        runner = self._build_runner(max_threads=max_threads)
+        runner = self._build_runner(max_threads=max_threads, checkpoint=checkpoint)
         runner.load()
         if runner.last_op_container is None:
             raise ValueError("Pipeline has no operations to execute.")
@@ -703,9 +953,13 @@ class Frame:
         self._token_usage = dict(runner.total_token_usage)
 
         from rich.panel import Panel
+
         summary = format_execution_summary(
-            runner.total_cost, elapsed, runner.total_token_usage,
-            runner.intermediate_dir, "",
+            runner.total_cost,
+            elapsed,
+            runner.total_token_usage,
+            runner.intermediate_dir,
+            "",
         )
         runner.console.log(Panel(summary, title="Execution Summary"))
         return output, runner.total_cost
@@ -774,10 +1028,12 @@ class Frame:
 
         result = MOAROptimizer(
             pipeline=self._build_config(),
-            eval_fn=eval_fn, metric_key=metric_key,
+            eval_fn=eval_fn,
+            metric_key=metric_key,
             models=models,
             agent_model=agent_model or _config.agent_model,
-            max_iterations=max_iterations, save_dir=save_dir,
+            max_iterations=max_iterations,
+            save_dir=save_dir,
             exploration_weight=exploration_weight,
             dataset_path=dataset_path,
             max_threads=max_threads or _config.max_threads,
@@ -807,29 +1063,22 @@ class Frame:
 
     @classmethod
     def from_yaml(cls, path: str) -> Frame:
-        """Load a YAML pipeline config and return a Frame."""
-        import yaml
+        """Load a YAML pipeline config and return a Frame.
 
-        with open(path) as f:
-            config = yaml.safe_load(f)
+        Pipeline-level settings in the YAML (default_model, rate_limits,
+        bypass_cache, fallbacks, parsing_tools, system_prompt) are carried
+        on the returned Frame and take precedence over the ``docetl.<attr>``
+        globals — loading a pipeline never changes process-wide settings.
+        """
+        from docetl.utils import load_config
 
-        _yaml_to_config = {
-            "default_model": "default_model",
-            "rate_limits": "rate_limits",
-            "bypass_cache": "bypass_cache",
-            "fallback_models": "fallback_models",
-            "fallback_embedding_models": "fallback_embedding_models",
+        config = load_config(path)
+
+        settings = {
+            key: config[key] for key in _SETTING_KEYS if config.get(key) is not None
         }
-        for yaml_key, config_attr in _yaml_to_config.items():
-            if config.get(yaml_key) is not None:
-                setattr(_config, config_attr, config[yaml_key])
 
-        datasets: dict[str, dict[str, Any]] = {}
-        first_ds: str | None = None
-        for name, ds in config.get("datasets", {}).items():
-            datasets[name] = ds
-            if first_ds is None:
-                first_ds = name
+        datasets = dict(config.get("datasets", {}))
 
         ops_by_name = {op["name"]: op for op in config.get("operations", [])}
 
@@ -857,9 +1106,12 @@ class Frame:
             last_step = step["name"]
 
         return cls(
-            datasets, operations, steps,
-            _last_step=last_step, _first_dataset=first_ds,
+            datasets,
+            operations,
+            steps,
+            _last_step=last_step,
             _retrievers=config.get("retrievers") or {},
+            _settings=settings,
         )
 
     def to_yaml(self, path: str | None = None) -> str:
@@ -868,6 +1120,7 @@ class Frame:
         If *path* is given, also writes the YAML to that file.
         """
         import yaml
+
         config = self._build_config(output_path="output.json")
         out = yaml.dump(config, default_flow_style=False, sort_keys=False)
         if path:
@@ -880,52 +1133,93 @@ class Frame:
     def to_python(self) -> str:
         """Generate Python source that recreates this pipeline using the Frame API."""
         ops_by_name = {op["name"]: op for op in self._operations}
+        steps_by_name = {s["name"]: s for s in self._steps}
         lines: list[str] = ["import docetl", ""]
 
-        for attr in ("default_model", "agent_model", "max_threads", "bypass_cache",
-                      "rate_limits", "fallback_models", "fallback_embedding_models",
-                      "intermediate_dir"):
-            val = getattr(_config, attr, None)
+        for attr in (
+            "default_model",
+            "agent_model",
+            "max_threads",
+            "bypass_cache",
+            "rate_limits",
+            "fallback_models",
+            "fallback_embedding_models",
+            "intermediate_dir",
+        ):
+            val = self._settings.get(attr, getattr(_config, attr, None))
             if val is not None and val is not False:
                 lines.append(f"docetl.{attr} = {repr(val)}")
         if lines[-1] != "":
             lines.append("")
 
-        # Determine the first dataset reader call
-        ds_items = list(self._datasets.items())
-        if not ds_items:
-            lines.append("frame = docetl.from_list([])")
-        elif len(ds_items) == 1:
-            ds_name, ds_cfg = ds_items[0]
-            lines.append(f"frame = (")
-            lines.append(f"    {_format_reader(ds_name, ds_cfg)}")
-        else:
-            ds_name, ds_cfg = ds_items[0]
-            lines.append(f"frame = (")
-            lines.append(f"    {_format_reader(ds_name, ds_cfg)}")
-
-        # Operations from steps
+        # Steps that feed the right side of an equijoin are rendered inline
+        # as a nested expression, not as part of the main chain.
+        right_branch: set[str] = set()
         for step in self._steps:
-            step_ops = step.get("operations", [])
-            for op_ref in step_ops:
-                if isinstance(op_ref, str):
-                    op = ops_by_name.get(op_ref)
-                    if op is None:
-                        continue
-                    lines.append(_format_op_call(op))
-                elif isinstance(op_ref, dict):
-                    op_name = list(op_ref.keys())[0]
-                    join_cfg = op_ref[op_name]
-                    op = ops_by_name.get(op_name)
-                    if op is None:
-                        continue
-                    # For equijoin, we need the right dataset
-                    right_ds = join_cfg.get("right", "")
-                    if right_ds and right_ds in self._datasets:
-                        right_cfg = self._datasets[right_ds]
-                        lines.append(_format_equijoin_call(op, right_ds, right_cfg))
+            entries = step.get("operations", [])
+            if entries and isinstance(entries[0], dict):
+                cur = next(iter(entries[0].values())).get("right")
+                while cur in steps_by_name and cur not in right_branch:
+                    right_branch.add(cur)
+                    cur = steps_by_name[cur].get("input")
+
+        def branch_expr(tip: str | None) -> str:
+            """One-line expression for the sub-pipeline that produces *tip*."""
+            chain: list[dict] = []
+            while tip in steps_by_name:
+                chain.append(steps_by_name[tip])
+                tip = steps_by_name[tip].get("input")
+            expr = (
+                _format_reader(tip, self._datasets[tip])
+                if tip in self._datasets
+                else "docetl.from_list([])"
+            )
+            for st in reversed(chain):
+                for entry in st.get("operations", []):
+                    if isinstance(entry, str):
+                        op = ops_by_name.get(entry)
+                        if op is not None:
+                            expr += f".{op.get('type', 'map')}({', '.join(_format_op_args(op))})"
                     else:
-                        lines.append(_format_equijoin_call(op, right_ds, None))
+                        join_name = next(iter(entry))
+                        op = ops_by_name.get(join_name)
+                        if op is not None:
+                            args = [
+                                branch_expr(entry[join_name].get("right"))
+                            ] + _format_op_args(op)
+                            expr += f".equijoin({', '.join(args)})"
+            return expr
+
+        source = (
+            _format_reader(self._first_dataset, self._datasets[self._first_dataset])
+            if self._first_dataset in self._datasets
+            else "docetl.from_list([])"
+        )
+        lines.append("frame = (")
+        lines.append(f"    {source}")
+
+        for step in self._steps:
+            if step["name"] in right_branch:
+                continue
+            for entry in step.get("operations", []):
+                if isinstance(entry, str):
+                    op = ops_by_name.get(entry)
+                    if op is None:
+                        continue
+                    lines.append(
+                        _format_call(
+                            f"    .{op.get('type', 'map')}(", _format_op_args(op)
+                        )
+                    )
+                else:
+                    join_name = next(iter(entry))
+                    op = ops_by_name.get(join_name)
+                    if op is None:
+                        continue
+                    args = [
+                        branch_expr(entry[join_name].get("right"))
+                    ] + _format_op_args(op)
+                    lines.append(_format_call("    .equijoin(", args))
 
         lines.append("    .collect()")
         lines.append(")")
@@ -935,6 +1229,7 @@ class Frame:
 
 # ── YAML to Python (standalone) ────────────────────────────────────
 
+
 def yaml_to_python(yaml_path: str) -> str:
     """Convert a YAML pipeline config file to equivalent Python Frame code."""
     return Frame.from_yaml(yaml_path).to_python()
@@ -942,31 +1237,29 @@ def yaml_to_python(yaml_path: str) -> str:
 
 # ── reader entry points ────────────────────────────────────────────
 
-def read_json(path: str, *, parsing: list[dict[str, str]] | None = None) -> Frame:
-    """Read a JSON file and return a Frame."""
+
+def _read_file_frame(path: str, parsing: list[dict[str, str]] | None) -> Frame:
+    """Create a Frame over a file dataset (format dispatched by extension)."""
     name = os.path.splitext(os.path.basename(path))[0]
     ds: dict[str, Any] = {"type": "file", "path": path}
     if parsing:
         ds["parsing"] = parsing
     return Frame({name: ds}, _first_dataset=name)
+
+
+def read_json(path: str, *, parsing: list[dict[str, str]] | None = None) -> Frame:
+    """Read a JSON file and return a Frame."""
+    return _read_file_frame(path, parsing)
 
 
 def read_csv(path: str, *, parsing: list[dict[str, str]] | None = None) -> Frame:
     """Read a CSV file and return a Frame."""
-    name = os.path.splitext(os.path.basename(path))[0]
-    ds: dict[str, Any] = {"type": "file", "path": path}
-    if parsing:
-        ds["parsing"] = parsing
-    return Frame({name: ds}, _first_dataset=name)
+    return _read_file_frame(path, parsing)
 
 
 def read_parquet(path: str, *, parsing: list[dict[str, str]] | None = None) -> Frame:
     """Read a Parquet file and return a Frame."""
-    name = os.path.splitext(os.path.basename(path))[0]
-    ds: dict[str, Any] = {"type": "file", "path": path}
-    if parsing:
-        ds["parsing"] = parsing
-    return Frame({name: ds}, _first_dataset=name)
+    return _read_file_frame(path, parsing)
 
 
 def from_list(data: list[dict], name: str = "data") -> Frame:
@@ -979,9 +1272,23 @@ def from_list(data: list[dict], name: str = "data") -> Frame:
 _SKIP_KEYS = {"name", "type"}
 
 
+def _unique(name: str, taken) -> str:
+    """Return *name* suffixed with the first free ``_<n>``."""
+    i = 2
+    while f"{name}_{i}" in taken:
+        i += 1
+    return f"{name}_{i}"
+
+
 def _fmt(value: Any) -> str:
-    if isinstance(value, str) and "\n" in value:
-        return f'"""{value}"""'
+    if isinstance(value, str) and "\n" in value and "\r" not in value:
+        # Triple-quote for readability, escaping anything that would change
+        # the value or break the literal (backslashes, embedded/trailing
+        # quote runs).
+        body = value.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+        if body.endswith('"'):
+            body = body[:-1] + '\\"'
+        return f'"""{body}"""'
     return repr(value)
 
 
@@ -1008,43 +1315,17 @@ def _format_reader(ds_name: str, ds_cfg: dict[str, Any]) -> str:
     return f"{reader}({', '.join(parts)})"
 
 
-def _format_op_call(op: dict[str, Any]) -> str:
-    op_type = op.get("type", "map")
-    parts: list[str] = [repr(op["name"])]
-    for k, v in op.items():
-        if k in _SKIP_KEYS or v is None:
-            continue
-        parts.append(f"{k}={_fmt(v)}")
+def _format_op_args(op: dict[str, Any]) -> list[str]:
+    """The argument list for a Frame method call recreating *op*."""
+    return [repr(op["name"])] + [
+        f"{k}={_fmt(v)}" for k, v in op.items() if k not in _SKIP_KEYS and v is not None
+    ]
 
+
+def _format_call(prefix: str, parts: list[str]) -> str:
+    """Render a call, wrapping its arguments when the line would run long."""
     joined = ", ".join(parts)
-    prefix = f"    .{op_type}("
-
     if len(prefix) + len(joined) + 1 <= 100:
         return f"{prefix}{joined})"
-
     indent = " " * len(prefix)
-    formatted = f",\n{indent}".join(parts)
-    return f"{prefix}{formatted})"
-
-
-def _format_equijoin_call(
-    op: dict[str, Any], right_ds: str, right_cfg: dict[str, Any] | None,
-) -> str:
-    parts: list[str] = []
-    if right_cfg:
-        parts.append(_format_reader(right_ds, right_cfg))
-    parts.append(repr(op["name"]))
-    for k, v in op.items():
-        if k in _SKIP_KEYS or v is None:
-            continue
-        parts.append(f"{k}={_fmt(v)}")
-
-    joined = ", ".join(parts)
-    prefix = "    .equijoin("
-
-    if len(prefix) + len(joined) + 1 <= 100:
-        return f"{prefix}{joined})"
-
-    indent = " " * len(prefix)
-    formatted = f",\n{indent}".join(parts)
-    return f"{prefix}{formatted})"
+    return prefix + f",\n{indent}".join(parts) + ")"

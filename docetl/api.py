@@ -2,12 +2,15 @@
 
 import inspect
 import os
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import yaml
 from rich import print
 
 from docetl.runner import DSLRunner
+
+if TYPE_CHECKING:
+    from docetl.moar.optimizer import MOARResult
 from docetl.schemas import (
     ClusterOp,
     CodeFilterOp,
@@ -115,17 +118,26 @@ class Pipeline:
                 try:
                     operations.append(schema_cls(**filtered))
                 except Exception:
-                    operations.append(MapOp.model_construct(**filtered))
+                    # Keep the correct op type even when validation fails —
+                    # syntax_check reports the validation error loudly on
+                    # every run path, but typed inspection (ops_by_name,
+                    # list_pipeline_operations) must not misreport the type.
+                    operations.append(schema_cls.model_construct(**filtered))
             else:
                 operations.append(MapOp.model_construct(**filtered))
 
         steps = []
         for step_cfg in config.get("pipeline", {}).get("steps", []):
-            steps.append(PipelineStep(**{k: v for k, v in step_cfg.items() if v is not None}))
+            steps.append(
+                PipelineStep(**{k: v for k, v in step_cfg.items() if v is not None})
+            )
 
-        output_cfg = config.get("pipeline", {}).get("output", {})
-        output_cfg.setdefault("type", "file")
-        output_cfg.setdefault("path", "")
+        # Copy before defaulting — the caller's config must not be mutated.
+        output_cfg = {
+            "type": "file",
+            "path": "",
+            **(config.get("pipeline", {}).get("output") or {}),
+        }
         output = PipelineOutput(**output_cfg)
 
         parsing_tools = []
@@ -136,8 +148,13 @@ class Pipeline:
                 parsing_tools.append(ParsingTool(**tool_cfg))
 
         known_keys = {
-            "datasets", "operations", "pipeline", "default_model",
-            "parsing_tools", "rate_limits", "optimizer_config",
+            "datasets",
+            "operations",
+            "pipeline",
+            "default_model",
+            "parsing_tools",
+            "rate_limits",
+            "optimizer_config",
         }
         other = {k: v for k, v in config.items() if k not in known_keys}
 
@@ -180,14 +197,20 @@ class Pipeline:
     ) -> "MOARResult | Pipeline":
         if method == "moar":
             return self._optimize_moar(
-                eval_fn=eval_fn, metric_key=metric_key, models=models,
-                agent_model=agent_model, max_iterations=max_iterations,
-                save_dir=save_dir, exploration_weight=exploration_weight,
+                eval_fn=eval_fn,
+                metric_key=metric_key,
+                models=models,
+                agent_model=agent_model,
+                max_iterations=max_iterations,
+                save_dir=save_dir,
+                exploration_weight=exploration_weight,
                 dataset_path=dataset_path,
             )
         elif method == "v1":
             return self._optimize_v1(
-                max_threads=max_threads, resume=resume, save_path=save_path,
+                max_threads=max_threads,
+                resume=resume,
+                save_path=save_path,
             )
         else:
             raise ValueError(
@@ -210,7 +233,10 @@ class Pipeline:
         from docetl.moar.optimizer import MOAROptimizer
 
         return MOAROptimizer(
-            pipeline=self, eval_fn=eval_fn, metric_key=metric_key, **kwargs,
+            pipeline=self,
+            eval_fn=eval_fn,
+            metric_key=metric_key,
+            **kwargs,
         ).optimize()
 
     def _optimize_v1(self, *, max_threads, resume, save_path) -> "Pipeline":
@@ -221,13 +247,20 @@ class Pipeline:
             max_threads=max_threads,
         )
         optimized_config, _ = runner.optimize(
-            resume=resume, return_pipeline=False, save_path=save_path,
+            resume=resume,
+            return_pipeline=False,
+            save_path=save_path,
         )
 
         updated = Pipeline(
-            name=self.name, datasets=self.datasets, operations=self.operations,
-            steps=self.steps, output=self.output, default_model=self.default_model,
-            parsing_tools=self.parsing_tools, optimizer_config=self.optimizer_config,
+            name=self.name,
+            datasets=self.datasets,
+            operations=self.operations,
+            steps=self.steps,
+            output=self.output,
+            default_model=self.default_model,
+            parsing_tools=self.parsing_tools,
+            optimizer_config=self.optimizer_config,
         )
         updated._update_from_dict(optimized_config)
         return updated
@@ -265,7 +298,11 @@ class Pipeline:
     def _to_dict(self) -> dict[str, Any]:
         d = {
             "datasets": {
-                name: (dataset.model_dump() if hasattr(dataset, "model_dump") else dataset.dict())
+                name: (
+                    dataset.model_dump()
+                    if hasattr(dataset, "model_dump")
+                    else dataset.dict()
+                )
                 for name, dataset in self.datasets.items()
             },
             "operations": [

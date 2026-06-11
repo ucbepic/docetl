@@ -34,14 +34,99 @@ in a JSON list, a row in a CSV or Parquet file, or one file in a directory.
     `.collect()` (rows as a list of dicts), `.to_pandas()` (a DataFrame), or
     `.write_json()`.
 
-## Accepted inputs
+## Examples
 
-- **JSON**: a list of objects.
-- **CSV / Parquet**: one row per record.
-- **A directory**: every non-hidden file under it (recursively) becomes one
-  row with `path`, `filename`, and `text` keys. PDF, Word, PowerPoint, and
-  Excel files are converted to text; other files are read as UTF-8; binary
-  files with no extractor are skipped with a warning.
+### A JSON file
+
+A list of objects; each object is one row.
+
+```json
+// reviews.json
+[
+  {"id": 1, "product": "headphones", "review": "Battery died after a week."},
+  {"id": 2, "product": "keyboard", "review": "Keys feel great, very quiet."}
+]
+```
+
+=== "YAML"
+
+    ```yaml
+    datasets:
+      reviews:
+        type: file
+        path: "reviews.json"
+    ```
+
+=== "Python"
+
+    ```python
+    reviews = docetl.read_json("reviews.json")
+    ```
+
+### A CSV or Parquet file
+
+Each row of the table is one row of the dataset; column names become keys.
+
+```csv
+ticket_id,customer,message
+101,acme,"Cannot log in since the update"
+102,globex,"Invoice total looks wrong"
+```
+
+=== "YAML"
+
+    ```yaml
+    datasets:
+      tickets:
+        type: file
+        path: "tickets.csv"   # or .parquet
+    ```
+
+=== "Python"
+
+    ```python
+    tickets = docetl.read_csv("tickets.csv")   # or read_parquet(...)
+    ```
+
+### A directory of documents
+
+Every non-hidden file under the directory (recursively) becomes one row with
+`path`, `filename`, and `text` keys. PDF, Word, PowerPoint, and Excel files
+are converted to text; other files are read as UTF-8; binary files with no
+extractor are skipped with a warning.
+
+```text
+contracts/
+  acme_msa.pdf
+  globex_nda.docx
+  notes/renewal_2026.txt
+```
+
+=== "YAML"
+
+    ```yaml
+    datasets:
+      contracts:
+        type: file
+        path: "contracts"
+    ```
+
+=== "Python"
+
+    ```python
+    contracts = docetl.read_dir("contracts")
+    # one row per file, e.g.
+    # {"path": "contracts/acme_msa.pdf", "filename": "acme_msa.pdf", "text": "..."}
+    ```
+
+### An in-memory list (Python only)
+
+```python
+docs = docetl.from_list([
+    {"speaker": "patient", "utterance": "The headaches started last month."},
+    {"speaker": "doctor", "utterance": "Any changes in vision?"},
+])
+```
 
 Relative paths resolve against the directory you run from, not the location
 of the YAML file or Python script.

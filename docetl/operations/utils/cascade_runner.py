@@ -64,6 +64,15 @@ def format_cascade_plan_lines(
     ]
 
 
+def cascade_oracle_model(
+    config: dict[str, Any], default: str | None = None
+) -> str | None:
+    """The model a cascade escalates to: comparison_model (resolve/equijoin)
+    first, then model, then the pipeline default. Single source of truth —
+    the runtime report, the token table, and the query plan all use this."""
+    return config.get("comparison_model", config.get("model", default))
+
+
 def _is_embedding_model(model: str) -> bool:
     """Whether *model* names an embedding model (per litellm's registry).
 
@@ -305,10 +314,7 @@ class CascadeMixin:
 
     def _oracle_model_name(self) -> str:
         """The oracle model name, checking comparison_model (resolve/equijoin) first."""
-        return self.config.get(
-            "comparison_model",
-            self.config.get("model", getattr(self, "default_model", "?")),
-        )
+        return cascade_oracle_model(self.config, getattr(self, "default_model", "?"))
 
     def _cascade_cfg(self) -> dict[str, Any]:
         """The cascade block as a plain dict (it may arrive as a dict or a
@@ -459,6 +465,46 @@ class CascadeMixin:
                     f"{stats.escalation_rate:.0%} of items to oracle — "
                     f"proxy saved almost no cost[/bold yellow]"
                 )
+
+    def _finish_cascade(
+        self,
+        *,
+        key: str,
+        op_label: str,
+        result,
+        proxy_cost: float,
+        oracle_cost: float,
+        proxy_scores: "list[float] | None" = None,
+        proxy_labels: "list | None" = None,
+    ) -> "tuple[Any, float]":
+        """Report a finished cascade and persist it — the one place that
+        knows the cache-tuple shape."""
+        total = proxy_cost + oracle_cost
+        self._report_cascade(
+            op_label,
+            result.stats,
+            total,
+            False,
+            proxy_cost=proxy_cost,
+            oracle_cost=oracle_cost,
+            proxy_scores=proxy_scores,
+            escalated=result.escalated,
+            proxy_labels=proxy_labels,
+        )
+        with cache as c:
+            c.set(
+                key,
+                (
+                    result,
+                    total,
+                    proxy_cost,
+                    oracle_cost,
+                    proxy_scores,
+                    proxy_labels,
+                    True,
+                ),
+            )
+        return result, total
 
     def _run_binary_cascade(
         self,
@@ -613,33 +659,15 @@ class CascadeMixin:
         finally:
             progress.finish()
 
-        total_cost = cost["proxy"] + cost["oracle"]
-        self._report_cascade(
-            op_label,
-            result.stats,
-            total_cost,
-            False,
+        return self._finish_cascade(
+            key=key,
+            op_label=op_label,
+            result=result,
             proxy_cost=cost["proxy"],
             oracle_cost=cost["oracle"],
             proxy_scores=cascade.proxy_scores,
-            escalated=result.escalated,
             proxy_labels=proxy_labels_live,
         )
-
-        with cache as c:
-            c.set(
-                key,
-                (
-                    result,
-                    total_cost,
-                    cost["proxy"],
-                    cost["oracle"],
-                    cascade.proxy_scores,
-                    proxy_labels_live,
-                    True,
-                ),
-            )
-        return result, total_cost
 
     def _run_embedding_binary_cascade(
         self,
@@ -672,28 +700,34 @@ class CascadeMixin:
             CategoricalCascade,
         )
 
-        # 1. Embed every item (batched; gen_embedding is itself cached).
+        # 1. Embed every item (parallel batches; gen_embedding is itself
+        # cached and rate-limited; completion_cost returns 0.0 on failure).
+        from docetl.utils import completion_cost
+
         texts = [
             "\n".join(m.get("content", "") for m in render_messages(item))
             for item in items
         ]
+        batch_size = 256
+        batches = [
+            texts[start : start + batch_size]
+            for start in range(0, len(texts), batch_size)
+        ]
+
+        def _embed(batch: list) -> "tuple[list, float]":
+            resp = self.runner.api.gen_embedding(spec.proxy_model, json.dumps(batch))
+            data = resp["data"] if isinstance(resp, dict) else resp.data
+            vecs = [
+                d["embedding"] if isinstance(d, dict) else d.embedding for d in data
+            ]
+            return vecs, completion_cost(resp)
+
         vectors: list = []
         embed_cost = 0.0
-        batch_size = 256
-        for start in range(0, len(texts), batch_size):
-            resp = self.runner.api.gen_embedding(
-                spec.proxy_model, json.dumps(texts[start : start + batch_size])
-            )
-            data = resp["data"] if isinstance(resp, dict) else resp.data
-            vectors.extend(
-                d["embedding"] if isinstance(d, dict) else d.embedding for d in data
-            )
-            try:
-                from docetl.utils import completion_cost
-
-                embed_cost += completion_cost(resp)
-            except Exception:
-                pass
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            for vecs, batch_cost in executor.map(_embed, batches):
+                vectors.extend(vecs)
+                embed_cost += batch_cost
         X = np.asarray(vectors, dtype=np.float32)
 
         # 2. Oracle-label a training slice out of the label budget.
@@ -712,15 +746,14 @@ class CascadeMixin:
         _lock = threading.Lock()
 
         def oracle_mem(item):
-            i = idx_by_id.get(id(item))
+            i = idx_by_id[id(item)]
             with _lock:
-                if i is not None and i in oracle_labels:
+                if i in oracle_labels:
                     return oracle_labels[i]
             lbl, c = oracle_predict(item)
             with _lock:
                 oracle_cost["total"] += c
-                if i is not None:
-                    oracle_labels[i] = lbl
+                oracle_labels[i] = lbl
             return lbl
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
@@ -754,22 +787,13 @@ class CascadeMixin:
                     i for i, lbl in enumerate(labels) if lbl == spec.positive_label
                 ],
             )
-            total = embed_cost + oracle_cost["total"]
-            self._report_cascade(
-                op_label,
-                result.stats,
-                total,
-                False,
+            return self._finish_cascade(
+                key=key,
+                op_label=op_label,
+                result=result,
                 proxy_cost=embed_cost,
                 oracle_cost=oracle_cost["total"],
-                escalated=result.escalated,
             )
-            with cache as c:
-                c.set(
-                    key,
-                    (result, total, embed_cost, oracle_cost["total"], None, None, True),
-                )
-            return result, total
 
         if y.min() == y.max():
             return _all_oracle_fallback(
@@ -819,32 +843,15 @@ class CascadeMixin:
                 positive_set.discard(i)
         result.positive_indices = sorted(positive_set)
 
-        proxy_labels_out = [
-            spec.positive_label if p >= 0.5 else spec.negative_label for p in p_pos
-        ]
-        total_cost = embed_cost + oracle_cost["total"]
-        self._report_cascade(
-            op_label,
-            result.stats,
-            total_cost,
-            False,
+        scores = [float(p) for p in p_pos]
+        return self._finish_cascade(
+            key=key,
+            op_label=op_label,
+            result=result,
             proxy_cost=embed_cost,
             oracle_cost=oracle_cost["total"],
-            proxy_scores=[float(p) for p in p_pos],
-            escalated=result.escalated,
-            proxy_labels=proxy_labels_out,
+            proxy_scores=scores,
+            proxy_labels=[
+                spec.positive_label if p >= 0.5 else spec.negative_label for p in scores
+            ],
         )
-        with cache as c:
-            c.set(
-                key,
-                (
-                    result,
-                    total_cost,
-                    embed_cost,
-                    oracle_cost["total"],
-                    [float(p) for p in p_pos],
-                    proxy_labels_out,
-                    True,
-                ),
-            )
-        return result, total_cost

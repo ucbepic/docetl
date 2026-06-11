@@ -149,28 +149,25 @@ def compute_operation_hashes(runner: DSLRunner) -> None:
             return {"step": name, "hash": step_final_hash[name]}
         return {"dataset": name, "config": datasets.get(name)}
 
-    def hash_chain(chain: list) -> str:
-        payload = json.dumps(chain, sort_keys=True, default=str)
-        return hashlib.sha256(payload.encode()).hexdigest()
-
     for step in runner.pipeline.steps:
-        chain: list = [
-            {"system_prompt": system_prompt},
-            input_token(step.input),
-        ]
+        # Fold incrementally so each chain element (including memory-dataset
+        # contents in the input token) is serialized exactly once per step.
+        digest = hashlib.sha256()
+        for element in ({"system_prompt": system_prompt}, input_token(step.input)):
+            digest.update(json.dumps(element, sort_keys=True, default=str).encode())
+
         for entry in step.operations:
             op_name = op_ref_name(entry)
             if isinstance(entry, str):
-                chain.append(effective(runner._op_map[op_name]))
+                element = effective(runner._op_map[op_name])
             else:
                 join_cfg = entry[op_name]
-                chain.append(
-                    {
-                        "equijoin": effective(runner._op_map[op_name]),
-                        "left": input_token(join_cfg.get("left")),
-                        "right": input_token(join_cfg.get("right")),
-                    }
-                )
-            runner.step_op_hashes[step.name][op_name] = hash_chain(chain)
+                element = {
+                    "equijoin": effective(runner._op_map[op_name]),
+                    "left": input_token(join_cfg.get("left")),
+                    "right": input_token(join_cfg.get("right")),
+                }
+            digest.update(json.dumps(element, sort_keys=True, default=str).encode())
+            runner.step_op_hashes[step.name][op_name] = digest.copy().hexdigest()
 
-        step_final_hash[step.name] = hash_chain(chain)
+        step_final_hash[step.name] = digest.hexdigest()

@@ -138,6 +138,7 @@ def update_pipeline(orig_config, new_ops_list, target_ops, old_ops_list=None):
     old_names = [op["name"] for op in old_ops_list]
     new_names = [op["name"] for op in new_ops_list]
     old_set = set(old_names)
+    new_set = set(new_names)
     target_set = set(target_ops)
 
     # Walk old and new name lists in parallel to build a replacement map.
@@ -146,7 +147,7 @@ def update_pipeline(orig_config, new_ops_list, target_ops, old_ops_list=None):
     replacement_map: dict[str, list[str]] = {}
     ni = 0
     for old_name in old_names:
-        if old_name in set(new_names):
+        if old_name in new_set:
             # Op still exists — collect any insertions before it.
             before: list[str] = []
             while ni < len(new_names) and new_names[ni] != old_name:

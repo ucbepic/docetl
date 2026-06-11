@@ -86,6 +86,29 @@ def _create_router(console, fallback_models: list, router_type: str) -> Any | No
         return None
 
 
+def save_output(data: list[dict], path: str, console) -> None:
+    """Write *data* to *path*, dispatching on extension (.json / .parquet /
+    CSV fallback). Shared by DSLRunner.save and Frame.write_*."""
+    if os.path.dirname(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    if path.lower().endswith(".json"):
+        with open(path, "w") as file:
+            json.dump(data, file, indent=2)
+    elif path.lower().endswith(".parquet"):
+        import pandas as pd
+
+        pd.DataFrame(data).to_parquet(path, index=False)
+    else:  # CSV
+        import csv
+
+        with open(path, "w", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=data[0].keys())
+            limited_data = [{k: d.get(k, None) for k in data[0].keys()} for d in data]
+            writer.writeheader()
+            writer.writerows(limited_data)
+    console.log(f"[green]✓[/green] Saved to [dim]{path}[/dim]\n")
+
+
 class DSLRunner:
 
     @classmethod
@@ -341,7 +364,9 @@ class DSLRunner:
                 proxy = getattr(cascade, "proxy_model", None)
             if proxy:
                 roles[proxy] = "cascade proxy"
-            oracle = op.get("model") or op.get("comparison_model") or default
+            from docetl.operations.utils.cascade_runner import cascade_oracle_model
+
+            oracle = cascade_oracle_model(op, default)
             if oracle:
                 roles[oracle] = "oracle"
         return roles
@@ -480,31 +505,11 @@ class DSLRunner:
         self.get_output_path(require=True)
 
         out = self.pipeline.output
-        if out.type == "file":
-            if os.path.dirname(out.path):
-                os.makedirs(os.path.dirname(out.path), exist_ok=True)
-            if out.path.lower().endswith(".json"):
-                with open(out.path, "w") as file:
-                    json.dump(data, file, indent=2)
-            elif out.path.lower().endswith(".parquet"):
-                import pandas as pd
-
-                pd.DataFrame(data).to_parquet(out.path, index=False)
-            else:  # CSV
-                import csv
-
-                with open(out.path, "w", newline="") as file:
-                    writer = csv.DictWriter(file, fieldnames=data[0].keys())
-                    limited_data = [
-                        {k: d.get(k, None) for k in data[0].keys()} for d in data
-                    ]
-                    writer.writeheader()
-                    writer.writerows(limited_data)
-            self.console.log(f"[green]✓[/green] Saved to [dim]{out.path}[/dim]\n")
-        else:
+        if out.type != "file":
             raise ValueError(
                 f"Unsupported output type: {out.type}. Supported types: file"
             )
+        save_output(data, out.path, self.console)
 
     def clear_intermediate(self) -> None:
         if self.checkpoints:

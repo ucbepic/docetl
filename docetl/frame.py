@@ -23,6 +23,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from docetl import _config
+from docetl.console import get_console
 from docetl.utils import op_ref_name
 
 if TYPE_CHECKING:
@@ -124,6 +125,11 @@ class Frame:
         # Memoized (config key, output, cost, token usage) of the last
         # execution — terminal actions on an unchanged config reuse it.
         self._memo: tuple[str, list[dict], float, dict] | None = None
+        # Per-dataset content digests and sampled-frame cache for show();
+        # deliberately not carried through _copy (frames are immutable, but a
+        # copy may swap in different datasets under the same names).
+        self._ds_digests: dict[str, str] = {}
+        self._sample_cache: dict[int, Frame] = {}
 
     def _copy(self, **overrides) -> Frame:
         kw = dict(
@@ -577,27 +583,23 @@ class Frame:
         **kwargs: Any,
     ) -> Frame:
         config = {
-            k: v
-            for k, v in {
-                "comparison_prompt": comparison_prompt,
-                "output": output,
-                "blocking_threshold": blocking_threshold,
-                "blocking_target_recall": blocking_target_recall,
-                "blocking_conditions": blocking_conditions,
-                "limits": limits,
-                "comparison_model": comparison_model,
-                "optimize": optimize,
-                "embedding_model": embedding_model,
-                "embedding_batch_size": embedding_batch_size,
-                "compare_batch_size": compare_batch_size,
-                "limit_comparisons": limit_comparisons,
-                "blocking_keys": blocking_keys,
-                "timeout": timeout,
-                "litellm_completion_kwargs": litellm_completion_kwargs,
-                "cascade": cascade,
-                **kwargs,
-            }.items()
-            if v is not None
+            "comparison_prompt": comparison_prompt,
+            "output": output,
+            "blocking_threshold": blocking_threshold,
+            "blocking_target_recall": blocking_target_recall,
+            "blocking_conditions": blocking_conditions,
+            "limits": limits,
+            "comparison_model": comparison_model,
+            "optimize": optimize,
+            "embedding_model": embedding_model,
+            "embedding_batch_size": embedding_batch_size,
+            "compare_batch_size": compare_batch_size,
+            "limit_comparisons": limit_comparisons,
+            "blocking_keys": blocking_keys,
+            "timeout": timeout,
+            "litellm_completion_kwargs": litellm_completion_kwargs,
+            "cascade": cascade,
+            **kwargs,
         }
 
         # Join each side's *current* output: the last step if operations have
@@ -912,7 +914,12 @@ class Frame:
             data = self._load_input_data(limit=max)
             df = pd.DataFrame(data)
         else:
-            sampled = self._copy(datasets=self._sample_datasets(max))
+            # Cache the sampled frame so repeated show() calls reuse its memo
+            # instead of re-reading inputs and re-running the sampled pipeline.
+            sampled = self._sample_cache.get(max)
+            if sampled is None:
+                sampled = self._copy(datasets=self._sample_datasets(max))
+                self._sample_cache[max] = sampled
             data, cost = sampled._execute(max_threads=max_threads, checkpoint=False)
             df = pd.DataFrame(data)
             df.attrs["_total_cost"] = cost
@@ -953,14 +960,14 @@ class Frame:
         configs are kept on the truncated datasets, so parsing tools still
         run at execution time — but only over the sampled rows.
         """
-        sampled = {}
-        for name, ds in self._datasets.items():
-            if ds.get("type") == "file":
-                raw = _data_loader(ds, apply_parsing=False).load(limit=n)
-            else:
-                raw = ds.get("path", [])[:n]
-            sampled[name] = {**ds, "type": "memory", "path": raw}
-        return sampled
+        return {
+            name: {
+                **ds,
+                "type": "memory",
+                "path": _data_loader(ds, apply_parsing=False).load(limit=n),
+            }
+            for name, ds in self._datasets.items()
+        }
 
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
         """Execute the pipeline and return results as a DataFrame.
@@ -995,10 +1002,8 @@ class Frame:
         settings, or globals naturally invalidates it. Edits to input
         *files* between calls are not detected.
         """
-        import json
-
         config = self._build_config(checkpoint=checkpoint)
-        memo_key = json.dumps(config, sort_keys=True, default=str)
+        memo_key = self._memo_key(config)
         if self._memo is not None and self._memo[0] == memo_key:
             _, output, cost, usage = self._memo
             self._total_cost = cost
@@ -1018,6 +1023,27 @@ class Frame:
         # the memoized result.
         return [dict(row) for row in output], runner.total_cost
 
+    def _memo_key(self, config: dict[str, Any]) -> str:
+        """Serialize *config* for memoization, substituting cached content
+        digests for memory datasets so a memo check is O(config), not
+        O(dataset bytes), on every terminal action."""
+        import hashlib
+        import json
+
+        datasets = {}
+        for name, ds in config.get("datasets", {}).items():
+            if ds.get("type") == "memory":
+                digest = self._ds_digests.get(name)
+                if digest is None:
+                    digest = hashlib.sha256(
+                        json.dumps(ds, sort_keys=True, default=str).encode()
+                    ).hexdigest()
+                    self._ds_digests[name] = digest
+                datasets[name] = digest
+            else:
+                datasets[name] = ds
+        return json.dumps({**config, "datasets": datasets}, sort_keys=True, default=str)
+
     @property
     def total_cost(self) -> float:
         """Total cost of the last execution or optimization."""
@@ -1029,9 +1055,10 @@ class Frame:
         return self._token_usage
 
     def _write(self, path: str, max_threads: int | None = None) -> float:
+        from docetl.runner import save_output
+
         data, cost = self._execute(max_threads=max_threads)
-        writer = self._build_runner(output_path=path, max_threads=max_threads)
-        writer.save(data)
+        save_output(data, path, get_console())
         return cost
 
     def write_json(self, path: str, max_threads: int | None = None) -> float:
@@ -1239,6 +1266,19 @@ class Frame:
                 if cur in self._datasets:
                     branch_sources.add(cur)
 
+        def entry_call(entry) -> tuple[str, list[str]] | None:
+            """(method name, args) for one step-operations entry — the single
+            place that renders an entry, used by both the main chain and
+            inline branch expressions."""
+            op = ops_by_name.get(op_ref_name(entry))
+            if op is None:
+                return None
+            args = _format_op_args(op, retriever_vars)
+            if isinstance(entry, str):
+                return op.get("type", "map"), args
+            right_expr = branch_expr(entry[op_ref_name(entry)].get("right"))
+            return "equijoin", [right_expr] + args
+
         def branch_expr(tip: str | None) -> str:
             """One-line expression for the sub-pipeline that produces *tip*."""
             chain: list[dict] = []
@@ -1252,18 +1292,9 @@ class Frame:
             )
             for st in reversed(chain):
                 for entry in st.get("operations", []):
-                    if isinstance(entry, str):
-                        op = ops_by_name.get(entry)
-                        if op is not None:
-                            expr += f".{op.get('type', 'map')}({', '.join(_format_op_args(op, retriever_vars))})"
-                    else:
-                        join_name = op_ref_name(entry)
-                        op = ops_by_name.get(join_name)
-                        if op is not None:
-                            args = [
-                                branch_expr(entry[join_name].get("right"))
-                            ] + _format_op_args(op, retriever_vars)
-                            expr += f".equijoin({', '.join(args)})"
+                    call = entry_call(entry)
+                    if call is not None:
+                        expr += f".{call[0]}({', '.join(call[1])})"
             return expr
 
         source = (
@@ -1288,25 +1319,9 @@ class Frame:
             if step["name"] in right_branch:
                 continue
             for entry in step.get("operations", []):
-                if isinstance(entry, str):
-                    op = ops_by_name.get(entry)
-                    if op is None:
-                        continue
-                    lines.append(
-                        _format_call(
-                            f"    .{op.get('type', 'map')}(",
-                            _format_op_args(op, retriever_vars),
-                        )
-                    )
-                else:
-                    join_name = op_ref_name(entry)
-                    op = ops_by_name.get(join_name)
-                    if op is None:
-                        continue
-                    args = [
-                        branch_expr(entry[join_name].get("right"))
-                    ] + _format_op_args(op, retriever_vars)
-                    lines.append(_format_call("    .equijoin(", args))
+                call = entry_call(entry)
+                if call is not None:
+                    lines.append(_format_call(f"    .{call[0]}(", call[1]))
 
         lines.append("    .collect()")
         lines.append(")")

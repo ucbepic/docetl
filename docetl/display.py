@@ -17,7 +17,10 @@ def format_query_plan(
     default_model: str = "?",
 ) -> tuple[dict[str, str], str]:
     from docetl.containers import StepBoundary
-    from docetl.operations.utils.cascade_runner import format_cascade_plan_lines
+    from docetl.operations.utils.cascade_runner import (
+        cascade_oracle_model,
+        format_cascade_plan_lines,
+    )
 
     step_boundaries = sorted(
         (op for op in op_container_map.values() if isinstance(op, StepBoundary)),
@@ -61,7 +64,7 @@ def format_query_plan(
                 )
 
         if op.config.get("cascade"):
-            oracle_model = op.config.get("model", default_model)
+            oracle_model = cascade_oracle_model(op.config, default_model)
             lines.extend(
                 f"{s}{line}"
                 for line in format_cascade_plan_lines(

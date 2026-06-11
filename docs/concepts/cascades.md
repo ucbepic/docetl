@@ -196,14 +196,30 @@ Cascade filter 'is_relevant' (cached)
 
 ### Python API
 
-The same config works through the Python API:
+`cascade` is a named parameter on `filter`, `resolve`, and `equijoin` in the
+[Frame API](../python/index.md):
 
 ```python
-from docetl import DSLRunner
+import docetl
 
-runner = DSLRunner.from_yaml("pipeline.yaml")
-runner.load_run_save()
+kept = (
+    docetl.read_json("reviews.json")
+    .filter(
+        prompt="Is this review about shipping problems? {{ input.text }}",
+        output={"schema": {"keep": "bool"}},
+        cascade={
+            "proxy_model": "text-embedding-3-small",  # or a chat model
+            "guarantee": "recall",
+            "target": 0.9,
+            "label_budget": 120,
+        },
+    )
+    .collect()
+)
 ```
+
+YAML pipelines with cascades also run as usual via
+`DSLRunner.from_yaml("pipeline.yaml").load_run_save()`.
 
 ## Per-operator examples
 

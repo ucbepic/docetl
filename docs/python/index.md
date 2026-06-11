@@ -80,6 +80,10 @@ frame = docetl.read_json("input.json")
 frame = frame.map(prompt="...", output={"schema": {"field": "type"}})
 frame = frame.parallel_map(prompt="...", output={"schema": {"field": "type"}})
 frame = frame.filter(prompt="...", output={"schema": {"keep": "bool"}})
+# Optionally with a model cascade (cheap proxy + statistical guarantee);
+# the proxy can be a chat model or an embedding model. See the cascades guide.
+frame = frame.filter(prompt="...", output={"schema": {"keep": "bool"}},
+                     cascade={"proxy_model": "text-embedding-3-small", "target": 0.9})
 frame = frame.reduce(reduce_key="col", prompt="...", output={"schema": {"result": "str"}})
 frame = frame.resolve(comparison_prompt="...", output={"schema": {"resolved": "str"}})
 frame = frame.extract(prompt="...", document_keys=["text"])

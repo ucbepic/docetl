@@ -137,6 +137,10 @@ quality guarantee. This can dramatically reduce cost on large datasets.
 | `delta` | Failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
 | `label_budget` | Max oracle calls spent learning the threshold | `400` |
 
+`proxy_model` can be a chat model (scored by logprobs) or an embedding model
+like `text-embedding-3-small` (a logistic head is fitted on an oracle-labeled
+slice of the budget — far cheaper per item for high-volume topical filters).
+
 See [Model Cascades with BARGAIN](../concepts/cascades.md) for full details,
 guarantee explanations, and examples.
 

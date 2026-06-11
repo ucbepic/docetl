@@ -51,6 +51,12 @@ docetl.rate_limits = {
 }
 ```
 
+**Precedence.** Settings layer from most to least specific: a per-operation
+parameter (e.g. `model=` on `.map()`) beats per-pipeline settings carried by a
+Frame (set when loading a YAML via `Frame.from_yaml`), which beat the
+module-level `docetl.*` globals above, which beat built-in defaults. Loading a
+YAML never changes the globals — its settings travel with that Frame only.
+
 ## Reading Data
 
 ```python

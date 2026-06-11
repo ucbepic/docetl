@@ -81,7 +81,7 @@ See the [MOAR Optimizer Guide](../optimization/moar.md) for detailed instruction
 !!! warning "Deprecated"
     The V1 optimizer is deprecated and no longer recommended. Use MOAR instead.
 
-The V1 optimizer is still available for backward compatibility via `method="v1"` on the legacy `docetl.api.Pipeline` class (not the Frame API):
+The V1 optimizer is still available for backward compatibility via `method="v1"` on the `docetl.api.Pipeline` class — which is itself deprecated in favor of the [Frame API](../api-reference/python.md):
 
 ```python
 from docetl.api import Pipeline

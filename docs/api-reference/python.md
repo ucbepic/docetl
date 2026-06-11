@@ -6,6 +6,12 @@ The Python API lets you build, run, and optimize DocETL pipelines with chainable
 import docetl
 ```
 
+!!! warning "Deprecated: the typed `Pipeline` class"
+    The older object API (`from docetl.api import Pipeline` with `MapOp`,
+    `ReduceOp`, etc.) is deprecated in favor of the Frame API documented on
+    this page. It still works, but new code should use Frames — and YAML
+    pipelines remain fully supported (`Frame.from_yaml` / `docetl run`).
+
 ---
 
 ## Configuration

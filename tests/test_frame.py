@@ -531,3 +531,24 @@ def test_callable_validators_run(tmp_path):
     assert validate({"topic": "ab"}) is False
     assert validate({"topic": "banned"}) is False
     assert len(calls) == 3
+
+
+def test_read_dir_reads_files_as_text(tmp_path):
+    (tmp_path / "a.txt").write_text("alpha doc")
+    (tmp_path / "b.md").write_text("beta doc")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "c.txt").write_text("gamma doc")
+    (tmp_path / ".hidden").write_text("skipped")
+
+    frame = docetl.read_dir(str(tmp_path))
+    assert frame.count() == 3
+    rows = frame._load_input_data()
+    assert sorted(r["text"] for r in rows) == ["alpha doc", "beta doc", "gamma doc"]
+    assert all({"path", "filename", "text"} <= set(r) for r in rows)
+    assert len(frame._load_input_data(limit=2)) == 2
+    assert "docetl.read_dir(" in frame.to_python()
+
+    out = frame.code_map(
+        "wc", code="def transform(doc): return {'words': len(doc['text'].split())}"
+    ).to_list()
+    assert len(out) == 3 and all(r["words"] == 2 for r in out)

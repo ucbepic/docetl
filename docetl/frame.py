@@ -1367,6 +1367,14 @@ def read_parquet(path: str, *, parsing: list[dict[str, str]] | None = None) -> F
     return _read_file_frame(path, parsing)
 
 
+def read_dir(path: str, *, parsing: list[dict[str, str]] | None = None) -> Frame:
+    """Read every file in a directory (recursively) as text.
+
+    Each file becomes one row with ``path``, ``filename``, and ``text`` keys.
+    """
+    return _read_file_frame(path, parsing)
+
+
 def from_list(data: list[dict], name: str = "data") -> Frame:
     """Create a Frame from an in-memory list of dicts."""
     return Frame({name: {"type": "memory", "path": data}}, _first_dataset=name)
@@ -1409,6 +1417,8 @@ def _format_reader(ds_name: str, ds_cfg: dict[str, Any]) -> str:
         reader = "docetl.read_csv"
     elif ext == ".parquet":
         reader = "docetl.read_parquet"
+    elif ext == "":
+        reader = "docetl.read_dir"
     else:
         reader = "docetl.read_json"
 

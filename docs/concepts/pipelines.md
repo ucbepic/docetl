@@ -47,7 +47,9 @@ A dataset is a JSON list of objects (or a CSV file of rows):
     user_logs = docetl.read_json("user_logs.json")
     ```
 
-DocETL accepts JSON and CSV files as input (plus Parquet in the Python API).
+DocETL accepts JSON, CSV, and Parquet files. A directory path also works:
+every file in it (recursively) is read as text, one row per file with
+`path`, `filename`, and `text` keys.
 
 ## Operators
 

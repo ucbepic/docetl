@@ -157,8 +157,13 @@ class DataLoader:
             if not isinstance(path_or_data, str):
                 raise ValueError("For type 'file', path_or_data must be a string")
             valid_extensions = (".json", ".csv", ".parquet")
-            if not path_or_data.lower().endswith(valid_extensions):
-                raise ValueError(f"Path must end with one of {valid_extensions}")
+            if not path_or_data.lower().endswith(
+                valid_extensions
+            ) and not os.path.isdir(path_or_data):
+                raise ValueError(
+                    f"Path must end with one of {valid_extensions}, "
+                    "or be a directory (every file in it is read as text)"
+                )
         elif self.type == "memory":
             if not isinstance(path_or_data, (list, pd.DataFrame)):
                 raise ValueError(
@@ -229,6 +234,19 @@ class DataLoader:
                 data = data[:limit]
             return self._apply_parsing_tools(data)
 
+        if os.path.isdir(self.path_or_data):
+            data = []
+            for path in self._dir_files(limit):
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    data.append(
+                        {
+                            "path": str(path),
+                            "filename": os.path.basename(path),
+                            "text": f.read(),
+                        }
+                    )
+            return self._apply_parsing_tools(data)
+
         _, ext = os.path.splitext(self.path_or_data.lower())
 
         if ext == ".json":
@@ -279,6 +297,15 @@ class DataLoader:
             )
         return pd.read_parquet(self.path_or_data).to_dict(orient="records")
 
+    def _dir_files(self, limit: int | None = None) -> list[str]:
+        """All non-hidden files under a directory dataset, sorted, recursive."""
+        files = []
+        for root, dirs, names in os.walk(self.path_or_data):
+            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+            files.extend(os.path.join(root, n) for n in names if not n.startswith("."))
+        files.sort()
+        return files[:limit] if limit is not None else files
+
     def count(self) -> int:
         """Number of rows the dataset loads to, computed cheaply when possible.
 
@@ -291,6 +318,9 @@ class DataLoader:
 
         if self.type == "memory":
             return len(self.path_or_data)
+
+        if os.path.isdir(self.path_or_data):
+            return len(self._dir_files())
 
         _, ext = os.path.splitext(self.path_or_data.lower())
         if ext == ".parquet":

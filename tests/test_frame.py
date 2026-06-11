@@ -4,6 +4,8 @@ import json
 import os
 import tempfile
 
+import pytest
+
 import docetl
 from docetl import _config
 from docetl.frame import Frame, read_json, read_csv, read_parquet, from_list
@@ -531,6 +533,25 @@ def test_callable_validators_run(tmp_path):
     assert validate({"topic": "ab"}) is False
     assert validate({"topic": "banned"}) is False
     assert len(calls) == 3
+
+
+def test_read_dir_extracts_pdf_and_docx(tmp_path):
+    pymupdf = pytest.importorskip("pymupdf")
+    from docx import Document
+
+    pdf = pymupdf.open()
+    pdf.new_page().insert_text((72, 72), "hello from pdf")
+    pdf.save(str(tmp_path / "b.pdf"))
+    pdf.close()
+    doc = Document()
+    doc.add_paragraph("word doc body")
+    doc.save(str(tmp_path / "c.docx"))
+    (tmp_path / "junk.bin").write_bytes(b"\x00\x01binary")
+
+    rows = {r["filename"]: r["text"] for r in docetl.read_dir(str(tmp_path))._load_input_data()}
+    assert "hello from pdf" in rows["b.pdf"]
+    assert "word doc body" in rows["c.docx"]
+    assert "junk.bin" not in rows
 
 
 def test_read_dir_reads_files_as_text(tmp_path):

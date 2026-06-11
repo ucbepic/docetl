@@ -9,6 +9,65 @@ from docetl.base_schemas import ParsingTool
 from docetl.parsing_tools import get_parser, get_parsing_tools
 
 
+def _read_file_as_text(path: str) -> str | None:
+    """Extract text from one file for directory datasets.
+
+    Dispatches on extension: PDFs via PyMuPDF, Word/PowerPoint/Excel via
+    their parsers, everything else as UTF-8 text. Returns ``None`` (and
+    logs a warning) for files that are binary with no known extractor.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    try:
+        if ext == ".pdf":
+            import pymupdf
+
+            with pymupdf.open(path) as doc:
+                return "\n".join(page.get_text() for page in doc)
+        if ext == ".docx":
+            from docx import Document
+
+            return "\n".join(p.text for p in Document(path).paragraphs)
+        if ext == ".pptx":
+            from pptx import Presentation
+
+            slides = []
+            for slide in Presentation(path).slides:
+                slides.append(
+                    "\n".join(
+                        shape.text_frame.text
+                        for shape in slide.shapes
+                        if shape.has_text_frame
+                    )
+                )
+            return "\n\n".join(slides)
+        if ext == ".xlsx":
+            import openpyxl
+
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            rows = []
+            for sheet in wb:
+                for row in sheet.iter_rows(values_only=True):
+                    rows.append("\t".join("" if c is None else str(c) for c in row))
+            return "\n".join(rows)
+
+        with open(path, "rb") as f:
+            head = f.read(1024)
+        if b"\x00" in head:
+            from docetl.console import DOCETL_CONSOLE
+
+            DOCETL_CONSOLE.log(
+                f"[yellow]Skipping binary file with no text extractor: {path}[/yellow]"
+            )
+            return None
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except Exception as e:
+        from docetl.console import DOCETL_CONSOLE
+
+        DOCETL_CONSOLE.log(f"[yellow]Skipping unreadable file {path}: {e}[/yellow]")
+        return None
+
+
 def create_parsing_tool_map(
     parsing_tools: list[ParsingTool] | None,
 ) -> dict[str, ParsingTool]:
@@ -237,14 +296,16 @@ class DataLoader:
         if os.path.isdir(self.path_or_data):
             data = []
             for path in self._dir_files(limit):
-                with open(path, "r", encoding="utf-8", errors="replace") as f:
-                    data.append(
-                        {
-                            "path": str(path),
-                            "filename": os.path.basename(path),
-                            "text": f.read(),
-                        }
-                    )
+                text = _read_file_as_text(path)
+                if text is None:
+                    continue
+                data.append(
+                    {
+                        "path": str(path),
+                        "filename": os.path.basename(path),
+                        "text": text,
+                    }
+                )
             return self._apply_parsing_tools(data)
 
         _, ext = os.path.splitext(self.path_or_data.lower())

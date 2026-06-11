@@ -48,8 +48,10 @@ A dataset is a JSON list of objects (or a CSV file of rows):
     ```
 
 DocETL accepts JSON, CSV, and Parquet files. A directory path also works:
-every file in it (recursively) is read as text, one row per file with
-`path`, `filename`, and `text` keys.
+every file in it (recursively) becomes one row with `path`, `filename`, and
+`text` keys. PDF, Word, PowerPoint, and Excel files are converted to text;
+other files are read as UTF-8, and binary files with no extractor are
+skipped with a warning.
 
 ## Operators
 

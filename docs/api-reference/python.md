@@ -67,7 +67,7 @@ YAML never changes the globals — its settings travel with that Frame only.
 | `docetl.read_json(path)` | Load from JSON file |
 | `docetl.read_csv(path)` | Load from CSV file |
 | `docetl.read_parquet(path)` | Load from Parquet file |
-| `docetl.read_dir(path)` | Read every file in a directory (recursively) as text; one row per file with `path`, `filename`, `text` |
+| `docetl.read_dir(path)` | One row per file in a directory (recursive), with `path`, `filename`, `text`. PDF/Word/PowerPoint/Excel are converted to text; other files read as UTF-8 |
 | `docetl.from_list(data)` | Load from a list of dicts |
 | `docetl.Frame.from_yaml(path)` | Load from a YAML pipeline config |
 

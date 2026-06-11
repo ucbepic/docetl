@@ -541,7 +541,9 @@ class DocetlTUI(App):
         if cached is not None:
             return cached
 
-        name = op.op_name
+        # op is an OpState (progress event), whose .name is "step/op" — the
+        # observability key wants the bare op name.
+        name = op.name.split("/")[-1]
         obs = doc.get(f"_observability_{name}")
         prompt = None
         if isinstance(obs, dict):

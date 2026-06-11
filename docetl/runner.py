@@ -356,7 +356,10 @@ class DSLRunner:
             return
 
         step_colors, plan_text = format_query_plan(
-            self.last_op_container, self.op_container_map, show_boundaries
+            self.last_op_container,
+            self.op_container_map,
+            show_boundaries,
+            default_model=self.config.get("default_model", "?"),
         )
         self.console.log("\n[bold]Pipeline Steps:[/bold]")
         for step_name, color in step_colors.items():

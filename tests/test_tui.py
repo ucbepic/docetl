@@ -421,3 +421,22 @@ def test_tracker_reconciles_with_real_run(tmp_path):
     assert total_cost > 0
     assert state.total_cost == pytest.approx(total_cost, rel=0.01, abs=1e-6)
     assert sum(op.cost for op in state.ops) == pytest.approx(total_cost, rel=0.01, abs=1e-6)
+
+
+def test_doc_view_resolves_observability_by_bare_op_name():
+    """OpState.name is "step/op"; the doc-detail pane must look up
+    _observability_<bare op name> (OpState has no .op_name attribute)."""
+    pytest.importorskip("textual")
+    from docetl.progress.events import OpState
+    from docetl.tui.app import DocetlTUI
+    from docetl.tui.profiles import get_profile
+    from docetl.progress.tracker import ProgressTracker
+
+    app = DocetlTUI(ProgressTracker())
+    op = OpState(step="step_extract", name="step_extract/extract", op_type="map")
+    doc = {
+        "text": "hello",
+        "_observability_extract": {"prompt": "the rendered prompt"},
+    }
+    rows, prompt, provenance = app._doc_view(op, get_profile(op.op_type), 0, doc)
+    assert prompt == "the rendered prompt"

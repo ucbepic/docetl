@@ -14,8 +14,10 @@ def format_query_plan(
     root: OpContainer,
     op_container_map: dict[str, OpContainer],
     show_boundaries: bool = False,
+    default_model: str = "?",
 ) -> tuple[dict[str, str], str]:
     from docetl.containers import StepBoundary
+    from docetl.operations.utils.cascade_runner import format_cascade_plan_lines
 
     step_boundaries = sorted(
         (op for op in op_container_map.values() if isinstance(op, StepBoundary)),
@@ -47,15 +49,27 @@ def format_query_plan(
         color = step_colors.get(op.step_name, "white")
         lines = [
             f"{s}[{color}][bold]{op.name}[/bold][/{color}]",
-            f"{s}Type: {op.config['type']}",
+            f"{s}[dim]type[/dim]  [cyan]{op.config['type']}[/cyan]",
         ]
 
         if "output" in op.config and "schema" in op.config["output"]:
-            lines.append(f"{s}Output Schema:")
+            lines.append(f"{s}[dim]output[/dim]")
             for field, field_type in op.config["output"]["schema"].items():
                 lines.append(
-                    f"{s}  {field}: [bright_white]{escape(str(field_type))}[/bright_white]"
+                    f"{s}  [bright_white]{field}[/bright_white]"
+                    f" [dim]:[/dim] {escape(str(field_type))}"
                 )
+
+        if op.config.get("cascade"):
+            oracle_model = op.config.get("model", default_model)
+            lines.extend(
+                f"{s}{line}"
+                for line in format_cascade_plan_lines(
+                    op.config["cascade"],
+                    op_type=op.config["type"],
+                    oracle_model=oracle_model,
+                )
+            )
 
         if op.children:
             if op.is_equijoin:

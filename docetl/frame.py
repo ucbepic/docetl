@@ -119,6 +119,9 @@ class Frame:
         self._settings = _settings or {}
         self._total_cost: float = 0.0
         self._token_usage: dict[str, dict[str, int]] = {}
+        # Memoized (config key, output, cost, token usage) of the last
+        # execution — terminal actions on an unchanged config reuse it.
+        self._memo: tuple[str, list[dict], float, dict] | None = None
 
     def _copy(self, **overrides) -> Frame:
         kw = dict(
@@ -834,17 +837,21 @@ class Frame:
     def schema(self) -> dict[str, str]:
         """Return the output schema of this pipeline.
 
-        Walks the operation chain and returns the schema that the last
-        operation will produce.  Does not execute anything.
+        Folds each operation's declared schema effect (via the operation
+        class's ``transform_schema``) over the chain, so structural ops
+        like split, unnest, gather, and extract are reflected too. Static
+        and best-effort — nothing is executed, and keys produced by code
+        operations (arbitrary Python) can't be known ahead of time.
         """
+        from docetl.operations import get_operation
+
         result: dict[str, str] = {}
         for op in self._operations:
-            output = op.get("output", {})
-            if isinstance(output, dict) and "schema" in output:
-                result.update(output["schema"])
-            if op.get("drop_keys"):
-                for k in op["drop_keys"]:
-                    result.pop(k, None)
+            try:
+                op_cls = get_operation(op["type"])
+            except (KeyError, ValueError):
+                continue
+            result = op_cls.transform_schema(result, op)
         return result
 
     # ── terminal actions ───────────────────────────────────────────
@@ -942,7 +949,14 @@ class Frame:
         return sampled
 
     def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
-        """Execute the pipeline and return results as a DataFrame."""
+        """Execute the pipeline and return results as a DataFrame.
+
+        Results are memoized on the Frame: repeated terminal actions
+        (``count()``, ``collect()``, ``to_list()``, ``write_*()``) with an
+        unchanged configuration reuse the previous result instead of
+        re-running operations. Edits to input *files* between calls are
+        not detected; rebuild the Frame to force a re-run.
+        """
         import pandas as pd
 
         data, cost = self._execute(max_threads=max_threads)
@@ -959,33 +973,36 @@ class Frame:
     def _execute(
         self, max_threads: int | None = None, checkpoint: bool = True
     ) -> tuple[list[dict], float]:
-        import time
+        """Run the pipeline, memoizing on the built config.
 
-        from docetl.display import format_execution_summary
+        Repeated terminal actions (``count()`` then ``collect()``, ...)
+        reuse the previous result instead of re-running operations. The
+        memo key is the full pipeline config — changing ops, data,
+        settings, or globals naturally invalidates it. Edits to input
+        *files* between calls are not detected.
+        """
+        import json
 
-        runner = self._build_runner(max_threads=max_threads, checkpoint=checkpoint)
-        runner.load()
-        if runner.last_op_container is None:
-            raise ValueError("Pipeline has no operations to execute.")
-        runner.console.rule("[bold]Pipeline Execution[/bold]")
-        start = time.time()
-        output, _, _ = runner.last_op_container.next()
-        elapsed = time.time() - start
+        config = self._build_config(checkpoint=checkpoint)
+        memo_key = json.dumps(config, sort_keys=True, default=str)
+        if self._memo is not None and self._memo[0] == memo_key:
+            _, output, cost, usage = self._memo
+            self._total_cost = cost
+            self._token_usage = dict(usage)
+            return [dict(row) for row in output], cost
+
+        from docetl.runner import DSLRunner
+
+        runner = DSLRunner(config, max_threads=max_threads or _config.max_threads)
+        output, elapsed = runner.run()
+        runner._log_summary(elapsed, "")
 
         self._total_cost = runner.total_cost
         self._token_usage = dict(runner.total_token_usage)
-
-        from rich.panel import Panel
-
-        summary = format_execution_summary(
-            runner.total_cost,
-            elapsed,
-            runner.total_token_usage,
-            runner.intermediate_dir,
-            "",
-        )
-        runner.console.log(Panel(summary, title="Execution Summary"))
-        return output, runner.total_cost
+        self._memo = (memo_key, output, runner.total_cost, self._token_usage)
+        # Hand out shallow row copies so caller mutations can't corrupt
+        # the memoized result.
+        return [dict(row) for row in output], runner.total_cost
 
     @property
     def total_cost(self) -> float:
@@ -998,10 +1015,9 @@ class Frame:
         return self._token_usage
 
     def _write(self, path: str, max_threads: int | None = None) -> float:
-        runner = self._build_runner(output_path=path, max_threads=max_threads)
-        cost = runner.load_run_save()
-        self._total_cost = cost
-        self._token_usage = dict(runner.total_token_usage)
+        data, cost = self._execute(max_threads=max_threads)
+        writer = self._build_runner(output_path=path, max_threads=max_threads)
+        writer.save(data)
         return cost
 
     def write_json(self, path: str, max_threads: int | None = None) -> float:
@@ -1042,15 +1058,10 @@ class Frame:
         Access the full search results (Pareto frontier, costs, all plans)
         via ``frame.search_results`` after optimization.
         """
-        from docetl.moar.optimizer import MOAROptimizer
+        from docetl.moar.optimizer import run_moar
 
-        if eval_fn is None:
-            raise ValueError("eval_fn is required for optimization.")
-        if metric_key is None:
-            raise ValueError("metric_key is required for optimization.")
-
-        result = MOAROptimizer(
-            pipeline=self._build_config(),
+        result = run_moar(
+            self._build_config(),
             eval_fn=eval_fn,
             metric_key=metric_key,
             models=models,
@@ -1061,7 +1072,7 @@ class Frame:
             dataset_path=dataset_path,
             max_threads=max_threads or _config.max_threads,
             max_concurrent_agents=max_concurrent_agents,
-        ).optimize()
+        )
 
         self._total_cost = result.total_search_cost
 

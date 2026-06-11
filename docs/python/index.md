@@ -146,6 +146,10 @@ frame.to_yaml("pipeline.yaml")  # also write to file
 frame.to_python()     # export as Python source code
 ```
 
+`schema()` tracks structural operations too: `split` adds its `_chunk`/`_id`/`_chunk_num` keys, `unnest` turns a `list[X]` field into `X`, `gather` adds `<content_key>_rendered`, `extract` adds `<key><suffix>` keys, and `filter`'s decision key is consumed. It's static and best-effort — keys produced by `code_*` operations (arbitrary Python) can't be known without running them.
+
+Terminal actions are memoized: calling `count()`, `collect()`, `to_list()`, or `write_*()` again on the same Frame with an unchanged configuration reuses the previous result instead of re-running the pipeline. Changing operations, in-memory data, or `docetl.*` settings invalidates the memo automatically; edits to input *files* between calls are not detected — rebuild the Frame to force a re-run.
+
 ## Terminal Actions
 
 ```python

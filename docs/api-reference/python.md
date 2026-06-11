@@ -242,7 +242,7 @@ frame = (
 
 | Method | Return Type | Description |
 |--------|-------------|-------------|
-| `frame.schema()` | `dict[str, str]` | Output schema from operation definitions |
+| `frame.schema()` | `dict[str, str]` | Output schema from operation definitions, including structural ops (split/unnest/gather/extract). Best-effort: `code_*` op outputs can't be known statically |
 | `frame.count()` | `int` | Input count (no ops) or output count (executes if ops present) |
 | `frame.to_yaml()` | `str` | Export pipeline as YAML config |
 | `frame.to_yaml(path)` | `str` | Also write YAML to file |
@@ -260,6 +260,8 @@ frame = (
 | `frame.write_json(path)` | `float` | Execute and write to JSON. Returns cost. |
 | `frame.write_csv(path)` | `float` | Execute and write to CSV. Returns cost. |
 | `frame.write_parquet(path)` | `float` | Execute and write to Parquet. Returns cost. |
+
+Terminal actions are memoized on the Frame: repeated calls with an unchanged configuration reuse the previous result instead of re-running the pipeline. Changing ops, in-memory data, or `docetl.*` settings invalidates the memo; edits to input *files* between calls are not detected.
 
 ### Cost & Token Tracking
 

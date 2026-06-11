@@ -366,16 +366,33 @@ class DSLRunner:
         output_path = self.get_output_path(require=True)
         self.print_query_plan()
 
-        start_time = time.time()
-
+        execution_time = 0.0
         if self.last_op_container:
-            self.load()
-            self.console.rule("[bold]Pipeline Execution[/bold]")
-            output, _, _ = self.last_op_container.next()
+            output, execution_time = self.run()
             self.save(output)
 
-        execution_time = time.time() - start_time
+        self._log_summary(execution_time, output_path)
 
+        if self.progress_tracker is not None:
+            self.progress_tracker.pipeline_done()
+
+        return self.total_cost
+
+    def run(self) -> tuple[list[dict], float]:
+        """Load datasets and execute the operation DAG.
+
+        Returns ``(output rows, execution seconds)``. Does not save or log
+        the execution summary — callers decide both.
+        """
+        if not self.last_op_container:
+            raise ValueError("Pipeline has no operations to execute.")
+        start_time = time.time()
+        self.load()
+        self.console.rule("[bold]Pipeline Execution[/bold]")
+        output, _, _ = self.last_op_container.next()
+        return output, time.time() - start_time
+
+    def _log_summary(self, execution_time: float, output_path: str | None) -> None:
         summary = format_execution_summary(
             self.total_cost,
             execution_time,
@@ -384,11 +401,6 @@ class DSLRunner:
             output_path,
         )
         self.console.log(Panel(summary, title="Execution Summary"))
-
-        if self.progress_tracker is not None:
-            self.progress_tracker.pipeline_done()
-
-        return self.total_cost
 
     def load(self) -> None:
         self.console.rule("[bold]Loading Datasets[/bold]")

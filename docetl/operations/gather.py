@@ -42,6 +42,13 @@ class GatherOperation(BaseOperation):
                             )
             return v
 
+    @classmethod
+    def transform_schema(cls, schema, config):
+        result = super().transform_schema(schema, config)
+        if config.get("content_key"):
+            result[f"{config['content_key']}_rendered"] = "string"
+        return result
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the GatherOperation.
@@ -282,7 +289,9 @@ class GatherOperation(BaseOperation):
             return ""
 
         # Find the largest/highest level in the current chunk
-        current_chunk_headers = lookup_field(current_chunk, doc_header_key) if doc_header_key else []
+        current_chunk_headers = (
+            lookup_field(current_chunk, doc_header_key) if doc_header_key else []
+        )
 
         # If there are no headers in the current chunk, return an empty string
         if not current_chunk_headers:
@@ -304,7 +313,9 @@ class GatherOperation(BaseOperation):
             highest_level = None
 
         for chunk in chunks:
-            for header_info in (lookup_field(chunk, doc_header_key) if doc_header_key else []):
+            for header_info in (
+                lookup_field(chunk, doc_header_key) if doc_header_key else []
+            ):
                 try:
                     header = header_info["header"]
                     level = header_info["level"]

@@ -10,7 +10,7 @@ from jinja2 import Template
 from pydantic import Field, field_validator
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render, lookup_field
+from docetl.operations.utils import RichLoopBar, lookup_field, strict_render
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 
@@ -41,6 +41,19 @@ class ExtractOperation(BaseOperation):
                     f"Invalid Jinja2 template in 'prompt': {str(e)}"
                 ) from e
             return v
+
+    @classmethod
+    def transform_schema(cls, schema, config):
+        result = super().transform_schema(schema, config)
+        suffix = config.get("extraction_key_suffix") or (
+            f"_extracted_{config.get('name', '')}"
+        )
+        value_type = (
+            "string" if config.get("format_extraction", True) else "list[string]"
+        )
+        for doc_key in config.get("document_keys") or []:
+            result[f"{doc_key}{suffix}"] = value_type
+        return result
 
     def __init__(
         self,

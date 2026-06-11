@@ -386,3 +386,91 @@ class TestShowSampling:
         ])
         data = frame._load_input_data()
         assert data[0]["content"] == "hello world"
+
+
+class TestMemoization:
+    def setup_method(self):
+        self._saved = _config.default_model
+
+    def teardown_method(self):
+        _config.default_model = self._saved
+
+    @staticmethod
+    def _counting_frame(tmp_path, n=4):
+        marker = tmp_path / "runs.log"
+        code = (
+            "def transform(doc):\n"
+            f"    open({str(marker)!r}, 'a').write('x')\n"
+            "    return {'y': doc['x'] * 2}"
+        )
+        frame = from_list([{"x": i} for i in range(n)]).code_map("m", code=code)
+        return frame, marker
+
+    def test_terminal_actions_execute_once(self, tmp_path):
+        frame, marker = self._counting_frame(tmp_path)
+        assert frame.count() == 4
+        assert len(frame.collect()) == 4
+        frame.write_json(str(tmp_path / "out.json"))
+        assert len(marker.read_text()) == 4  # one execution of 4 rows
+        assert len(json.loads((tmp_path / "out.json").read_text())) == 4
+
+    def test_config_change_invalidates_memo(self, tmp_path):
+        frame, marker = self._counting_frame(tmp_path, n=1)
+        _config.default_model = "memo-model-a"
+        frame.count()
+        _config.default_model = "memo-model-b"
+        frame.count()
+        assert len(marker.read_text()) == 2
+
+    def test_result_mutation_does_not_corrupt_memo(self, tmp_path):
+        frame, _ = self._counting_frame(tmp_path, n=1)
+        rows = frame.to_list()
+        rows[0]["y"] = 999
+        assert frame.to_list()[0]["y"] == 0
+
+
+class TestSchema:
+    def test_structural_ops_tracked(self):
+        frame = (
+            from_list([{"text": "a b c"}])
+            .map(prompt="p", output={"schema": {"summary": "string", "tags": "list[string]"}})
+            .unnest(unnest_key="tags")
+            .split("sp", split_key="summary", method="token_count",
+                   method_kwargs={"num_tokens": 10})
+            .gather("g", content_key="summary_chunk", doc_id_key="sp_id",
+                    order_key="sp_chunk_num")
+            .extract("ex", prompt="e {{ input.summary }}", document_keys=["summary"])
+        )
+        assert frame.schema() == {
+            "summary": "string",
+            "tags": "string",  # unnested: list[string] -> string
+            "summary_chunk": "string",
+            "sp_id": "string",
+            "sp_chunk_num": "integer",
+            "summary_chunk_rendered": "string",
+            "summary_extracted_ex": "string",
+        }
+
+    def test_filter_key_consumed(self):
+        frame = (
+            from_list([{"x": 1}])
+            .map(prompt="p", output={"schema": {"summary": "string"}})
+            .filter(prompt="f", output={"schema": {"keep": "boolean"}})
+        )
+        assert frame.schema() == {"summary": "string"}
+
+    def test_drop_keys_still_apply(self):
+        frame = (
+            from_list([{"x": 1}])
+            .map(prompt="p", output={"schema": {"a": "string", "b": "string"}},
+                 drop_keys=["b"])
+        )
+        assert frame.schema() == {"a": "string"}
+
+    def test_cluster_adds_output_key(self):
+        frame = (
+            from_list([{"x": 1}])
+            .cluster(embedding_keys=["x"], summary_prompt="s {{ inputs }}",
+                     summary_schema={"label": "string"})
+        )
+        assert frame.schema().get("clusters") == "list"

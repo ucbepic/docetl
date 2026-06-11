@@ -218,26 +218,9 @@ class Pipeline:
             )
 
     def _optimize_moar(self, *, eval_fn, metric_key, **kwargs) -> "MOARResult":
-        if eval_fn is None:
-            raise ValueError(
-                "eval_fn is required for MOAR optimization. "
-                "Pass a callable, e.g.: "
-                "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
-            )
-        if metric_key is None:
-            raise ValueError(
-                "metric_key is required for MOAR optimization. "
-                "This is the key in your eval function's return dict to optimize."
-            )
+        from docetl.moar.optimizer import run_moar
 
-        from docetl.moar.optimizer import MOAROptimizer
-
-        return MOAROptimizer(
-            pipeline=self,
-            eval_fn=eval_fn,
-            metric_key=metric_key,
-            **kwargs,
-        ).optimize()
+        return run_moar(self, eval_fn=eval_fn, metric_key=metric_key, **kwargs)
 
     def _optimize_v1(self, *, max_threads, resume, save_path) -> "Pipeline":
         runner = DSLRunner(

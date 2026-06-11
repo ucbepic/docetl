@@ -33,6 +33,20 @@ class FilterOperation(MapOperation):
 
             return self
 
+    @classmethod
+    def transform_schema(cls, schema, config):
+        # The filter's decision key is consumed (popped from each kept row),
+        # so unlike map, the declared output schema does not survive.
+        result = super().transform_schema(schema, config)
+        filter_keys = [
+            k
+            for k in ((config.get("output") or {}).get("schema") or {})
+            if k != "_short_explanation"
+        ]
+        if filter_keys:
+            result.pop(filter_keys[0], None)
+        return result
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._filter_key = next(

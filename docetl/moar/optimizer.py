@@ -46,6 +46,7 @@ from docetl.utils_dataset import get_dataset_stats
 
 if TYPE_CHECKING:
     import pandas as pd
+
     from docetl.api import Pipeline
 
 
@@ -134,6 +135,29 @@ class MOARResult:
             f"{len(self.all_plans)} total{best_str}, "
             f"save_dir={self.save_dir!r})"
         )
+
+
+def run_moar(pipeline, *, eval_fn, metric_key, **kwargs) -> "MOARResult":
+    """Validate the required MOAR arguments and run the search.
+
+    Single entry point shared by ``Pipeline.optimize(method="moar")`` and
+    ``Frame.optimize()``. *pipeline* is anything ``MOAROptimizer`` accepts
+    (a ``Pipeline``, a YAML path, or a config dict).
+    """
+    if eval_fn is None:
+        raise ValueError(
+            "eval_fn is required for MOAR optimization. "
+            "Pass a callable, e.g.: "
+            "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
+        )
+    if metric_key is None:
+        raise ValueError(
+            "metric_key is required for MOAR optimization. "
+            "This is the key in your eval function's return dict to optimize."
+        )
+    return MOAROptimizer(
+        pipeline=pipeline, eval_fn=eval_fn, metric_key=metric_key, **kwargs
+    ).optimize()
 
 
 class MOAROptimizer:
@@ -252,14 +276,22 @@ class MOAROptimizer:
         from docetl.api import Pipeline as PipelineClass
 
         if isinstance(pipeline, PipelineClass):
-            target_dir = Path(save_dir).resolve() if save_dir else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            target_dir = (
+                Path(save_dir).resolve()
+                if save_dir
+                else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            )
             target_dir.mkdir(parents=True, exist_ok=True)
             yaml_path = target_dir / f"{pipeline.name}.yaml"
             pipeline.to_yaml(str(yaml_path))
             return str(yaml_path)
 
         if isinstance(pipeline, dict):
-            target_dir = Path(save_dir).resolve() if save_dir else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            target_dir = (
+                Path(save_dir).resolve()
+                if save_dir
+                else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            )
             target_dir.mkdir(parents=True, exist_ok=True)
             yaml_path = target_dir / "pipeline.yaml"
             with open(yaml_path, "w") as f:
@@ -375,7 +407,9 @@ class MOAROptimizer:
         DOCETL_CONSOLE.log("[bold blue]MOAROptimizer: loading dataset...[/bold blue]")
         with open(self._dataset_path, "r") as f:
             dataset_data = json.load(f)
-        sample_input = dataset_data[:5] if isinstance(dataset_data, list) else dataset_data
+        sample_input = (
+            dataset_data[:5] if isinstance(dataset_data, list) else dataset_data
+        )
 
         dataset_stats = get_dataset_stats(self.pipeline_path, self._dataset_name)
         available_actions = set(ALL_DIRECTIVES)

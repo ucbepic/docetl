@@ -10,9 +10,9 @@
 
 <p align="center"><img src="assets/docetl-overview.svg" alt="DocETL pipeline overview" width="680"></p>
 
-DocETL helps you process large collections of data with LLMs. You write each
-operation in natural language, e.g., "pull out every complaint in this
-ticket," and DocETL
+DocETL helps you process large collections of data (structured and
+unstructured) with LLMs. You write each operation in natural language, e.g.,
+"pull out every complaint in this ticket," and DocETL
 
 - provides the operators you need (map, reduce, filter, and more) and
   orchestrates them, parallelizing work across your data,

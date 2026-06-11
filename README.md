@@ -15,7 +15,7 @@
 
 ## What is DocETL
 
-DocETL helps you process large collections of data with LLMs. You write each operation in natural language, e.g., "pull out every complaint in this ticket," and DocETL
+DocETL helps you process large collections of data (structured and unstructured) with LLMs. You write each operation in natural language, e.g., "pull out every complaint in this ticket," and DocETL
 
 - provides the operators you need (map, reduce, filter, and more) and orchestrates them, parallelizing work across your data,
 - optimizes your pipeline automatically, swapping models, rewriting prompts, decomposing operations, and replacing subtasks with code wherever possible, to raise accuracy and cut cost, and

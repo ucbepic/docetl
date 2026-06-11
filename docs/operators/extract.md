@@ -8,6 +8,11 @@
     2. **Precision**: Exact text, without LLM interpretation or potential hallucination
     3. **Simplified workflow**: No output schema needed - extractions keep the original text format
 
+```mermaid
+flowchart LR
+    d1["doc 1"] --> e1["doc 1 + extracted text"]
+    d2["doc 2"] --> e2["doc 2 + extracted text"]
+```
 The Extract operation pulls specific sections of text from documents based on provided criteria.
 
 ## Example: Extracting Key Findings from Research Reports

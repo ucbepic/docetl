@@ -5,6 +5,12 @@ The `link_resolve` operation fixes links between items, e.g. in a knowledge grap
 - It examines every id specified in a link from one item to another. If the id has no exact match among item ids, it is compared to each of them using an LLM prompt to find a match.
 - Unlike resolve, it is one-sided: it assumes the item ids themselves are already canonical, e.g. from running resolve first.
 
+```mermaid
+flowchart LR
+    a["doc: related_to=[Appl Inc]"] --> a2["doc: related_to=[Apple Inc]"]
+    b["doc: related_to=[]"] --> b2["doc: related_to=[]"]
+```
+
 ## Example: Knowledge graph of boating terms
 
 === "YAML"

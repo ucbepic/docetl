@@ -2,6 +2,10 @@
 
 The TopK operation retrieves the most relevant items from your dataset. Use it for retrieval and ranking: finding documents for a query, filtering datasets to the most important items, RAG pipelines, or recommendations.
 
+```mermaid
+flowchart LR
+    in["all docs"] --> t["score against query"] --> out["top k docs"]
+```
 Three retrieval methods are supported:
 
 - **embedding**: semantic similarity — use when meaning matters more than exact words

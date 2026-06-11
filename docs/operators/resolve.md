@@ -2,6 +2,13 @@
 
 The Resolve operation identifies and canonicalizes duplicate entities in your data. LLM-generated fields and multi-source data often refer to the same entity inconsistently (e.g., "Mrs. Smith" vs. "Jane Smith"); resolving the field standardizes it before further analysis.
 
+```mermaid
+flowchart LR
+    a["doc: 'Jon Smith'"] --> a2["doc: 'John Smith'"]
+    b["doc: 'John Smith'"] --> b2["doc: 'John Smith'"]
+    c["doc: 'Alice Wong'"] --> c2["doc: 'Alice Wong'"]
+```
+
 ## Example: Standardizing Patient Names
 
 === "YAML"

@@ -2,6 +2,12 @@
 
 The Parallel Map operation applies multiple independent transformations to each item concurrently, maintaining a 1:1 input-to-output ratio. It differs from Map in that you define multiple prompts that run concurrently, without explicitly creating a DAG.
 
+```mermaid
+flowchart LR
+    d["doc"] --> p1["prompt A"] --> o["doc + field a + field b"]
+    d --> p2["prompt B"] --> o
+```
+
 ## Configuration
 
 - Each prompt generates specific fields of the output; prompts run concurrently.

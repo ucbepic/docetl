@@ -2,6 +2,15 @@
 
 The Filter operation behaves like Map, except items whose boolean output evaluates to false are dropped from the dataset.
 
+```mermaid
+flowchart LR
+    d1["doc 1"] --> f{"keep?"}
+    d2["doc 2"] --> f
+    d3["doc 3"] --> f
+    f --> o1["doc 1"]
+    f --> o3["doc 3"]
+```
+
 ## Example: Filtering High-Impact News Articles
 
 === "YAML"

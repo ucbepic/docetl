@@ -2,6 +2,11 @@
 
 The Sample operation samples items from the input. It is meant mostly as a debugging tool: insert it before the operation you're currently developing to limit the data that operation is fed, then remove it once the prompt works.
 
+```mermaid
+flowchart LR
+    in["100 docs"] --> s["sample"] --> out["10 docs"]
+```
+
 ## Example:
 
 === "YAML"

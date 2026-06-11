@@ -2,6 +2,14 @@
 
 The Equijoin operation (experimental) joins two datasets based on LLM-evaluated criteria, allowing matches based on semantic similarity or complex conditions rather than exact equality. It uses many of the same techniques as the [Resolve operation](resolve.md).
 
+```mermaid
+flowchart LR
+    l1["left 1"] --> m1["left 1 + right 2"]
+    r2["right 2"] --> m1
+    l2["left 2"] --> m2["left 2 + right 1"]
+    r1["right 1"] --> m2
+```
+
 ## Example: Matching Job Candidates to Job Postings
 
 === "YAML"

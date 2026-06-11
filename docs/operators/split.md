@@ -2,6 +2,13 @@
 
 The Split operation divides long text content into smaller chunks. Use it when documents exceed token limits or when LLM accuracy degrades on long inputs.
 
+```mermaid
+flowchart LR
+    d["long doc"] --> c1["chunk 1"]
+    d --> c2["chunk 2"]
+    d --> c3["chunk 3"]
+```
+
 ## Operation Example: Splitting Customer Support Transcripts
 
 === "YAML"

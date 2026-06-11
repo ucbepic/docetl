@@ -2,6 +2,13 @@
 
 The Reduce operation aggregates data based on a key. It supports both batch reduction and incremental folding for large datasets. Examples: consolidating patient records from multiple visits, or synthesizing findings from a set of research papers.
 
+```mermaid
+flowchart LR
+    a1["doc (key=A)"] --> A["one output for A"]
+    a2["doc (key=A)"] --> A
+    b1["doc (key=B)"] --> B["one output for B"]
+```
+
 ## Example: Summarizing Customer Feedback
 
 === "YAML"

@@ -2,6 +2,11 @@
 
 The Unnest operation expands an array field or a dictionary in the input data into multiple items, so individual elements can be processed separately.
 
+```mermaid
+flowchart LR
+    d["doc with items=[a, b]"] --> r1["doc with items=a"]
+    d --> r2["doc with items=b"]
+```
 !!! warning "How Unnest Works"
 
     The Unnest operation behaves differently depending on the type of data being unnested:

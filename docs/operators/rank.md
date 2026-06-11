@@ -3,6 +3,20 @@
 The Rank operation in DocETL sorts documents based on specified criteria.
 Note that this operation is designed to sort documents along some (latent) attribute in the data. **It is not specifically meant for top-k or retrieval-like queries.**
 
+```mermaid
+flowchart LR
+    subgraph in["input"]
+        d1["doc 1"]
+        d2["doc 2"]
+        d3["doc 3"]
+    end
+    subgraph out["sorted by criteria"]
+        o1["doc 3"]
+        o2["doc 1"]
+        o3["doc 2"]
+    end
+    in --> out
+```
 We adapt algorithms from Human-Powered Sorts and Joins ([VLDB 2012](https://www.vldb.org/pvldb/vol5/p013_adammarcus_vldb2012.pdf)).
 
 ## Example: Ranking Debates by Level of Controversy

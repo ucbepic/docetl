@@ -2,6 +2,13 @@
 
 The Gather operation complements Split by adding context from surrounding chunks to each chunk. Split chunks often lack context on their own — e.g., a merger agreement chunk may reference "the Company" or "Effective Date" defined in earlier chunks.
 
+```mermaid
+flowchart LR
+    c1["chunk 1"] -.-> g
+    c2["chunk 2"] --> g["chunk 2 + rendered neighbors"]
+    c3["chunk 3"] -.-> g
+```
+
 ## How Gather Works
 
 1. Identifies relevant surrounding chunks (peripheral context): preceding/following text, or summarized versions of nearby chunks

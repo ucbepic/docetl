@@ -5,6 +5,13 @@ The Cluster operation groups all items into a binary tree using [agglomerative c
 - The path is reversed: it starts with the most specific grouping and ends at the root (the cluster encompassing all input).
 - Each cluster is summarized with an LLM prompt, taking the summaries of its children as inputs (or, for leaf nodes, the actual items).
 
+```mermaid
+flowchart LR
+    d1["doc 1"] --> c1["doc 1 + cluster path"]
+    d2["doc 2"] --> c2["doc 2 + cluster path"]
+    d3["doc 3"] --> c3["doc 3 + cluster path"]
+```
+
 ## Example: Grouping concepts from a knowledge-graph
 
 === "YAML"

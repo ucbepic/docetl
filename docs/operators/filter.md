@@ -11,7 +11,7 @@ Filtering is crucial when you need to:
 - Create subsets of data for specialized analysis
 - Optimize downstream processing by reducing data volume
 
-## 🚀 Example: Filtering High-Impact News Articles
+## Example: Filtering High-Impact News Articles
 
 Let's look at a practical example of using the Filter operation to identify high-impact news articles based on certain criteria.
 

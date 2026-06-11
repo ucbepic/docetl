@@ -4,7 +4,7 @@ The Sample operation in DocETL samples items from the input. It is meant mostly 
 
 Insert it before the last operation, the one you're currently trying to add to the end of a working pipeline, to limit the amount of data it will be fed, so that the run time is small enough to comfortably debug its prompt. Once it seems to be working, you can remove the sample operation. You can then repeat this for each operation you add while developing your pipeline!
 
-## 🚀 Example:
+## Example:
 
 ```yaml
 - name: sample_concepts

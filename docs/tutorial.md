@@ -1,6 +1,6 @@
 # Tutorial: Analyzing Medical Transcripts with DocETL
 
-This tutorial will guide you through the process of using DocETL to analyze medical transcripts and extract medication information. We'll create a pipeline that identifies medications, resolves similar names, and generates summaries of side effects and therapeutic uses.
+This tutorial will guide you through the process of using DocETL to analyze medical transcripts and extract medication information. Every step is shown both in YAML (no/low code, run from the CLI) and in the Python Frame API — use the tabs to pick your style. We'll create a pipeline that identifies medications, resolves similar names, and generates summaries of side effects and therapeutic uses.
 
 ## Installation
 
@@ -62,9 +62,9 @@ Now, let's create a DocETL pipeline to analyze this data. We'll use a series of 
 3. **Medication Resolution**: Similar medication names are resolved to standardize the entries. This step helps in consolidating different variations or brand names of the same medication. For example, step 1 might extract "Ibuprofen" and "Motrin 800mg" as separate medications, and step 3 might resolve them to a single "Ibuprofen" entry.
 4. **Summary Generation**: For each unique medication, generate a summary of side effects and therapeutic uses based on information from all relevant transcripts.
 
-Create a file named `pipeline.yaml` with the following structure:
+=== "YAML"
 
-!!! abstract "Pipeline Structure"
+    Create a file named `pipeline.yaml` with the following structure:
 
     ```yaml
     datasets:
@@ -141,7 +141,6 @@ Create a file named `pipeline.yaml` with the following structure:
           Ensure your summary:
           - Is based solely on information from the provided transcripts
           - Focuses only on {{ reduce_key }}, not other medications
-          - Includes relevant details from all transcripts
           - Is clear and concise
           - Includes quotes from the transcripts
 
@@ -160,32 +159,130 @@ Create a file named `pipeline.yaml` with the following structure:
         intermediate_dir: intermediate_results
     ```
 
+=== "Python"
+
+    Build the same pipeline with chained operations:
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+    docetl.intermediate_dir = "intermediate_results"
+
+    pipeline = (
+        docetl.read_json("medical_transcripts.json")
+
+        # 1. Extract medications from each transcript
+        .map(
+            name="extract_medications",
+            prompt="""
+            Analyze the following transcript of a conversation between a doctor and a patient:
+            {{ input.src }}
+            Extract and list all medications mentioned in the transcript.
+            If no medications are mentioned, return an empty list.
+            """,
+            output={"schema": {"medication": "list[str]"}},
+        )
+
+        # 2. Flatten so each medication is its own row
+        .unnest(unnest_key="medication")
+
+        # 3. Resolve similar medication names
+        .resolve(
+            name="resolve_medications",
+            comparison_prompt="""
+            Compare the following two medication entries:
+            Entry 1: {{ input1.medication }}
+            Entry 2: {{ input2.medication }}
+            Are these medications likely to be the same or closely related?
+            """,
+            resolution_prompt="""
+            Given the following matched medication entries:
+            {% for entry in inputs %}
+            Entry {{ loop.index }}: {{ entry.medication }}
+            {% endfor %}
+            Determine the best resolved medication name for this group.
+            """,
+            output={"schema": {"medication": "str"}},
+            blocking_keys=["medication"],
+            blocking_threshold=0.6162,
+            embedding_model="text-embedding-3-small",
+        )
+
+        # 4. Summarize side effects and uses per medication
+        .reduce(
+            name="summarize_prescriptions",
+            reduce_key="medication",
+            prompt="""
+            Here are some transcripts of conversations between a doctor and a patient:
+
+            {% for value in inputs %}
+            Transcript {{ loop.index }}:
+            {{ value.src }}
+            {% endfor %}
+
+            For the medication {{ reduce_key }}, provide:
+
+            1. Side Effects: Summarize all mentioned side effects.
+            2. Therapeutic Uses: Explain the conditions for which it was prescribed.
+
+            Base your summary solely on the provided transcripts.
+            Include relevant quotes.
+            """,
+            output={"schema": {"side_effects": "str", "uses": "str"}},
+        )
+    )
+    ```
+
 ## Running the Pipeline
 
 !!! info "Pipeline Performance"
 
-    When running this pipeline on a sample dataset, we observed the following performance metrics using `gpt-4o-mini` as defined in the pipeline:
+    When running this pipeline on a sample dataset, we observed the following performance metrics using `gpt-4o-mini`:
 
     - Total cost: $0.10
     - Total execution time: 49.13 seconds
 
-    If you want to run it on a smaller sample, set the `sample` parameter for the map operation. For example, `sample: 10` will run the pipeline on a random sample of 10 transcripts:
+    If you want to run it on a smaller sample, set the `sample` parameter for the map operation (`sample: 10` in YAML, or `sample=10` on `.map()` in Python) to run on a random sample of 10 transcripts.
 
-    ```yaml
-    operations:
-      - name: extract_medications
-        type: map
-        sample: 10
-        ...
+=== "YAML"
+
+    Execute the pipeline from your terminal:
+
+    ```bash
+    docetl run pipeline.yaml
     ```
 
-To execute the pipeline, run the following command in your terminal:
+    The results will be saved in `medication_summaries.json`.
 
-```bash
-docetl run pipeline.yaml
-```
+=== "Python"
 
-This will process the medical transcripts, extract medication information, resolve similar medication names, and generate summaries of side effects and therapeutic uses for each medication. The results will be saved in `medication_summaries.json`.
+    Preview on a small sample first, then run the full pipeline:
+
+    ```python
+    pipeline.show()       # run on the first 5 transcripts and print results
+
+    df = pipeline.collect()
+    print(f"Total cost: ${pipeline.total_cost:.2f}")
+    ```
+
+    Or write directly to a file:
+
+    ```python
+    cost = pipeline.write_json("medication_summaries.json")
+    ```
+
+    You can also inspect the data at any point in the chain:
+
+    ```python
+    docetl.read_json("medical_transcripts.json").count()   # how many transcripts?
+    docetl.read_json("medical_transcripts.json").show()    # preview the raw data
+    pipeline.schema()      # {'side_effects': 'str', 'uses': 'str'}
+    ```
+
+    And the two styles convert into each other: `pipeline.to_yaml("pipeline.yaml")` exports
+    this pipeline for the CLI, and `docetl.Frame.from_yaml("pipeline.yaml")` loads a YAML
+    pipeline into Python.
 
 ## Further Questions
 

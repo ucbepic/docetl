@@ -110,11 +110,11 @@ class ClusterOperation(BaseOperation):
         Args:
             input_data (list[dict]): A list of dictionaries to process.
             is_build (bool): Whether the operation is being executed
-              in the build phase. Defaults to False.
+                in the build phase. Defaults to False.
 
         Returns:
             tuple[list[dict], float]: A tuple containing the clustered
-              list of dictionaries and the total cost of the operation.
+                list of dictionaries and the total cost of the operation.
         """
         if not input_data:
             return input_data, 0

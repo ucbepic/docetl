@@ -261,7 +261,7 @@ DocETL cache) to force recomputation.
 ## Cost & escalation reporting
 
 When a cascade runs, the operation logs a summary like the one shown in the
-[example above](#complete-example--run-it-end-to-end). The proxy line shows
+[example above](#complete-example-run-it-end-to-end). The proxy line shows
 how many items were scored and at what cost; the oracle line shows the
 calibration/escalation count and cost; the result line shows the split between
 proxy-decided and oracle-decided items.

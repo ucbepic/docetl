@@ -25,10 +25,10 @@ from docetl.operations.clustering_utils import (
     get_embeddings_for_clustering,
 )
 from docetl.operations.utils import (
+    lookup_field,
     rich_as_completed,
     strict_render,
     validate_output_types,
-    lookup_field,
 )
 
 # Import OutputMode enum for structured output checks
@@ -179,13 +179,7 @@ class ReduceOperation(BaseOperation):
             return self
 
     def __init__(self, *args, **kwargs):
-        """
-        Initialize the ReduceOperation.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-        """
+        """Initialize the ReduceOperation."""
         super().__init__(*args, **kwargs)
         self.min_samples = 5
         self.max_samples = 1000

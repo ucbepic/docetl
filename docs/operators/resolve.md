@@ -6,7 +6,7 @@ The Resolve operation in DocETL identifies and canonicalizes duplicate entities 
 
 Map operations executed by LLMs may sometimes yield inconsistent results, even when referring to the same entity. For example, when extracting patient names from medical transcripts, you might end up with variations like "Mrs. Smith" and "Jane Smith" for the same person. In such cases, a Resolve operation on the `patient_name` field can help standardize patient names before conducting further analysis.
 
-## 🚀 Example: Standardizing Patient Names
+## Example: Standardizing Patient Names
 
 Let's see a practical example of using the Resolve operation to standardize patient names extracted from medical transcripts.
 

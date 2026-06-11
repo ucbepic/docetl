@@ -11,7 +11,7 @@ the tree, the cluster that encompasses all your input).
 Each cluster is summarized using an llm prompt, taking the summaries
 of its children as inputs (or for the leaf nodes, the actual items).
 
-## 🚀 Example: Grouping concepts from a knowledge-graph
+## Example: Grouping concepts from a knowledge-graph
 
 ```yaml
 - name: cluster_concepts

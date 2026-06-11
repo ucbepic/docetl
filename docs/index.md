@@ -30,55 +30,55 @@ DocETL is a tool for creating and executing LLM-powered data processing pipeline
 
 DocETL supports two ways to define pipelines:
 
-### Python API (recommended)
+=== "Python"
 
-```python
-import docetl
+    ```python
+    import docetl
 
-docetl.default_model = "gpt-4o-mini"
+    docetl.default_model = "gpt-4o-mini"
 
-results = (
-    docetl.read_json("input.json")
-    .map(prompt="Classify: {{ input.text }}", output={"schema": {"category": "str"}})
-    .reduce(reduce_key="category", prompt="Summarize: {{ inputs }}", output={"schema": {"summary": "str"}})
-    .collect()
-)
-```
+    results = (
+        docetl.read_json("input.json")
+        .map(prompt="Classify: {{ input.text }}", output={"schema": {"category": "str"}})
+        .reduce(reduce_key="category", prompt="Summarize: {{ inputs }}", output={"schema": {"summary": "str"}})
+        .collect()
+    )
+    ```
 
-See the [Python API guide](python/index.md) for the full reference.
+    See the [Python API guide](python/index.md) for the full reference.
 
-### YAML (low-code)
+=== "YAML"
 
-Define your pipeline declaratively, then run it from the CLI:
+    Define your pipeline declaratively, then run it from the CLI:
 
-```yaml
-default_model: gpt-4o-mini
-datasets:
-  docs:
-    type: file
-    path: input.json
-operations:
-  - name: classify
-    type: map
-    prompt: "Classify: {{ input.text }}"
-    output:
-      schema:
-        category: str
-pipeline:
-  steps:
-    - name: step1
-      input: docs
-      operations: [classify]
-  output:
-    type: file
-    path: output.json
-```
+    ```yaml
+    default_model: gpt-4o-mini
+    datasets:
+      docs:
+        type: file
+        path: input.json
+    operations:
+      - name: classify
+        type: map
+        prompt: "Classify: {{ input.text }}"
+        output:
+          schema:
+            category: str
+    pipeline:
+      steps:
+        - name: step1
+          input: docs
+          operations: [classify]
+      output:
+        type: file
+        path: output.json
+    ```
 
-```bash
-docetl run pipeline.yaml
-```
+    ```bash
+    docetl run pipeline.yaml
+    ```
 
-See the [YAML tutorial](tutorial.md) for a complete walkthrough.
+    See the [tutorial](tutorial.md) for a complete walkthrough.
 
 ### Pandas Integration
 

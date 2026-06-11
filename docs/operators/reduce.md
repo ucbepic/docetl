@@ -10,7 +10,7 @@ Reduce operations are essential when you need to summarize or aggregate data acr
 - Consolidate patient medical records from multiple visits
 - Synthesize key findings from a set of research papers on a specific topic
 
-## 🚀 Example: Summarizing Customer Feedback
+## Example: Summarizing Customer Feedback
 
 Let's look at a practical example of using the Reduce operation to summarize customer feedback by department:
 

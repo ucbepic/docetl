@@ -1,4 +1,4 @@
-# Cluster operation
+# Link Resolve operation
 
 The `link_resolve` operation in DocETL is used to fix links between
 items, e.g. in a knoweldge graph. It assumes you have already ensured
@@ -13,7 +13,7 @@ to try to find a match.
 Note that this is a one-sided approach, compared to the resolve
 operation: It assumes that item id:s are canonical / correct.
 
-## 🚀 Example: Knowledge graph of boating terms
+## Example: Knowledge graph of boating terms
 
 ```yaml
 - name: fix_links

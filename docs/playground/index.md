@@ -8,9 +8,9 @@ DocWrangler streamlines development from prototype to production. User studies s
 
 Building complex LLM pipelines for your data often requires experimentation and iteration. DocWrangler lets you:
 
-- 🚀 Test prompts and see results instantly
-- ✨ Refine operations based on sample outputs  
-- 🔄 Build complex pipelines step-by-step
+- Test prompts and see results instantly
+- Refine operations based on sample outputs  
+- Build complex pipelines step-by-step
 
 ## Public Instance
 

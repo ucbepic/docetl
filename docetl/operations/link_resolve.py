@@ -6,7 +6,7 @@ from rich.prompt import Confirm
 from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render, lookup_field
+from docetl.operations.utils import RichLoopBar, lookup_field, strict_render
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 from .clustering_utils import get_embeddings_for_clustering
@@ -30,6 +30,7 @@ class LinkResolveOperation(BaseOperation):
             # Mark that we need to append document statement
             # Note: link_resolve uses link_value, id_value, and item, so strict_render will handle it
             self.config["_append_document_to_comparison_prompt"] = True
+
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the resolve links operation on the provided dataset.
@@ -64,6 +65,12 @@ class LinkResolveOperation(BaseOperation):
 
         to_resolve = list(link_values - id_values)
         id_values = list(id_values)
+
+        if not to_resolve:
+            # Every link already points at a canonical id — nothing to do
+            # (and the embedding/similarity path below requires non-empty
+            # inputs).
+            return input_data, 0
 
         if not blocking_threshold and not blocking_conditions:
             # Prompt the user for confirmation
@@ -141,7 +148,8 @@ class LinkResolveOperation(BaseOperation):
 
         for item in input_data:
             item[link_key] = [
-                self.replacements.get(value, value) for value in lookup_field(item, link_key)
+                self.replacements.get(value, value)
+                for value in lookup_field(item, link_key)
             ]
 
         return input_data, total_cost

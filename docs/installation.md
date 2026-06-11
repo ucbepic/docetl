@@ -2,11 +2,11 @@
 
 DocETL can be easily installed using pip, Python's package installer, or from source. Follow these steps to get DocETL up and running on your system:
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 Before installing DocETL, ensure you have Python 3.10 or later installed on your system. You can check your Python version by running:
 
-## 📦 Installation via pip
+## Installation via pip
 
 1. Install DocETL using pip:
 
@@ -26,7 +26,7 @@ This command will install DocETL along with its dependencies as specified in the
 docetl version
 ```
 
-## 🔧 Installation from Source
+## Installation from Source
 
 To install DocETL from source, follow these steps:
 
@@ -71,7 +71,7 @@ Alternatively, you can set the OPENAI_API_KEY environment variable in your shell
 make tests-basic
 ```
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
 If you encounter any issues during installation, please ensure that:
 

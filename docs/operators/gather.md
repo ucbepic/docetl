@@ -36,7 +36,7 @@ Peripheral context refers to the surrounding text or information that helps prov
 
 The Gather operation can maintain document structure through header hierarchies. This is particularly useful for preserving the overall structure of complex legal documents like contracts, agreements, or regulatory filings.
 
-## 🚀 Example: Enhancing Context in Legal Document Analysis
+## Example: Enhancing Context in Legal Document Analysis
 
 Let's walk through an example of using the Gather operation to process a long merger agreement.
 

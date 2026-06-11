@@ -2,7 +2,7 @@
 
 The Map operation in DocETL applies a specified transformation to each item in your input data, allowing for complex processing and insight extraction from large, unstructured documents.
 
-## 🚀 Example: Analyzing Long-Form News Articles
+## Example: Analyzing Long-Form News Articles
 
 Let's see a practical example of using the Map operation to analyze long-form news articles, extracting key information and generating insights.
 

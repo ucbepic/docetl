@@ -314,7 +314,7 @@ $ docetl run pipeline_opt.yaml
   Operation unnest_themes completed. Cost: $0.00
   Operation synthesized_resolve_0 completed. Cost: $0.04
   Operation summarize_theme_evolution completed. Cost: $0.09
-           💾 Output saved to theme_evolution_analysis_baseline.json
+            Output saved to theme_evolution_analysis_baseline.json
            Total cost: $0.29
            Total time: 97.25 seconds
 ```

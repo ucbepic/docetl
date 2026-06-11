@@ -10,13 +10,27 @@ site_name: docetl docs
 repo_url: https://github.com/ucbepic/docetl
 repo_name: ucbepic/docetl
 remote_branch: gh-pages
+
+# Deliberately unlisted: TODO stubs, internal design notes, and deprecated
+# V1-optimizer pages kept for old links.
+not_in_nav: |
+  tutorial-pythonapi.md
+  advanced/custom-operators.md
+  advanced/extending-agents.md
+  advanced/performance-tuning.md
+  design/model-cascade.md
+  examples/annotating-legal-documents.md
+  examples/characterizing-troll-behavior.md
+  optimization/configuration.md
+  optimization/example.md
+  optimization/fallback-models.md
+  optimization/python-api.md
 nav:
   - Getting Started:
       - Overview: index.md
       - Installation: installation.md
       - Quick Start (Claude Code): quickstart-claude-code.md
       - Quick Start Tutorial: tutorial.md
-      - Quick Start Tutorial (Python API): tutorial-pythonapi.md
       - Best Practices: best-practices.md
   
   - User Guide:
@@ -30,6 +44,7 @@ nav:
           - Retrievers: retrievers.md
       - Running Pipelines:
           - Interactive Progress View: execution/interactive-progress.md
+          - Additional Notes: execution/running-pipelines.md
       - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md
@@ -40,6 +55,7 @@ nav:
           - Rank: operators/rank.md
           - Extract: operators/extract.md
           - Cluster: operators/cluster.md
+          - Link Resolve: operators/link-resolve.md
       - Auxiliary Operators:
           - Split: operators/split.md
           - Gather: operators/gather.md
@@ -93,6 +109,7 @@ nav:
   - Tools & Resources:
       - DocWrangler:
           - Setup: playground/index.md
+          - Features: playground/features.md
           - Tutorial: playground/tutorial.md
       - Community:
           - Getting Involved: community/index.md

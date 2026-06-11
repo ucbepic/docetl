@@ -516,7 +516,7 @@ docetl run workloads/steamgames/pipeline_opt.yaml
   Operation unnest_polarizing_themes completed. Cost: $0.00
   Operation resolve_themes completed. Cost: $7.56
   Operation aggregate_common_themes completed. Cost: $0.26
-           💾 Output saved to output_polarizing_themes.json
+            Output saved to output_polarizing_themes.json
            Total cost: $13.21
            Total time: 7339.11 seconds
 ```

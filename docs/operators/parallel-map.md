@@ -48,7 +48,7 @@ Each prompt configuration in the `prompts` list should contain:
     2. **Simplified Configuration**: You define multiple transformations in a single operation, reducing pipeline complexity.
     3. **Unified Output**: Results from all prompts are combined into a single output item, simplifying downstream operations.
 
-## 🚀 Example: Processing Job Applications
+## Example: Processing Job Applications
 
 Here's an example of a parallel map operation that processes job applications by extracting key information and evaluating candidates:
 
@@ -98,7 +98,7 @@ gleaning:
   model: gpt-4o-mini          # (optional) model for the validator LLM
 ```
 
-### 📄 Example with Per-Prompt Gleaning
+### Example with Per-Prompt Gleaning
 
 ```yaml
 - name: process_job_application

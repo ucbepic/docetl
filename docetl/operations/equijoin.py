@@ -184,9 +184,7 @@ class EquijoinOperation(BaseOperation, CascadeMixin):
             return False, cost
         return output["is_match"], cost
 
-    def _cascade_match_pairs(
-        self, pair_items: list
-    ) -> "tuple[list[bool], float]":
+    def _cascade_match_pairs(self, pair_items: list) -> "tuple[list[bool], float]":
         """Decide ``is_match`` for each candidate pair via the model cascade.
 
         ``pair_items`` is the list of ``(left, right)`` dict tuples (in
@@ -426,7 +424,11 @@ class EquijoinOperation(BaseOperation, CascadeMixin):
                 left_embeddings = precomputed_left_embeddings
                 right_embeddings = precomputed_right_embeddings
             else:
-                embedding_model = self.config.get("embedding_model", self.default_model)
+                # Never fall back to the chat default_model here — embedding
+                # endpoints reject chat models.
+                embedding_model = self.config.get(
+                    "embedding_model", "text-embedding-3-small"
+                )
                 model_input_context_length = model_cost.get(embedding_model, {}).get(
                     "max_input_tokens", 8192
                 )

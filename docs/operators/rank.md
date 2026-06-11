@@ -5,7 +5,7 @@ Note that this operation is designed to sort documents along some (latent) attri
 
 We adapt algorithms from Human-Powered Sorts and Joins ([VLDB 2012](https://www.vldb.org/pvldb/vol5/p013_adammarcus_vldb2012.pdf)).
 
-## 🚀 Example: Ranking Debates by Level of Controversy
+## Example: Ranking Debates by Level of Controversy
 
 Let's see a practical example of using the Rank operation to rank political debates based on how controversial they are:
 

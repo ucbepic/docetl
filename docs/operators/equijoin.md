@@ -6,7 +6,7 @@ The Equijoin operation in DocETL is an experimental feature designed for joining
 
 While traditional database joins rely on exact matches, real-world data often requires more nuanced joining criteria. Equijoin allows for joins based on semantic similarity or complex conditions, making it ideal for scenarios where exact matches are impossible or undesirable.
 
-## 🚀 Example: Matching Job Candidates to Job Postings
+## Example: Matching Job Candidates to Job Postings
 
 Let's explore a practical example of using the Equijoin operation to match job candidates with suitable job postings based on skills and experience.
 

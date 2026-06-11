@@ -234,6 +234,17 @@ Now, let's create a DocETL pipeline to analyze this data. We'll use a series of 
     )
     ```
 
+!!! note "Relative paths"
+
+    All relative paths in a pipeline — the dataset `path`, the output `path`,
+    and `intermediate_dir` — are resolved against the directory you *run*
+    from, not the location of `pipeline.yaml` or your Python script. Running
+    the examples above from your project directory creates
+    `intermediate_results/` and `medication_summaries.json` there; running
+    `docetl run path/to/pipeline.yaml` from somewhere else will look for
+    `medical_transcripts.json` in that somewhere else. Use absolute paths if
+    you want outputs pinned to a fixed location.
+
 ## Running the Pipeline
 
 !!! info "Pipeline Performance"

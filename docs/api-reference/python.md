@@ -23,7 +23,7 @@ Set global defaults as module-level attributes:
 | `docetl.agent_model` | `str` | `None` | Model for optimizer rewrites |
 | `docetl.max_threads` | `int` | `cpu_count * 4` | Concurrent threads |
 | `docetl.bypass_cache` | `bool` | `False` | Skip LLM cache |
-| `docetl.intermediate_dir` | `str` | `None` | Directory for intermediate results |
+| `docetl.intermediate_dir` | `str` | `None` | Directory for intermediate results (a relative path resolves against the working directory at run time) |
 | `docetl.rate_limits` | `dict` | `None` | Rate limits per model |
 | `docetl.fallback_models` | `list[str]` | `None` | Fallback chain on failure |
 | `docetl.fallback_embedding_models` | `list[str]` | `None` | Fallback embedding models |

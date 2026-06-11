@@ -43,7 +43,7 @@ docetl.fallback_embedding_models = ["text-embedding-3-small"]
 # Execution
 docetl.max_threads = 64            # concurrent threads (default: cpu_count * 4)
 docetl.bypass_cache = True         # skip LLM cache
-docetl.intermediate_dir = ".cache" # intermediate results directory
+docetl.intermediate_dir = ".cache" # intermediate results; relative to the CWD you run from
 
 # Rate limiting
 docetl.rate_limits = {

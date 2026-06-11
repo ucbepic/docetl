@@ -21,10 +21,6 @@ natural language, e.g., "pull out every complaint in this ticket," and DocETL
   models, prompts, and operation decompositions.
 
 
-Use it when you have a task over a collection of documents or unstructured
-records, e.g. extracting and aggregating themes across thousands of
-transcripts, and you care about output quality, cost, or both.
-
 ## Getting Started
 
 Write pipelines in Python, or in YAML if you prefer low-code / no-code. (There is also a [pandas accessor](pandas/index.md) for quick one-off operations on DataFrames.)

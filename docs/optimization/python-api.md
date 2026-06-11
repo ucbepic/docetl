@@ -34,7 +34,7 @@ optimized = frame.optimize(
 )
 
 # Run the optimized pipeline
-df = optimized.collect()
+rows = optimized.collect()
 print(f"Cost: ${optimized.total_cost:.4f}")
 
 # Inspect the Pareto frontier
@@ -101,7 +101,7 @@ See the [Configuration Reference](moar/configuration.md) for details.
 optimized = frame.optimize(eval_fn=evaluate, metric_key="score")
 
 # The optimized frame is ready to run
-df = optimized.collect()
+rows = optimized.collect()
 
 # Access the full MOAR search results
 results = optimized.search_results

@@ -56,7 +56,7 @@ flowchart LR
             }
         },
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 ## Configuration

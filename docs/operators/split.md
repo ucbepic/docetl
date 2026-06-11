@@ -37,7 +37,7 @@ flowchart LR
         method="token_count",
         method_kwargs={"num_tokens": 500, "model": "gpt-4o-mini"},
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 This splits the 'transcript' field into chunks of approximately 500 tokens (counted with the gpt-4o-mini tokenizer), producing one output item per chunk. Chunks do not overlap in content.
@@ -247,7 +247,7 @@ Split is typically followed by a map over each chunk and a reduce per original d
             }
         },
     )
-    df = pipeline.collect()
+    rows = pipeline.collect()
     ```
 
 !!! important "Non-Associative Reduce Operation"

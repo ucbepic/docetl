@@ -276,7 +276,7 @@ Now, let's create a DocETL pipeline to analyze this data. We'll use a series of 
     ```python
     pipeline.show()       # run on the first 5 transcripts and print results
 
-    df = pipeline.collect()
+    rows = pipeline.collect()
     print(f"Total cost: ${pipeline.total_cost:.2f}")
     ```
 

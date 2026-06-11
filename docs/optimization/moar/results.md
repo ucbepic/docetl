@@ -10,7 +10,7 @@ What MOAR outputs and how to interpret the results.
 
 ```python
 optimized = frame.optimize(eval_fn=evaluate, metric_key="score")
-df = optimized.collect()   # run the optimized pipeline
+rows = optimized.collect()   # run the optimized pipeline
 
 results = optimized.search_results
 results.best()      # OptimizedPipeline with highest accuracy on the frontier

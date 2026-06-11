@@ -181,7 +181,7 @@ Now, we apply the Gather operation:
         },
         doc_header_key="headers",
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 ### Step 5: Analyze Chunks (Map operation after Gather)
@@ -243,7 +243,7 @@ Finally, we analyze each chunk with its gathered context:
             }
         },
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 The gather step in this pipeline includes, for each chunk:

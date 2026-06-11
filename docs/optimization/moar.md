@@ -38,7 +38,7 @@ When optimizing pipelines, you trade off cost and accuracy. MOAR explores many d
 4. **Review results** — Run the optimized pipeline, or browse the cost-accuracy frontier:
 
     ```python
-    df = optimized.collect()           # Execute the optimized pipeline
+    rows = optimized.collect()           # Execute the optimized pipeline
 
     results = optimized.search_results
     best = results.best()              # Highest accuracy

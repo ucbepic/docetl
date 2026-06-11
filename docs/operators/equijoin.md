@@ -52,7 +52,7 @@ flowchart LR
 
     Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.""",
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 !!! note "Jinja2 Syntax with left and right"

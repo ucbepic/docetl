@@ -90,7 +90,7 @@ flowchart LR
         ],
         num_retries_on_validate_failure=2,
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 ??? example "Sample Input and Output"
@@ -402,7 +402,7 @@ The Map operation can directly process PDFs using Claude or Gemini models. To us
             prompt="Summarize the paper.",
             output={"schema": {"paper_info": "string"}},
         )
-        df = frame.collect()
+        rows = frame.collect()
         ```
 
     Your input data (`papers/urls.json`) should contain documents with PDF URLs:

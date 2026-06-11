@@ -66,7 +66,7 @@ flowchart LR
         model="gpt-4-turbo",
         validate=["isinstance(output['is_high_impact'], bool)"],
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 ??? example "Sample Input and Output"

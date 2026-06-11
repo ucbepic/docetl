@@ -290,8 +290,8 @@ Pass exactly one of `data` (a file path or list of dicts to index) or `dataset` 
 | Method | Return Type | Description |
 |--------|-------------|-------------|
 | `frame.show(max=5)` | `DataFrame` | Run on a sample and print results. Works on bare datasets too. |
-| `frame.collect()` | `DataFrame` | Execute full pipeline, return DataFrame |
-| `frame.to_list()` | `list[dict]` | Execute full pipeline, return list of dicts |
+| `frame.collect()` | `list[dict]` | Execute the pipeline, return the result rows |
+| `frame.to_pandas()` | `DataFrame` | Execute the pipeline, return a pandas DataFrame |
 | `frame.write_json(path)` | `None` | Execute and write to JSON |
 | `frame.write_csv(path)` | `None` | Execute and write to CSV |
 | `frame.write_parquet(path)` | `None` | Execute and write to Parquet |
@@ -301,11 +301,13 @@ Terminal actions are memoized on the Frame: repeated calls with an unchanged con
 ### Cost & Token Tracking
 
 ```python
-df = frame.collect()
+rows = frame.collect()
 
 print(f"Cost: ${frame.total_cost:.4f}")
 print(f"Tokens: {frame.token_usage}")
-print(f"Cost: ${df.attrs['_total_cost']:.4f}")  # also on DataFrame
+
+df = frame.to_pandas()
+print(f"Cost: ${df.attrs['_total_cost']:.4f}")  # also on the DataFrame
 ```
 
 ---

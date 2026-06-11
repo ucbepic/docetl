@@ -56,7 +56,7 @@ The Extract operation pulls specific sections of text from documents based on pr
         document_keys=["report_text"],
         model="gpt-4.1-mini",
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 This operation converts text into a line-numbered format, uses an LLM to identify relevant content, and extracts the specified text ranges. The extracted content is added to the document with the suffix "_extracted_findings".

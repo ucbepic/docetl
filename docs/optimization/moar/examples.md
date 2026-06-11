@@ -49,7 +49,7 @@ optimized = frame.optimize(
 )
 
 # Run the optimized pipeline
-df = optimized.collect()
+rows = optimized.collect()
 print(f"Cost: ${optimized.total_cost:.4f}")
 
 # Explore the Pareto frontier

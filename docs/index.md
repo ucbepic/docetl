@@ -55,10 +55,11 @@ Write pipelines in Python, or in YAML if you prefer low-code / no-code. (There i
         output={"schema": {"top_themes": "list[{name: str, description: str, num_mentions: int}]"}},
     )
 
-    df = themes.collect()  # nothing runs until this line
+    results = themes.collect()  # nothing runs until this line
     ```
 
-    `df` is a pandas DataFrame; `df["top_themes"][0]` looks like:
+    `collect()` returns the result rows as a list of dicts (use
+    `themes.to_pandas()` for a DataFrame); `results[0]["top_themes"]` looks like:
 
     ```python
     [

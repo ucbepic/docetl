@@ -189,7 +189,7 @@ For more details on evaluation functions, see the [Evaluation Functions guide](e
 
     ```python
     # Run the optimized pipeline
-    df = optimized.collect()
+    rows = optimized.collect()
     print(f"Execution cost: ${optimized.total_cost:.4f}")
 
     # Access the MOAR search results

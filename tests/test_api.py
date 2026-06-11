@@ -255,7 +255,7 @@ def test_map_execution(temp_input_file):
             output={"schema": {"sentiment": "string"}},
             model="gpt-4o-mini",
         )
-        .to_list()
+        .collect()
     )
 
     assert isinstance(results, list)
@@ -287,7 +287,7 @@ def test_parallel_map_execution(temp_input_file):
             ],
             output={"schema": {"sentiment": "string", "word_count": "integer"}},
         )
-        .to_list()
+        .collect()
     )
 
     assert isinstance(results, list)
@@ -305,7 +305,7 @@ def test_filter_execution(temp_input_file):
             model="gpt-4o-mini",
             output={"schema": {"filtered": "boolean"}},
         )
-        .to_list()
+        .collect()
     )
 
     assert isinstance(results, list)
@@ -325,7 +325,7 @@ def test_reduce_execution(reduce_sample_data):
             output={"schema": {"total": "number", "avg": "number"}},
             model="gpt-4o-mini",
         )
-        .to_list()
+        .collect()
     )
 
     assert isinstance(results, list)
@@ -348,7 +348,7 @@ def test_resolve_execution(resolve_sample_data):
             resolution_model="gpt-4o-mini",
             resolution_prompt="Given the following list of similar entries, determine one common name. {{ inputs }}",
         )
-        .to_list()
+        .collect()
     )
 
     assert isinstance(results, list)
@@ -368,7 +368,7 @@ def test_equijoin_execution(left_data, right_data):
             embedding_model="text-embedding-3-small",
             comparison_model="gpt-4o-mini",
         )
-        .to_list()
+        .collect()
     )
 
     assert isinstance(results, list)
@@ -405,7 +405,7 @@ def test_code_map_via_frame():
     results = (
         docetl.from_list(data)
         .code_map(code=_callable_to_code(_code_map_transform))
-        .to_list()
+        .collect()
     )
 
     assert len(results) == 3
@@ -426,7 +426,7 @@ def test_code_filter_via_frame():
     results = (
         docetl.from_list(data)
         .code_filter(code=_callable_to_code(_code_filter_transform))
-        .to_list()
+        .collect()
     )
 
     kept_ids = sorted([d["id"] for d in results])
@@ -445,7 +445,7 @@ def test_code_reduce_via_frame():
     results = (
         docetl.from_list(data)
         .code_reduce(code=_callable_to_code(_code_reduce_transform), reduce_key="group", pass_through=True)
-        .to_list()
+        .collect()
     )
 
     assert len(results) == 2
@@ -569,23 +569,24 @@ def test_from_dict_with_equijoin(temp_output_file, temp_intermediate_dir):
     assert "my_join" in step_ops[0]
 
 
-# ── Frame collect returns DataFrame ───────────────────────────────
+# ── Frame terminal action return types ───────────────────────────
 
 
-def test_collect_returns_dataframe():
-    """Frame.collect() should return a pandas DataFrame."""
+def test_collect_returns_rows_and_to_pandas_returns_dataframe():
+    """collect() returns list[dict]; to_pandas() returns a DataFrame."""
     docetl.default_model = "gpt-4o-mini"
 
     data = [{"x": 1}, {"x": 2}, {"x": 3}]
-    df = (
-        docetl.from_list(data)
-        .code_map(code=_callable_to_code(_code_map_transform))
-        .collect()
-    )
+    frame = docetl.from_list(data).code_map(code=_callable_to_code(_code_map_transform))
 
+    rows = frame.collect()
+    assert isinstance(rows, list) and isinstance(rows[0], dict)
+    assert [r["double"] for r in rows] == [2, 4, 6]
+
+    df = frame.to_pandas()
     assert isinstance(df, pd.DataFrame)
-    assert len(df) == 3
     assert list(df["double"]) == [2, 4, 6]
+    assert "_total_cost" in df.attrs
 
 
 # ── DSLRunner accepts Pipeline ───────────────────────────────────

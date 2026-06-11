@@ -212,17 +212,17 @@ results = (
         prompt="...",
         output={"schema": {"summary": "string"}},
     )
-    .collect()                                 # returns pandas DataFrame
+    .collect()                                 # returns list[dict]; .to_pandas() for a DataFrame
 )
 
 # Cost and token tracking
-print(f"Cost: ${results.attrs['_total_cost']:.4f}")
+print(f"Cost: ${pipeline.total_cost:.4f}")
 ```
 
 **Key Frame API methods:**
 - Readers: `docetl.read_json()`, `docetl.read_csv()`, `docetl.read_parquet()`, `docetl.from_list()`
 - Operations: `.map()`, `.filter()`, `.reduce()`, `.resolve()`, `.equijoin()`, `.split()`, `.gather()`, `.unnest()`, `.code_map()`, `.code_filter()`, `.code_reduce()`
-- Terminal actions: `.show()` (run on sample, print results), `.collect()` (DataFrame), `.to_list()`, `.write_json()`, `.write_csv()`, `.write_parquet()`
+- Terminal actions: `.show()` (run on sample, print results), `.collect()` (list of dicts), `.to_pandas()` (DataFrame), `.write_json()`, `.write_csv()`, `.write_parquet()`
 - Inspection (no execution): `.schema()` (output schema), `.count()` (input doc count on bare datasets), `.to_yaml()` (export pipeline as YAML), `.to_python()`
 - Config: `docetl.default_model`, `docetl.max_threads`, `docetl.bypass_cache`, `docetl.rate_limits`, `docetl.intermediate_dir`, `docetl.agent_model`, `docetl.fallback_models`
 
@@ -721,7 +721,7 @@ optimized = frame.optimize(
     save_dir="./optimization_results",
 )
 
-df = optimized.collect()
+rows = optimized.collect()
 print(optimized.search_results.to_df())  # Pareto frontier
 ```
 

@@ -132,7 +132,7 @@ All other original key-value pairs from the input item are preserved in the outp
             }
         },
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 After unnesting, each quote becomes its own item, accessible via `input.salient_quotes` in the second map.

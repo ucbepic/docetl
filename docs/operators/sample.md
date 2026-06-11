@@ -33,7 +33,7 @@ flowchart LR
         stratify_key="category",
         random_state=42,
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 This returns a pseudo-random 10% of the input, sampled proportionally across values of the `category` key. The fixed seed (42) makes the sample reproducible across reruns; without `random_state`, a different sample is returned every time.

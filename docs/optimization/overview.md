@@ -25,7 +25,7 @@ the same pipeline. We plan to merge the two into one optimizer.
 
     ```python
     optimized = frame.optimize(eval_fn=my_eval_function, metric_key="score")
-    df = optimized.collect()                  # run the optimized pipeline
+    rows = optimized.collect()                  # run the optimized pipeline
     best = optimized.search_results.best()    # inspect the frontier
     ```
 

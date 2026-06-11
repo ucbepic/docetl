@@ -272,8 +272,8 @@ class TestCheckpointSafety:
 
     def test_input_data_change_invalidates_checkpoint(self, tmp_path):
         _config.intermediate_dir = str(tmp_path / "ckpt")
-        first = self._doubler([{"x": 1}]).to_list()
-        second = self._doubler([{"x": 5}]).to_list()
+        first = self._doubler([{"x": 1}]).collect()
+        second = self._doubler([{"x": 5}]).collect()
         assert first[0]["y"] == 2
         assert second[0]["y"] == 10
 
@@ -288,9 +288,9 @@ class TestCheckpointSafety:
                 .code_map("b", code="def transform(doc): return {'w': doc['v'] * 10}")
             )
 
-        assert pipeline(1).to_list()[0]["w"] == 20
+        assert pipeline(1).collect()[0]["w"] == 20
         # 'b' is unchanged but its input lineage changed — it must re-run.
-        assert pipeline(2).to_list()[0]["w"] == 30
+        assert pipeline(2).collect()[0]["w"] == 30
 
     def test_equijoin_config_flows_into_downstream_hash(self, tmp_path):
         _config.default_model = "gpt-4o-mini"
@@ -426,9 +426,9 @@ class TestMemoization:
 
     def test_result_mutation_does_not_corrupt_memo(self, tmp_path):
         frame, _ = self._counting_frame(tmp_path, n=1)
-        rows = frame.to_list()
+        rows = frame.collect()
         rows[0]["y"] = 999
-        assert frame.to_list()[0]["y"] == 0
+        assert frame.collect()[0]["y"] == 0
 
 
 class TestSchema:
@@ -571,5 +571,5 @@ def test_read_dir_reads_files_as_text(tmp_path):
 
     out = frame.code_map(
         "wc", code="def transform(doc): return {'words': len(doc['text'].split())}"
-    ).to_list()
+    ).collect()
     assert len(out) == 3 and all(r["words"] == 2 for r in out)

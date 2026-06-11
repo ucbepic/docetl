@@ -108,7 +108,8 @@ The pipeline specification lists the steps to execute and the output:
 === "Python"
 
     ```python
-    df = pipeline.collect()                # results as a DataFrame
+    rows = pipeline.collect()              # result rows as a list of dicts
+    df = pipeline.to_pandas()              # or a pandas DataFrame
     pipeline.write_json("output.json")     # or write to a file
     ```
 

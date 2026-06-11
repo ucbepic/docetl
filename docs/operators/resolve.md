@@ -69,7 +69,7 @@ flowchart LR
     Provide a single, standardized patient name that represents all the matched entries. Use the format "LastName, FirstName MiddleInitial" if available.""",
         output={"schema": {"patient_name": "string"}},
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 - The `comparison_prompt` compares pairs of entries; reference the two documents via `input1` and `input2`.

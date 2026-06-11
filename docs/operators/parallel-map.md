@@ -123,7 +123,7 @@ Each prompt configuration in the `prompts` list should contain:
             }
         },
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 ## Advanced Validation: Per-Prompt Gleaning

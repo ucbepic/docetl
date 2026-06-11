@@ -68,7 +68,7 @@ flowchart LR
 
     Provide the title of the super-concept, and a description.""",
     )
-    df = frame.collect()
+    rows = frame.collect()
     ```
 
 ??? example "Sample Input and Output"

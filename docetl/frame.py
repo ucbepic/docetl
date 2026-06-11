@@ -969,14 +969,23 @@ class Frame:
             for name, ds in self._datasets.items()
         }
 
-    def collect(self, max_threads: int | None = None) -> "pd.DataFrame":
-        """Execute the pipeline and return results as a DataFrame.
+    def collect(self, max_threads: int | None = None) -> list[dict]:
+        """Execute the pipeline and return the result rows as a list of dicts.
 
         Results are memoized on the Frame: repeated terminal actions
-        (``count()``, ``collect()``, ``to_list()``, ``write_*()``) with an
+        (``count()``, ``collect()``, ``to_pandas()``, ``write_*()``) with an
         unchanged configuration reuse the previous result instead of
         re-running operations. Edits to input *files* between calls are
         not detected; rebuild the Frame to force a re-run.
+        """
+        data, _ = self._execute(max_threads=max_threads)
+        return data
+
+    def to_pandas(self, max_threads: int | None = None) -> "pd.DataFrame":
+        """Execute the pipeline and return results as a pandas DataFrame.
+
+        Cost and token usage are attached as ``df.attrs["_total_cost"]`` and
+        ``df.attrs["_token_usage"]`` (also available on the Frame itself).
         """
         import pandas as pd
 
@@ -985,11 +994,6 @@ class Frame:
         df.attrs["_total_cost"] = cost
         df.attrs["_token_usage"] = self._token_usage
         return df
-
-    def to_list(self, max_threads: int | None = None) -> list[dict]:
-        """Execute the pipeline and return results as a list of dicts."""
-        data, _ = self._execute(max_threads=max_threads)
-        return data
 
     def _execute(
         self, max_threads: int | None = None, checkpoint: bool = True

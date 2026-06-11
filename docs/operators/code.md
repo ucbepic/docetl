@@ -42,7 +42,7 @@ The Code Map operation applies a Python function to each item in your input data
                 'keyword_count': len(keywords)
             }""",
         )
-        df = frame.collect()
+        rows = frame.collect()
         ```
 
 The code must define a `transform` function that takes a single document as input and returns a dictionary of transformed values.
@@ -89,7 +89,7 @@ The Code Reduce operation aggregates multiple items into a single result using a
                 'count': len(items)
             }""",
         )
-        df = frame.collect()
+        rows = frame.collect()
         ```
 
 The transform function for reduce operations takes a list of items as input and returns a single aggregated result.
@@ -124,7 +124,7 @@ The Code Filter operation allows you to filter items based on custom Python logi
             # Return True to keep the document, False to filter it out
             return doc['score'] >= 0.5 and len(doc['text']) > 100""",
         )
-        df = frame.collect()
+        rows = frame.collect()
         ```
 
 The transform function should return True for items to keep and False for items to filter out.

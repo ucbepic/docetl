@@ -68,20 +68,31 @@ class Retriever:
 
     def __init__(
         self,
-        dataset: str,
-        index_dir: str,
-        index_types: list[str],
+        dataset: str | None = None,
+        index_dir: str | None = None,
+        index_types: list[str] | None = None,
         *,
+        data: str | list[dict] | None = None,
         fts: dict[str, str] | None = None,
         embedding: dict[str, str] | None = None,
         query: dict[str, Any] | None = None,
         build_index: str = "if_missing",
     ):
+        if (dataset is None) == (data is None):
+            raise ValueError(
+                "Pass exactly one of 'data' (a file path or list of dicts to "
+                "index) or 'dataset' (the name of a pipeline dataset or step)."
+            )
+        if index_dir is None or index_types is None:
+            raise ValueError("'index_dir' and 'index_types' are required.")
         Retriever._counter += 1
         self._name = f"retriever_{Retriever._counter}"
+        # Inline data is registered as a pipeline dataset under this name
+        # when the retriever is attached to an operation.
+        self._data = data
         self._config: dict[str, Any] = {
             "type": "lancedb",
-            "dataset": dataset,
+            "dataset": dataset if dataset is not None else f"{self._name}_data",
             "index_dir": index_dir,
             "index_types": index_types,
             "build_index": build_index,
@@ -160,10 +171,21 @@ class Frame:
         )
 
         new_retrievers = dict(self._retrievers)
+        new_datasets = self._datasets
         retriever = config.get("retriever")
         if isinstance(retriever, Retriever):
             new_retrievers[retriever._name] = retriever._config
             config = {**config, "retriever": retriever._name}
+            if retriever._data is not None:
+                ds: dict[str, Any] = (
+                    {"type": "file", "path": retriever._data}
+                    if isinstance(retriever._data, str)
+                    else {"type": "memory", "path": retriever._data}
+                )
+                new_datasets = {
+                    **self._datasets,
+                    retriever._config["dataset"]: ds,
+                }
 
         op = {
             "name": name_val,
@@ -178,6 +200,7 @@ class Frame:
             step["input"] = step_input
 
         new = self._copy(
+            datasets=new_datasets,
             operations=self._operations + [op],
             steps=self._steps + [step],
             _last_step=step_name,
@@ -185,29 +208,6 @@ class Frame:
             _retrievers=new_retrievers,
         )
         return new
-
-    def with_dataset(
-        self,
-        name: str,
-        data: str | list[dict],
-        *,
-        parsing: list[dict[str, str]] | None = None,
-    ) -> Frame:
-        """Register an auxiliary dataset alongside this frame's input.
-
-        *data* is a file path (JSON/CSV/Parquet) or an in-memory list of
-        dicts. The dataset does not flow through the operation chain; it is
-        available by *name* to retrievers (``Retriever(dataset=name, ...)``)
-        the same way a separate ``datasets`` entry is in a YAML pipeline.
-        """
-        ds: dict[str, Any] = (
-            {"type": "file", "path": data}
-            if isinstance(data, str)
-            else {"type": "memory", "path": data}
-        )
-        if parsing:
-            ds["parsing"] = parsing
-        return self._copy(datasets={**self._datasets, name: ds})
 
     def _append_equijoin(
         self, name: str | None, left: str, right: str, config: dict[str, Any]
@@ -1233,15 +1233,25 @@ class Frame:
         if lines[-1] != "":
             lines.append("")
 
-        # Retriever objects, referenced by ops via retriever=<var>.
+        # Retriever objects, referenced by ops via retriever=<var>. A
+        # retriever over an auxiliary dataset carries its data inline
+        # (data=...); one over the input or a step output references it by
+        # name (dataset=...).
         retriever_vars: dict[str, str] = {}
+        retriever_datasets = set()
         for rname, rcfg in self._retrievers.items():
             var = re.sub(r"\W", "_", rname)
             retriever_vars[rname] = var
-            parts = [
+            ds_name = rcfg.get("dataset")
+            parts = []
+            if ds_name in self._datasets and ds_name != self._first_dataset:
+                retriever_datasets.add(ds_name)
+                parts.append(f"data={_fmt(self._datasets[ds_name].get('path'))}")
+            else:
+                parts.append(f"dataset={_fmt(ds_name)}")
+            parts += [
                 f"{k}={_fmt(rcfg[k])}"
                 for k in (
-                    "dataset",
                     "index_dir",
                     "index_types",
                     "fts",
@@ -1307,16 +1317,6 @@ class Frame:
         )
         lines.append("frame = (")
         lines.append(f"    {source}")
-
-        # Datasets not consumed by any reader (auxiliary datasets, e.g.
-        # retriever knowledge bases) are registered via with_dataset.
-        for ds_name, ds_cfg in self._datasets.items():
-            if ds_name == self._first_dataset or ds_name in branch_sources:
-                continue
-            parts = [repr(ds_name), _fmt(ds_cfg.get("path"))]
-            if ds_cfg.get("parsing"):
-                parts.append(f"parsing={_fmt(ds_cfg['parsing'])}")
-            lines.append(_format_call("    .with_dataset(", parts))
 
         for step in self._steps:
             if step["name"] in right_branch:

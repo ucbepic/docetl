@@ -257,7 +257,8 @@ retriever = docetl.Retriever(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `dataset` | `str` | — | Name of the dataset to index |
+| `data` | `str \| list[dict]` | — | File path or in-memory records to index (alternative to `dataset`) |
+| `dataset` | `str` | — | Name of an existing pipeline dataset or step output to index |
 | `index_dir` | `str` | — | Directory for the LanceDB index |
 | `index_types` | `list[str]` | — | `["fts"]`, `["embedding"]`, or both |
 | `fts` | `dict` | `None` | Full-text search config (`index_phrase`, `query_phrase`) |
@@ -267,19 +268,7 @@ retriever = docetl.Retriever(
 
 Pass to any LLM operation via `retriever=`. Retrieved context is available as `{{ retrieval_context }}` in prompts.
 
-`dataset` must name a dataset visible to the pipeline: an auxiliary dataset registered with `.with_dataset()`, the frame's own input dataset, or a previous step's output (`step_<operation_name>`). See the [Retrievers guide](../retrievers.md) for details.
-
-### `Frame.with_dataset(name, data, *, parsing=None)`
-
-Register an auxiliary dataset (e.g. a retriever's knowledge base) alongside the frame's input. `data` is a file path (JSON/CSV/Parquet) or an in-memory list of dicts. The dataset does not flow through the operation chain.
-
-```python
-frame = (
-    docetl.read_json("questions.json")
-    .with_dataset("kb", "knowledge_base.json")
-    .map(prompt="...", output={...}, retriever=docetl.Retriever(dataset="kb", ...))
-)
-```
+Pass exactly one of `data` (a file path or list of dicts to index) or `dataset` (the name of an existing pipeline dataset — the frame's own input or a previous step's output, `step_<operation_name>`). See the [Retrievers guide](../retrievers.md).
 
 ---
 

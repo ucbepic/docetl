@@ -590,7 +590,7 @@ results = (
 ```
 The `retriever` parameter is available on `.map()`, `.filter()`, `.reduce()`, and `.extract()`.
 
-In the Python API, `dataset` must name a dataset visible to the pipeline: the frame's own input (file basename, or `from_list`'s `name=`, default `"data"`), a previous step's output (`step_<operation_name>`), or an auxiliary dataset registered with `.with_dataset("kb", path_or_records)` (the equivalent of a separate YAML `datasets` entry — use this for external knowledge bases).
+In the Python API, pass the data to index directly with `data=` (a file path or list of dicts — use this for external knowledge bases), or reference an existing pipeline dataset with `dataset=`: the frame's own input (file basename, or `from_list`'s `name=`, default `"data"`) or a previous step's output (`step_<operation_name>`).
 
 **Key points:**
 - `{{ retrieval_context }}` is injected into prompts automatically

@@ -318,7 +318,7 @@ def test_map_operation_includes_retrieved_context_in_output(tmp_path):
 
 
 def test_frame_api_retriever_fts(tmp_path):
-    """Python Frame API: Retriever object over an auxiliary with_dataset() KB."""
+    """Python Frame API: Retriever carrying its knowledge base inline."""
     import docetl
 
     kb = [
@@ -327,7 +327,7 @@ def test_frame_api_retriever_fts(tmp_path):
         {"id": 3, "text": "epsilon zeta"},
     ]
     retriever = docetl.Retriever(
-        dataset="kb",
+        data=kb,
         index_dir=str(tmp_path / "idx"),
         index_types=["fts"],
         build_index="always",
@@ -339,7 +339,6 @@ def test_frame_api_retriever_fts(tmp_path):
     )
     frame = (
         docetl.from_list([{"q": "alpha"}])
-        .with_dataset("kb", kb)
         .map(
             "answer",
             prompt="{{ input.q }}\n{{ retrieval_context }}",
@@ -349,8 +348,8 @@ def test_frame_api_retriever_fts(tmp_path):
     )
 
     cfg = frame._build_config()
-    assert cfg["datasets"]["kb"]["path"] == kb
-    assert cfg["retrievers"][retriever._name]["dataset"] == "kb"
+    kb_name = cfg["retrievers"][retriever._name]["dataset"]
+    assert cfg["datasets"][kb_name]["path"] == kb
     assert cfg["operations"][0]["retriever"] == retriever._name
 
     runner = frame._build_runner()

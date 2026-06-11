@@ -250,29 +250,29 @@ class TestEquijoinCodegen:
 
 
 class TestRetrieverCodegen:
-    def test_retriever_and_aux_dataset_round_trip(self):
+    def test_retriever_with_inline_data_round_trip(self):
         import ast
         import docetl
 
         retriever = docetl.Retriever(
-            dataset="kb", index_dir="./idx", index_types=["fts"],
+            data=[{"t": "alpha"}], index_dir="./idx", index_types=["fts"],
             fts={"index_phrase": "{{ input.t }}", "query_phrase": "{{ input.q }}"},
             query={"top_k": 3},
         )
         frame = (
             from_list([{"q": "x"}])
-            .with_dataset("kb", [{"t": "alpha"}])
             .map("m", prompt="{{ input.q }} {{ retrieval_context }}",
                  output={"schema": {"a": "string"}}, retriever=retriever)
         )
         code = frame.to_python()
         ast.parse(code)
         assert "docetl.Retriever(" in code
-        assert ".with_dataset('kb'" in code
+        assert "data=[{'t': 'alpha'}]" in code
         assert "retriever=retriever_" in code
 
         namespace = {}
         exec(code.replace(".collect()", ""), namespace)
         rebuilt = namespace["frame"]
-        assert "kb" in rebuilt._datasets
+        rb_retriever = next(iter(rebuilt._retrievers.values()))
+        assert rb_retriever["dataset"] in rebuilt._datasets
         assert rebuilt._operations[0]["retriever"] in rebuilt._retrievers

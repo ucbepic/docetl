@@ -87,7 +87,7 @@ base; for each question, the top matches are injected into the prompt.
     docetl.default_model = "gpt-4o-mini"
 
     kb_search = docetl.Retriever(
-        dataset="kb",                       # what to index
+        data="knowledge_base.json",         # what to index (a path or list of dicts)
         index_dir="./lance_index",
         index_types=["fts", "embedding"],
         fts={
@@ -104,7 +104,6 @@ base; for each question, the top matches are injected into the prompt.
 
     results = (
         docetl.read_json("questions.json")
-        .with_dataset("kb", "knowledge_base.json")   # register the KB dataset
         .map(
             prompt="Answer: {{ input.question }}\nContext: {{ retrieval_context }}",
             output={"schema": {"answer": "str"}},
@@ -125,11 +124,12 @@ For `reduce`, the context is retrieved once per group (the `query_phrase` sees
 `reduce_key` and `inputs` instead of `input` — see the
 [Jinja variables table](#the-fts-section)).
 
-In the Python API, the retriever's `dataset` can name
+In the Python API, a `Retriever` takes its data one of two ways
 
-- an auxiliary dataset registered with `.with_dataset(name, data)`, as above;
-- the frame's own input (the file's basename for `read_json`/`read_csv`/`read_parquet`, or the `name=` given to `from_list`);
-- a previous step's output, named `step_<operation_name>`.
+- `data=` — a file path or list of dicts to index, as above;
+- `dataset=` — the name of an existing pipeline dataset (the frame's own
+  input, named by the file's basename or `from_list`'s `name=`) or a previous
+  step's output, named `step_<operation_name>`.
 
 ## Indexing a previous step's output
 
@@ -356,7 +356,7 @@ Required if `"fts"` is in `index_types`.
     import docetl
 
     drug_lookup = docetl.Retriever(
-        dataset="drugs",                      # index the drugs dataset
+        data="drugs.json",  # [{"name": "Aspirin", "uses": "pain, fever"}, ...]
         index_dir="./drug_index",
         index_types=["fts"],
         fts={
@@ -366,9 +366,6 @@ Required if `"fts"` is in `index_types`.
     )
 
     pipeline = docetl.read_json("notes.json")  # [{"symptoms": "headache and fever"}, ...]
-    pipeline = pipeline.with_dataset(
-        "drugs", "drugs.json"  # [{"name": "Aspirin", "uses": "pain, fever"}, ...]
-    )
     pipeline = pipeline.map(
         "find_treatment",
         retriever=drug_lookup,                 # attach the retriever

@@ -1,0 +1,446 @@
+"""Model-cascade machinery with statistical guarantees.
+
+Routes each item in a batch to a cheap *proxy* model or an expensive *oracle*
+model, while guaranteeing a target accuracy, precision, or recall holds with
+probability ``1 - delta`` for any finite sample size.
+
+This module delegates to the BARGAIN library (UC Berkeley EPIC lab,
+https://github.com/ucbepic/BARGAIN) for the statistical core -- betting
+confidence sequences, without-replacement adaptive sampling, and the
+threshold searches for the accuracy / precision / recall guarantees. Thin
+adapter classes bridge BARGAIN's Proxy/Oracle class interface with DocETL's
+pluggable callable-based proxy/oracle pattern, and a unified
+``CategoricalCascade`` API lets DocETL operators (filter, map-with-enum,
+resolve, equijoin) share a single guarantee-bearing engine.
+
+The engine is intentionally free of any DocETL imports so it can be unit
+tested against synthetic proxy/oracle functions without making LLM calls.
+
+Usage
+-----
+    spec = CascadeSpec(proxy_model="gpt-4o-mini", guarantee="recall",
+                       target=0.95, delta=0.05, label_budget=300)
+    cascade = CategoricalCascade(spec, proxy_predict, oracle_predict)
+    result = cascade.run(items)
+    result.labels          # final label per item (oracle where escalated)
+    result.escalated       # bool per item: was the oracle used?
+    result.stats           # CascadeStats (proxy/oracle calls, threshold, ...)
+"""
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from typing import Any, Callable, Hashable, Optional
+
+import numpy as np
+
+from BARGAIN.models.AbstractModels import Oracle as _BargainOracle, Proxy as _BargainProxy
+from BARGAIN.process.BARGAIN_A import BARGAIN_A
+from BARGAIN.process.BARGAIN_P import BARGAIN_P
+from BARGAIN.process.BARGAIN_R import BARGAIN_R
+
+Guarantee = str  # "accuracy" | "precision" | "recall"
+
+
+
+ProxyPredict = Callable[[Any], "tuple[Hashable, float]"]
+OraclePredict = Callable[[Any], Hashable]
+
+
+# ---------------------------------------------------------------------------
+# Adapter classes: bridge DocETL's callable protocol to BARGAIN's class API.
+# ---------------------------------------------------------------------------
+class _ProxyAdapter(_BargainProxy):
+    """Wraps a ``ProxyPredict`` callable as a BARGAIN :class:`Proxy`."""
+
+    def __init__(
+        self,
+        predict_fn: ProxyPredict,
+        positive_label: Optional[Hashable] = None,
+        console=None,
+        max_threads: int = 1,
+    ):
+        super().__init__(verbose=False)
+        self._predict_fn = predict_fn
+        self._positive_label = positive_label
+        self._console = console
+        self._max_threads = max_threads
+
+    def proxy_func(self, data_record):
+        label, score = self._predict_fn(data_record)
+        if self._positive_label is not None:
+            return (1 if label == self._positive_label else 0), score
+        return label, score
+
+    def get_preds_and_scores(self, indxs, data_records):
+        uncached_work = [
+            (i, x, data_records[i])
+            for i, x in enumerate(indxs)
+            if x not in self.preds_dict
+        ]
+        if self._console and uncached_work:
+            self._console.log(
+                f"[dim]Cascade: scoring {len(uncached_work)} items with proxy...[/dim]"
+            )
+        if len(uncached_work) > 1 and self._max_threads > 1:
+            with ThreadPoolExecutor(max_workers=self._max_threads) as pool:
+                futs = {
+                    pool.submit(self.proxy_func, rec): idx
+                    for _, idx, rec in uncached_work
+                }
+                for fut in as_completed(futs):
+                    idx = futs[fut]
+                    self.preds_dict[idx] = fut.result()
+        else:
+            for _, idx, rec in uncached_work:
+                self.preds_dict[idx] = self.proxy_func(rec)
+
+        preds, scores = [], []
+        for x in indxs:
+            pred, score = self.preds_dict[x]
+            preds.append(pred)
+            scores.append(score)
+        return np.array(preds), np.array(scores)
+
+    def n_calls(self) -> int:
+        return len(self.preds_dict)
+
+
+class _OracleAdapter(_BargainOracle):
+    """Wraps an ``OraclePredict`` callable as a BARGAIN :class:`Oracle`.
+
+    For precision / recall modes (``positive_label is not None``), labels are
+    mapped to binary {0, 1} so BARGAIN's threshold search works correctly.
+    """
+
+    def __init__(
+        self,
+        predict_fn: OraclePredict,
+        positive_label: Optional[Hashable] = None,
+        console=None,
+        max_threads: int = 1,
+    ):
+        super().__init__(verbose=False)
+        self._predict_fn = predict_fn
+        self._positive_label = positive_label
+        self._console = console
+        self._max_threads = max_threads
+
+    def _label(self, data_record):
+        raw_label = self._predict_fn(data_record)
+        if self._positive_label is not None:
+            return 1 if raw_label == self._positive_label else 0
+        return raw_label
+
+    def oracle_func(self, data_record, proxy_output):
+        oracle_output = self._label(data_record)
+        is_correct = oracle_output == proxy_output
+        return is_correct, oracle_output
+
+    def get_pred(self, data_records, indxs=None):
+        uncached_work = []
+        for i, record in enumerate(data_records):
+            idx = indxs[i] if indxs is not None else None
+            if idx is not None and idx in self.preds_dict:
+                continue
+            uncached_work.append((i, idx, record))
+
+        if self._console and uncached_work:
+            self._console.log(
+                f"[dim]Cascade: evaluating {len(uncached_work)} items with oracle...[/dim]"
+            )
+
+        if len(uncached_work) > 1 and self._max_threads > 1:
+            with ThreadPoolExecutor(max_workers=self._max_threads) as pool:
+                futs = {
+                    pool.submit(self._label, rec): (i, idx)
+                    for i, idx, rec in uncached_work
+                }
+                for fut in as_completed(futs):
+                    i, idx = futs[fut]
+                    oracle_output = fut.result()
+                    if idx is not None:
+                        self.preds_dict[idx] = oracle_output
+        else:
+            for i, idx, rec in uncached_work:
+                oracle_output = self._label(rec)
+                if idx is not None:
+                    self.preds_dict[idx] = oracle_output
+
+        preds = []
+        for i, record in enumerate(data_records):
+            idx = indxs[i] if indxs is not None else None
+            if idx is not None and idx in self.preds_dict:
+                preds.append(self.preds_dict[idx])
+            else:
+                preds.append(self._label(record))
+        return np.array(preds)
+
+
+# ---------------------------------------------------------------------------
+# Public spec / result types.
+# ---------------------------------------------------------------------------
+@dataclass
+class CascadeSpec:
+    proxy_model: str
+    guarantee: Guarantee  # "accuracy" | "precision" | "recall"
+    target: float
+    delta: float = 0.05
+    label_budget: int = 400  # oracle calls for threshold learning (precision/recall)
+    positive_label: Hashable = True  # which label counts as "positive" (P/R)
+    negative_label: Hashable = False  # label assigned to non-positive items (P/R)
+    n_thresholds: int = 20  # candidate thresholds considered (accuracy/precision)
+    seed: Optional[int] = 0
+
+
+@dataclass
+class CascadeStats:
+    n_items: int
+    proxy_calls: int
+    oracle_calls: int
+    escalation_rate: float
+    guarantee: Guarantee
+    target: float
+    delta: float
+    label_budget: int = 0
+    threshold: float | None = None
+
+
+@dataclass
+class CascadeResult:
+    labels: list  # final label per item, in input order
+    escalated: list  # bool per item: was the oracle used?
+    stats: CascadeStats
+    positive_indices: list = field(default_factory=list)
+
+
+class GuaranteeNotSupportedError(ValueError):
+    pass
+
+
+class CategoricalCascade:
+    """Guarantee-bearing proxy/oracle cascade over a list of items whose LLM
+    output is a single categorical label.
+
+    See module docstring for the proxy/oracle callable contract.
+    """
+
+    _VALID_GUARANTEES = ("accuracy", "precision", "recall")
+
+    def __init__(
+        self,
+        spec: CascadeSpec,
+        proxy_predict: ProxyPredict,
+        oracle_predict: OraclePredict,
+        *,
+        console=None,
+        max_threads: int = 4,
+    ):
+        if spec.guarantee not in self._VALID_GUARANTEES:
+            raise GuaranteeNotSupportedError(
+                f"unknown guarantee {spec.guarantee!r}; "
+                f"expected one of {self._VALID_GUARANTEES}"
+            )
+        if not (0 < spec.target < 1):
+            raise ValueError("target must be in (0, 1)")
+        if not (0 < spec.delta < 1):
+            raise ValueError("delta must be in (0, 1)")
+        self.spec = spec
+        self._proxy_predict = proxy_predict
+        self._oracle_predict = oracle_predict
+        self._console = console
+        self._max_threads = max_threads
+        self.proxy_scores: list[float] = []
+
+    def run(self, items: list) -> CascadeResult:
+        spec = self.spec
+        if spec.seed is not None:
+            np.random.seed(spec.seed)
+
+        if len(items) == 0:
+            return CascadeResult(
+                labels=[],
+                escalated=[],
+                stats=CascadeStats(0, 0, 0, 0.0, spec.guarantee, spec.target, spec.delta),
+                positive_indices=[],
+            )
+
+        proxy = _ProxyAdapter(
+            self._proxy_predict, positive_label=spec.positive_label,
+            console=self._console, max_threads=self._max_threads,
+        )
+        oracle = _OracleAdapter(
+            self._oracle_predict, positive_label=spec.positive_label,
+            console=self._console, max_threads=self._max_threads,
+        )
+
+        if self._console:
+            self._console.log(
+                f"[bold]Cascade[/bold] ({spec.guarantee}): "
+                f"target={spec.target}, delta={spec.delta}, "
+                f"{len(items)} items"
+            )
+
+        if spec.guarantee == "accuracy":
+            result = self._run_accuracy(items, proxy, oracle)
+        elif spec.guarantee == "precision":
+            result = self._run_precision(items, proxy, oracle)
+        else:
+            result = self._run_recall(items, proxy, oracle)
+
+        self.proxy_scores = self._extract_proxy_scores(proxy)
+        return result
+
+    @staticmethod
+    def _extract_proxy_scores(proxy) -> list[float]:
+        """Extract proxy confidence scores in item order as P(positive)."""
+        if not proxy.preds_dict:
+            return []
+        max_idx = max(proxy.preds_dict.keys())
+        scores = []
+        for i in range(max_idx + 1):
+            entry = proxy.preds_dict.get(i)
+            if entry is None:
+                scores.append(0.5)
+                continue
+            pred, score = entry
+            scores.append(pred * score + (1 - pred) * (1 - score))
+        return scores
+
+    def _make_stats(
+        self, n_items: int, proxy, oracle, *, threshold: float | None = None
+    ) -> CascadeStats:
+        oracle_calls = oracle.get_number_preds()
+        return CascadeStats(
+            n_items=n_items,
+            proxy_calls=proxy.n_calls(),
+            oracle_calls=oracle_calls,
+            escalation_rate=oracle_calls / n_items if n_items else 0.0,
+            guarantee=self.spec.guarantee,
+            target=self.spec.target,
+            delta=self.spec.delta,
+            label_budget=self.spec.label_budget,
+            threshold=threshold,
+        )
+
+    @staticmethod
+    def _compute_threshold(proxy, oracle, positive_set: set) -> float | None:
+        """Recover the effective proxy confidence threshold from internal state.
+
+        For precision/recall, BARGAIN sorts items by proxy confidence and
+        picks a cutoff. Items above the cutoff that weren't oracle-sampled
+        were accepted purely on proxy confidence — the minimum confidence
+        among those items IS the threshold.
+        """
+        oracle_labeled = set(oracle.preds_dict.keys())
+        proxy_accepted = positive_set - oracle_labeled
+        if not proxy_accepted:
+            return None
+        min_conf = float("inf")
+        for idx in proxy_accepted:
+            entry = proxy.preds_dict.get(idx)
+            if entry is None:
+                continue
+            pred, score = entry
+            x_prob = pred * score + (1 - pred) * (1 - score)
+            min_conf = min(min_conf, x_prob)
+        return min_conf if min_conf != float("inf") else None
+
+    # ------------------------------------------------------------------
+    # Accuracy guarantee via BARGAIN_A
+    # ------------------------------------------------------------------
+    def _run_accuracy(self, items, proxy, oracle) -> CascadeResult:
+        bargain = BARGAIN_A(
+            proxy,
+            oracle,
+            target=self.spec.target,
+            delta=self.spec.delta,
+            M=self.spec.n_thresholds,
+            verbose=False,
+            seed=None,
+        )
+
+        if self._console:
+            self._console.log("[dim]Cascade: determining confidence threshold...[/dim]")
+
+        labels, used_oracle = bargain.process(items, return_oracle_usage=True)
+        threshold = self._compute_accuracy_threshold(proxy, used_oracle)
+
+        if self._console:
+            n_oracle = sum(used_oracle)
+            self._console.log(
+                f"[dim]Cascade: threshold found — {n_oracle}/{len(items)} "
+                f"items escalated to oracle[/dim]"
+            )
+        return CascadeResult(
+            labels=labels,
+            escalated=used_oracle,
+            stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
+        )
+
+    @staticmethod
+    def _compute_accuracy_threshold(proxy, used_oracle) -> float | None:
+        """Min proxy confidence among items trusted (not escalated) by BARGAIN_A."""
+        min_conf = float("inf")
+        for i, esc in enumerate(used_oracle):
+            if esc:
+                continue
+            entry = proxy.preds_dict.get(i)
+            if entry is None:
+                continue
+            _, score = entry
+            min_conf = min(min_conf, score)
+        return min_conf if min_conf != float("inf") else None
+
+    # ------------------------------------------------------------------
+    # Shared helper for precision / recall (only the BARGAIN class differs)
+    # ------------------------------------------------------------------
+    def _run_positive_set(self, items, bargain, proxy, oracle, label: str) -> CascadeResult:
+        if self._console:
+            self._console.log(f"[dim]Cascade: determining {label} threshold...[/dim]")
+
+        positive_indices = bargain.process(items)
+        positive_set = set(int(i) for i in positive_indices)
+
+        if self._console:
+            self._console.log(
+                f"[dim]Cascade: {len(positive_set)} items classified as positive[/dim]"
+            )
+
+        result_labels = [
+            self.spec.positive_label if i in positive_set else self.spec.negative_label
+            for i in range(len(items))
+        ]
+        escalated = [i in oracle.preds_dict for i in range(len(items))]
+        threshold = self._compute_threshold(proxy, oracle, positive_set)
+        return CascadeResult(
+            labels=result_labels,
+            escalated=escalated,
+            stats=self._make_stats(len(items), proxy, oracle, threshold=threshold),
+            positive_indices=sorted(positive_set),
+        )
+
+    # ------------------------------------------------------------------
+    # Precision guarantee via BARGAIN_P
+    # ------------------------------------------------------------------
+    def _run_precision(self, items, proxy, oracle) -> CascadeResult:
+        bargain = BARGAIN_P(
+            proxy, oracle,
+            delta=self.spec.delta, target=self.spec.target,
+            budget=self.spec.label_budget, M=self.spec.n_thresholds,
+            eta=0, seed=None,
+        )
+        return self._run_positive_set(items, bargain, proxy, oracle, "precision")
+
+    # ------------------------------------------------------------------
+    # Recall guarantee via BARGAIN_R (beta=0 uniform path)
+    # ------------------------------------------------------------------
+    def _run_recall(self, items, proxy, oracle) -> CascadeResult:
+        bargain = BARGAIN_R(
+            proxy, oracle,
+            delta=self.spec.delta, target=self.spec.target,
+            budget=self.spec.label_budget, beta=0, seed=None,
+        )
+        return self._run_positive_set(items, bargain, proxy, oracle, "recall")
+

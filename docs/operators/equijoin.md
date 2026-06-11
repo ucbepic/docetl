@@ -135,6 +135,13 @@ Key differences from Resolve:
 - `resolution_prompt` is not used in Equijoin.
 - `blocking_keys` uses a dict with `left` and `right` keys instead of a simple list.
 
+### Model Cascade (cost reduction)
+
+Like resolve, equijoin supports a `cascade` block to run a cheap proxy model on
+candidate pairs and only escalate uncertain comparisons to the oracle.
+Default guarantee is `precision` (don't over-join). See
+[Model Cascades with BARGAIN](../concepts/cascades.md) for full details.
+
 ## Incorporating Into a Pipeline
 
 Here's an example of how to incorporate the Equijoin operation into a pipeline using the job candidate matching scenario:

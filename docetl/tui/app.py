@@ -23,9 +23,10 @@ from typing import TYPE_CHECKING
 from rich.console import Group
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
+from docetl.operations.utils.cascade_runner import describe_cascade_stats
 from docetl.progress.events import OpState, RunState
 from docetl.progress.tracker import ProgressTracker, set_active_tracker
 from docetl.tui.profiles import get_profile
@@ -53,6 +54,7 @@ class DocetlTUI(App):
     #ops { width: 40; border: round $primary; padding: 0 1; }
     #middle { border: round $primary; padding: 0 1; }
     #detail { width: 52; border: round $accent; padding: 0 1; }
+    #detail_body { width: 1fr; }
     #ops, #middle, #detail { border-title-align: center; border-title-color: $text-muted; }
     #grid_title { height: 1; color: $text-muted; }
     #grid { height: 1fr; }
@@ -89,10 +91,11 @@ class DocetlTUI(App):
             with Vertical(id="middle"):
                 yield Static(id="grid_title")
                 yield Static(id="grid")
-            yield Static(id="detail")
+            with VerticalScroll(id="detail"):
+                yield Static(id="detail_body")
 
     def on_mount(self) -> None:
-        self.title = "DocETL"
+        self.title = self._pipeline_label()
         self.set_interval(0.15, self.render_all)
         if self.runner is not None:
             self._worker = threading.Thread(target=self._run_pipeline, daemon=True)
@@ -115,6 +118,11 @@ class DocetlTUI(App):
                 pass
 
     # -- helpers ---------------------------------------------------------
+    def _pipeline_label(self) -> str:
+        if self.runner is not None:
+            return self.runner.pipeline_label()
+        return "DocETL pipeline"
+
     def _ops(self) -> list[OpState]:
         return self.tracker.snapshot().ops
 
@@ -177,23 +185,23 @@ class DocetlTUI(App):
             op = self._selected_op()
             middle = self.query_one("#middle")
             middle.border_title = (
-                (f"{op.op_type}:{op.name.split('/')[-1]}" if op else "Documents")
-                + (" ◀" if self.focus_pane == "grid" else "")
-            )
+                f"{op.op_type}:{op.name.split('/')[-1]}" if op else "Documents"
+            ) + (" ◀" if self.focus_pane == "grid" else "")
             self.query_one("#grid_title", Static).update(self._render_grid_title(state))
             self.query_one("#grid", Static).update(self._render_grid(state))
 
-            detail = self.query_one("#detail", Static)
+            detail_container = self.query_one("#detail", VerticalScroll)
+            detail_body = self.query_one("#detail_body", Static)
             title, body = self._render_detail(state)
-            detail.update(body)
-            detail.border_title = title
+            detail_body.update(body)
+            detail_container.border_title = title
         except Exception:
             # Widgets may not be mounted on the very first tick.
             pass
 
     def _render_ops(self, state: RunState) -> Group:
         head = Text()
-        head.append("DocETL pipeline\n", style="bold")
+        head.append(f"{self._pipeline_label()}\n", style="bold")
         head.append(f"{state.done_ops}/{len(state.ops)} ops", style="grey70")
         head.append("   ")
         head.append(_fmt_cost(state.total_cost), style="green")
@@ -223,34 +231,72 @@ class DocetlTUI(App):
             # so it reads as a clean highlighted row rather than a ragged block.
             line = Text()
             line.append(f" {glyph} ", style=gstyle)
-            line.append(_trunc(f"{op.op_type}:{op.name.split('/')[-1]}", 30),
-                        style="bold" if selected else "")
+            line.append(
+                _trunc(f"{op.op_type}:{op.name.split('/')[-1]}", 30),
+                style="bold" if selected else "",
+            )
             if selected:
                 line.stylize("reverse")
             body.append_text(line)
             body.append("\n")
-            # Line 2: compact, dot-separated stats — only the parts that apply,
-            # short enough to never wrap the 36-wide panel.
-            frags: list[Text] = []
-            if op.total:
-                f = Text(f"{op.completed}/{op.total}", style="grey70")
-                if op.status == "running":
-                    f.append(f" {int(100 * op.completed / op.total)}%", style="yellow")
-                frags.append(f)
-            if op.cost:
-                frags.append(Text(_fmt_cost(op.cost), style="green"))
-            if op.status in ("done", "running") and op.elapsed >= 1:
-                frags.append(Text(_fmt_dur(op.elapsed), style="grey54"))
-            if op.errors:
-                frags.append(Text(f"!{op.errors}", style="red"))
-            if frags:
-                sub = Text("    ")
-                for j, f in enumerate(frags):
-                    if j:
-                        sub.append("   ")
-                    sub.append_text(f)
-                body.append_text(sub)
+            # Lines below the op label: compact stats.
+            ci = op.cascade_info
+            if ci:
+                # Proxy sub-line
+                proxy_line = Text("    ")
+                proxy_line.append("proxy", style="green")
+                proxy_line.append(f"  {ci['proxy_calls']} scored", style="grey70")
+                pc = ci.get("proxy_cost", 0)
+                if pc:
+                    proxy_line.append(f"  {_fmt_cost(pc)}", style="green")
+                body.append_text(proxy_line)
                 body.append("\n")
+
+                # Oracle sub-line: live progress during run, final counts when done
+                oracle_line = Text("    ")
+                oracle_line.append("oracle", style="cyan")
+                if op.status == "done":
+                    oracle_line.append(f"  {ci['oracle_calls']}", style="grey70")
+                elif op.total:
+                    oracle_line.append(f"  {op.completed}/{op.total}", style="grey70")
+                    oracle_line.append(
+                        f" {int(100 * op.completed / op.total)}%", style="yellow"
+                    )
+                budget = ci.get("label_budget")
+                if budget:
+                    oracle_line.append(f" (budget {budget})", style="grey42")
+                oc = ci.get("oracle_cost", 0)
+                if oc:
+                    oracle_line.append(f"  {_fmt_cost(oc)}", style="green")
+                if op.elapsed >= 1:
+                    oracle_line.append(f"  {_fmt_dur(op.elapsed)}", style="grey54")
+                body.append_text(oracle_line)
+                body.append("\n")
+            else:
+                frags: list[Text] = []
+                if op.phase:
+                    frags.append(Text(op.phase, style="cyan"))
+                if op.total:
+                    f = Text(f"{op.completed}/{op.total}", style="grey70")
+                    if op.status == "running":
+                        f.append(
+                            f" {int(100 * op.completed / op.total)}%", style="yellow"
+                        )
+                    frags.append(f)
+                if op.cost:
+                    frags.append(Text(_fmt_cost(op.cost), style="green"))
+                if op.status in ("done", "running") and op.elapsed >= 1:
+                    frags.append(Text(_fmt_dur(op.elapsed), style="grey54"))
+                if op.errors:
+                    frags.append(Text(f"!{op.errors}", style="red"))
+                if frags:
+                    sub = Text("    ")
+                    for j, f in enumerate(frags):
+                        if j:
+                            sub.append("   ")
+                        sub.append_text(f)
+                    body.append_text(sub)
+                    body.append("\n")
 
         return Group(head, body)
 
@@ -266,6 +312,8 @@ class DocetlTUI(App):
             t.append(f"{op.completed:,}/{op.total:,} {prof.unit}", style="grey70")
         else:
             t.append("? docs", style="grey62")  # count not known yet
+        if op.phase:
+            t.append(f"   {op.phase}", style="cyan")
         t.append("   ")
         t.append(op.status, style=_STATUS_STYLE[op.status])
         if self._mode == "heatmap":
@@ -274,6 +322,12 @@ class DocetlTUI(App):
             t.append(
                 f"     page {self.page + 1}/{self._page_count} [PgDn]", style="grey50"
             )
+        if op.cascade_info and op.cascade_info.get("item_escalated"):
+            t.append("   ")
+            t.append(_DOT, style="green")
+            t.append(" proxy ", style="dim")
+            t.append(_DOT, style="cyan")
+            t.append(" oracle", style="dim")
         return t
 
     def _render_grid(self, state: RunState) -> Text:
@@ -357,6 +411,10 @@ class DocetlTUI(App):
             st = op.cell_status(idx, running_band)
             style = _STATUS_STYLE[st]
             glyph = _DOT if st != "queued" else _EMPTY
+            if st == "done":
+                role = op.cell_cascade_role(idx)
+                if role == "oracle":
+                    style = "cyan"
             if i == self.cursor and self.focus_pane == "grid":
                 out.append(glyph, style=style + " reverse")
             else:
@@ -386,6 +444,8 @@ class DocetlTUI(App):
             body.append(f"step:    {op.step}\n", style="grey70")
             body.append(f"model:   {op.model}\n", style="grey70")
             body.append(f"status:  {op.status}\n", style=_STATUS_STYLE[op.status])
+            if op.phase:
+                body.append(f"phase:   {op.phase}\n", style="cyan")
             prof = get_profile(op.op_type)
             if op.total:
                 body.append(
@@ -395,13 +455,17 @@ class DocetlTUI(App):
                 body.append(
                     f"output:  {op.out_count:,} {prof.doc_unit}\n", style="grey70"
                 )
-            body.append(f"errors:  {op.errors}\n", style="red" if op.errors else "grey70")
+            body.append(
+                f"errors:  {op.errors}\n", style="red" if op.errors else "grey70"
+            )
             body.append(f"cost:    ${op.cost:.4f}\n", style="green")
             body.append(f"tokens:  {op.tokens:,}\n", style="grey70")
             body.append(f"elapsed: {_fmt_dur(op.elapsed)}\n", style="grey70")
             if prof.summary is not None:
                 for line in prof.summary(op):
                     body.append_text(line)
+            if op.cascade_info:
+                body.append_text(_render_cascade_info(op.cascade_info))
             body.append("\nTab → grid, then ↑↓←→ to inspect documents.", style="dim")
             return "Operation", body
 
@@ -439,8 +503,17 @@ class DocetlTUI(App):
         rows, prompt, provenance = self._doc_view(op, prof, idx, doc)
 
         out = Text()
-        out.append_text(_kv("status", "done", value_style="green"))
+        role = op.cell_cascade_role(idx)
+        if role == "oracle":
+            out.append_text(_kv("status", "done — oracle decided", value_style="cyan"))
+        elif role == "proxy":
+            out.append_text(_kv("status", "done — proxy decided", value_style="green"))
+        else:
+            out.append_text(_kv("status", "done", value_style="green"))
         out.append("\n")
+        if op.cascade_info:
+            out.append_text(_render_cascade_doc(op.cascade_info, idx))
+            out.append("\n")
         for key, value in rows:
             # short scalars read best inline; long / multi-line values get their
             # own indented block so nothing wraps awkwardly against the label.
@@ -473,7 +546,11 @@ class DocetlTUI(App):
         prompt = None
         if isinstance(obs, dict):
             prompt = obs.get("prompt")
-            if prompt is None and isinstance(obs.get("prompts"), list) and obs["prompts"]:
+            if (
+                prompt is None
+                and isinstance(obs.get("prompts"), list)
+                and obs["prompts"]
+            ):
                 prompt = obs["prompts"][0]
 
         consumed = prof.consumed_keys(doc) if prof.consumed_keys else set()
@@ -481,7 +558,11 @@ class DocetlTUI(App):
         for k, v in doc.items():
             if k.startswith("_") or k in consumed:
                 continue  # internal bookkeeping / surfaced as provenance instead
-            value = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str)
+            value = (
+                v
+                if isinstance(v, str)
+                else json.dumps(v, ensure_ascii=False, default=str)
+            )
             rows.append((k, _trunc(str(value), 280)))
 
         provenance = prof.provenance(op, doc) if prof.provenance else None
@@ -533,6 +614,182 @@ def _fmt_dur(secs: float) -> str:
         return f"{m}m {s}s"
     h, m = divmod(m, 60)
     return f"{h}h {m}m"
+
+
+def _render_cascade_info(info: dict) -> Text:
+    """Compact cascade stats block for the operation detail pane.
+
+    During the oracle phase, only partial data is available (proxy stats +
+    histogram). After the cascade finishes, all fields are present.
+    """
+    t = Text()
+    t.append("\ncascade\n", style="bold magenta")
+    proxy_cost = info.get("proxy_cost", 0)
+    oracle_cost = info.get("oracle_cost", 0)
+    guarantee = info.get("guarantee", "")
+    is_calibrated = guarantee in ("precision", "recall")
+
+    t.append(
+        f"  proxy   {info['proxy_model']}  " f"{info['proxy_calls']:,} scored",
+        style="cyan",
+    )
+    if proxy_cost:
+        t.append(f"  ${proxy_cost:.4f}", style="cyan")
+    t.append("\n")
+
+    if "oracle_calls" in info:
+        descs = describe_cascade_stats(info)
+        t.append(
+            f"  oracle  {info['oracle_model']}  "
+            f"{descs['oracle_desc']}  ${oracle_cost:.4f}\n",
+            style="cyan",
+        )
+    elif info.get("oracle_model"):
+        budget = info.get("label_budget", "?")
+        t.append(
+            f"  oracle  {info['oracle_model']}  sampling… (budget {budget})\n",
+            style="cyan",
+        )
+
+    if "target" in info:
+        target = info["target"]
+        t.append(f"  {guarantee} ≥ {target:.0%}", style="yellow")
+        t.append(f"  δ={info.get('delta', '?')}\n", style="grey70")
+
+    if "oracle_calls" in info:
+        td = descs["threshold_desc"]
+        if "n/a" not in td:
+            t.append(f"  threshold  {td}\n", style="yellow")
+        elif is_calibrated:
+            t.append(f"  threshold  {td}\n", style="dim")
+
+        if is_calibrated:
+            pass  # result_desc already covers calibration items
+        elif "escalation_rate" in info:
+            esc = info["escalation_rate"]
+            t.append(f"  escalation {esc:.0%}", style="red" if esc >= 0.5 else "green")
+            served = info["served_by_proxy"]
+            t.append(f"  ({served:,} served by proxy)\n", style="grey70")
+    if info.get("cached"):
+        t.append("  (cached)\n", style="dim")
+
+    escalated = info.get("item_escalated")
+    if escalated:
+        kept = info.get("kept_input_indices")
+        if kept:
+            n_oracle = sum(1 for idx in kept if idx < len(escalated) and escalated[idx])
+            n_proxy = len(kept) - n_oracle
+            label = "kept"
+        else:
+            n_oracle = sum(escalated)
+            n_proxy = len(escalated) - n_oracle
+            label = "items"
+        t.append(f"  {label}  ", style="dim")
+        t.append(_DOT, style="green")
+        t.append(f" {n_proxy} proxy", style="green")
+        t.append("  ", style="dim")
+        t.append(_DOT, style="cyan")
+        t.append(f" {n_oracle} oracle\n", style="cyan")
+
+    score_hist = info.get("score_hist")
+    if score_hist:
+        t.append_text(_render_score_bar(score_hist, info.get("threshold")))
+
+    return t
+
+
+def _render_cascade_doc(cascade_info: dict, output_idx: int) -> Text:
+    """Per-document cascade info for the detail pane."""
+    t = Text()
+
+    proxy_scores = cascade_info.get("item_proxy_scores", [])
+    proxy_labels = cascade_info.get("item_proxy_labels", [])
+    escalated = cascade_info.get("item_escalated", [])
+    kept = cascade_info.get("kept_input_indices")
+    input_idx = output_idx
+    if kept and output_idx < len(kept):
+        input_idx = kept[output_idx]
+
+    has_data = False
+    if input_idx < len(proxy_scores):
+        has_data = True
+        score = proxy_scores[input_idx]
+        t.append("cascade\n", style="bold magenta")
+
+        if input_idx < len(proxy_labels):
+            proxy_label = bool(proxy_labels[input_idx])
+        else:
+            proxy_label = score > 0.5
+        confidence = score if proxy_label else (1.0 - score)
+        t.append("  proxy said:  ", style="dim")
+        t.append(f"{proxy_label}", style="green" if proxy_label else "red")
+        t.append(f"  ({confidence:.0%})\n", style="grey70")
+
+    if input_idx < len(escalated) and escalated[input_idx]:
+        if not has_data:
+            t.append("cascade\n", style="bold magenta")
+        t.append("  kept by:     ", style="dim")
+        t.append("oracle", style="cyan")
+        t.append(" said ", style="dim")
+        t.append("True\n", style="green")
+    elif has_data:
+        t.append("  kept by:     ", style="dim")
+        t.append("proxy", style="green")
+        t.append(" said ", style="dim")
+        t.append("True\n", style="green")
+
+    threshold = cascade_info.get("threshold")
+    if threshold is not None and threshold >= 0.01:
+        t.append("  threshold:   ", style="dim")
+        t.append(f"{threshold:.3f}\n", style="yellow")
+
+    return t
+
+
+_HIST_CHARS = " ▁▂▃▄▅▆▇█"
+
+
+def _render_score_bar(hist: list[int], threshold: float | None) -> Text:
+    """Compact proxy score distribution with threshold marker.
+
+    Renders as two lines:
+      scores  ▁▃▅▇█▇▅▃▁▁▂▃▅▇█▆▃▂▁
+              0        ↑t=0.72    1
+    """
+    t = Text()
+    n_bins = len(hist)
+    peak = max(hist) or 1
+    pad = "  "
+    label = "scores  "
+
+    t.append(pad + label, style="dim")
+    for i, count in enumerate(hist):
+        level = int(count / peak * (len(_HIST_CHARS) - 1))
+        if count > 0 and level == 0:
+            level = 1
+        bin_center = (i + 0.5) / n_bins
+        if threshold is not None and threshold >= 0.01 and bin_center >= threshold:
+            t.append(_HIST_CHARS[level], style="green")
+        else:
+            t.append(_HIST_CHARS[level], style="bright_cyan" if level > 0 else "grey42")
+    t.append("\n")
+
+    axis_pad = pad + " " * len(label)
+    if threshold is not None and threshold >= 0.01:
+        pos = int(threshold * n_bins)
+        pos = max(0, min(pos, n_bins - 1))
+        marker = f"↑t={threshold:.2f}"
+        before = max(0, pos)
+        after = max(0, n_bins - before - len(marker))
+        t.append(axis_pad, style="dim")
+        t.append(" " * before, style="dim")
+        t.append(marker, style="yellow")
+        t.append(" " * after + "\n", style="dim")
+    else:
+        t.append(axis_pad, style="dim")
+        t.append("0" + " " * (n_bins - 2) + "1\n", style="grey42")
+
+    return t
 
 
 def _heat_style(frac: float, has_error: bool) -> str:

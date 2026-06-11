@@ -97,13 +97,20 @@ class DSLRunner:
         base_name = yaml_file.rsplit(".", 1)[0]
         suffix = yaml_file.split("/")[-1].split(".")[0]
         config = load_config(yaml_file)
-        return cls(config, base_name=base_name, yaml_file_suffix=suffix, **kwargs)
+        return cls(
+            config,
+            base_name=base_name,
+            yaml_file_suffix=suffix,
+            yaml_file=yaml_file,
+            **kwargs,
+        )
 
     def __init__(
         self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs
     ):
         self._set_config(config)
         self.base_name = kwargs.pop("base_name", None)
+        self.yaml_file = kwargs.pop("yaml_file", None)
         self.yaml_file_suffix = kwargs.pop("yaml_file_suffix", None) or (
             datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         )
@@ -312,6 +319,33 @@ class DSLRunner:
 
         self.console.log("[green]✓ All operations passed syntax check[/green]")
 
+    def pipeline_label(self) -> str:
+        """Human-readable pipeline name for logs and the interactive UI."""
+        if self.yaml_file:
+            return os.path.basename(self.yaml_file)
+        if self.base_name:
+            return os.path.basename(self.base_name) + ".yaml"
+        return "DocETL pipeline"
+
+    def _cascade_model_roles(self) -> dict[str, str]:
+        """Map model names to cascade roles for the execution-summary token table."""
+        roles: dict[str, str] = {}
+        default = self.config.get("default_model")
+        for op in self.config.get("operations", []):
+            cascade = op.get("cascade")
+            if not cascade:
+                continue
+            if isinstance(cascade, dict):
+                proxy = cascade.get("proxy_model")
+            else:
+                proxy = getattr(cascade, "proxy_model", None)
+            if proxy:
+                roles[proxy] = "cascade proxy"
+            oracle = op.get("model") or op.get("comparison_model") or default
+            if oracle:
+                roles[oracle] = "oracle"
+        return roles
+
     def print_query_plan(self, show_boundaries=False):
         if not self.last_op_container:
             self.console.log("\n[bold]Pipeline Steps:[/bold]")
@@ -415,6 +449,7 @@ class DSLRunner:
             self.total_token_usage,
             self.intermediate_dir,
             output_path,
+            cascade_roles=self._cascade_model_roles(),
         )
         self.console.log(Panel(summary, title="Execution Summary"))
 

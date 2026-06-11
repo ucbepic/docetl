@@ -121,6 +121,7 @@ class MapOperation(BaseOperation):
 
             return self
 
+
     def __init__(
         self,
         *args,

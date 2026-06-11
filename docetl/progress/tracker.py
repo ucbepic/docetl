@@ -66,7 +66,9 @@ class ProgressTracker:
             op = self.state.get(name)
             if op is None:
                 # Operation not pre-registered (e.g. optimizer-injected); add it.
-                op = OpState(step=name.split("/")[0], name=name, op_type=op_type, model=model)
+                op = OpState(
+                    step=name.split("/")[0], name=name, op_type=op_type, model=model
+                )
                 self.state.register(op)
             op.op_type = op_type
             op.model = model
@@ -78,23 +80,69 @@ class ProgressTracker:
             self._current = op
         self._notify()
 
-    def set_phase(self, total: int | None) -> None:
+    def set_phase(self, total: int | None, label: str | None = None) -> None:
         """Reset the current op's progress to a fresh phase of ``total`` units.
 
         ``RichLoopBar`` calls this when a progress bar starts so the denominator
         matches what is actually being ticked — documents for map/filter, groups
         for reduce, comparisons for resolve/equijoin — rather than the raw
         input-doc count guessed in ``containers.py``. Multi-phase ops (e.g.
-        resolve: embed, then compare) call it once per phase; the bar reflects
-        the current phase, which is the more useful live signal.
+        resolve: embed, then compare; cascade: proxy, then oracle) call it once
+        per phase; the bar reflects the current phase, which is the more useful
+        live signal. An optional ``label`` (e.g. ``proxy (gpt-4o-mini)``) is
+        shown in the interactive TUI.
         """
         with self._lock:
             op = self._current
             if op is None:
                 return
             op.total = total
+            op.phase = label
             op.completed = 0
             op.errors = 0
+        self._notify()
+
+    def set_phase_label(self, label: str) -> None:
+        """Update the phase label without resetting progress counters."""
+        with self._lock:
+            if self._current is not None:
+                self._current.phase = label
+        self._notify()
+
+    def freeze_grid(self) -> None:
+        """Lock the grid to show all items as done.
+
+        Called when the cascade proxy phase finishes so the grid stays
+        filled while the oracle phase runs with its own completed/total.
+        """
+        with self._lock:
+            op = self._current
+            if op is not None:
+                op.grid_complete = True
+                op.grid_total = op.total
+        self._notify()
+
+    def clear_phase(self) -> None:
+        """Drop the live sub-phase label once a multi-phase op finishes."""
+        with self._lock:
+            if self._current is not None:
+                self._current.phase = None
+                self._current.grid_complete = False
+                self._current.grid_total = None
+        self._notify()
+
+    def set_cascade_info(self, info: dict) -> None:
+        """Store cascade stats on the current op for TUI display."""
+        with self._lock:
+            if self._current is not None:
+                self._current.cascade_info = info
+        self._notify()
+
+    def update_cascade_info(self, updates: dict) -> None:
+        """Merge additional keys into the current op's cascade_info."""
+        with self._lock:
+            if self._current is not None and self._current.cascade_info is not None:
+                self._current.cascade_info.update(updates)
         self._notify()
 
     def tick(self, n: int = 1) -> None:
@@ -142,6 +190,7 @@ class ProgressTracker:
             if op is None:
                 return
             op.status = "done"
+            op.phase = None
             op.end_t = time.time()
             op.cost = cost
             op.prompt_tokens = prompt_tokens

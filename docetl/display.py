@@ -23,8 +23,7 @@ def format_query_plan(
     )
     colors = ["cyan", "magenta", "green", "yellow", "blue", "red"]
     step_colors = {
-        b.step_name: colors[i % len(colors)]
-        for i, b in enumerate(step_boundaries)
+        b.step_name: colors[i % len(colors)] for i, b in enumerate(step_boundaries)
     }
 
     def _fmt(op: OpContainer, indent: int = 0) -> str:
@@ -54,7 +53,9 @@ def format_query_plan(
         if "output" in op.config and "schema" in op.config["output"]:
             lines.append(f"{s}Output Schema:")
             for field, field_type in op.config["output"]["schema"].items():
-                lines.append(f"{s}  {field}: [bright_white]{escape(str(field_type))}[/bright_white]")
+                lines.append(
+                    f"{s}  {field}: [bright_white]{escape(str(field_type))}[/bright_white]"
+                )
 
         if op.children:
             if op.is_equijoin:
@@ -77,6 +78,7 @@ def format_execution_summary(
     token_usage: dict,
     intermediate_dir: str | None,
     output_path: str,
+    cascade_roles: dict[str, str] | None = None,
 ) -> str:
     token_lines = ""
     if token_usage:
@@ -91,7 +93,9 @@ def format_execution_summary(
             total_prompt += prompt
             total_completion += completion
             total_cached += cached
-            line = f"  {model}: [cyan]{prompt:,}[/cyan] input"
+            role = (cascade_roles or {}).get(model)
+            model_label = f"{model} [dim]({role})[/dim]" if role else model
+            line = f"  {model_label}: [cyan]{prompt:,}[/cyan] input"
             if cached:
                 line += f" ([dim]{cached:,} cached[/dim])"
             line += f", [cyan]{completion:,}[/cyan] output"

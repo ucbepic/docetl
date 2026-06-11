@@ -1,10 +1,14 @@
 # DocETL
 
-[![GitHub](https://img.shields.io/github/stars/ucbepic/docetl?style=social)](https://github.com/ucbepic/docetl)
-[![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
-[![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
-[![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
-[![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
+<p align="center">
+<a href="https://github.com/ucbepic/docetl"><img src="https://img.shields.io/github/stars/ucbepic/docetl?style=social" alt="GitHub stars"></a>
+<a href="https://docetl.org"><img src="https://img.shields.io/badge/Website-docetl.org-blue" alt="Website"></a>
+<a href="https://ucbepic.github.io/docetl"><img src="https://img.shields.io/badge/Documentation-docs-green" alt="Documentation"></a>
+<a href="https://discord.gg/fHp7B2X3xx"><img src="https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord" alt="Discord"></a>
+<a href="https://arxiv.org/abs/2410.12189"><img src="https://img.shields.io/badge/Paper-arXiv-red" alt="Paper"></a>
+</p>
+
+<p align="center"><img src="assets/docetl-overview.svg" alt="DocETL pipeline overview" width="680"></p>
 
 DocETL is a declarative query engine and optimizer for LLM-powered data
 processing. Think of DocETL as an agentic map-reduce framework. It provides
@@ -15,7 +19,6 @@ processing. Think of DocETL as an agentic map-reduce framework. It provides
   cost-efficient, searching over models, prompts, and operation
   decompositions.
 
-<p align="center"><img src="assets/docetl-overview.svg" alt="DocETL pipeline overview" width="680"></p>
 
 Use it when you have a task over a collection of documents or unstructured
 records, e.g. extracting and aggregating themes across thousands of

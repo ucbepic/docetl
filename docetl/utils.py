@@ -127,6 +127,69 @@ def extract_jinja_variables(template_string: str) -> list[str]:
     return list(all_variables)
 
 
+def extract_input_field_reads(
+    template_string: Any, var: str = "input"
+) -> "frozenset[str] | None":
+    """The set of *var* fields a Jinja template reads, or None if unknown.
+
+    Sound for plan-rewrite decisions, unlike ``extract_jinja_variables``:
+    every use of *var* must be a static attribute access (``input.x``) or
+    constant subscript (``input["x"]``) for a result to be returned. Any
+    other use — bare ``{{ input }}``, a filter over the whole object, a
+    dynamic subscript, aliasing through ``{% set %}`` or a loop — and the
+    template may read the entire row, so this returns None (fail closed).
+
+    Non-Jinja strings also return None: at runtime the operation appends
+    the whole document to such prompts (``_append_document_to_prompt``).
+    """
+    from jinja2 import nodes
+
+    if not isinstance(template_string, str) or not has_jinja_syntax(template_string):
+        return None
+    env = Environment(autoescape=True)
+    try:
+        ast = env.parse(template_string)
+    except Exception:
+        return None
+
+    fields: set[str] = set()
+    # Every Name node for *var* must be consumed by a static field access.
+    consumed: set[int] = set()
+    for node in ast.find_all((nodes.Getattr, nodes.Getitem)):
+        target = node.node
+        if not (isinstance(target, nodes.Name) and target.name == var):
+            continue
+        if isinstance(node, nodes.Getattr):
+            fields.add(node.attr)
+        else:
+            arg = node.arg
+            if not (isinstance(arg, nodes.Const) and isinstance(arg.value, str)):
+                return None  # dynamic subscript: unknown field
+            fields.add(arg.value)
+        consumed.add(id(target))
+    for name in ast.find_all(nodes.Name):
+        if name.name == var and id(name) not in consumed:
+            return None  # whole-object use of *var*
+    return frozenset(fields)
+
+
+def extract_template_field_reads(
+    template_string: Any, var: str = "input"
+) -> "frozenset[str] | None":
+    """Like ``extract_input_field_reads`` but treats non-Jinja strings as
+    reading nothing (∅) instead of everything (None).
+
+    Use for auxiliary templates (gleaning prompts, conditions) that are
+    rendered as-is when they contain no Jinja syntax — unlike main prompts,
+    no document is appended to them at runtime.
+    """
+    if not isinstance(template_string, str):
+        return None
+    if not has_jinja_syntax(template_string):
+        return frozenset()
+    return extract_input_field_reads(template_string, var=var)
+
+
 def completion_cost(response: ModelResponse) -> float:
     try:
         return (

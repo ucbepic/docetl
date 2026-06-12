@@ -140,6 +140,8 @@ class DSLRunner:
             datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         )
         self.console = kwargs.pop("console", None) or get_console()
+        for rewrite in self.applied_rewrites:
+            self.console.log(f"[dim]Plan rewrite — {rewrite}[/dim]")
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
 
@@ -175,11 +177,32 @@ class DSLRunner:
         from docetl.api import Pipeline as PipelineCls
 
         if isinstance(config, PipelineCls):
-            self.pipeline: PipelineCls = config
-            self.config = config._to_dict()
+            pipeline, cfg = config, config._to_dict()
         else:
-            self.config = config
-            self.pipeline = PipelineCls.from_dict(config)
+            pipeline, cfg = None, config
+
+        # Plan rewrites run here — before the op graph and checkpoint
+        # hashes are derived — so everything downstream keys on the
+        # rewritten config. Rewriting is idempotent (fixpoint), and when
+        # no rule fires the original config object is returned, so
+        # existing pipelines see zero hash churn.
+        self.applied_rewrites = []
+        rewrite_setting = cfg.get("plan_rewrites", True)
+        if rewrite_setting:
+            from docetl.plan import apply_rewrites_to_config, resolve_rules
+
+            cfg, self.applied_rewrites = apply_rewrites_to_config(
+                cfg, rules=resolve_rules(rewrite_setting)
+            )
+
+        self.config = cfg
+        if pipeline is not None and not self.applied_rewrites:
+            # Keep the caller's typed Pipeline: from_dict degrades op
+            # types missing from its registry, so don't re-derive it
+            # unless the config actually changed.
+            self.pipeline: PipelineCls = pipeline
+        else:
+            self.pipeline = PipelineCls.from_dict(cfg)
         self._raw_ops_list = self.config.get("operations", [])
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
 
@@ -388,6 +411,10 @@ class DSLRunner:
             show_boundaries,
             default_model=self.config.get("default_model", "?"),
         )
+        if self.applied_rewrites:
+            self.console.log("\n[bold]Plan rewrites:[/bold]")
+            for rewrite in self.applied_rewrites:
+                self.console.log(f"  [dim]{rewrite}[/dim]")
         self.console.log("\n[bold]Pipeline Steps:[/bold]")
         for step_name, color in step_colors.items():
             self.console.log(f"[{color}]■[/{color}] {step_name}")

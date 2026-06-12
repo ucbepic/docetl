@@ -4,7 +4,7 @@ from typing import Any, Literal, Union
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.clustering_utils import get_embeddings_for_clustering
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.validation import lookup_field
@@ -192,6 +192,45 @@ class SampleOperation(BaseOperation):
                                 print(f"Available doc_id_keys: {sorted(doc_id_keys)}")
 
             return self
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        return Cardinality.SELECTION
+
+    @classmethod
+    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        fields: set[str] = set()
+        stratify = config.get("stratify_key")
+        if stratify:
+            fields |= {stratify} if isinstance(stratify, str) else set(stratify)
+        if config.get("method") in ("first", "uniform"):
+            return frozenset(fields)
+        return None  # outliers/custom/top_* read embeddings or match keys
+
+    @classmethod
+    def fields_written(cls, config: dict[str, Any]) -> "frozenset[str]":
+        return frozenset()
+
+    @classmethod
+    def is_llm(cls, config: dict[str, Any]) -> bool:
+        # outliers and top_embedding pay for embedding calls
+        return config.get("method") in ("outliers", "top_embedding")
+
+    @classmethod
+    def is_deterministic(cls, config: dict[str, Any]) -> bool:
+        method = config.get("method")
+        if method == "first":
+            return True
+        if method == "uniform":
+            return config.get("random_state") is not None
+        return False
+
+    @classmethod
+    def preserves_order(cls, config: dict[str, Any]) -> bool:
+        # Stratified "first" regroups rows before taking heads.
+        return config.get("method") == "first" and not config.get("stratify_key")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

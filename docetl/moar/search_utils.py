@@ -7,6 +7,7 @@ but not core to the MCTS structure itself.
 
 import json
 import math
+import os
 from typing import List
 
 from pydantic import BaseModel
@@ -287,6 +288,21 @@ def create_expansion_prompt(
 
     input_schema = load_input_doc(yaml_file_path)
 
+    # Opt-in: show the agent the typed logical plan (structure, cardinality,
+    # schema deltas) alongside the raw YAML.
+    plan_summary = ""
+    if os.environ.get("DOCETL_MOAR_PLAN_SUMMARY"):
+        try:
+            from docetl.plan import format_plan, lift
+
+            plan_summary = (
+                "\n    Logical plan of the current pipeline (output-rooted; each "
+                "node shows [type · cardinality · llm] and schema delta):\n"
+                f"{format_plan(lift(node.parsed_yaml))}\n"
+            )
+        except Exception:
+            plan_summary = ""
+
     user_message = f"""
     {intro}
 
@@ -341,6 +357,7 @@ def create_expansion_prompt(
 
     Input document schema with token statistics: {input_schema} \n
     Input data sample: {json.dumps(sample_input, indent=2)[:5000]} \n
+    {plan_summary}
     The original query in YAML format using our operations: {input_query} \n
     The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
     """

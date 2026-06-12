@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 
 
 class AddUuidOperation(BaseOperation):
@@ -15,6 +15,29 @@ class AddUuidOperation(BaseOperation):
 
     class schema(BaseOperation.schema):
         type: str = "add_uuid"
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Not deterministic: fresh uuid4 per row per run.
+
+    @classmethod
+    def cardinality(cls, config):
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_read(cls, config):
+        return frozenset()
+
+    @classmethod
+    def fields_written(cls, config):
+        return frozenset({config.get("id_key", f"{config.get('name', '')}_id")})
+
+    @classmethod
+    def is_row_local(cls, config):
+        return True
+
+    @classmethod
+    def preserves_order(cls, config):
+        return True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

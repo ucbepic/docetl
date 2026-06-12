@@ -12,7 +12,7 @@ from jinja2 import Template
 from litellm import model_cost
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render, lookup_field
 from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
@@ -139,6 +139,19 @@ class ResolveOperation(BaseOperation, CascadeMixin):
                 raise ValueError("'schema' in 'output' configuration cannot be empty")
 
             return self
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Cardinality stays at the conservative MANY_TO_MANY default and
+    # fields_read at None: resolution compares rows against each other,
+    # so nothing here is row-local or order-stable.
+
+    @classmethod
+    def fields_written(cls, config):
+        return frozenset((config.get("output") or {}).get("schema") or {})
+
+    @classmethod
+    def is_llm(cls, config):
+        return True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -14,7 +14,7 @@ from pydantic import Field, field_validator, model_validator
 from tqdm import tqdm
 
 from docetl.base_schemas import Tool, ToolFunction
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import (
     RichLoopBar,
     lookup_field,
@@ -23,7 +23,12 @@ from docetl.operations.utils import (
 )
 from docetl.operations.utils.api import OutputMode
 from docetl.progress.tracker import active_tracker
-from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
+from docetl.utils import (
+    extract_input_field_reads,
+    extract_template_field_reads,
+    has_jinja_syntax,
+    prompt_user_for_non_jinja_confirmation,
+)
 
 
 class MapOperation(BaseOperation):
@@ -157,6 +162,73 @@ class MapOperation(BaseOperation):
                 )
             # Mark that we need to append document statement
             self.config["_append_document_to_batch_prompt"] = True
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        # skip_on_error and validate failures drop rows, limit truncates
+        # inputs, and tool-based parsing can emit several outputs per row.
+        if (
+            config.get("skip_on_error")
+            or config.get("limit")
+            or config.get("validate")
+            or config.get("tools")
+        ):
+            return Cardinality.MANY_TO_MANY
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        # Retrieval context and batch prompts are keyed on whole rows;
+        # tool side effects are untraceable.
+        if config.get("retriever") or config.get("tools") or config.get("batch_prompt"):
+            return None
+        fields: set[str] = set()
+        if config.get("prompt") is not None:
+            reads = extract_input_field_reads(config["prompt"])
+            if reads is None:
+                return None
+            fields |= reads
+        gleaning = config.get("gleaning")
+        if isinstance(gleaning, dict):
+            for key in ("validation_prompt", "if"):
+                if gleaning.get(key) is not None:
+                    reads = extract_template_field_reads(gleaning[key])
+                    if reads is None:
+                        return None
+                    fields |= reads
+        elif gleaning is not None:
+            return None
+        if config.get("pdf_url_key"):
+            fields.add(config["pdf_url_key"])
+        return frozenset(fields)
+
+    @classmethod
+    def fields_written(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        if config.get("tools"):
+            return None
+        written = set((config.get("output") or {}).get("schema") or {})
+        written |= set(config.get("drop_keys") or [])
+        if config.get("enable_observability"):
+            written.add(f"_observability_{config.get('name', '')}")
+        if config.get("save_retriever_output"):
+            written.add(f"_{config.get('name', '')}_retrieved_context")
+        return frozenset(written)
+
+    @classmethod
+    def is_llm(cls, config: dict[str, Any]) -> bool:
+        # A drop_keys-only map makes no LLM calls.
+        return bool(config.get("prompt") or config.get("batch_prompt"))
+
+    @classmethod
+    def is_row_local(cls, config: dict[str, Any]) -> bool:
+        # Calibration context and batch prompts mix in other rows.
+        return not (config.get("calibrate") or config.get("batch_prompt"))
+
+    @classmethod
+    def preserves_order(cls, config: dict[str, Any]) -> bool:
+        return True
 
     def _limit_applies_to_inputs(self) -> bool:
         return True
@@ -710,6 +782,50 @@ class ParallelMapOperation(BaseOperation):
                     )
 
             return self
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        if config.get("skip_on_error") or config.get("validate"):
+            return Cardinality.MANY_TO_MANY
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        if config.get("retriever"):
+            return None
+        fields: set[str] = set()
+        for prompt_config in config.get("prompts") or []:
+            reads = extract_input_field_reads(prompt_config.get("prompt"))
+            if reads is None:
+                return None
+            fields |= reads
+        if config.get("pdf_url_key"):
+            fields.add(config["pdf_url_key"])
+        return frozenset(fields)
+
+    @classmethod
+    def fields_written(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        written = set((config.get("output") or {}).get("schema") or {})
+        for prompt_config in config.get("prompts") or []:
+            written |= set(prompt_config.get("output_keys") or [])
+        written |= set(config.get("drop_keys") or [])
+        if config.get("enable_observability"):
+            written.add(f"_observability_{config.get('name', '')}")
+        return frozenset(written)
+
+    @classmethod
+    def is_llm(cls, config: dict[str, Any]) -> bool:
+        return bool(config.get("prompts"))
+
+    @classmethod
+    def is_row_local(cls, config: dict[str, Any]) -> bool:
+        return True
+
+    @classmethod
+    def preserves_order(cls, config: dict[str, Any]) -> bool:
+        return True
 
     def __init__(
         self,

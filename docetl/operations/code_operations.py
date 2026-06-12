@@ -1,11 +1,94 @@
+import ast
+import inspect
 import os
+import textwrap
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from pydantic import Field, field_validator
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import RichLoopBar
+
+
+def extract_doc_field_reads(code: Any) -> "frozenset[str] | None":
+    """The set of document fields a code op's transform reads, or None.
+
+    Sound for plan-rewrite decisions: every use of the document parameter
+    must be a constant subscript (``doc["k"]``) or a constant ``.get``
+    call (``doc.get("k")``). Any other use — aliasing, ``**doc``,
+    iteration, dynamic keys, reassignment — returns None (fail closed).
+    Callables are analyzed via ``inspect.getsource`` best-effort.
+    """
+    try:
+        if callable(code):
+            source = textwrap.dedent(inspect.getsource(code))
+        elif isinstance(code, str):
+            source = code
+        else:
+            return None
+        module = ast.parse(source)
+    except Exception:
+        return None
+
+    # String code must define `transform` (see resolve_transform); for
+    # callables, take the first function/lambda in the extracted source.
+    if isinstance(code, str):
+        fn = next(
+            (
+                node
+                for node in ast.walk(module)
+                if isinstance(node, ast.FunctionDef) and node.name == "transform"
+            ),
+            None,
+        )
+    else:
+        fn = next(
+            (
+                node
+                for node in ast.walk(module)
+                if isinstance(node, (ast.FunctionDef, ast.Lambda))
+            ),
+            None,
+        )
+    if fn is None or not fn.args.args:
+        return None
+    param = fn.args.args[0].arg
+
+    fields: set[str] = set()
+    consumed: set[int] = set()
+    for node in ast.walk(fn):
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == param
+        ):
+            if not (
+                isinstance(node.slice, ast.Constant)
+                and isinstance(node.slice.value, str)
+            ):
+                return None
+            fields.add(node.slice.value)
+            consumed.add(id(node.value))
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == param
+        ):
+            if not (
+                node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                return None
+            fields.add(node.args[0].value)
+            consumed.add(id(node.func.value))
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Name) and node.id == param and id(node) not in consumed:
+            return None
+    return frozenset(fields)
 
 
 def resolve_transform(code: Any):
@@ -46,6 +129,28 @@ class CodeMapOperation(BaseOperation):
             resolve_transform(config.code)
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        if config.get("limit"):
+            return Cardinality.MANY_TO_MANY
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        return extract_doc_field_reads(config.get("code"))
+
+    # fields_written stays None: arbitrary code can add any keys.
+
+    @classmethod
+    def is_row_local(cls, config: dict[str, Any]) -> bool:
+        return True
+
+    @classmethod
+    def preserves_order(cls, config: dict[str, Any]) -> bool:
+        return True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         limit_value = self.config.get("limit")
@@ -94,6 +199,12 @@ class CodeReduceOperation(BaseOperation):
             resolve_transform(config.code)
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        return Cardinality.MANY_TO_ONE
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         reduce_fn = resolve_transform(self.config["code"])
@@ -171,6 +282,28 @@ class CodeFilterOperation(BaseOperation):
             resolve_transform(config.code)
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        return Cardinality.SELECTION
+
+    @classmethod
+    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        return extract_doc_field_reads(config.get("code"))
+
+    @classmethod
+    def fields_written(cls, config: dict[str, Any]) -> "frozenset[str]":
+        return frozenset()  # kept rows pass through untouched
+
+    @classmethod
+    def is_row_local(cls, config: dict[str, Any]) -> bool:
+        return True
+
+    @classmethod
+    def preserves_order(cls, config: dict[str, Any]) -> bool:
+        return True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         filter_fn = resolve_transform(self.config["code"])

@@ -29,6 +29,8 @@ from docetl.utils import op_ref_name
 if TYPE_CHECKING:
     import pandas as pd
 
+    from docetl.plan import LogicalPlan
+
 # Top-level pipeline config keys a Frame carries with it (set by from_yaml).
 # These take precedence over the module-level ``docetl.<attr>`` globals.
 _SETTING_KEYS = (
@@ -39,6 +41,7 @@ _SETTING_KEYS = (
     "fallback_embedding_models",
     "parsing_tools",
     "system_prompt",
+    "plan_rewrites",
 )
 
 
@@ -863,6 +866,35 @@ class Frame:
                 continue
             result = op_cls.transform_schema(result, op)
         return result
+
+    def plan(self) -> "LogicalPlan":
+        """Lift this pipeline into its typed logical plan (docetl.plan).
+
+        Built without checkpoint settings so the plan doesn't vary with
+        ``docetl.intermediate_dir``. Purely static — nothing executes.
+        """
+        from docetl.plan import lift
+
+        return lift(self._build_config(checkpoint=False))
+
+    def explain(self, *, schemas: bool = True, optimized: bool = False) -> str:
+        """Render the logical plan as an indented tree and return it
+        (also printed for interactive use).
+
+        With ``optimized=True``, applies the plan rewrite rules first and
+        lists what fired as ``-- applied <rule>: ...`` header lines.
+        """
+        from docetl.plan import apply_rules, format_plan
+
+        plan = self.plan()
+        lines = []
+        if optimized:
+            for rewrite in apply_rules(plan):
+                lines.append(f"-- applied {rewrite}")
+        lines.append(format_plan(plan, schemas=schemas))
+        text = "\n".join(lines)
+        print(text)
+        return text
 
     # ── terminal actions ───────────────────────────────────────────
 

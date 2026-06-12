@@ -4,7 +4,7 @@ from typing import Literal, Union
 
 from pydantic import Field, field_validator, model_validator
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.rank import RankOperation
 from docetl.operations.sample import SampleOperation
 
@@ -120,6 +120,32 @@ class TopKOperation(BaseOperation):
                     )
 
             return self
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Selects (and reorders) the top k of the whole dataset: not
+    # row-local, not order-preserving. fields_written stays None — some
+    # methods annotate rows with scores.
+
+    @classmethod
+    def cardinality(cls, config):
+        return Cardinality.SELECTION
+
+    @classmethod
+    def fields_read(cls, config):
+        from docetl.utils import has_jinja_syntax
+
+        query = config.get("query")
+        if isinstance(query, str) and has_jinja_syntax(query):
+            return None  # templated queries can read arbitrary fields
+        fields = set(config.get("keys") or [])
+        stratify = config.get("stratify_key")
+        if stratify:
+            fields |= {stratify} if isinstance(stratify, str) else set(stratify)
+        return frozenset(fields) if fields else None
+
+    @classmethod
+    def is_llm(cls, config):
+        return config.get("method") in ("llm_compare", "embedding")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

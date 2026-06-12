@@ -18,6 +18,7 @@ from docetl.reasoning_optimizer.directives.change_model_cost import (
     ChangeModelCostDirective,
     create_model_specific_directives,
 )
+from docetl.plan import InvalidCandidatePlan, apply_rewrites_to_config, validate_config
 from docetl.reasoning_optimizer.op_descriptions import *  # noqa: F403, F405
 from docetl.utils import extract_output_from_json
 
@@ -71,6 +72,11 @@ class MOARSearch:
 
         self.console = DOCETL_CONSOLE
         self.root = Node(root_yaml_path, c=exploration_constant, console=self.console)
+        # Surface problems in the user's root pipeline up front (warnings
+        # only — the root is what we were given, so we still search it).
+        for issue in validate_config(self.root.parsed_yaml):
+            if issue.level == "error":
+                self.console.log(f"[yellow]Root pipeline plan issue: {issue}[/yellow]")
         self.tree_lock = threading.RLock()
         self.max_concurrent_agents = max_concurrent_agents
         self.max_threads = max_threads
@@ -928,6 +934,25 @@ class MOARSearch:
                     f"[green]Instantiation {i+1} created successfully[/green]"
                 )
 
+            except InvalidCandidatePlan as e:
+                self.console.log(
+                    f"[yellow]Instantiation {i+1} rejected by plan validation: {str(e)}[/yellow]"
+                )
+                # Tell subsequent instantiation attempts why this candidate
+                # was rejected so they don't repeat the mistake.
+                issue_text = "\n".join(f"- {issue}" for issue in e.issues)
+                instantiation_messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"The previous '{directive_name}' instantiation produced an "
+                            f"invalid pipeline and was rejected before execution. "
+                            f"Validation errors:\n{issue_text}\n"
+                            "Please fix these problems in the next instantiation."
+                        ),
+                    }
+                )
+                continue
             except Exception as e:
                 self.console.log(
                     f"[yellow]Instantiation {i+1} failed with error: {str(e)}[/yellow]"
@@ -1149,6 +1174,23 @@ class MOARSearch:
         )
 
         patch_sample_dataset_path(new_parsed_yaml, self.sample_dataset_path)
+
+        # Reject invalid candidates before paying any execution cost
+        # (previously they only failed at runtime in Node.execute_plan).
+        plan_errors = [
+            issue
+            for issue in validate_config(new_parsed_yaml)
+            if issue.level == "error"
+        ]
+        if plan_errors:
+            raise InvalidCandidatePlan(directive_name, plan_errors)
+
+        # Canonicalize with the classical rewrite rules so saved candidate
+        # YAMLs already carry them (the runner's re-application is a
+        # fixpoint no-op).
+        new_parsed_yaml, applied_rewrites = apply_rewrites_to_config(new_parsed_yaml)
+        for rewrite in applied_rewrites:
+            self.console.log(f"[dim]Plan rewrite on candidate — {rewrite}[/dim]")
 
         # Determine the node ID to use for filename
         if custom_id is not None:

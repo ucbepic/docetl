@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import rich_as_completed
 from docetl.operations.utils.progress import RichLoopBar
 from docetl.operations.utils.validation import lookup_field
@@ -31,6 +31,28 @@ class RankOperation(BaseOperation):
         num_calibration_docs: int = Field(10, gt=0)
         verbose: bool = False
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Reordering is the whole point, so preserves_order stays False;
+    # ranking depends on the full dataset, so not row-local.
+
+    @classmethod
+    def cardinality(cls, config):
+        return Cardinality.ONE_TO_ONE  # same rows, annotated with _rank
+
+    @classmethod
+    def fields_read(cls, config):
+        if config.get("input_keys"):
+            return frozenset(config["input_keys"])
+        return None
+
+    @classmethod
+    def fields_written(cls, config):
+        return frozenset({"_rank"})
+
+    @classmethod
+    def is_llm(cls, config):
+        return True
 
     def _extract_document_content(self, document: dict, input_keys: list[str]) -> str:
         """

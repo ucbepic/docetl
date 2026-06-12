@@ -16,7 +16,7 @@ from pydantic import field_validator
 from rich.console import Console
 from rich.prompt import Confirm
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
@@ -114,6 +114,15 @@ class EquijoinOperation(BaseOperation, CascadeMixin):
                     f"Invalid Jinja2 template in 'comparison_prompt': {str(e)}"
                 )
             return v
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Two-input join: rewrite rules treat it as an immovable boundary,
+    # so only the cost trait matters. The single-input fields_read/
+    # fields_written contracts don't apply; both stay None.
+
+    @classmethod
+    def is_llm(cls, config):
+        return True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -18,6 +18,10 @@ intermediate_dir: str | None = None
 # Rate limiting
 rate_limits: dict | None = None
 
+# Logical-plan rewrites (docetl.plan): True (all rules), False, or a
+# list of rule names to enable.
+plan_rewrites: "bool | list" = True
+
 # Optional system prompt applied to all operations:
 # {"dataset_description": ..., "persona": ...}
 system_prompt: dict | None = None
@@ -42,4 +46,6 @@ def runner_settings() -> dict:
         settings["fallback_embedding_models"] = fallback_embedding_models
     if system_prompt:
         settings["system_prompt"] = system_prompt
+    if plan_rewrites is not True:  # default-on; only emit overrides
+        settings["plan_rewrites"] = plan_rewrites
     return settings

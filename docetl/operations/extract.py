@@ -9,7 +9,7 @@ from typing import Any, Literal
 from jinja2 import Template
 from pydantic import Field, field_validator
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import RichLoopBar, lookup_field, strict_render
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
@@ -54,6 +54,46 @@ class ExtractOperation(BaseOperation):
         for doc_key in config.get("document_keys") or []:
             result[f"{doc_key}{suffix}"] = value_type
         return result
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config):
+        if config.get("skip_on_error") or config.get("limit"):
+            return Cardinality.MANY_TO_MANY
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_read(cls, config):
+        from docetl.utils import extract_input_field_reads
+
+        if config.get("retriever"):
+            return None
+        reads = extract_input_field_reads(config.get("prompt"))
+        if reads is None:
+            return None  # non-Jinja prompts get the document appended
+        return reads | frozenset(config.get("document_keys") or [])
+
+    @classmethod
+    def fields_written(cls, config):
+        suffix = config.get("extraction_key_suffix") or (
+            f"_extracted_{config.get('name', '')}"
+        )
+        return frozenset(
+            f"{doc_key}{suffix}" for doc_key in config.get("document_keys") or []
+        )
+
+    @classmethod
+    def is_llm(cls, config):
+        return True
+
+    @classmethod
+    def is_row_local(cls, config):
+        return True
+
+    @classmethod
+    def preserves_order(cls, config):
+        return True
 
     def __init__(
         self,

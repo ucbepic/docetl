@@ -1,7 +1,7 @@
 import copy
 import re
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils.validation import lookup_field
 
 
@@ -79,6 +79,40 @@ class UnnestOperation(BaseOperation):
             # expanded from dict values; element types aren't declared anywhere
             result.setdefault(field, "string")
         return result
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config):
+        return Cardinality.ONE_TO_MANY
+
+    @classmethod
+    def fields_read(cls, config):
+        if not config.get("unnest_key"):
+            return None
+        return frozenset({config["unnest_key"]})
+
+    @classmethod
+    def fields_written(cls, config):
+        # List unnest overwrites unnest_key with each element; dict unnest
+        # writes the expanded fields.
+        if not config.get("unnest_key"):
+            return None
+        return frozenset({config["unnest_key"]}) | frozenset(
+            config.get("expand_fields") or []
+        )
+
+    @classmethod
+    def is_deterministic(cls, config):
+        return True
+
+    @classmethod
+    def is_row_local(cls, config):
+        return True
+
+    @classmethod
+    def preserves_order(cls, config):
+        return True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """

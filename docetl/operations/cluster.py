@@ -6,7 +6,7 @@ from jinja2 import Template
 
 from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
-from .base import BaseOperation
+from .base import BaseOperation, Cardinality
 from .clustering_utils import get_embeddings_for_clustering
 from .utils import RichLoopBar, strict_render
 
@@ -17,6 +17,27 @@ class ClusterOperation(BaseOperation):
         result = super().transform_schema(schema, config)
         result[config.get("output_key", "clusters")] = "list"
         return result
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Annotates every row in place (order kept) but cluster assignments
+    # depend on the whole dataset, so not row-local. fields_read stays
+    # None: summaries render whole cluster members.
+
+    @classmethod
+    def cardinality(cls, config):
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_written(cls, config):
+        return frozenset({config.get("output_key", "clusters")})
+
+    @classmethod
+    def is_llm(cls, config):
+        return True
+
+    @classmethod
+    def preserves_order(cls, config):
+        return True
 
     def __init__(
         self,

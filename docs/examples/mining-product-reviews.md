@@ -16,45 +16,13 @@ Our goal is to create a pipeline that will:
 2. Resolve similar themes across different games
 3. Generate reports of polarizing themes common across games, supported by quotes from different game reviews
 
-We'll be using a subset of the [STEAM review dataset](https://www.kaggle.com/datasets/andrewmvd/steam-reviews). We've created a subset that contains reviews for 500 of the most popular games, with approximately 400 reviews per game, balanced between positive and negative ratings. For each game, we concatenate all reviews into a single text for analysis---so we'll have 500 input items/reviews, each representing a game. You can get the dataset sample [here](https://drive.google.com/file/d/1hroljsvn8m23iVsNpET8Ma7sfb1OUu_u/view?usp=drive_link).
+We'll be using a subset of the [STEAM review dataset](https://www.kaggle.com/datasets/andrewmvd/steam-reviews). We've created a subset that contains reviews for 500 of the most popular games, with approximately 400 reviews per game, balanced between positive and negative ratings. For each game, we concatenate all reviews into a single text for analysis, so we'll have 500 input items/reviews, each representing a game. You can get the dataset sample [here](https://drive.google.com/file/d/1hroljsvn8m23iVsNpET8Ma7sfb1OUu_u/view?usp=drive_link).
 
 ## Pipeline Structure
 
-Let's examine the pipeline structure and its operations:
-
-=== "YAML"
-
-    ```yaml
-    pipeline:
-      steps:
-        - name: game_analysis
-          input: steam_reviews
-          operations:
-            - identify_polarizing_themes
-            - unnest_polarizing_themes
-            - resolve_themes
-            - aggregate_common_themes
-
-      output:
-        type: file
-        path: "output_polarizing_themes.json"
-        intermediate_dir: "intermediates"
-    ```
-
-=== "Python"
-
-    ```python
-    docetl.intermediate_dir = "intermediates"
-
-    pipeline = (
-        docetl.read_json("path/to/top_apps_steam_sample.json")
-        .map(...)      # identify_polarizing_themes, defined below
-        .unnest(...)   # unnest_polarizing_themes
-        .resolve(...)  # resolve_themes
-        .reduce(...)   # aggregate_common_themes
-    )
-    pipeline.write_json("output_polarizing_themes.json")
-    ```
+The pipeline is a map (identify polarizing themes per game), an unnest (one
+row per theme), a resolve (merge similar themes across games), and a reduce
+(report on each theme):
 
 ??? example "Full Pipeline Configuration"
 

@@ -11,31 +11,8 @@ Our goal is to build a pipeline that will:
 
 You can take a look at the raw data [here](https://github.com/ucbepic/docetl/tree/main/example_data/debates/data.json).
 
-Let's examine the pipeline structure and its operations:
-
-=== "YAML"
-
-    ```yaml
-    pipeline:
-      steps:
-        - name: debate_analysis
-          input: debates
-          operations:
-            - extract_themes_and_viewpoints
-            - unnest_themes
-            - summarize_theme_evolution
-    ```
-
-=== "Python"
-
-    ```python
-    pipeline = (
-        docetl.read_json("data.json")
-        .map(...)     # extract_themes_and_viewpoints, defined below
-        .unnest(...)  # unnest_themes
-        .reduce(...)  # summarize_theme_evolution
-    )
-    ```
+The pipeline is a map (extract themes and viewpoints per debate), an unnest
+(one row per theme), and a reduce (summarize each theme's evolution):
 
 ??? example "Full Pipeline Configuration"
 

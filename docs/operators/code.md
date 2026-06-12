@@ -1,6 +1,8 @@
 # Code Operations
 
-Code operations define transformations using Python code rather than LLM prompts. Use them for processing that should be deterministic, math-based, or built on existing Python libraries — no LLM calls are made.
+Code operations define transformations using Python code rather than LLM prompts. No LLM calls are made. Use them for processing that should be deterministic, math-based, or built on existing Python libraries.
+
+In YAML, `code` is a string of Python source defining a `transform` function. In the Python API, pass any callable as `code`, e.g., a lambda.
 
 ## Types of Code Operations
 
@@ -30,18 +32,12 @@ The Code Map operation applies a Python function to each item in your input data
         ```python
         import docetl
 
-        docetl.default_model = "gpt-4o-mini"
+        def extract_keywords(doc) -> dict:
+            keywords = doc["text"].lower().split()
+            return {"keywords": keywords, "keyword_count": len(keywords)}
 
         frame = docetl.read_json("documents.json")
-        frame = frame.code_map(
-            code="""def transform(doc) -> dict:
-            # Your transformation code here
-            keywords = doc['text'].lower().split()
-            return {
-                'keywords': keywords,
-                'keyword_count': len(keywords)
-            }""",
-        )
+        frame = frame.code_map(code=extract_keywords)
         rows = frame.collect()
         ```
 
@@ -75,20 +71,12 @@ The Code Reduce operation aggregates multiple items into a single result using a
         ```python
         import docetl
 
-        docetl.default_model = "gpt-4o-mini"
+        def aggregate_stats(items) -> dict:
+            total = sum(item["value"] for item in items)
+            return {"total": total, "average": total / len(items), "count": len(items)}
 
         frame = docetl.read_json("data.json")
-        frame = frame.code_reduce(
-            reduce_key="category",
-            code="""def transform(items) -> dict:
-            total = sum(item['value'] for item in items)
-            avg = total / len(items)
-            return {
-                'total': total,
-                'average': avg,
-                'count': len(items)
-            }""",
-        )
+        frame = frame.code_reduce(reduce_key="category", code=aggregate_stats)
         rows = frame.collect()
         ```
 
@@ -116,13 +104,9 @@ The Code Filter operation allows you to filter items based on custom Python logi
         ```python
         import docetl
 
-        docetl.default_model = "gpt-4o-mini"
-
         frame = docetl.read_json("entries.json")
         frame = frame.code_filter(
-            code="""def transform(doc) -> bool:
-            # Return True to keep the document, False to filter it out
-            return doc['score'] >= 0.5 and len(doc['text']) > 100""",
+            code=lambda doc: doc["score"] >= 0.5 and len(doc["text"]) > 100
         )
         rows = frame.collect()
         ```
@@ -134,7 +118,7 @@ The transform function should return True for items to keep and False for items 
 ### Required Parameters
 
 - type: Must be "code_map", "code_reduce", or "code_filter"
-- code: Python code containing the transform function. For map, the function must take a single document as input and return a document (a dictionary). For reduce, the function must take a list of documents as input and return a single aggregated document (a dictionary). For filter, the function must take a single document as input and return a boolean value indicating whether to keep the document.
+- code: The transform. In YAML, a string of Python source defining a `transform` function; in the Python API, any callable (or the same string form). For map, the function takes a single document and returns a dictionary. For reduce, it takes a list of documents and returns a single aggregated dictionary. For filter, it takes a single document and returns a boolean indicating whether to keep it.
 
 ### Optional Parameters
 

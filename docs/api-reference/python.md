@@ -233,11 +233,13 @@ frame.equijoin(right, comparison_prompt="Are these related? {{ left.x }} {{ righ
 
 ### Code Operations (no LLM calls)
 
+`code` takes any callable, e.g., a lambda, or a string of Python source defining a `transform` function (the YAML form).
+
 | Method | Description |
 |--------|-------------|
-| `.code_map(code="def transform(doc): ...")` | Per-document Python transform |
-| `.code_filter(code="def transform(doc): ...")` | Per-document Python filter (return bool) |
-| `.code_reduce(reduce_key, code="def transform(items): ...")` | Per-group Python aggregation |
+| `.code_map(code=lambda doc: {...})` | Per-document Python transform |
+| `.code_filter(code=lambda doc: bool(...))` | Per-document Python filter (return bool) |
+| `.code_reduce(reduce_key, code=lambda items: {...})` | Per-group Python aggregation |
 
 ---
 

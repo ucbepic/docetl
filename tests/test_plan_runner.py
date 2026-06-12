@@ -155,7 +155,6 @@ class TestRewrittenPipelines:
 
         def build():
             # docs → code_map → sample(first): the head hops the 1:1 map.
-            # LimitPushdown is opt-in, so the test selects it explicitly.
             config = code_config(marker, tmp_path, inter)
             config["operations"] = [
                 config["operations"][0],
@@ -165,7 +164,6 @@ class TestRewrittenPipelines:
                 {"name": "s1", "input": "docs", "operations": ["cm"]},
                 {"name": "s2", "input": "s1", "operations": ["head"]},
             ]
-            config["plan_rewrites"] = ["selection_pushdown", "limit_pushdown"]
             return DSLRunner(config)
 
         first = build()

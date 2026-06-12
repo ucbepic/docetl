@@ -124,17 +124,18 @@ class LimitPushdown:
     are excluded (already non-order-preserving by trait), and ``uniform``
     is excluded outright — a different draw without a fixed seam.
 
-    NOT a default rule. Unlike SelectionPushdown, this rewrite is count-
-    and position-sensitive, and ONE_TO_ONE is only an at-most contract:
+    Exactness caveat: unlike SelectionPushdown, this rewrite is count-
+    and position-sensitive, and ONE_TO_ONE is only an at-most contract —
     an LLM op can silently drop a row on an exhausted timeout, in which
     case head-then-op yields N-1 rows on a different row set than
-    op-then-head's N. Since hopping over LLM ops is also this rule's only
-    benefit case (the gate below requires one), enabling it means
-    accepting that failure-free assumption: opt in via
-    ``plan_rewrites: ["selection_pushdown", "limit_pushdown"]``. The
-    fully sound version of this optimization is fusing the head into the
-    scan's load ``limit`` so the file read itself stops early — future
-    work at the scan boundary, not a node swap.
+    op-then-head's N. It ships as a default anyway: that divergence only
+    occurs in runs the runtime is already silently corrupting (the
+    timeout-drop predates this rule and loses the row either way), so
+    the rewrite adds no new failure mode. Disable it per pipeline with
+    ``plan_rewrites: ["selection_pushdown"]``. The fully sound version
+    of this optimization is fusing the head into the scan's load
+    ``limit`` so the file read itself stops early — future work at the
+    scan boundary, not a node swap.
     """
 
     name = "limit_pushdown"

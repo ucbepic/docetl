@@ -25,7 +25,7 @@ class Cardinality(str, Enum):
     (filter pushdown commutes with row-local drops: both orders keep
     exactly the rows that pass the predicate AND survive the op) but NOT
     for count- or position-sensitive rewrites like a positional head —
-    which is why LimitPushdown is not a default rule.
+    LimitPushdown documents the exactness assumption it accepts.
     """
 
     ONE_TO_ONE = "one_to_one"  # at most one output row per input row,

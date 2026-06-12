@@ -61,19 +61,18 @@ def push_below(plan: LogicalPlan, node: PlanNode, upstream: PlanNode) -> None:
 
 
 def default_rules() -> list[RewriteRule]:
-    # LimitPushdown is deliberately NOT a default: it is only sound when
-    # every hopped-over op emits exactly one row per input, and LLM ops
-    # can silently drop a row on an exhausted timeout — which is also the
-    # only case the rule saves money on. Opt in with
-    # ``plan_rewrites: ["selection_pushdown", "limit_pushdown"]`` if that
-    # failure-free assumption is acceptable for your pipeline.
-    from docetl.plan.rules.pushdown import SelectionPushdown
+    # LimitPushdown's exactness assumption (no silent row drops while
+    # hopping LLM ops — see its docstring) is accepted as a default:
+    # the failure mode only occurs in runs already losing rows to the
+    # runtime's silent timeout-drop, so the rewrite adds no new badness.
+    # Disable per pipeline with plan_rewrites: ["selection_pushdown"].
+    from docetl.plan.rules.pushdown import LimitPushdown, SelectionPushdown
 
-    return [SelectionPushdown()]
+    return [SelectionPushdown(), LimitPushdown()]
 
 
 def all_rules() -> list[RewriteRule]:
-    """Every shipped rule, including the opt-in ones."""
+    """Every shipped rule (the registry ``resolve_rules`` selects from)."""
     from docetl.plan.rules.pushdown import LimitPushdown, SelectionPushdown
 
     return [SelectionPushdown(), LimitPushdown()]

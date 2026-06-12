@@ -294,9 +294,6 @@ class TestExecutionEquivalence:
             "docetl.plan.rules.pushdown._chain_has_llm", lambda plan, node: True
         )
         config_on = self.base_config(marker_on, head, tmp_path, "on")
-        # The head swap is LimitPushdown, which is opt-in (not a default
-        # rule: it assumes failure-free exact 1:1 upstreams).
-        config_on["plan_rewrites"] = ["selection_pushdown", "limit_pushdown"]
         runner = DSLRunner(config_on)
         assert runner.applied_rewrites, "patched gate should let the rule fire"
         out_on, _ = runner.run()
@@ -307,10 +304,13 @@ class TestExecutionEquivalence:
 
 
 class TestRuleConfiguration:
-    def test_limit_pushdown_not_in_defaults(self):
+    def test_default_rules(self):
         from docetl.plan import all_rules, default_rules
 
-        assert [r.name for r in default_rules()] == ["selection_pushdown"]
+        assert [r.name for r in default_rules()] == [
+            "selection_pushdown",
+            "limit_pushdown",
+        ]
         assert {r.name for r in all_rules()} == {
             "selection_pushdown",
             "limit_pushdown",

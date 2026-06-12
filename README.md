@@ -49,6 +49,14 @@ export OPENAI_API_KEY=your_key   # or any LLM provider key
 
 ---
 
+## Need Help Writing Your Pipeline?
+
+Use Claude Code (recommended): run `docetl install-skill` and describe your task. See the [quickstart](https://ucbepic.github.io/docetl/quickstart-claude-code/).
+
+If you'd rather use ChatGPT or the Claude app, copy the prompt at [docetl.org/llms-full.txt](https://docetl.org/llms-full.txt) into the chat before describing your task.
+
+---
+
 ## Python API (recommended)
 
 Best for production code, notebooks, and scripting. [Full guide](https://ucbepic.github.io/docetl/python/)

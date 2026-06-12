@@ -23,7 +23,8 @@ from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.utils import (
     completion_cost,
-    extract_jinja_variables,
+    extract_comparison_field_reads,
+    extract_input_field_reads,
     has_jinja_syntax,
     prompt_user_for_non_jinja_confirmation,
 )
@@ -365,14 +366,8 @@ class ResolveOperation(BaseOperation, CascadeMixin):
             auto_blocking_keys = blocking_keys if blocking_keys else None
             if not auto_blocking_keys:
                 prompt_template = self.config.get("comparison_prompt", "")
-                prompt_vars = extract_jinja_variables(prompt_template)
-                prompt_vars = [
-                    var
-                    for var in prompt_vars
-                    if var not in ["input", "input1", "input2"]
-                ]
-                auto_blocking_keys = list(
-                    set([var.split(".")[-1] for var in prompt_vars])
+                auto_blocking_keys = (
+                    extract_comparison_field_reads(prompt_template) or []
                 )
             if not auto_blocking_keys:
                 auto_blocking_keys = list(input_data[0].keys())
@@ -798,17 +793,17 @@ class ResolveOperation(BaseOperation, CascadeMixin):
                     )
                 return [], reduction_cost
             else:
-                # Set the output schema to be the keys found in the compare_prompt
-                compare_prompt_keys = extract_jinja_variables(
-                    self.config["comparison_prompt"]
-                )
-                # Get the set of keys in the compare_prompt
+                # Set the output schema to be the record fields the
+                # compare_prompt reads from input1. The legacy heuristic
+                # kept full dotted paths ("address.city"), which never
+                # match a record key below; the sound extractor yields
+                # the actual top-level field. None (whole-row prompt) →
+                # no mapping, same as finding no keys.
                 compare_prompt_keys = set(
-                    [
-                        k.replace("input1.", "")
-                        for k in compare_prompt_keys
-                        if "input1" in k
-                    ]
+                    extract_input_field_reads(
+                        self.config["comparison_prompt"], var="input1"
+                    )
+                    or []
                 )
 
                 # For each key in the output schema, find the most similar key in the compare_prompt

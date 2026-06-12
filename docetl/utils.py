@@ -235,6 +235,32 @@ def extract_template_field_reads(
     return extract_input_field_reads(template_string, var=var)
 
 
+def extract_comparison_field_reads(
+    template_string: Any,
+    record_vars: tuple[str, ...] = ("input", "input1", "input2"),
+) -> "list[str] | None":
+    """Top-level record fields a comparison/resolution prompt reads from
+    its record variables, or None if they can't be soundly enumerated
+    (whole-row use, dynamic keys, non-Jinja template).
+
+    Used to derive blocking keys when none are configured. Replaces a
+    regex+``split('.')[-1]`` heuristic that was copy-pasted at four call
+    sites and had two defects: it missed reads inside ``{% if %}``/
+    ``{% for %}`` blocks, and it mangled nested paths — for
+    ``input1.address.city`` the record's actual field is ``address``,
+    but the heuristic produced ``city``, a key that does not exist, so
+    blocking embedded empty strings for it. Callers treat None/empty as
+    "block on all keys", which is exactly right for whole-row prompts.
+    """
+    fields: set[str] = set()
+    for var in record_vars:
+        reads = extract_input_field_reads(template_string, var=var)
+        if reads is None:
+            return None
+        fields |= reads
+    return sorted(fields)
+
+
 def completion_cost(response: ModelResponse) -> float:
     try:
         return (

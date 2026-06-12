@@ -505,3 +505,24 @@ class TestFilterInheritsMapWrites:
             "drop_keys": ["raw"],
         }
         assert cls.fields_removed(cfg) == {"keep", "raw"}
+
+
+class TestComparisonFieldReads:
+    def test_blocking_keys_from_comparison_prompt(self):
+        from docetl.utils import extract_comparison_field_reads
+
+        prompt = "Same company? {{ input1.name }} at {{ input1.address.city }} vs {{ input2.name }}"
+        # Root fields, deduplicated across both sides — the legacy
+        # heuristic produced "city" here, a key records don't have.
+        assert extract_comparison_field_reads(prompt) == ["address", "name"]
+
+    def test_condition_reads_included(self):
+        from docetl.utils import extract_comparison_field_reads
+
+        prompt = "{% if input1.email %}{{ input1.email }}{% endif %} {{ input2.email }}"
+        assert extract_comparison_field_reads(prompt) == ["email"]
+
+    def test_whole_row_prompt_fails_closed(self):
+        from docetl.utils import extract_comparison_field_reads
+
+        assert extract_comparison_field_reads("{{ input1 | tojson }} vs {{ input2.name }}") is None

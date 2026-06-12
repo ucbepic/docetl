@@ -12,8 +12,8 @@ import numpy as np
 from litellm import model_cost
 from rich.console import Console
 
-from docetl.utils import completion_cost, extract_jinja_variables
 from docetl.operations.utils.validation import lookup_field
+from docetl.utils import completion_cost, extract_comparison_field_reads
 
 
 class RuntimeBlockingOptimizer:
@@ -83,6 +83,7 @@ class RuntimeBlockingOptimizer:
         model_input_context_length = model_cost.get(embedding_model, {}).get(
             "max_input_tokens", 8192
         )
+
         def _safe_lookup(item, key):
             try:
                 return str(lookup_field(item, key))
@@ -408,11 +409,7 @@ class RuntimeBlockingOptimizer:
         # Determine blocking keys
         if not blocking_keys:
             prompt_template = self.config.get("comparison_prompt", "")
-            prompt_vars = extract_jinja_variables(prompt_template)
-            prompt_vars = [
-                var for var in prompt_vars if var not in ["input", "input1", "input2"]
-            ]
-            blocking_keys = list(set([var.split(".")[-1] for var in prompt_vars]))
+            blocking_keys = extract_comparison_field_reads(prompt_template) or []
         if not blocking_keys:
             blocking_keys = list(input_data[0].keys())
 

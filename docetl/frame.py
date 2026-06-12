@@ -850,22 +850,17 @@ class Frame:
     def schema(self) -> dict[str, str]:
         """Return the output schema of this pipeline.
 
-        Folds each operation's declared schema effect (via the operation
-        class's ``transform_schema``) over the chain, so structural ops
-        like split, unnest, gather, and extract are reflected too. Static
-        and best-effort — nothing is executed, and keys produced by code
-        operations (arbitrary Python) can't be known ahead of time.
+        Delegates to the logical plan's schema propagation (the single
+        implementation of the ``transform_schema`` fold), so structural
+        ops like split, unnest, gather, and extract are reflected, and
+        equijoin frames get a real left+right schema merge instead of a
+        linear fold. Static and best-effort — nothing is executed, and
+        keys produced by code operations (arbitrary Python) can't be
+        known ahead of time.
         """
-        from docetl.operations import get_operation
+        from docetl.plan import lift, output_schema
 
-        result: dict[str, str] = {}
-        for op in self._operations:
-            try:
-                op_cls = get_operation(op["type"])
-            except (KeyError, ValueError):
-                continue
-            result = op_cls.transform_schema(result, op)
-        return result
+        return output_schema(lift(self._build_config(checkpoint=False)))
 
     def plan(self) -> "LogicalPlan":
         """Lift this pipeline into its typed logical plan (docetl.plan).

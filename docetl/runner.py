@@ -101,11 +101,13 @@ def save_output(data: list[dict], path: str, console) -> None:
     else:  # CSV
         import csv
 
+        fieldnames: dict[str, None] = {}  # union of row keys, in first-seen order
+        for row in data:
+            fieldnames.update(dict.fromkeys(row))
         with open(path, "w", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=data[0].keys())
-            limited_data = [{k: d.get(k, None) for k in data[0].keys()} for d in data]
+            writer = csv.DictWriter(file, fieldnames=list(fieldnames))
             writer.writeheader()
-            writer.writerows(limited_data)
+            writer.writerows({k: row.get(k) for k in fieldnames} for row in data)
     console.log(f"[green]✓[/green] Saved to [dim]{path}[/dim]\n")
 
 

@@ -573,3 +573,22 @@ def test_read_dir_reads_files_as_text(tmp_path):
         "wc", code="def transform(doc): return {'words': len(doc['text'].split())}"
     ).collect()
     assert len(out) == 3 and all(r["words"] == 2 for r in out)
+
+
+def test_save_output_csv_empty_and_ragged_rows(tmp_path):
+    """CSV save handles zero rows (#484) and keys missing from the first row."""
+    from rich.console import Console
+
+    from docetl.runner import save_output
+
+    console = Console(quiet=True)
+
+    empty = tmp_path / "empty.csv"
+    save_output([], str(empty), console)
+    assert empty.read_text().strip() == ""
+
+    ragged = tmp_path / "ragged.csv"
+    save_output([{"a": 1}, {"a": 2, "b": 3}], str(ragged), console)
+    lines = ragged.read_text().strip().splitlines()
+    assert lines[0] == "a,b"
+    assert lines[1:] == ["1,", "2,3"]

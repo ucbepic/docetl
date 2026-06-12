@@ -592,3 +592,39 @@ def test_save_output_csv_empty_and_ragged_rows(tmp_path):
     lines = ragged.read_text().strip().splitlines()
     assert lines[0] == "a,b"
     assert lines[1:] == ["1,", "2,3"]
+
+
+class TestPlanAndExplain:
+    def frame(self):
+        return (
+            from_list([{"text": "t", "category": "a"}])
+            .map(prompt="Summarize {{ input.text }}", output={"schema": {"summary": "string"}})
+            .code_filter(code="def transform(doc):\n    return doc['category'] == 'a'")
+        )
+
+    def test_plan_returns_lifted_dag(self):
+        plan = self.frame().plan()
+        names = [n.name for n in plan.nodes()]
+        assert any(n.startswith("map") for n in names)
+        assert any(n.startswith("code_filter") for n in names)
+        assert not [i for i in plan.issues if i.level == "error"]
+
+    def test_explain_renders_tree(self, capsys):
+        text = self.frame().explain()
+        assert "llm" in text and "selection" in text
+        assert capsys.readouterr().out  # printed for interactive use
+
+    def test_explain_optimized_lists_applied_rules(self):
+        text = self.frame().explain(optimized=True)
+        assert "-- applied selection_pushdown" in text
+
+    def test_explain_optimized_respects_global_setting(self, monkeypatch):
+        monkeypatch.setattr(_config, "plan_rewrites", False)
+        text = self.frame().explain(optimized=True)
+        assert "-- applied" not in text
+
+    def test_explain_schemas_toggle(self):
+        with_schemas = self.frame().explain(schemas=True)
+        without = self.frame().explain(schemas=False)
+        assert "+{summary: string}" in with_schemas
+        assert "+{" not in without

@@ -37,13 +37,15 @@ def format_query_plan(
         glyph = "├" if tee else "└"
         connector = f"{'  ' * (indent - 1)}[dim]{glyph} [/dim]" if indent else ""
 
+        s = "  " * indent
+        guide = f"{s}[dim]│[/dim] " if op.children else f"{s}  "
+
         if isinstance(op, StepBoundary):
             if show_boundaries:
-                s = "  " * indent
                 color = step_colors.get(op.step_name, "white")
                 lines = [
-                    f"{connector}[{color}][bold]{op.name}[/bold][/{color}]{label}",
-                    f"{s}Type: step_boundary",
+                    f"{connector}[{color}][bold]{op.name}[/bold][/{color}]"
+                    f"  [dim]step_boundary[/dim]{label}",
                 ]
                 lines.extend(_fmt(c, indent + 1) for c in op.children)
                 return "\n".join(lines)
@@ -51,25 +53,24 @@ def format_query_plan(
                 return _fmt(op.children[0], indent, label, tee)
             return ""
 
-        s = "  " * indent
         color = step_colors.get(op.step_name, "white")
         lines = [
-            f"{connector}[{color}][bold]{op.name}[/bold][/{color}]{label}",
-            f"{s}[dim]type[/dim]  [cyan]{op.config['type']}[/cyan]",
+            f"{connector}[{color}][bold]{op.name}[/bold][/{color}]"
+            f"  [cyan]{op.config['type']}[/cyan]{label}",
         ]
 
         if "output" in op.config and "schema" in op.config["output"]:
-            lines.append(f"{s}[dim]output[/dim]")
+            lines.append(f"{guide}[dim]output[/dim]")
             for field, field_type in op.config["output"]["schema"].items():
                 lines.append(
-                    f"{s}  [bright_white]{field}[/bright_white]"
+                    f"{guide}  [bright_white]{field}[/bright_white]"
                     f" [dim]:[/dim] {escape(str(field_type))}"
                 )
 
         if op.config.get("cascade"):
             oracle_model = cascade_oracle_model(op.config, default_model)
             lines.extend(
-                f"{s}{line}"
+                f"{guide}{line}"
                 for line in format_cascade_plan_lines(
                     op.config["cascade"],
                     op_type=op.config["type"],

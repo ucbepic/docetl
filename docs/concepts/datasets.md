@@ -1,7 +1,12 @@
-# Datasets
+# Datasets and Frames
 
 A dataset is the input to a pipeline. Each item in it is one row: an object
 in a JSON list, a row in a CSV or Parquet file, or one file in a directory.
+
+In the Python API, a `Frame` is the data structure that represents a
+dataset. Readers return a Frame, and every operation on a Frame returns a
+new Frame representing the transformed dataset. See
+[Frame methods](#frame-methods) below.
 
 ## Defining a dataset
 
@@ -28,11 +33,9 @@ in a JSON list, a row in a CSV or Parquet file, or one file in a directory.
     in_memory = docetl.from_list([{"text": "..."}])  # from a list of dicts
     ```
 
-    A `Frame` is a lazy pipeline over the dataset: chaining operations like
-    `.map()` records them without running anything, and each call returns a
-    new immutable `Frame`. Execution happens at a terminal action —
-    `.collect()` (rows as a list of dicts), `.to_pandas()` (a DataFrame), or
-    `.write_json()`.
+    Chaining operations like `.map()` records them without running
+    anything; execution happens at an action like `.collect()`. See
+    [Frame methods](#frame-methods).
 
 ## Examples
 
@@ -134,6 +137,29 @@ docs = docetl.from_list([
 
 Relative paths resolve against the directory you run from, not the location
 of the YAML file or Python script.
+
+## Frame methods
+
+A Frame is lazy and immutable: each operation records a step and returns a
+new Frame, and nothing runs until an action.
+
+- Readers create a Frame: `docetl.read_json`, `read_csv`, `read_parquet`,
+  `read_dir`, `from_list`, and `Frame.from_yaml`.
+- Operations return a new Frame: `map`, `filter`, `reduce`, `resolve`,
+  `equijoin`, `extract`, `split`, `gather`, `unnest`, `cluster`, `sample`,
+  `parallel_map`, and the code variants `code_map`, `code_filter`, and
+  `code_reduce`.
+- Actions run the pipeline: `collect()` (rows as a list of dicts),
+  `to_pandas()` (a pandas DataFrame), `show()` (run on a few rows and
+  print), `count()`, and `write_json()` / `write_csv()` /
+  `write_parquet()`.
+- Inspection and export: `schema()` (output fields, computed without
+  running), `total_cost` and `token_usage` (after a run), `to_yaml()` and
+  `to_python()` (export the pipeline), and `optimize()` (run the
+  [MOAR optimizer](../optimization/moar.md)).
+
+See the [Python API reference](../api-reference/python.md) for full
+signatures.
 
 ## Parsing tools (non-standard inputs)
 

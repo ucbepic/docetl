@@ -29,7 +29,7 @@ Optional settings (default model, system prompts) are covered
 ## Datasets
 
 The input data: JSON, CSV, or Parquet files, a directory of documents, or an
-in-memory list of dicts. See [Datasets](datasets.md).
+in-memory list of dicts. See [Datasets and Frames](datasets.md).
 
 ## Operators
 

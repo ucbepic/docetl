@@ -115,6 +115,4 @@ Write pipelines in Python, or in YAML if you prefer low-code / no-code. (There i
 
 ## Project Origin
 
-DocETL was created by members of the EPIC Data Lab and Data Systems and Foundations group at UC Berkeley. The EPIC (Effective Programming, Interaction, and Computation with Data) Lab focuses on developing low-code and no-code interfaces for data work, powered by next-generation predictive programming techniques. DocETL is one of the projects that emerged from our research efforts to streamline complex document processing tasks.
-
-For more information about the labs and other projects, visit the [EPIC Lab webpage](https://epic.berkeley.edu/) and the [Data Systems and Foundations webpage](https://dsf.berkeley.edu/).
+DocETL is built at UC Berkeley by the [EPIC Data Lab](https://epic.berkeley.edu/) and the [Data Systems and Foundations](https://dsf.berkeley.edu/) group.

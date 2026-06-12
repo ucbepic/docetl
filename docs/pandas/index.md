@@ -1,166 +1,111 @@
-# Pandas Integration
+# Pandas Accessor
 
-DocETL provides seamless integration for several operators (map, filter, merge, agg, split, gather, unnest) with pandas through a dataframe accessor. This idea was proposed by LOTUS[^1]. 
-
-## Installation
-
-The pandas integration is included in the main DocETL package:
+The `.semantic` accessor runs DocETL operations directly on pandas DataFrames.
+It is a convenience layer over the [Python API](../api-reference/python.md) for quick,
+single-operation work; for multi-step pipelines (and pipeline optimization),
+use Frames.
 
 ```bash
 pip install docetl
 ```
 
-## Overview
-
-The pandas integration provides a `.semantic` accessor that enables:
-
-- Semantic mapping with LLMs (`df.semantic.map()`)
-- Intelligent filtering (`df.semantic.filter()`)
-- Fuzzy merging of DataFrames (`df.semantic.merge()`)
-- Semantic aggregation (`df.semantic.agg()`)
-- Content splitting into chunks (`df.semantic.split()`)
-- Contextual information gathering (`df.semantic.gather()`)
-- Data structure unnesting (`df.semantic.unnest()`)
-- Cost tracking and operation history
-
-## Quick Example
+## Quick example
 
 ```python
 import pandas as pd
-from docetl import SemanticAccessor
+import docetl
 
-# Create a DataFrame
-df = pd.DataFrame({
-    "text": [
-        "Apple released the iPhone 15 with USB-C port",
-        "Microsoft's new Surface laptops feature AI capabilities",
-        "Google announces Pixel 8 with enhanced camera features"
-    ]
-})
+docetl.default_model = "gpt-4o-mini"
 
-# Configure the semantic accessor
-df.semantic.set_config(default_model="gpt-4o-mini")
+df = pd.DataFrame({"text": [
+    "Apple released the iPhone 15 with USB-C port",
+    "Microsoft's new Surface laptops feature AI capabilities",
+]})
 
-# Extract structured information
 result = df.semantic.map(
     prompt="Extract company and product from: {{input.text}}",
-    output={
-        "schema": {
-            "company": "str",
-            "product": "str",
-            "features": "list[str]"
-        }
-    }
+    output={"schema": {"company": "str", "product": "str"}},
 )
-
-# Track costs
-print(f"Operation cost: ${result.semantic.total_cost}")
+print(f"Cost: ${result.semantic.total_cost}")
 ```
 
-## Configuration
+Configuration uses the same `docetl.*` globals as the Python API — see
+[Configuration](../api-reference/python.md#configuration). Prompts are Jinja
+templates over `{{input.<column>}}`; output schemas are documented in
+[Output Schemas](../concepts/schemas.md).
 
-Configure the semantic accessor with your preferred settings:
+## Operations
+
+### map
 
 ```python
-df.semantic.set_config(
-    default_model="gpt-4o-mini",  # Default LLM to use
-    max_threads=64,              # Maximum concurrent threads,
-    rate_limits={
-        "embedding_call": [
-            {"count": 1000, "per": 1, "unit": "second"}
-        ],
-        "llm_call": [
-            {"count": 1, "per": 1, "unit": "second"},
-            {"count": 10, "per": 5, "unit": "hour"}
-        ]
-    } 
+df.semantic.map(
+    prompt="Extract entities from: {{input.text}}",
+    output={"schema": {"entities": "list[str]"}},
 )
 ```
 
-!!! note "Pipeline Optimization"
+### filter
 
-    While individual semantic operations are optimized internally, pipelines created through the pandas `.semantic` accessor (sequences of operations like `map` → `filter` → `merge`) cannot be optimized as a whole. For pipeline-level optimizations like operation rewriting and automatic resolve operation insertion, you must use either:
-    
-    - The YAML configuration interface
-    - The Python API
-
-For detailed configuration options and best practices, refer to:
-
-- [DocETL Best Practices](../best-practices.md)
-- [Pipeline Configuration](../concepts/pipelines.md)
-- [Output Schemas](../concepts/schemas.md)
-- [Rate Limiting](../examples/rate-limiting.md) 
-
-## Output Modes
-
-DocETL supports two output modes for LLM calls:
-
-### Tools Mode (Default)
-Uses function calling to ensure structured outputs:
 ```python
-result = df.semantic.map(
-    prompt="Extract data from: {{input.text}}",
-    output={
-        "schema": {"name": "str", "age": "int"},
-        "mode": "tools"  # Default mode
-    }
+df.semantic.filter(
+    prompt="Is this about technology? {{input.text}}",
+)  # default output schema: {"keep": "bool"}
+```
+
+### merge
+
+Semantic join of two DataFrames. With `fuzzy=True`, blocking is configured
+automatically to reduce comparisons:
+
+```python
+merged = df1.semantic.merge(
+    df2,
+    comparison_prompt="Are these the same entity? {{input1}} vs {{input2}}",
+    fuzzy=True,
+    target_recall=0.9,
 )
 ```
 
-### Structured Output Mode
-Uses native JSON schema validation for supported models (like GPT-4o):
+### agg
+
+Group and reduce. With `fuzzy=True`, similar group keys are resolved first:
+
 ```python
-result = df.semantic.map(
-    prompt="Extract data from: {{input.text}}",
-    output={
-        "schema": {"name": "str", "age": "int"},
-        "mode": "structured_output"  # Better JSON schema support
-    }
+df.semantic.agg(
+    reduce_prompt="Summarize these items: {{input.text}}",
+    output={"schema": {"summary": "str"}},
+    fuzzy=True,
+    comparison_prompt="Are these similar? {{input1.text}} vs {{input2.text}}",
 )
 ```
 
-!!! tip "When to Use Structured Output Mode"
-    
-    Use `"structured_output"` mode when:
-    - You're using models that support native JSON schema (like GPT-4o)
-    - You need stricter adherence to complex JSON schemas
-    - You want potentially better performance for structured data extraction
-    
-    The default `"tools"` mode works with all models and is more widely compatible.
+### split / gather / unnest
 
-### Backward Compatibility
-
-The old `output_schema` parameter is still supported for backward compatibility:
-```python
-# This still works (automatically uses tools mode)
-result = df.semantic.map(
-    prompt="Extract data from: {{input.text}}",
-    output_schema={"name": "str", "age": "int"}
-)
-```
-
-## Cost Tracking
-
-All semantic operations track their LLM usage costs:
+No LLM calls:
 
 ```python
-# Get total cost of operations
-total_cost = df.semantic.total_cost
+df.semantic.split(split_key="content", method="token_count",
+                  method_kwargs={"num_tokens": 100})
 
-# Get operation history
-history = df.semantic.history
-for op in history:
-    print(f"Operation: {op.op_type}")
-    print(f"Modified columns: {op.output_columns}")
+df.semantic.gather(content_key="content_chunk", doc_id_key="split_id",
+                   order_key="split_chunk_num")
+
+df.semantic.unnest(unnest_key="tags")
 ```
 
-## Implementation
+## Cost and history
 
-This implementation is inspired by [LOTUS](https://github.com/guestrin-lab/lotus), a system introduced by Patel et al. [^1]. Our implementation has a few differences:
+```python
+result.semantic.total_cost   # dollars spent across accessor operations
+result.semantic.history      # list of (op_type, config, output_columns)
+```
 
-- We use DocETL's query engine to run the LLM operations. This allows us to use retries, validation, well-defined output schemas, and other features described in our documentation.
-- Our aggregation operator combines the `resolve` and `reduce` operators, so you can get a fuzzy groupby.
-- Our merge operator is based on our equijoin operator implementation, which optimizes LLM call usage by generating blocking rules before running the LLM. See the [Equijoin Operator](../operators/equijoin.md) for more details.
-- We do not implement LOTUS's `sem_extract`, `sem_topk`, `sem_sim_join`, and `sem_search` operators. However, `sem_extract` can effectively be implemented by running the `map` operator with a prompt that describes the extraction.
+`map` and `filter` accept `validate=` with Python expressions, e.g.
+`validate=["len(output['tags']) <= 5"]`.
 
-[^1]: Patel, L., Jha, S., Asawa, P., Pan, M., Guestrin, C., & Zaharia, M. (2024). Semantic Operators: A Declarative Model for Rich, AI-based Analytics Over Text Data. arXiv preprint arXiv:2407.11418. [https://arxiv.org/abs/2407.11418](https://arxiv.org/abs/2407.11418) 
+## Limits
+
+Accessor calls execute one operation at a time, so sequences of them cannot be
+optimized as a pipeline. Use the [Python API](../api-reference/python.md) or YAML for
+pipeline-level optimization.

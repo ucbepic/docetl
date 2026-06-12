@@ -55,4 +55,4 @@ OpType = (
     | WebSearchOp
 )
 
-Dataset = dataset.Dataset.schema
+Dataset = dataset.DataLoader.schema

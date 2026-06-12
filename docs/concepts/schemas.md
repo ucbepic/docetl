@@ -1,12 +1,6 @@
 # Schemas
 
-In DocETL, schemas play an important role in defining the structure of output from LLM operations. Every LLM call in DocETL is associated with an output schema, which specifies the expected format and types of the output data.
-
-## Overview
-
-- Schemas define the structure and types of output data from LLM operations.
-- They help ensure consistency and facilitate downstream processing.
-- DocETL uses structured outputs or tool API to enforce these schemas.
+Every LLM call in DocETL has an output schema specifying the structure and types of its output. DocETL enforces schemas via structured outputs or the tool API (see [How We Enforce Schemas](#how-we-enforce-schemas)).
 
 !!! tip "Schema Simplicity"
 
@@ -28,28 +22,55 @@ Schemas are defined in the `output` section of an operator. They support various
 
 !!! note "Filter Operation Schemas"
 
-    Filter operation schemas must have a boolean type output field. This is used to determine whether each item should be included or excluded based on the filter criteria.
+    Filter operation schemas must have a boolean output field, which determines whether each item is kept.
 
 ## Examples
 
 ### Simple Schema
 
-```yaml
-output:
-  schema:
-    summary: string
-    sentiment: string
-    include_item: boolean # For filter operations
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        summary: string
+        sentiment: string
+        include_item: boolean # For filter operations
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "summary": "string",
+            "sentiment": "string",
+            "include_item": "boolean",  # For filter operations
+        }
+    }
+    ```
 
 ### Complex Schema
 
-```yaml
-output:
-  schema:
-    insights: "list[{insight: string, confidence: number}]"
-    metadata: "{timestamp: string, source: string}"
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        insights: "list[{insight: string, confidence: number}]"
+        metadata: "{timestamp: string, source: string}"
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "insights": "list[{insight: string, confidence: number}]",
+            "metadata": "{timestamp: string, source: string}",
+        }
+    }
+    ```
 
 ## Lists and Objects
 
@@ -65,88 +86,153 @@ Objects are defined using curly braces and must have typed fields:
 
 !!! example "Complex List Example"
 
-    ```yaml
-    output:
-      schema:
-        users: "list[{name: string, age: integer, hobbies: list[string]}]"
-    ```
+    === "YAML"
 
-    Make sure that you put the type in quotation marks, if it references an object type (i.e., has curly braces)! Otherwise the yaml won't compile!
+        ```yaml
+        output:
+          schema:
+            users: "list[{name: string, age: integer, hobbies: list[string]}]"
+        ```
+
+        Make sure that you put the type in quotation marks, if it references an object type (i.e., has curly braces)! Otherwise the yaml won't compile!
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "users": "list[{name: string, age: integer, hobbies: list[string]}]"
+            }
+        }
+        ```
 
 ## Enum Types
 
-You can also specify enum types, which will be validated against a set of possible values. Suppose we have an operation to extract sentiments from a document, and we want to ensure that the sentiment is one of the three possible values. Our schema would look like this:
+Enum values are validated against the declared set of possible values:
 
-```yaml
-output:
-  schema:
-    sentiment: "enum[positive, negative, neutral]"
-```
+=== "YAML"
 
-You can also specify a list of enum types (say, if we wanted to extract _multiple_ sentiments from a document):
+    ```yaml
+    output:
+      schema:
+        sentiment: "enum[positive, negative, neutral]"
+    ```
 
-```yaml
-output:
-  schema:
-    possible_sentiments: "list[enum[positive, negative, neutral]]"
-```
+=== "Python"
+
+    ```python
+    output={"schema": {"sentiment": "enum[positive, negative, neutral]"}}
+    ```
+
+Lists of enums also work:
+
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        possible_sentiments: "list[enum[positive, negative, neutral]]"
+    ```
+
+=== "Python"
+
+    ```python
+    output={"schema": {"possible_sentiments": "list[enum[positive, negative, neutral]]"}}
+    ```
 
 ## How We Enforce Schemas
-
-DocETL uses structured outputs or tool API to enforce schema typing. This ensures that the LLM outputs adhere to the specified schema, making the results more consistent and easier to process in subsequent operations.
 
 DocETL supports two output modes that determine how the LLM generates structured outputs:
 
 ### Tools Mode (Default)
 
-Uses the OpenAI tools/function calling API to enforce schema structure. This is the default mode and provides robust schema validation.
+Uses the OpenAI tools/function calling API to enforce schema structure.
 
-```yaml
-output:
-  schema:
-    summary: string
-    sentiment: string
-  mode: "tools"  # Optional - this is the default
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        summary: string
+        sentiment: string
+      mode: "tools"  # Optional - this is the default
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "summary": "string",
+            "sentiment": "string",
+        },
+        "mode": "tools",  # Optional - this is the default
+    }
+    ```
 
 ### Structured Output Mode
 
 Uses LiteLLM's structured output feature with JSON schema validation. This mode can provide more reliable schema adherence for complex outputs.
 
-```yaml
-output:
-  schema:
-    insights: "list[{insight: string, confidence: number}]"
-  mode: "structured_output"
-```
+=== "YAML"
+
+    ```yaml
+    output:
+      schema:
+        insights: "list[{insight: string, confidence: number}]"
+      mode: "structured_output"
+    ```
+
+=== "Python"
+
+    ```python
+    output={
+        "schema": {
+            "insights": "list[{insight: string, confidence: number}]",
+        },
+        "mode": "structured_output",
+    }
+    ```
 
 !!! tip "When to Use Structured Output Mode"
 
     Consider using `structured_output` mode when:
-    
+
     - You have complex nested schemas with lists and objects
     - You need more consistent schema adherence
     - You're experiencing schema validation issues with tools mode
-    
-    The tools mode remains the default and works well for most use cases.
 
 ### Mode Configuration
 
-The output mode can be configured in the `output` section of any operation:
+Set `mode` in the `output` section of any operation:
 
-```yaml
-operations:
-  - name: analyze_text
-    type: map
-    prompt: "Analyze the following text..."
-    output:
-      schema:
-        topics: "list[{topic: string, relevance: number}]"
-      mode: "structured_output"  # or "tools"
-    model: gpt-4o-mini
-```
+=== "YAML"
 
-If no mode is specified, DocETL defaults to `"tools"` mode for backward compatibility.
+    ```yaml
+    operations:
+      - name: analyze_text
+        type: map
+        prompt: "Analyze the following text..."
+        output:
+          schema:
+            topics: "list[{topic: string, relevance: number}]"
+          mode: "structured_output"  # or "tools"
+        model: gpt-4o-mini
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="analyze_text",
+        prompt="Analyze the following text...",
+        output={
+            "schema": {"topics": "list[{topic: string, relevance: number}]"},
+            "mode": "structured_output",  # or "tools"
+        },
+        model="gpt-4o-mini",
+    )
+    ```
 
 ## Best Practices
 
@@ -154,30 +240,52 @@ If no mode is specified, DocETL defaults to `"tools"` mode for backward compatib
 2. Only use structured fields (like lists and objects) when necessary for downstream analysis or reduce operations.
 3. If you need to reference structured fields in downstream operations, consider breaking complex structures into multiple simpler operations.
 
-!!! tip "Schema Optimization"
-
-    If you find your schema becoming too complex, consider breaking it down into multiple operations. This can improve both the quality of LLM outputs and the manageability of your pipeline.
-
 !!! example "Breaking Down Complex Schemas"
 
     Instead of:
-    ```yaml
-    output:
-      schema:
-        summary: string
-        key_points: "list[{point: string, sentiment: string}]"
-    ```
+
+    === "YAML"
+
+        ```yaml
+        output:
+          schema:
+            summary: string
+            key_points: "list[{point: string, sentiment: string}]"
+        ```
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "summary": "string",
+                "key_points": "list[{point: string, sentiment: string}]",
+            }
+        }
+        ```
 
     Consider:
-    ```yaml
-    output:
-      schema:
-        summary: string
-        key_points: "string"
-    ```
+
+    === "YAML"
+
+        ```yaml
+        output:
+          schema:
+            summary: string
+            key_points: "string"
+        ```
+
+    === "Python"
+
+        ```python
+        output={
+            "schema": {
+                "summary": "string",
+                "key_points": "string",
+            }
+        }
+        ```
 
     Where in the prompt you can say something like: `In your key points, please include the sentiment of each point.`
 
     The only reason to use the complex schema is if you need to do an operation at the point level, like resolve them and reduce on them.
-
-By following these guidelines and best practices, you can create effective schemas that enhance the performance and reliability of your DocETL operations.

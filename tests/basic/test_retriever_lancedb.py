@@ -315,3 +315,47 @@ def test_map_operation_includes_retrieved_context_in_output(tmp_path):
     assert ctx2 != ctx3, "Contexts for different symptoms should differ"
     assert ctx1 != ctx3, "Contexts for different symptoms should differ"
 
+
+
+def test_frame_api_retriever_fts(tmp_path):
+    """Python Frame API: Retriever carrying its knowledge base inline."""
+    import docetl
+
+    kb = [
+        {"id": 1, "text": "alpha beta"},
+        {"id": 2, "text": "gamma delta"},
+        {"id": 3, "text": "epsilon zeta"},
+    ]
+    retriever = docetl.Retriever(
+        data=kb,
+        index_dir=str(tmp_path / "idx"),
+        index_types=["fts"],
+        build_index="always",
+        fts={
+            "index_phrase": "{{ input.text }}",
+            "query_phrase": "{{ input.q }}",
+        },
+        query={"top_k": 2, "mode": "fts"},
+    )
+    frame = (
+        docetl.from_list([{"q": "alpha"}])
+        .map(
+            "answer",
+            prompt="{{ input.q }}\n{{ retrieval_context }}",
+            output={"schema": {"a": "string"}},
+            retriever=retriever,
+        )
+    )
+
+    cfg = frame._build_config()
+    kb_name = cfg["retrievers"][retriever._name]["dataset"]
+    assert cfg["datasets"][kb_name]["path"] == kb
+    assert cfg["operations"][0]["retriever"] == retriever._name
+
+    runner = frame._build_runner()
+    runner.load()
+    r = runner.retrievers[retriever._name]
+    r.ensure_index()
+    res = r.retrieve({"input": {"q": "alpha"}})
+    assert res.docs
+    assert "alpha" in res.rendered_context

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 OpStatus = Literal["queued", "running", "done", "error"]
-DocStatus = Literal["queued", "running", "done", "error"]
+DocStatus = OpStatus
 
 
 @dataclass
@@ -52,10 +52,6 @@ class OpState:
         if self.start_t is None:
             return 0.0
         return (self.end_t or time.time()) - self.start_t
-
-    @property
-    def label(self) -> str:
-        return f"{self.op_type}:{self.name}"
 
     @property
     def tokens(self) -> int:

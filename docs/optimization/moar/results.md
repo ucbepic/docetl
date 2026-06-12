@@ -4,17 +4,19 @@ What MOAR outputs and how to interpret the results.
 
 ## Python API Results
 
-When using the Python API, `pipeline.optimize()` returns a `MOARResult` object with methods to access optimized pipelines.
+`frame.optimize()` returns an optimized `Frame`, ready to run with `.collect()` or `.write_json()`. The full search results are available on it as `.search_results`, a `MOARResult` object.
 
 ### MOARResult
 
 ```python
-result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
+optimized = frame.optimize(eval_fn=evaluate, metric_key="score")
+rows = optimized.collect()   # run the optimized pipeline
 
-result.best()      # OptimizedPipeline with highest accuracy on the frontier
-result.cheapest()  # OptimizedPipeline with lowest cost on the frontier
-result.frontier    # list[OptimizedPipeline] — all Pareto-optimal solutions
-result.to_df()     # pandas DataFrame of all explored plans
+results = optimized.search_results
+results.best()      # OptimizedPipeline with highest accuracy on the frontier
+results.cheapest()  # OptimizedPipeline with lowest cost on the frontier
+results.frontier    # list[OptimizedPipeline] — all Pareto-optimal solutions
+results.to_df()     # pandas DataFrame of all explored plans
 ```
 
 | Method / Property | Return Type | Description |
@@ -29,7 +31,7 @@ result.to_df()     # pandas DataFrame of all explored plans
 Each result on the frontier is an `OptimizedPipeline` that you can inspect and run directly:
 
 ```python
-best = result.best()
+best = optimized.search_results.best()
 
 # Inspect
 print(best.cost)        # Estimated cost per run
@@ -57,23 +59,24 @@ best.pipeline           # DSLRunner instance
 
 ```python
 # Choose based on your priorities
-result = pipeline.optimize(eval_fn=evaluate, metric_key="score")
+optimized = frame.optimize(eval_fn=evaluate, metric_key="score")
+results = optimized.search_results
 
 # Highest accuracy
-best = result.best()
+best = results.best()
 print(f"Best accuracy: {best.accuracy}, cost: ${best.cost:.4f}")
 best.run()
 
 # Lowest cost
-cheap = result.cheapest()
+cheap = results.cheapest()
 print(f"Cheapest cost: ${cheap.cost:.4f}, accuracy: {cheap.accuracy}")
 
 # Explore the full frontier
-for plan in result.frontier:
+for plan in results.frontier:
     print(f"Cost: ${plan.cost:.4f}, Accuracy: {plan.accuracy}")
 
 # Analyze all explored configurations as a DataFrame
-df = result.to_df()
+df = results.to_df()
 print(df[["cost", "accuracy", "on_frontier"]].sort_values("accuracy", ascending=False))
 ```
 
@@ -158,7 +161,7 @@ Each solution on the Pareto frontier has a corresponding YAML file (e.g., `pipel
 
 After reviewing the results:
 
-1. **Choose a solution** — Use `result.best()` / `result.cheapest()` in Python, or review `pareto_frontier.json` from the CLI
+1. **Choose a solution** — Use `optimized.search_results.best()` / `.cheapest()` in Python, or review `pareto_frontier.json` from the CLI
 2. **Run the chosen pipeline** — Call `.run()` on the `OptimizedPipeline`, or run the YAML with `docetl run`
 3. **Integrate into production** — Use the optimized configuration
 

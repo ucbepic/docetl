@@ -90,6 +90,28 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         gleaning: GleaningConfig | None = None
         retriever: str | None = None
 
+    @classmethod
+    def transform_schema(
+        cls, schema: dict[str, str], config: dict[str, Any]
+    ) -> dict[str, str]:
+        """Return the output schema after this operation runs on rows
+        with *schema*, given its *config*.
+
+        Best-effort and purely static — used for inspection (e.g.
+        ``Frame.schema()``) without executing anything. The default merges
+        the operation's declared ``output.schema`` and applies
+        ``drop_keys``; operations with structural effects (split, unnest,
+        gather, extract, ...) override this to declare the keys they add
+        or reshape.
+        """
+        result = dict(schema)
+        output_schema = (config.get("output") or {}).get("schema") or {}
+        if isinstance(output_schema, dict):
+            result.update(output_schema)
+        for key in config.get("drop_keys") or []:
+            result.pop(key, None)
+        return result
+
     @abstractmethod
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """

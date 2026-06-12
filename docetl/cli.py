@@ -89,9 +89,7 @@ def build(
             style = "bold red" if field in missing_fields else "dim"
             fields_table.add_row(f"[{style}]{field}[/{style}]", desc)
 
-        missing_list = ", ".join(
-            [f"[bold red]{f}[/bold red]" for f in missing_fields]
-        )
+        missing_list = ", ".join([f"[bold red]{f}[/bold red]" for f in missing_fields])
 
         from rich.console import Group
 
@@ -144,10 +142,14 @@ def build(
         typer.echo(f"   Frontier: {len(result.frontier)} pipelines")
         best = result.best()
         if best:
-            typer.echo(f"   Best accuracy: {best.accuracy:.4f} (cost: ${best.cost:.4f})")
+            typer.echo(
+                f"   Best accuracy: {best.accuracy:.4f} (cost: ${best.cost:.4f})"
+            )
         cheapest = result.cheapest()
         if cheapest and cheapest is not best:
-            typer.echo(f"   Cheapest: ${cheapest.cost:.4f} (accuracy: {cheapest.accuracy:.4f})")
+            typer.echo(
+                f"   Cheapest: ${cheapest.cost:.4f} (accuracy: {cheapest.accuracy:.4f})"
+            )
         if result.save_dir:
             typer.echo(f"\n   Optimized pipelines saved to: {result.save_dir}/")
             for p in result.frontier:
@@ -233,10 +235,14 @@ def install_skill(
 
         # For Python 3.9+, use files()
         try:
-            package_root = Path(pkg_resources.files("docetl")).parent
-            potential_source = package_root / ".claude" / "skills" / "docetl"
-            if potential_source.exists():
-                skill_source = potential_source
+            package_dir = Path(pkg_resources.files("docetl"))
+            for potential_source in (
+                package_dir / "skills" / "docetl",  # installed wheel
+                package_dir.parent / ".claude" / "skills" / "docetl",  # sdist/dev
+            ):
+                if potential_source.exists():
+                    skill_source = potential_source
+                    break
         except (TypeError, AttributeError):
             pass
     except ImportError:

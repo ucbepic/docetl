@@ -1,233 +1,203 @@
-# 📜 DocETL: Powering Complex Document Processing Pipelines
+<div align="center">
+
+# DocETL: Declarative & Agentic Map-Reduce
 
 [![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
-[![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
+[![Documentation](https://img.shields.io/badge/Docs-ucbepic.github.io/docetl-green)](https://ucbepic.github.io/docetl)
 [![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
-[![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-![DocETL Figure](docs/assets/readmefig.png)
+[What is DocETL](#what-is-docetl) · [Install](#install) · [Python API](#python-api-recommended) · [YAML](#yaml-low-code) · [DocWrangler UI](#docwrangler-ui) · [Docs](#documentation)
 
-DocETL is a tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers:
+</div>
 
-1. An interactive UI playground for iterative prompt engineering and pipeline development
-2. A Python package for running production pipelines from the command line or Python code
+---
 
-> 💡 **Need Help Writing Your Pipeline?**  
-> You can use **Claude Code** (recommended) to help you write your pipeline—see the quickstart: https://ucbepic.github.io/docetl/quickstart-claude-code/  
-> If you’d rather use ChatGPT or the Claude app, see [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy/paste before describing your task.
+## What is DocETL
 
+DocETL helps you process large collections of data (structured and unstructured) with LLMs. You write each operation in natural language, e.g., "pull out every complaint in this ticket," and DocETL
 
-### 🌟 Community Projects
+- provides the operators you need (map, reduce, filter, and more) and orchestrates them, parallelizing work across your data,
+- optimizes your pipeline automatically, swapping models, rewriting prompts, decomposing operations, and replacing subtasks with code wherever possible, to raise accuracy and cut cost, and
+- returns tables, easy to query in your favorite database.
 
-- [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
-- [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
-- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
+Without DocETL, you write each LLM call yourself, wire them together, and tune the result for accuracy, cost, and latency by hand.
 
-### 📚 Educational Resources
+<p align="center"><img src="docs/assets/docetl-overview.svg" alt="DocETL pipeline overview" width="720"></p>
 
-- [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
-- [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
-- [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
+<table>
+<tr>
+<td width="50%">
+<strong>CLI</strong><br>
+<img src="docs/assets/progress-view/tui-real-complete.png" alt="DocETL CLI" width="100%">
+</td>
+<td width="50%">
+<strong>DocWrangler UI</strong><br>
+<img src="docs/assets/tutorial/one-operation.png" alt="DocWrangler" width="100%">
+</td>
+</tr>
+</table>
 
+---
 
-## 🚀 Getting Started
-
-There are two main ways to use DocETL:
-
-### 1. 🎮 DocWrangler, the Interactive UI Playground (Recommended for Development)
-
-[DocWrangler](https://docetl.org/playground) helps you iteratively develop your pipeline:
-- Experiment with different prompts and see results in real-time
-- Build your pipeline step by step
-- Export your finalized pipeline configuration for production use
-
-![DocWrangler](docs/assets/tutorial/one-operation.png)
-
-DocWrangler is hosted at [docetl.org/playground](https://docetl.org/playground). But to run the playground locally, you can either:
-- Use Docker (recommended for quick start): `make docker`
-- Set up the development environment manually
-
-See the [Playground Setup Guide](https://ucbepic.github.io/docetl/playground/) for detailed instructions.
-
-### 2. 📦 Python Package (For Production Use)
-
-If you want to use DocETL as a Python package:
-
-#### Prerequisites
-- Python 3.10 or later
-- OpenAI API key
+## Install
 
 ```bash
 pip install docetl
+export OPENAI_API_KEY=your_key   # or any LLM provider key
 ```
 
-Create a `.env` file in your project directory:
-```bash
-OPENAI_API_KEY=your_api_key_here  # Required for LLM operations (or the key for the LLM of your choice)
+---
+
+## Need Help Writing Your Pipeline?
+
+Use Claude Code (recommended): run `docetl install-skill` and describe your task. See the [quickstart](https://ucbepic.github.io/docetl/quickstart-claude-code/).
+
+If you'd rather use ChatGPT or the Claude app, copy the prompt at [docetl.org/llms-full.txt](https://docetl.org/llms-full.txt) into the chat before describing your task.
+
+---
+
+## Python API (recommended)
+
+Best for production code, notebooks, and scripting. [Full guide](https://ucbepic.github.io/docetl/python/)
+
+```python
+import docetl
+
+docetl.default_model = "gpt-4o-mini"
+docetl.rate_limits = {
+    "llm_call": [{"count": 500, "per": 1, "unit": "minute"}],
+    "llm_tokens": [{"count": 200_000, "per": 1, "unit": "minute"}],
+}
+
+# Classify support tickets, then summarize each category
+pipeline = docetl.read_json("tickets.json")
+
+pipeline = pipeline.map(
+    prompt="Classify this support ticket: {{ input.text }}",
+    output={"schema": {"category": "str", "priority": "str"}},
+)
+
+pipeline = pipeline.reduce(
+    reduce_key="category",
+    prompt="Summarize these tickets: {% for t in inputs %}{{ t.text }}{% endfor %}",
+    output={"schema": {"summary": "str"}},
+)
+
+pipeline.schema()  # {'category': 'str', 'summary': 'str'}
+pipeline.show()  # run on 5 docs and print results
+rows = pipeline.collect()  # full run
+print(f"Cost: ${pipeline.total_cost:.4f}")
 ```
 
-> ⚠️ **Important: Two Different .env Files**
-> - **Root `.env`**: Used by the backend Python server that executes DocETL pipelines
-> - **`website/.env.local`**: Used by the frontend TypeScript code in DocWrangler (UI features like improve prompt and chatbot)
+---
 
-To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
+## YAML (low-code)
 
-### 2. 🎮 DocWrangler Setup
+Declare your pipeline in a config file, no Python needed. [Tutorial](https://ucbepic.github.io/docetl/tutorial/)
 
-To run DocWrangler locally, you have two options:
+```yaml
+datasets:
+  tickets:
+    type: file
+    path: tickets.json
 
-#### Option A: Using Docker (Recommended for Quick Start)
+default_model: gpt-4o-mini
 
-The easiest way to get the DocWrangler playground running:
+operations:
+  - name: classify
+    type: map
+    prompt: "Classify this support ticket and assign a priority level."
+    output:
+      schema:
+        category: str
+        priority: str
 
-1. Create the required environment files:
-
-Create `.env` in the root directory (for the backend Python server that executes pipelines):
-```bash
-OPENAI_API_KEY=your_api_key_here  # Used by DocETL pipeline execution engine
-# BACKEND configuration
-BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-BACKEND_HOST=localhost
-BACKEND_PORT=8000
-BACKEND_RELOAD=True
-
-# FRONTEND configuration
-FRONTEND_HOST=0.0.0.0
-FRONTEND_PORT=3000
-
-# Host port mapping for docker-compose (if not set, defaults are used in docker-compose.yml)
-FRONTEND_DOCKER_COMPOSE_PORT=3031
-BACKEND_DOCKER_COMPOSE_PORT=8081
-
-# Supported text file encodings
-TEXT_FILE_ENCODINGS=utf-8,latin1,cp1252,iso-8859-1
+pipeline:
+  steps:
+    - name: triage
+      input: tickets
+      operations: [classify]
+  output:
+    type: file
+    path: output.json
 ```
-
-Create `.env.local` in the `website` directory (for DocWrangler UI features like improve prompt and chatbot):
-```bash
-OPENAI_API_KEY=sk-xxx  # Used by TypeScript features: improve prompt, chatbot, etc.
-OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini  # Model used by the UI assistant
-
-NEXT_PUBLIC_BACKEND_HOST=localhost
-NEXT_PUBLIC_BACKEND_PORT=8000
-NEXT_PUBLIC_HOSTED_DOCWRANGLER=false
-```
-
-2. Run Docker:
-```bash
-make docker
-```
-
-This will:
-- Create a Docker volume for persistent data
-- Build the DocETL image
-- Run the container with the UI accessible at http://localhost:3000
-
-To clean up Docker resources (note that this will delete the Docker volume):
-```bash
-make docker-clean
-```
-
-##### AWS Bedrock
-
-This framework supports integration with AWS Bedrock. To enable:
-
-1. Configure AWS credentials:
-```bash
-aws configure
-```
-
-2. Test your AWS credentials:
-```bash
-make test-aws
-```
-
-3. Run with AWS support:
-```bash
-AWS_PROFILE=your-profile AWS_REGION=your-region make docker
-```
-
-Or using Docker Compose:
-```bash
-AWS_PROFILE=your-profile AWS_REGION=your-region docker compose --profile aws up
-```
-
-Environment variables:
-- `AWS_PROFILE`: Your AWS CLI profile (default: 'default')
-- `AWS_REGION`: AWS region (default: 'us-west-2')
-
-Bedrock models are pefixed with `bedrock`. See liteLLM [docs](https://docs.litellm.ai/docs/providers/bedrock#supported-aws-bedrock-models) for more details.
-
-#### Option B: Manual Setup (Development)
-
-For development or if you prefer not to use Docker:
-
-1. Clone the repository:
-```bash
-git clone https://github.com/ucbepic/docetl.git
-cd docetl
-```
-
-2. Set up environment variables in `.env` in the root/top-level directory (for the backend Python server):
-```bash
-OPENAI_API_KEY=your_api_key_here  # Used by DocETL pipeline execution engine
-# BACKEND configuration
-BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-BACKEND_HOST=localhost
-BACKEND_PORT=8000
-BACKEND_RELOAD=True
-
-# FRONTEND configuration
-FRONTEND_HOST=0.0.0.0
-FRONTEND_PORT=3000
-
-# Host port mapping for docker-compose (if not set, defaults are used in docker-compose.yml)
-FRONTEND_DOCKER_COMPOSE_PORT=3031
-BACKEND_DOCKER_COMPOSE_PORT=8081
-
-# Supported text file encodings
-TEXT_FILE_ENCODINGS=utf-8,latin1,cp1252,iso-8859-1
-```
-
-And create an .env.local file in the `website` directory (for DocWrangler UI features):
-```bash
-OPENAI_API_KEY=sk-xxx  # Used by TypeScript features: improve prompt, chatbot, etc.
-OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini  # Model used by the UI assistant
-
-NEXT_PUBLIC_BACKEND_HOST=localhost
-NEXT_PUBLIC_BACKEND_PORT=8000
-NEXT_PUBLIC_HOSTED_DOCWRANGLER=false
-```
-
-3. Install dependencies:
-```bash
-make install      # Install Python deps with uv and set up pre-commit
-make install-ui   # Install UI dependencies
-```
-
-If you prefer using uv directly instead of Make:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv sync --all-groups --all-extras
-```
-
-
-
-4. Start the development server:
-```bash
-make run-ui-dev
-```
-
-5. Visit http://localhost:3000/playground to access the interactive UI.
-
-### 🛠️ Development Setup
-
-If you're planning to contribute or modify DocETL, you can verify your setup by running the test suite:
 
 ```bash
-make tests-basic  # Runs basic test suite (costs < $0.01 with OpenAI)
+docetl run pipeline.yaml
 ```
 
-For detailed documentation and tutorials, visit our [documentation](https://ucbepic.github.io/docetl).
+---
+
+## DocWrangler UI
+
+Visual playground for interactive prompt development. Edit prompts, see results in real time. Try it at [docetl.org/playground](https://docetl.org/playground) or [run it locally](https://ucbepic.github.io/docetl/playground/).
+
+---
+
+## Documentation
+
+| | |
+|---|---|
+| [Python API Guide](https://ucbepic.github.io/docetl/python/) | Frame API reference: operations, config, optimization |
+| [YAML Tutorial](https://ucbepic.github.io/docetl/tutorial/) | Step-by-step walkthrough of declarative pipelines |
+| [Operators](https://ucbepic.github.io/docetl/operators/map/) | Map, filter, reduce, resolve, split, gather, extract, and more |
+| [Optimization](https://ucbepic.github.io/docetl/optimization/python-api/) | Automatic cost-accuracy optimization with MOAR |
+| [DocWrangler Setup](https://ucbepic.github.io/docetl/playground/) | Run the interactive UI locally or via Docker |
+| [Claude Code Quick Start](https://ucbepic.github.io/docetl/quickstart-claude-code/) | Describe your task and let Claude build the pipeline |
+
+---
+
+## Community
+
+[Discord](https://discord.gg/fHp7B2X3xx) · [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation) · [Text-to-Speech](https://github.com/PassionFruits-net/docetl-speaker) · [YouTube Transcript Topics](https://github.com/rajib76/docetl_examples)
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/ucbepic/docetl.git && cd docetl
+make install
+make tests-basic  # < $0.01 with OpenAI
+```
+
+---
+
+## Papers
+
+DocETL was created at the [EPIC Data Lab](https://epic.berkeley.edu/) and [Data Systems and Foundations](https://dsf.berkeley.edu/) group at UC Berkeley.
+
+**DocETL**, VLDB 2025 ([paper](https://arxiv.org/abs/2410.12189))
+
+```bibtex
+@article{shankar2025docetl,
+  title={DocETL: Agentic Query Rewriting and Evaluation for Complex Document Processing},
+  author={Shankar, Shreya and Chambers, Tristan and Shah, Tarak and Parameswaran, Aditya G and Wu, Eugene},
+  journal={Proceedings of the VLDB Endowment},
+  volume={18}, number={9}, pages={3035--3048}, year={2025}
+}
+```
+
+**DocWrangler**, UIST 2025, Best Paper Honorable Mention ([paper](https://arxiv.org/abs/2504.14764))
+
+```bibtex
+@inproceedings{shankar2025docwrangler,
+  title={Steering Semantic Data Processing With DocWrangler},
+  author={Shankar*, Shreya and Chopra*, Bhavya and Hasan, Mawil and Lee, Stephen and Hartmann, Bj{\"o}rn and Hellerstein, Joseph M and Parameswaran, Aditya G and Wu, Eugene},
+  booktitle={Proceedings of the ACM Symposium on User Interface Software and Technology (UIST)},
+  year={2025}
+}
+```
+
+**MOAR**, VLDB 2026 ([paper](https://arxiv.org/abs/2512.02289))
+
+```bibtex
+@article{wei2026moar,
+  title={Multi-Objective Agentic Rewrites for Unstructured Data Processing},
+  author={Wei*, Lindsey Linxi and Shankar*, Shreya and Zeighami, Sepanta and Chung, Yeounoh and Ozcan, Fatma and Parameswaran, Aditya G},
+  journal={Proceedings of the VLDB Endowment}, year={2026}
+}
+```
+
+*\*Co-first authors*

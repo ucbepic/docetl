@@ -1,44 +1,118 @@
-# 📜 DocETL: A System for Complex Document Processing
+# DocETL: Declarative & Agentic Map-Reduce { .center-title }
 
-[![GitHub](https://img.shields.io/github/stars/ucbepic/docetl?style=social)](https://github.com/ucbepic/docetl)
-[![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
-[![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
-[![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
-[![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
+<p align="center">
+<a href="https://github.com/ucbepic/docetl"><img src="https://img.shields.io/github/stars/ucbepic/docetl?style=social" alt="GitHub stars"></a>
+<a href="https://docetl.org"><img src="https://img.shields.io/badge/Website-docetl.org-blue" alt="Website"></a>
+<a href="https://ucbepic.github.io/docetl"><img src="https://img.shields.io/badge/Documentation-docs-green" alt="Documentation"></a>
+<a href="https://discord.gg/fHp7B2X3xx"><img src="https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord" alt="Discord"></a>
+<a href="https://arxiv.org/abs/2410.12189"><img src="https://img.shields.io/badge/Paper-arXiv-red" alt="Paper"></a>
+</p>
 
-![DocETL Figure](assets/readmefig.png)
+<p align="center"><img src="assets/docetl-overview.svg" alt="DocETL pipeline overview" width="680"></p>
 
-DocETL is a tool for creating and executing LLM-powered data processing pipelines. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
+DocETL helps you process large collections of data (structured and
+unstructured) with LLMs. You write each operation in natural language, e.g.,
+"pull out every complaint in this ticket," and DocETL
 
-!!! tip "When to Use DocETL"
+- provides the operators you need (map, reduce, filter, and more) and
+  orchestrates them, parallelizing work across your data,
+- optimizes your pipeline automatically, swapping models, rewriting prompts,
+  decomposing operations, and replacing subtasks with code wherever possible,
+  to raise accuracy and cut cost, and
+- returns tables, easy to query in your favorite database.
 
-    DocETL is the ideal choice when you're looking to **maximize correctness and output quality** for complex tasks over a collection of documents or unstructured datasets. You should consider using DocETL if:
+Without DocETL, you write each LLM call yourself, wire them together, and
+tune the result for accuracy, cost, and latency by hand.
 
-    - You have complex tasks that you want to represent via map-reduce (e.g., map over your documents, then group by the result of your map call & reduce)
-    - You're unsure how to best write your pipeline or sequence of operations to maximize LLM accuracy
-    - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
-    - You have validation criteria and want tasks to automatically retry when the validation fails
 
-## 🚀 Features
+## Getting Started
 
-- **Rich Suite of Operators**: Tailored for complex data processing, including specialized operators like "resolve" for entity resolution and "gather" for maintaining context when splitting documents.
-- **Low-Code Interface**: Define your pipeline and prompts easily using YAML. You have 100% control over the prompts.
-- **Flexible Processing**: Handle various document types and processing tasks across domains like law, medicine, and social sciences.
-- **Accuracy Optimization**: Our optimizer leverages LLM agents to experiment with different logically-equivalent rewrites of your pipeline and automatically selects the most accurate version. This includes finding limits of how many documents to process in a single reduce operation before the accuracy plateaus.
+Write pipelines in Python, or in YAML if you prefer low-code / no-code. (There is also a [pandas accessor](pandas/index.md) for quick one-off operations on DataFrames.)
 
-## ⚡ Getting Started
+=== "Python"
 
-To get started with DocETL:
+    ```python
+    import docetl
 
-1. Install the package (see [installation](installation.md) for detailed instructions)
-2. Define your pipeline in a YAML file. Want to use an LLM like ChatGPT or Claude to help you write your pipeline? See [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy paste into ChatGPT or Claude, before describing your task.
-3. Run your pipeline using the DocETL command-line interface
+    docetl.default_model = "gpt-4o-mini"
 
-!!! tip "Fastest Way: Claude Code"
-    Clone this repo and run `claude` to use the built-in DocETL skill. Just describe your data processing task and Claude will create and run the pipeline for you. See [Quick Start (Claude Code)](quickstart-claude-code.md) for details.
+    # What themes come up across customer interviews?
+    interviews = docetl.read_json("interviews.json")
 
-## 🏛️ Project Origin
+    # Extract themes from each interview
+    interviews = interviews.map(
+        prompt="List the themes discussed in this interview: {{ input.transcript }}",
+        output={"schema": {"themes": "list[str]"}},
+    )
 
-DocETL was created by members of the EPIC Data Lab and Data Systems and Foundations group at UC Berkeley. The EPIC (Effective Programming, Interaction, and Computation with Data) Lab focuses on developing low-code and no-code interfaces for data work, powered by next-generation predictive programming techniques. DocETL is one of the projects that emerged from our research efforts to streamline complex document processing tasks.
+    # Synthesize the top themes across all interviews
+    themes = interviews.reduce(
+        reduce_key="_all",
+        prompt="""Identify the top recurring themes across these interviews:
+    {% for item in inputs %}- {{ item.themes }}
+    {% endfor %}""",
+        output={"schema": {"top_themes": "list[{name: str, description: str, num_mentions: int}]"}},
+    )
 
-For more information about the labs and other projects, visit the [EPIC Lab webpage](https://epic.berkeley.edu/) and the [Data Systems and Foundations webpage](https://dsf.berkeley.edu/).
+    results = themes.collect()  # nothing runs until this line
+    ```
+
+    `collect()` returns the result rows as a list of dicts (use
+    `themes.to_pandas()` for a DataFrame); `results[0]["top_themes"]` looks like:
+
+    ```python
+    [
+        {"name": "onboarding friction", "description": "confusion during first-week setup", "num_mentions": 12},
+        {"name": "pricing transparency", "description": "unclear billing and plan limits", "num_mentions": 8},
+        ...
+    ]
+    ```
+
+    See the [User Guide](concepts/pipelines.md) for details.
+
+=== "YAML"
+
+    Define the same pipeline declaratively, then run it from the CLI:
+
+    ```yaml
+    default_model: gpt-4o-mini
+    datasets:
+      interviews:
+        type: file
+        path: interviews.json
+    operations:
+      - name: extract_themes
+        type: map
+        prompt: "List the themes discussed in this interview: {{ input.transcript }}"
+        output:
+          schema:
+            themes: list[str]
+      - name: synthesize_themes
+        type: reduce
+        reduce_key: _all
+        prompt: |
+          Identify the top recurring themes across these interviews:
+          {% for item in inputs %}- {{ item.themes }}
+          {% endfor %}
+        output:
+          schema:
+            top_themes: "list[{name: str, description: str, num_mentions: int}]"
+    pipeline:
+      steps:
+        - name: analyze
+          input: interviews
+          operations: [extract_themes, synthesize_themes]
+      output:
+        type: file
+        path: themes.json
+    ```
+
+    ```bash
+    docetl run pipeline.yaml
+    ```
+
+    See the [tutorial](tutorial.md) for a complete walkthrough.
+
+## Project Origin
+
+DocETL is built at UC Berkeley by the [EPIC Data Lab](https://epic.berkeley.edu/) and the [Data Systems and Foundations](https://dsf.berkeley.edu/) group.

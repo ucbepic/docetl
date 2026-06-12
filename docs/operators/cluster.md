@@ -1,31 +1,62 @@
 # Cluster operation
 
-The Cluster operation in DocETL groups all items into a binary tree
-using [agglomerative
-clustering](https://en.wikipedia.org/wiki/Hierarchical_clustering#Agglomerative_clustering_example)
-of the embedding of some keys, and annotates each item with the path
-through this tree down to the item (Note that the path is reversed,
-starting with the most specific grouping, and ending in the root of
-the tree, the cluster that encompasses all your input).
+The Cluster operation groups all items into a binary tree using [agglomerative clustering](https://en.wikipedia.org/wiki/Hierarchical_clustering#Agglomerative_clustering_example) of the embeddings of some keys, and annotates each item with its path through the tree:
 
-Each cluster is summarized using an llm prompt, taking the summaries
-of its children as inputs (or for the leaf nodes, the actual items).
+- The path is reversed: it starts with the most specific grouping and ends at the root (the cluster encompassing all input).
+- Each cluster is summarized with an LLM prompt, taking the summaries of its children as inputs (or, for leaf nodes, the actual items).
 
-## 🚀 Example: Grouping concepts from a knowledge-graph
+```mermaid
+flowchart LR
+    d1["doc 1"] --> c1["doc 1 + cluster path"]
+    d2["doc 2"] --> c2["doc 2 + cluster path"]
+    d3["doc 3"] --> c3["doc 3 + cluster path"]
+    dn["..."] --> cn["..."]
+```
 
-```yaml
-- name: cluster_concepts
-  type: cluster
-  max_batch_size: 5
-  embedding_keys:
-    - concept
-    - description
-  output_key: categories # This is optional, and defaults to "clusters"
-  summary_schema:
-    concept: str
-    description: str
-  summary_prompt: |
-    The following describes two related concepts. What concept
+## Example: Grouping concepts from a knowledge-graph
+
+=== "YAML"
+
+    ```yaml
+    - name: cluster_concepts
+      type: cluster
+      max_batch_size: 5
+      embedding_keys:
+        - concept
+        - description
+      output_key: categories # This is optional, and defaults to "clusters"
+      summary_schema:
+        concept: str
+        description: str
+      summary_prompt: |
+        The following describes two related concepts. What concept
+        encompasses both? Try not to be too broad; it might be that one of
+        these two concepts already encompasses the other; in that case,
+        you should just use that concept.
+
+        {% for input in inputs %}
+        {{input.concept}}:
+        {{input.description}}
+        {% endfor %}
+
+        Provide the title of the super-concept, and a description.
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("concepts.json")
+    frame = frame.cluster(
+        name="cluster_concepts",
+        max_batch_size=5,
+        embedding_keys=["concept", "description"],
+        output_key="categories",  # This is optional, and defaults to "clusters"
+        summary_schema={"concept": "str", "description": "str"},
+        summary_prompt="""The following describes two related concepts. What concept
     encompasses both? Try not to be too broad; it might be that one of
     these two concepts already encompasses the other; in that case,
     you should just use that concept.
@@ -35,11 +66,10 @@ of its children as inputs (or for the leaf nodes, the actual items).
     {{input.description}}
     {% endfor %}
 
-    Provide the title of the super-concept, and a description.
-```
-
-This cluster operation processes a set of concepts, each with a title
-and a description, and groups them into a tree of categories.
+    Provide the title of the super-concept, and a description.""",
+    )
+    rows = frame.collect()
+    ```
 
 ??? example "Sample Input and Output"
 

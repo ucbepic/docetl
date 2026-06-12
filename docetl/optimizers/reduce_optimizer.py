@@ -44,10 +44,8 @@ class ReduceOptimizer:
         Initialize the ReduceOptimizer.
 
         Args:
-            config (dict[str, Any]): Configuration dictionary for the optimizer.
-            console (Console): Rich console object for pretty printing.
-            llm_client (LLMClient): Client for interacting with a language model.
-            max_threads (int): Maximum number of threads to use for parallel processing.
+            runner (DSLRunner): The runner whose config/console/LLM client
+                this optimizer uses.
             run_operation (Callable): Function to run an operation.
             num_fold_prompts (int, optional): Number of fold prompts to generate. Defaults to 1.
             num_samples_in_validation (int, optional): Number of samples to use in validation. Defaults to 10.

@@ -31,61 +31,123 @@ In this example, you've specified paths to Excel files. DocETL will use these pa
 
 To use custom parsing, you need to define parsing tools in your DocETL configuration file. Here's an example:
 
-```yaml
-parsing_tools:
-  - name: top_products_report
-    function_code: |
-      def top_products_report(document: Dict) -> List[Dict]:
-          import pandas as pd
-          
-          # Read the Excel file
-          filename = document["excel_path"]
-          df = pd.read_excel(filename)
-          
-          # Calculate total sales
-          total_sales = df['Sales'].sum()
-          
-          # Find top 500 products by sales
-          top_products = df.groupby('Product')['Sales'].sum().nlargest(500)
-          
-          # Calculate month-over-month growth
-          df['Date'] = pd.to_datetime(df['Date'])
-          monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
-          mom_growth = monthly_sales.pct_change().fillna(0)
-          
-          # Prepare the analysis report
-          report = [
-              f"Total Sales: ${total_sales:,.2f}",
-              "\nTop 500 Products by Sales:",
-              top_products.to_string(),
-              "\nMonth-over-Month Growth:",
-              mom_growth.to_string()
-          ]
-          
-          # Return a list of dicts representing the output
-          # The input document will be merged into each output doc,
-          # so we can access all original fields from the input doc.
-          return [{"sales_analysis": "\n".join(report)}]
+=== "YAML"
 
-datasets:
-  sales_reports:
-    type: file
-    source: local
-    path: "sales_data/sales_paths.json"
-    parsing:
-      - function: top_products_report
+    ```yaml
+    parsing_tools:
+      - name: top_products_report
+        function_code: |
+          def top_products_report(document: Dict) -> List[Dict]:
+              import pandas as pd
 
-  receipts:
-    type: file
-    source: local
-    path: "receipts/receipt_paths.json"
-    parsing:
-      - input_key: pdf_path
-        function: paddleocr_pdf_to_string
-        output_key: receipt_text
-        ocr_enabled: true
-        lang: "en"
-```
+              # Read the Excel file
+              filename = document["excel_path"]
+              df = pd.read_excel(filename)
+
+              # Calculate total sales
+              total_sales = df['Sales'].sum()
+
+              # Find top 500 products by sales
+              top_products = df.groupby('Product')['Sales'].sum().nlargest(500)
+
+              # Calculate month-over-month growth
+              df['Date'] = pd.to_datetime(df['Date'])
+              monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
+              mom_growth = monthly_sales.pct_change().fillna(0)
+
+              # Prepare the analysis report
+              report = [
+                  f"Total Sales: ${total_sales:,.2f}",
+                  "\nTop 500 Products by Sales:",
+                  top_products.to_string(),
+                  "\nMonth-over-Month Growth:",
+                  mom_growth.to_string()
+              ]
+
+              # Return a list of dicts representing the output
+              # The input document will be merged into each output doc,
+              # so we can access all original fields from the input doc.
+              return [{"sales_analysis": "\n".join(report)}]
+
+    datasets:
+      sales_reports:
+        type: file
+        source: local
+        path: "sales_data/sales_paths.json"
+        parsing:
+          - function: top_products_report
+
+      receipts:
+        type: file
+        source: local
+        path: "receipts/receipt_paths.json"
+        parsing:
+          - input_key: pdf_path
+            function: paddleocr_pdf_to_string
+            output_key: receipt_text
+            ocr_enabled: true
+            lang: "en"
+    ```
+
+=== "Python"
+
+    ```python
+    import json
+
+    import docetl
+    import pandas as pd
+
+
+    def top_products_report(document: dict) -> list[dict]:
+        # Read the Excel file
+        filename = document["excel_path"]
+        df = pd.read_excel(filename)
+
+        # Calculate total sales
+        total_sales = df["Sales"].sum()
+
+        # Find top 500 products by sales
+        top_products = df.groupby("Product")["Sales"].sum().nlargest(500)
+
+        # Calculate month-over-month growth
+        df["Date"] = pd.to_datetime(df["Date"])
+        monthly_sales = df.groupby(df["Date"].dt.to_period("M"))["Sales"].sum()
+        mom_growth = monthly_sales.pct_change().fillna(0)
+
+        # Prepare the analysis report
+        report = [
+            f"Total Sales: ${total_sales:,.2f}",
+            "\nTop 500 Products by Sales:",
+            top_products.to_string(),
+            "\nMonth-over-Month Growth:",
+            mom_growth.to_string(),
+        ]
+
+        # Merge the input document into the output so we keep its fields
+        return [{**document, "sales_analysis": "\n".join(report)}]
+
+
+    # In Python you can run custom parsing code directly, then build a
+    # Frame from the parsed rows with from_list:
+    with open("sales_data/sales_paths.json") as f:
+        sales_docs = json.load(f)
+    parsed = [row for doc in sales_docs for row in top_products_report(doc)]
+    sales_reports = docetl.from_list(parsed, name="sales_reports")
+
+    # Built-in parsing tools can be referenced by name via parsing=:
+    receipts = docetl.read_json(
+        "receipts/receipt_paths.json",
+        parsing=[
+            {
+                "input_key": "pdf_path",
+                "function": "paddleocr_pdf_to_string",
+                "output_key": "receipt_text",
+                "ocr_enabled": True,
+                "lang": "en",
+            }
+        ],
+    )
+    ```
 
 In this configuration:
 
@@ -97,18 +159,28 @@ In this configuration:
 
 Once you've defined your parsing tools and datasets, you can use the processed data in your pipeline:
 
-```yaml
-pipeline:
-  steps:
-    - name: process_sales
-      input: sales_reports
-      operations:
-        - summarize_sales
-    - name: process_receipts
-      input: receipts
-      operations:
-        - extract_receipt_info
-```
+=== "YAML"
+
+    ```yaml
+    pipeline:
+      steps:
+        - name: process_sales
+          input: sales_reports
+          operations:
+            - summarize_sales
+        - name: process_receipts
+          input: receipts
+          operations:
+            - extract_receipt_info
+    ```
+
+=== "Python"
+
+    ```python
+    # Each Frame is its own pipeline: chain operations on the parsed datasets
+    sales_summaries = sales_reports.map("summarize_sales", prompt="...", output={...})
+    receipt_info = receipts.map("extract_receipt_info", prompt="...", output={...})
+    ```
 
 This pipeline will use the parsed data from both Excel files and PDFs for further processing.
 
@@ -244,19 +316,37 @@ When using parsing tools in your DocETL configuration, you can pass additional a
 
 For example, when using the xlsx_to_string parsing tool, you can specify options like the orientation of the data, the order of columns, or whether to process each sheet separately. Here's an example of how to use such kwargs in your configuration:
 
-```yaml
-datasets:
-  my_sales:
-    type: file
-    source: local
-    path: "sales_data/sales_paths.json"
-    parsing_tools:
-      - name: excel_parser
-        function: xlsx_to_string
-        orientation: row
-        col_order: ["Date", "Product", "Quantity", "Price"]
-        doc_per_sheet: true
-```
+=== "YAML"
+
+    ```yaml
+    datasets:
+      my_sales:
+        type: file
+        source: local
+        path: "sales_data/sales_paths.json"
+        parsing_tools:
+          - name: excel_parser
+            function: xlsx_to_string
+            orientation: row
+            col_order: ["Date", "Product", "Quantity", "Price"]
+            doc_per_sheet: true
+    ```
+
+=== "Python"
+
+    ```python
+    my_sales = docetl.read_json(
+        "sales_data/sales_paths.json",
+        parsing=[
+            {
+                "function": "xlsx_to_string",
+                "orientation": "row",
+                "col_order": ["Date", "Product", "Quantity", "Price"],
+                "doc_per_sheet": True,
+            }
+        ],
+    )
+    ```
 
 ## Contributing Built-in Parsing Tools
 
@@ -288,19 +378,41 @@ If the built-in tools don't meet your needs, you can create your own custom pars
 
 For example:
 
-```yaml
-parsing_tools:
-  - name: my_custom_parser
-    function_code: |
-      def my_custom_parser(item: Dict) -> List[Dict]:
-          # Your custom parsing logic here
-          return [processed_data]
+=== "YAML"
 
-datasets:
-  my_dataset:
-    type: file
-    source: local
-    path: "data/paths.json"
-    parsing:
-      - function: my_custom_parser
-```
+    ```yaml
+    parsing_tools:
+      - name: my_custom_parser
+        function_code: |
+          def my_custom_parser(item: Dict) -> List[Dict]:
+              # Your custom parsing logic here
+              return [processed_data]
+
+    datasets:
+      my_dataset:
+        type: file
+        source: local
+        path: "data/paths.json"
+        parsing:
+          - function: my_custom_parser
+    ```
+
+=== "Python"
+
+    ```python
+    import json
+
+    import docetl
+
+
+    def my_custom_parser(item: dict) -> list[dict]:
+        # Your custom parsing logic here
+        return [processed_data]
+
+
+    # In Python, run the parser directly and build a Frame from the results
+    with open("data/paths.json") as f:
+        items = json.load(f)
+    parsed = [row for item in items for row in my_custom_parser(item)]
+    my_dataset = docetl.from_list(parsed, name="my_dataset")
+    ```

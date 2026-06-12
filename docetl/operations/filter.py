@@ -9,11 +9,14 @@ from pydantic import model_validator
 from docetl.operations.map import MapOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.api import OutputMode
-from docetl.progress.tracker import active_tracker
 
 # Re-exported for backwards compatibility; the canonical definition now lives in
 # cascade_runner so all operators share one config.
-from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin  # noqa: F401
+from docetl.operations.utils.cascade_runner import (  # noqa: F401
+    CascadeConfig,
+    CascadeMixin,
+)
+from docetl.progress.tracker import active_tracker
 
 
 class FilterOperation(MapOperation, CascadeMixin):
@@ -60,6 +63,20 @@ class FilterOperation(MapOperation, CascadeMixin):
                 )
 
             return self
+
+    @classmethod
+    def transform_schema(cls, schema, config):
+        # The filter's decision key is consumed (popped from each kept row),
+        # so unlike map, the declared output schema does not survive.
+        result = super().transform_schema(schema, config)
+        filter_keys = [
+            k
+            for k in ((config.get("output") or {}).get("schema") or {})
+            if k != "_short_explanation"
+        ]
+        if filter_keys:
+            result.pop(filter_keys[0], None)
+        return result
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -111,9 +128,7 @@ class FilterOperation(MapOperation, CascadeMixin):
         finally:
             self._filter_is_build = previous_state
 
-    def _execute_cascade(
-        self, input_data: list[dict]
-    ) -> tuple[list[dict], float]:
+    def _execute_cascade(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """Run the filter as a guarantee-bearing proxy/oracle cascade.
 
         Builds two thin adapters over the operation's prompt -- a cheap proxy

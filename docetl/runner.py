@@ -1,160 +1,288 @@
-"""
-The DSLRunner module implements a declarative pipeline execution engine with a pull-based
-evaluation model. Key architectural decisions include:
-
-Design Patterns:
-- Pull-based DAG: Operations are lazily evaluated only when their outputs are needed,
-  enabling efficient resource utilization and caching
-- Dependency Injection: Operations receive their dependencies through a standardized interface,
-  making the system modular and testable
-- Builder Pattern: Pipeline construction is separated from execution, allowing validation
-  and optimization before runtime
-
-Core Features:
-- Transparent Caching: Automatic checkpointing and reuse of intermediate results
-- Cost Tracking: Built-in tracking of operation costs for optimization
-- Schema Validation: Type checking and schema validation at both build and runtime
-- Extensible Operations: New operations can be added by implementing the operation interface
-
-The architecture prioritizes:
-1. Separation of Concerns: Building, validation, and execution are distinct phases
-2. Flexibility: Support for both streaming and batch processing patterns
-3. Observability: Rich logging and cost tracking throughout execution
-4. Performance: Lazy evaluation and caching optimize resource usage
-"""
+"""Pipeline execution engine with pull-based DAG evaluation."""
 
 from __future__ import annotations
 
-import functools
-import hashlib
+import datetime
 import json
 import os
-import shutil
 import time
 from collections import defaultdict
-from typing import Any
 
+# Avoid circular import — Pipeline is only needed for isinstance checks
+# and from_dict calls, so import lazily or use TYPE_CHECKING.
+from typing import TYPE_CHECKING, Any
+
+import pyrate_limiter
 from dotenv import load_dotenv
-from pydantic import BaseModel
-from rich.markup import escape
+from pyrate_limiter import BucketFullException, LimiterDelayException
 from rich.panel import Panel
 
-from docetl.config_wrapper import ConfigWrapper
-from docetl.containers import OpContainer, StepBoundary
-from docetl.dataset import Dataset, create_parsing_tool_map
-from docetl.operations import get_operation, get_operations
-from docetl.operations.base import BaseOperation
+from docetl.console import get_console
+from docetl.dataset import DataLoader, create_parsing_tool_map
+from docetl.display import format_execution_summary, format_query_plan
+from docetl.graph_builder import build_operation_graph, compute_operation_hashes
+from docetl.operations import get_operation
+from docetl.operations.utils import APIWrapper
 from docetl.optimizer import Optimizer
+from docetl.ratelimiter import create_bucket_factory
+from docetl.utils import decrypt, load_config, op_ref_name
 
-from . import schemas
-from .utils import classproperty
+if TYPE_CHECKING:
+    from docetl.api import Pipeline as PipelineType
+    from docetl.operations.base import BaseOperation
 
 load_dotenv()
 
 
-class DSLRunner(ConfigWrapper):
-    """
-    DSLRunner orchestrates pipeline execution by building and traversing a DAG of OpContainers.
-    The runner uses a two-phase approach:
-
-    1. Build Phase:
-       - Parses YAML config into a DAG of OpContainers
-       - Each operation becomes a node connected to its dependencies
-       - Special handling for equijoins which have two parent nodes
-       - Validates operation syntax and schema compatibility
-
-    2. Execution Phase:
-       - Starts from the final operation and pulls data through the DAG
-       - Handles caching/checkpointing of intermediate results
-       - Tracks costs and execution metrics
-       - Manages dataset loading and result persistence
-
-    The separation between build and execution phases allows for:
-    - Pipeline validation before any execution
-    - Cost estimation and optimization
-    - Partial pipeline execution for testing
-    """
-
-    @classproperty
-    def schema(cls):
-        # Accessing the schema loads all operations, so only do this
-        # when we actually need it...
-        # Yes, this means DSLRunner.schema isn't really accessible to
-        # static type checkers. But it /is/ available for dynamic
-        # checking, and for generating json schema.
-
-        OpType = functools.reduce(
-            lambda a, b: a | b, [op.schema for op in get_operations().values()]
+def _create_router(console, fallback_models: list, router_type: str) -> Any | None:
+    if not fallback_models:
+        return None
+    try:
+        from litellm import Router
+    except ImportError:
+        console.log(
+            f"[yellow]Warning: LiteLLM Router not available. Fallback {router_type} models will be ignored.[/yellow]"
         )
-        # More pythonic implementation of the above, but only works in python 3.11:
-        # OpType = Union[*[op.schema for op in get_operations().values()]]
+        return None
 
-        class Pipeline(BaseModel):
-            config: dict[str, Any] | None
-            parsing_tools: list[schemas.ParsingTool] | None
-            datasets: dict[str, schemas.Dataset] | None = None
-            retrievers: dict[str, Any] | None
-            operations: list[OpType]
-            pipeline: schemas.PipelineSpec
-            # When true (and stdout is a TTY), launch the full-screen interactive
-            # progress view for this run (requires the optional ``tui`` extra).
-            interactive_ui: bool = False
+    model_list = []
+    names = []
+    for cfg in fallback_models:
+        if isinstance(cfg, dict):
+            name, params = cfg.get("model_name"), cfg.get("litellm_params", {})
+        elif isinstance(cfg, str):
+            name, params = cfg, {}
+        else:
+            continue
+        if not name:
+            continue
+        model_list.append(
+            {
+                "model_name": name,
+                "litellm_params": {**params, "model": name},
+            }
+        )
+        names.append(name)
 
-        return Pipeline
+    if not model_list:
+        return None
+    try:
+        kwargs = {"model_list": model_list}
+        if len(names) > 1:
+            kwargs["fallbacks"] = [
+                {names[i]: names[i + 1 :]} for i in range(len(names) - 1)
+            ]
+        router = Router(**kwargs)
+        console.log(
+            f"[green]Created LiteLLM {router_type} Router with "
+            f"{len(model_list)} fallback model(s): {', '.join(names)}[/green]"
+        )
+        return router
+    except Exception as e:
+        console.log(
+            f"[yellow]Warning: Failed to create LiteLLM {router_type} Router: {e}. "
+            f"Fallback models will be ignored.[/yellow]"
+        )
+        return None
 
-    @classproperty
-    def json_schema(cls):
-        return cls.schema.model_json_schema()
 
-    def __init__(self, config: dict, max_threads: int | None = None, **kwargs):
-        """
-        Initialize the DSLRunner with a YAML configuration file.
+def save_output(data: list[dict], path: str, console) -> None:
+    """Write *data* to *path*, dispatching on extension (.json / .parquet /
+    CSV fallback). Shared by DSLRunner.save and Frame.write_*."""
+    if os.path.dirname(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    if path.lower().endswith(".json"):
+        with open(path, "w") as file:
+            json.dump(data, file, indent=2)
+    elif path.lower().endswith(".parquet"):
+        import pandas as pd
 
-        Args:
-            max_threads (int, optional): Maximum number of threads to use. Defaults to None.
-        """
-        super().__init__(
+        pd.DataFrame(data).to_parquet(path, index=False)
+    else:  # CSV
+        import csv
+
+        fieldnames: dict[str, None] = {}  # union of row keys, in first-seen order
+        for row in data:
+            fieldnames.update(dict.fromkeys(row))
+        with open(path, "w", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=list(fieldnames))
+            writer.writeheader()
+            writer.writerows({k: row.get(k) for k in fieldnames} for row in data)
+    console.log(f"[green]✓[/green] Saved to [dim]{path}[/dim]\n")
+
+
+class DSLRunner:
+
+    @classmethod
+    def from_yaml(cls, yaml_file: str, **kwargs):
+        if not yaml_file.endswith(".yaml") and not yaml_file.endswith(".yml"):
+            raise ValueError(
+                "Invalid file type. Please provide a YAML file ending with '.yaml' or '.yml'."
+            )
+        base_name = yaml_file.rsplit(".", 1)[0]
+        suffix = yaml_file.split("/")[-1].split(".")[0]
+        config = load_config(yaml_file)
+        return cls(
             config,
-            base_name=kwargs.pop("base_name", None),
-            yaml_file_suffix=kwargs.pop("yaml_file_suffix", None),
-            max_threads=max_threads,
+            base_name=base_name,
+            yaml_file_suffix=suffix,
+            yaml_file=yaml_file,
             **kwargs,
         )
+
+    def __init__(
+        self, config: "dict | PipelineType", max_threads: int | None = None, **kwargs
+    ):
+        self._set_config(config)
+        self.base_name = kwargs.pop("base_name", None)
+        self.yaml_file = kwargs.pop("yaml_file", None)
+        self.yaml_file_suffix = kwargs.pop("yaml_file_suffix", None) or (
+            datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        )
+        self.console = kwargs.pop("console", None) or get_console()
+        self.max_threads = max_threads or (os.cpu_count() or 1) * 4
+        self.status = None
+
+        self._setup_api_keys()
+        self._setup_rate_limiter()
+        self._setup_routers()
+        self.api = APIWrapper(self)
+
         self.total_cost = 0
         self.total_token_usage = defaultdict(
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
         )
-        # Interactive progress TUI state. ``progress_tracker`` is only set while
-        # an interactive run is active; the TUI is enabled by the top-level
-        # ``interactive_ui`` flag in the config.
         self.progress_tracker = None
         self._tui_active = False
-        self._initialize_state()
+
+        self.datasets = {}
+        self.intermediate_dir = self.pipeline.output.intermediate_dir
+        # Created once and filled in place by compute_operation_hashes, so the
+        # CheckpointStore's reference stays valid when hashes are recomputed
+        # (e.g. on optimizer resume).
+        self.step_op_hashes: defaultdict[str, dict[str, str]] = defaultdict(dict)
         self._setup_parsing_tools()
         self._setup_retrievers()
-        self._build_operation_graph(config)
-        self._compute_operation_hashes()
+        build_operation_graph(self)
+        compute_operation_hashes(self)
+        self._setup_checkpoints()
 
-        # Run initial validation
         self._from_df_accessors = kwargs.get("from_df_accessors", False)
         if not self._from_df_accessors:
             self.syntax_check()
 
-    def _initialize_state(self) -> None:
-        """Initialize basic runner state and datasets"""
-        self.datasets = {}
-        self.intermediate_dir = (
-            self.config.get("pipeline", {}).get("output", {}).get("intermediate_dir")
+    def _set_config(self, config: "dict | PipelineType") -> None:
+        from docetl.api import Pipeline as PipelineCls
+
+        if isinstance(config, PipelineCls):
+            self.pipeline: PipelineCls = config
+            self.config = config._to_dict()
+        else:
+            self.config = config
+            self.pipeline = PipelineCls.from_dict(config)
+        self._raw_ops_list = self.config.get("operations", [])
+        self.default_model = self.config.get("default_model", "gpt-4o-mini")
+
+    def reload(self, config: "dict | PipelineType") -> None:
+        """Replace the pipeline config and rebuild all derived state.
+
+        The one place that keeps ``config``, the typed ``pipeline``, the op
+        map, the operation graph, and checkpoint hashes in sync — use this
+        instead of reassigning any of them by hand. Loaded datasets are
+        preserved.
+        """
+        self._set_config(config)
+        self.intermediate_dir = self.pipeline.output.intermediate_dir
+        self._setup_parsing_tools()
+        self._setup_retrievers()
+        build_operation_graph(self)
+        compute_operation_hashes(self)
+
+    def _setup_api_keys(self) -> None:
+        encrypted_llm_api_keys = self.config.get("llm_api_keys", {})
+        if encrypted_llm_api_keys:
+            self.llm_api_keys = {
+                key: decrypt(value, os.environ.get("DOCETL_ENCRYPTION_KEY", ""))
+                for key, value in encrypted_llm_api_keys.items()
+            }
+        else:
+            self.llm_api_keys = {}
+        self._original_env = os.environ.copy()
+        for key, value in self.llm_api_keys.items():
+            os.environ[key] = value
+
+    def _setup_rate_limiter(self) -> None:
+        bucket_factory = create_bucket_factory(self.config.get("rate_limits", {}))
+        self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=200)
+        self.is_cancelled = False
+
+    def _setup_routers(self) -> None:
+        self.fallback_models_config = self.config.get("fallback_models", [])
+        self.router = _create_router(
+            self.console, self.fallback_models_config, "completion"
         )
+        self.embedding_router = _create_router(
+            self.console, self.config.get("fallback_embedding_models", []), "embedding"
+        )
+        self._router_cache: dict[str, Any] = {}
+
+    def _setup_checkpoints(self) -> None:
+        self._checkpoints = None
+
+    @property
+    def checkpoints(self):
+        """The checkpoint store for the current ``intermediate_dir``.
+
+        Resolved lazily so that setting ``intermediate_dir`` after
+        construction (e.g. in tests, or before a partial-results run)
+        behaves the same as passing it in the config.
+        """
+        if not self.intermediate_dir:
+            return None
+        if (
+            self._checkpoints is None
+            or self._checkpoints.base_dir != self.intermediate_dir
+        ):
+            from docetl.checkpoint import CheckpointStore
+
+            # Hashes are skipped when no intermediate_dir is configured at
+            # init, so fill them in now that checkpointing is active.
+            if not self.step_op_hashes:
+                compute_operation_hashes(self)
+            self._checkpoints = CheckpointStore(
+                self.intermediate_dir,
+                self.step_op_hashes,
+                bypass=self.config.get("bypass_cache", False),
+            )
+        return self._checkpoints
+
+    def reset_env(self):
+        os.environ = self._original_env
+
+    def blocking_acquire(self, key: str, weight: int, wait_time=0.5):
+        while True:
+            try:
+                self.rate_limiter.try_acquire(key, weight=weight)
+                return
+            except LimiterDelayException as e:
+                time_to_wait = e.meta_info["actual_delay"] / 1000
+                self.console.log(
+                    f"Rate limits met for {key}; sleeping for {max(time_to_wait, wait_time):.2f} seconds"
+                )
+                time.sleep(max(time_to_wait, wait_time))
+            except BucketFullException as e:
+                time_to_wait = e.meta_info["remaining_time"]
+                self.console.log(
+                    f"Rate limits met for {key}; sleeping for {max(time_to_wait, wait_time):.2f} seconds"
+                )
+                time.sleep(max(time_to_wait, wait_time))
 
     def _setup_parsing_tools(self) -> None:
-        """Set up parsing tools from configuration"""
         self.parsing_tool_map = create_parsing_tool_map(
             self.config.get("parsing_tools", None)
         )
 
     def _setup_retrievers(self) -> None:
-        """Instantiate retrievers from configuration (lazy index creation)."""
         from docetl.retrievers.lancedb import LanceDBRetriever
 
         self.retrievers: dict[str, Any] = {}
@@ -172,221 +300,42 @@ class DSLRunner(ConfigWrapper):
                     raise ValueError(
                         f"Retriever '{name}' missing required key '{key}'."
                     )
-            # Defaults
+            # Copy before applying defaults — rconf may be a dict shared with
+            # the caller (e.g. a Frame Retriever's config).
+            rconf = dict(rconf)
             rconf.setdefault("query", {"top_k": 5})
             rconf.setdefault("build_index", "if_missing")
 
             self.retrievers[name] = LanceDBRetriever(self, name, rconf)
 
-    def _build_operation_graph(self, config: dict) -> None:
-        """Build the DAG of operations from configuration"""
-        self.config = config
-        self.op_container_map = {}
-        self.last_op_container = None
-
-        for step in self.config["pipeline"]["steps"]:
-            self._validate_step(step)
-
-            if step.get("input"):
-                self._add_scan_operation(step)
-            elif step["operations"] and isinstance(step["operations"][0], dict):
-                self._add_equijoin_operation(step)
-            else:
-                # No input specified and not an equijoin: use synthetic empty dataset [{}]
-                self._add_empty_scan_operation(step)
-
-            self._add_step_operations(step)
-            self._add_step_boundary(step)
-
-    def _validate_step(self, step: dict) -> None:
-        """Validate step configuration"""
-        assert "name" in step.keys(), f"Step {step} does not have a name"
-        assert "operations" in step.keys(), f"Step {step} does not have `operations`"
-
-    def _add_scan_operation(self, step: dict) -> None:
-        """Add a scan operation for input datasets"""
-        scan_op_container = OpContainer(
-            f"{step['name']}/scan_{step['input']}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": step["input"],
-                "name": f"scan_{step['input']}",
-            },
-        )
-        self.op_container_map[f"{step['name']}/scan_{step['input']}"] = (
-            scan_op_container
-        )
-        if self.last_op_container:
-            scan_op_container.add_child(self.last_op_container)
-        self.last_op_container = scan_op_container
-
-    def _add_empty_scan_operation(self, step: dict) -> None:
-        """Add a scan operation for a synthetic empty dataset [{}]"""
-        dataset_name = "__empty__"
-        scan_op_container = OpContainer(
-            f"{step['name']}/scan_{dataset_name}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": dataset_name,
-                "name": f"scan_{dataset_name}",
-            },
-        )
-        self.op_container_map[f"{step['name']}/scan_{dataset_name}"] = scan_op_container
-        if self.last_op_container:
-            scan_op_container.add_child(self.last_op_container)
-        self.last_op_container = scan_op_container
-
-    def _add_equijoin_operation(self, step: dict) -> None:
-        """Add an equijoin operation with its scan operations"""
-        equijoin_operation_name = list(step["operations"][0].keys())[0]
-        left_dataset_name = list(step["operations"][0].values())[0]["left"]
-        right_dataset_name = list(step["operations"][0].values())[0]["right"]
-
-        left_scan_op_container = OpContainer(
-            f"{step['name']}/scan_{left_dataset_name}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": left_dataset_name,
-                "name": f"scan_{left_dataset_name}",
-            },
-        )
-        if self.last_op_container:
-            left_scan_op_container.add_child(self.last_op_container)
-        right_scan_op_container = OpContainer(
-            f"{step['name']}/scan_{right_dataset_name}",
-            self,
-            {
-                "type": "scan",
-                "dataset_name": right_dataset_name,
-                "name": f"scan_{right_dataset_name}",
-            },
-        )
-        if self.last_op_container:
-            right_scan_op_container.add_child(self.last_op_container)
-        equijoin_op_container = OpContainer(
-            f"{step['name']}/{equijoin_operation_name}",
-            self,
-            self.find_operation(equijoin_operation_name),
-            left_name=left_dataset_name,
-            right_name=right_dataset_name,
-        )
-
-        equijoin_op_container.add_child(left_scan_op_container)
-        equijoin_op_container.add_child(right_scan_op_container)
-
-        self.last_op_container = equijoin_op_container
-        self.op_container_map[f"{step['name']}/{equijoin_operation_name}"] = (
-            equijoin_op_container
-        )
-        self.op_container_map[f"{step['name']}/scan_{left_dataset_name}"] = (
-            left_scan_op_container
-        )
-        self.op_container_map[f"{step['name']}/scan_{right_dataset_name}"] = (
-            right_scan_op_container
-        )
-
-    def _add_step_operations(self, step: dict) -> None:
-        """Add operations for a step"""
-        # Skip first op only for equijoin (first op is a dict, not a string)
-        is_equijoin = (
-            step.get("input") is None
-            and step["operations"]
-            and isinstance(step["operations"][0], dict)
-        )
-        op_start_idx = 1 if is_equijoin else 0
-
-        for operation_name in step["operations"][op_start_idx:]:
-            if not isinstance(operation_name, str):
-                raise ValueError(
-                    f"Operation {operation_name} in step {step['name']} should be a string. "
-                    "If you intend for it to be an equijoin, don't specify an input in the step."
-                )
-
-            op_container = OpContainer(
-                f"{step['name']}/{operation_name}",
-                self,
-                self.find_operation(operation_name),
-            )
-            op_container.add_child(self.last_op_container)
-            self.last_op_container = op_container
-            self.op_container_map[f"{step['name']}/{operation_name}"] = op_container
-
-    def _add_step_boundary(self, step: dict) -> None:
-        """Add a step boundary node"""
-        step_boundary = StepBoundary(
-            f"{step['name']}/boundary",
-            self,
-            {"type": "step_boundary", "name": f"{step['name']}/boundary"},
-        )
-        step_boundary.add_child(self.last_op_container)
-        self.op_container_map[f"{step['name']}/boundary"] = step_boundary
-        self.last_op_container = step_boundary
-
-    def _compute_operation_hashes(self) -> None:
-        """Compute hashes for operations to enable caching"""
-        op_map = {op["name"]: op for op in self.config["operations"]}
-        self.step_op_hashes = defaultdict(dict)
-
-        for step in self.config["pipeline"]["steps"]:
-            for idx, op in enumerate(step["operations"]):
-                op_name = op if isinstance(op, str) else list(op.keys())[0]
-
-                all_ops_until_and_including_current = (
-                    [op_map[prev_op] for prev_op in step["operations"][:idx]]
-                    + [op_map[op_name]]
-                    + [self.config.get("system_prompt", {})]
-                )
-
-                for op in all_ops_until_and_including_current:
-                    if "model" not in op:
-                        op["model"] = self.default_model
-
-                all_ops_str = json.dumps(all_ops_until_and_including_current)
-                self.step_op_hashes[step["name"]][op_name] = hashlib.sha256(
-                    all_ops_str.encode()
-                ).hexdigest()
-
     def get_output_path(self, require=False):
-        output_path = self.config.get("pipeline", {}).get("output", {}).get("path")
+        output_path = self.pipeline.output.path or None
+        valid_exts = (".json", ".csv", ".parquet")
         if output_path:
-            if not (
-                output_path.lower().endswith(".json")
-                or output_path.lower().endswith(".csv")
-            ):
+            if not any(output_path.lower().endswith(ext) for ext in valid_exts):
                 raise ValueError(
-                    f"Output path '{output_path}' is not a JSON or CSV file. Please provide a path ending with '.json' or '.csv'."
+                    f"Output path '{output_path}' must end with one of {valid_exts}."
                 )
         elif require:
             raise ValueError(
-                "No output path specified in the configuration. Please provide an output path ending with '.json' or '.csv' in the configuration to use the save() method."
+                "No output path specified. Provide a path ending with "
+                f"one of {valid_exts} in the pipeline output configuration."
             )
 
         return output_path
 
     def syntax_check(self):
-        """
-        Perform a syntax check on all operations defined in the configuration.
-        """
         self.console.log("[yellow]Checking operations...[/yellow]")
 
-        # Just validate that it's a json file if specified
         self.get_output_path()
         current = self.last_op_container
 
         try:
-            # Walk the last op container to check syntax
-            op_containers = []
-            if self.last_op_container:
-                op_containers = [self.last_op_container]
-
+            op_containers = [self.last_op_container] if self.last_op_container else []
             while op_containers:
                 current = op_containers.pop(0)
                 syntax_result = current.syntax_check()
                 self.console.log(syntax_result, end="")
-                # Add all children to the queue
                 op_containers.extend(current.children)
         except Exception as e:
             raise ValueError(
@@ -394,6 +343,14 @@ class DSLRunner(ConfigWrapper):
             )
 
         self.console.log("[green]✓ All operations passed syntax check[/green]")
+
+    def pipeline_label(self) -> str:
+        """Human-readable pipeline name for logs and the interactive UI."""
+        if self.yaml_file:
+            return os.path.basename(self.yaml_file)
+        if self.base_name:
+            return os.path.basename(self.base_name) + ".yaml"
+        return "DocETL pipeline"
 
     def _cascade_model_roles(self) -> dict[str, str]:
         """Map model names to cascade roles for the execution-summary token table."""
@@ -409,17 +366,14 @@ class DSLRunner(ConfigWrapper):
                 proxy = getattr(cascade, "proxy_model", None)
             if proxy:
                 roles[proxy] = "cascade proxy"
-            oracle = op.get("model") or op.get("comparison_model") or default
+            from docetl.operations.utils.cascade_runner import cascade_oracle_model
+
+            oracle = cascade_oracle_model(op, default)
             if oracle:
                 roles[oracle] = "oracle"
         return roles
 
     def print_query_plan(self, show_boundaries=False):
-        """
-        Print a visual representation of the entire query plan using indentation and arrows.
-        Operations are color-coded by step to show the pipeline structure while maintaining
-        dependencies between steps.
-        """
         if not self.last_op_container:
             self.console.log("\n[bold]Pipeline Steps:[/bold]")
             self.console.log(
@@ -428,139 +382,39 @@ class DSLRunner(ConfigWrapper):
             self.console.log()
             return
 
-        def _print_op(
-            op: OpContainer, indent: int = 0, step_colors: dict[str, str] | None = None
-        ) -> str:
-            # Handle boundary operations based on show_boundaries flag
-            if isinstance(op, StepBoundary):
-                if show_boundaries:
-                    output = []
-                    indent_str = "  " * indent
-                    step_name = op.name.split("/")[0]
-                    color = step_colors.get(step_name, "white")
-                    output.append(
-                        f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]"
-                    )
-                    output.append(f"{indent_str}Type: step_boundary")
-                    if op.children:
-                        output.append(f"{indent_str}[yellow]▼[/yellow]")
-                        for child in op.children:
-                            output.append(_print_op(child, indent + 1, step_colors))
-                    return "\n".join(output)
-                elif op.children:
-                    return _print_op(op.children[0], indent, step_colors)
-                return ""
-
-            # Build the string for the current operation with indentation
-            indent_str = "  " * indent
-            output = []
-
-            # Color code the operation name based on its step
-            step_name = op.name.split("/")[0]
-            color = step_colors.get(step_name, "white")
-            output.append(f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]")
-            output.append(
-                f"{indent_str}[dim]type[/dim]  [cyan]{op.config['type']}[/cyan]"
-            )
-
-            # Add schema if available
-            if "output" in op.config and "schema" in op.config["output"]:
-                output.append(f"{indent_str}[dim]output[/dim]")
-                for field, field_type in op.config["output"]["schema"].items():
-                    escaped_type = escape(str(field_type))
-                    output.append(
-                        f"{indent_str}  [bright_white]{field}[/bright_white]"
-                        f" [dim]:[/dim] {escaped_type}"
-                    )
-
-            if op.config.get("cascade"):
-                from docetl.operations.utils.cascade_runner import (
-                    format_cascade_plan_lines,
-                )
-
-                oracle_model = op.config.get(
-                    "model", self.config.get("default_model", "?")
-                )
-                for line in format_cascade_plan_lines(
-                    op.config["cascade"],
-                    op_type=op.config["type"],
-                    oracle_model=oracle_model,
-                ):
-                    output.append(f"{indent_str}{line}")
-
-            # Add children
-            if op.children:
-                if op.is_equijoin:
-                    output.append(f"{indent_str}[yellow]▼ LEFT[/yellow]")
-                    output.append(_print_op(op.children[0], indent + 1, step_colors))
-                    output.append(f"{indent_str}[yellow]▼ RIGHT[/yellow]")
-                    output.append(_print_op(op.children[1], indent + 1, step_colors))
-                else:
-                    output.append(f"{indent_str}[yellow]▼[/yellow]")
-                    for child in op.children:
-                        output.append(_print_op(child, indent + 1, step_colors))
-
-            return "\n".join(output)
-
-        # Get all step boundaries and extract unique step names
-        step_boundaries = [
-            op
-            for name, op in self.op_container_map.items()
-            if isinstance(op, StepBoundary)
-        ]
-        step_boundaries.sort(key=lambda x: x.name)
-
-        # Create a color map for steps - using distinct colors
-        colors = ["cyan", "magenta", "green", "yellow", "blue", "red"]
-        step_names = [b.name.split("/")[0] for b in step_boundaries]
-        step_colors = {
-            name: colors[i % len(colors)] for i, name in enumerate(step_names)
-        }
-
-        # Print the legend
+        step_colors, plan_text = format_query_plan(
+            self.last_op_container,
+            self.op_container_map,
+            show_boundaries,
+            default_model=self.config.get("default_model", "?"),
+        )
         self.console.log("\n[bold]Pipeline Steps:[/bold]")
         for step_name, color in step_colors.items():
             self.console.log(f"[{color}]■[/{color}] {step_name}")
-
-        # Print the full query plan starting from the last step boundary
-        query_plan = _print_op(self.last_op_container, step_colors=step_colors)
-        self.console.log(Panel(query_plan, title="Query Plan", width=100))
+        self.console.log(Panel(plan_text, title="Query Plan", width=100))
         self.console.log()
 
     def find_operation(self, op_name: str) -> dict:
-        for operation_config in self.config["operations"]:
-            if operation_config["name"] == op_name:
-                return operation_config
-        raise ValueError(f"Operation '{op_name}' not found in configuration.")
+        try:
+            return self._op_map[op_name]
+        except KeyError:
+            raise ValueError(f"Operation '{op_name}' not found in configuration.")
 
     def list_pipeline_operations(self) -> list[tuple[str, str, str, str | None]]:
-        """Return ``(step, full_name, op_type, model)`` for each real operation
-        in pipeline order, excluding scans and step boundaries.
-
-        Used to pre-populate the interactive progress view so all operations are
-        visible (as ``queued``) before execution begins.
-        """
-        op_map = {op["name"]: op for op in self.config.get("operations", [])}
+        ops_by_name = self.pipeline.ops_by_name
         ops: list[tuple[str, str, str, str | None]] = []
-        for step in self.config["pipeline"]["steps"]:
-            step_name = step["name"]
-            for entry in step["operations"]:
-                op_name = entry if isinstance(entry, str) else list(entry.keys())[0]
-                op_cfg = op_map.get(op_name, {})
-                op_type = op_cfg.get("type", "?")
+        for step in self.pipeline.steps:
+            for entry in step.operations:
+                op_name = op_ref_name(entry)
+                typed_op = ops_by_name.get(op_name)
+                op_type = typed_op.type if typed_op else "?"
                 if op_type in ("scan", "step_boundary"):
                     continue
-                model = op_cfg.get("model", self.default_model)
-                ops.append((step_name, f"{step_name}/{op_name}", op_type, model))
+                model = getattr(typed_op, "model", None) or self.default_model
+                ops.append((step.name, f"{step.name}/{op_name}", op_type, model))
         return ops
 
     def _should_use_tui(self) -> bool:
-        """Decide whether to launch the interactive TUI for this run.
-
-        Enabled by the top-level ``interactive_ui`` flag in the config (alongside
-        ``default_model``). The TUI requires an interactive terminal; otherwise
-        we fall back to plain logging.
-        """
         import sys
 
         if self._tui_active:
@@ -576,12 +430,6 @@ class DSLRunner(ConfigWrapper):
         return True
 
     def load_run_save(self) -> float:
-        """
-        Execute the entire pipeline defined in the configuration.
-        """
-        # Route to the interactive TUI if requested and supported. The TUI runs
-        # this same method again on a worker thread with ``_tui_active`` set, so
-        # the actual execution path below is shared.
         if self._should_use_tui():
             try:
                 from docetl.tui.app import run_with_tui
@@ -596,284 +444,99 @@ class DSLRunner(ConfigWrapper):
                 return run_with_tui(self)
 
         output_path = self.get_output_path(require=True)
-
-        # Print the query plan
         self.print_query_plan()
 
-        start_time = time.time()
-
+        execution_time = 0.0
         if self.last_op_container:
-            self.load()
-            self.console.rule("[bold]Pipeline Execution[/bold]")
-            output, _, _ = self.last_op_container.next()
+            output, execution_time = self.run()
             self.save(output)
 
-        execution_time = time.time() - start_time
-
-        # Print execution summary
-        token_usage_lines = ""
-        if self.total_token_usage:
-            cascade_roles = self._cascade_model_roles()
-            token_usage_lines = "\n[bold]Token Usage:[/bold]\n"
-            total_prompt = 0
-            total_completion = 0
-            total_cached = 0
-            for model, usage in sorted(self.total_token_usage.items()):
-                prompt = usage["prompt_tokens"]
-                completion = usage["completion_tokens"]
-                cached = usage.get("cached_tokens", 0)
-                total_prompt += prompt
-                total_completion += completion
-                total_cached += cached
-                role = cascade_roles.get(model)
-                model_label = f"{model} [dim]({role})[/dim]" if role else model
-                line = f"  {model_label}: [cyan]{prompt:,}[/cyan] input"
-                if cached:
-                    line += f" ([dim]{cached:,} cached[/dim])"
-                line += f", [cyan]{completion:,}[/cyan] output"
-                token_usage_lines += line + "\n"
-            total_line = f"  [bold]Total: [cyan]{total_prompt:,}[/cyan] input"
-            if total_cached:
-                total_line += f" ([dim]{total_cached:,} cached[/dim])"
-            total_line += f", [cyan]{total_completion:,}[/cyan] output[/bold]"
-            token_usage_lines += total_line + "\n"
-
-        summary = (
-            f"Cost: [green]${self.total_cost:.2f}[/green]\n"
-            f"Time: {execution_time:.2f}s\n"
-            + token_usage_lines
-            + (
-                f"Cache: [dim]{self.intermediate_dir}[/dim]\n"
-                if self.intermediate_dir
-                else ""
-            )
-            + f"Output: [dim]{output_path}[/dim]"
-        )
-        self.console.log(Panel(summary, title="Execution Summary"))
+        self._log_summary(execution_time, output_path)
 
         if self.progress_tracker is not None:
             self.progress_tracker.pipeline_done()
 
         return self.total_cost
 
+    def run(self) -> tuple[list[dict], float]:
+        """Load datasets and execute the operation DAG.
+
+        Returns ``(output rows, execution seconds)``. Does not save or log
+        the execution summary — callers decide both.
+        """
+        if not self.last_op_container:
+            raise ValueError("Pipeline has no operations to execute.")
+        start_time = time.time()
+        self.load()
+        self.console.rule("[bold]Pipeline Execution[/bold]")
+        output, _, _ = self.last_op_container.next()
+        return output, time.time() - start_time
+
+    def _log_summary(self, execution_time: float, output_path: str | None) -> None:
+        summary = format_execution_summary(
+            self.total_cost,
+            execution_time,
+            self.total_token_usage,
+            self.intermediate_dir,
+            output_path,
+            cascade_roles=self._cascade_model_roles(),
+        )
+        self.console.log(Panel(summary, title="Execution Summary"))
+
     def load(self) -> None:
-        """
-        Load all datasets defined in the configuration.
-        """
-        datasets = {}
         self.console.rule("[bold]Loading Datasets[/bold]")
+        self.datasets = {}
 
-        for name, dataset_config in self.config.get("datasets", {}).items():
-            if dataset_config["type"] == "file":
-                datasets[name] = Dataset(
-                    self,
-                    "file",
-                    dataset_config["path"],
-                    source="local",
-                    parsing=dataset_config.get("parsing", []),
-                    user_defined_parsing_tool_map=self.parsing_tool_map,
-                )
-                self.console.log(
-                    f"[green]✓[/green] Loaded dataset '{name}' from {dataset_config['path']}"
-                )
-            elif dataset_config["type"] == "memory":
-                datasets[name] = Dataset(
-                    self,
-                    "memory",
-                    dataset_config["path"],
-                    source="local",
-                    parsing=dataset_config.get("parsing", []),
-                    user_defined_parsing_tool_map=self.parsing_tool_map,
-                )
-                self.console.log(
-                    f"[green]✓[/green] Loaded dataset '{name}' from in-memory data"
-                )
-            else:
-                raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
-
-        self.datasets = {
-            name: (
-                dataset
-                if isinstance(dataset, Dataset)
-                else Dataset(self, "memory", dataset)
+        for name, ds in self.pipeline.datasets.items():
+            parsing = ds.parsing or []
+            self.datasets[name] = DataLoader(
+                self,
+                ds.type,
+                ds.path,
+                source="local",
+                parsing=parsing,
+                user_defined_parsing_tool_map=self.parsing_tool_map,
             )
-            for name, dataset in datasets.items()
-        }
-        # Always register a synthetic empty dataset for pipelines without input data
-        self.datasets["__empty__"] = Dataset(self, "memory", [{}])
+            label = ds.path if ds.type == "file" else "in-memory data"
+            self.console.log(f"[green]✓[/green] Loaded dataset '{name}' from {label}")
+
+        self.datasets["__empty__"] = DataLoader(self, "memory", [{}])
         self.console.log()
 
     def save(self, data: list[dict]) -> None:
-        """
-        Save the final output of the pipeline.
-        """
         self.get_output_path(require=True)
 
-        output_config = self.config["pipeline"]["output"]
-        if output_config["type"] == "file":
-            # Create the directory if it doesn't exist
-            if os.path.dirname(output_config["path"]):
-                os.makedirs(os.path.dirname(output_config["path"]), exist_ok=True)
-            if output_config["path"].lower().endswith(".json"):
-                with open(output_config["path"], "w") as file:
-                    json.dump(data, file, indent=2)
-            else:  # CSV
-                import csv
-
-                with open(output_config["path"], "w", newline="") as file:
-                    writer = csv.DictWriter(file, fieldnames=data[0].keys())
-                    limited_data = [
-                        {k: d.get(k, None) for k in data[0].keys()} for d in data
-                    ]
-                    writer.writeheader()
-                    writer.writerows(limited_data)
-            self.console.log(
-                f"[green]✓[/green] Saved to [dim]{output_config['path']}[/dim]\n"
-            )
-        else:
+        out = self.pipeline.output
+        if out.type != "file":
             raise ValueError(
-                f"Unsupported output type: {output_config['type']}. Supported types: file"
+                f"Unsupported output type: {out.type}. Supported types: file"
             )
-
-    def _load_from_checkpoint_if_exists(
-        self, step_name: str, operation_name: str
-    ) -> list[dict] | None:
-        if self.intermediate_dir is None or self.config.get("bypass_cache", False):
-            return None
-
-        intermediate_config_path = os.path.join(
-            self.intermediate_dir, ".docetl_intermediate_config.json"
-        )
-
-        if not os.path.exists(intermediate_config_path):
-            return None
-
-        # Make sure the step and op name is in the checkpoint config path
-        if (
-            step_name not in self.step_op_hashes
-            or operation_name not in self.step_op_hashes[step_name]
-        ):
-            return None
-
-        # See if the checkpoint config is the same as the current step op hash
-        with open(intermediate_config_path, "r") as f:
-            intermediate_config = json.load(f)
-
-        if (
-            intermediate_config.get(step_name, {}).get(operation_name, "")
-            != self.step_op_hashes[step_name][operation_name]
-        ):
-            return None
-
-        checkpoint_path = os.path.join(
-            self.intermediate_dir, step_name, f"{operation_name}.json"
-        )
-        # check if checkpoint exists
-        if os.path.exists(checkpoint_path):
-            if f"{step_name}_{operation_name}" not in self.datasets:
-                self.datasets[f"{step_name}_{operation_name}"] = Dataset(
-                    self, "file", checkpoint_path, "local"
-                )
-
-                self.console.log(
-                    f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path}[/italic]"
-                )
-
-                return self.datasets[f"{step_name}_{operation_name}"].load()
-        return None
+        save_output(data, out.path, self.console)
 
     def clear_intermediate(self) -> None:
-        """
-        Clear the intermediate directory.
-        """
-        # Remove the intermediate directory
-        if self.intermediate_dir:
-            shutil.rmtree(self.intermediate_dir)
+        if self.checkpoints:
+            self.checkpoints.clear_all()
             return
-
         raise ValueError("Intermediate directory not set. Cannot clear intermediate.")
 
-    def _save_checkpoint(
-        self, step_name: str, operation_name: str, data: list[dict]
-    ) -> None:
-        """
-        Save a checkpoint of the current data after an operation.
-
-        This method creates a JSON file containing the current state of the data
-        after an operation has been executed. The checkpoint is saved in a directory
-        structure that reflects the step and operation names.
-
-        Args:
-            step_name (str): The name of the current step in the pipeline.
-            operation_name (str): The name of the operation that was just executed.
-            data (list[dict]): The current state of the data to be checkpointed.
-
-        Note:
-            The checkpoint is saved only if a checkpoint directory has been specified
-            when initializing the DSLRunner.
-        """
-        checkpoint_path = os.path.join(
-            self.intermediate_dir, step_name, f"{operation_name}.json"
+    def _prepare_optimizer_kwargs(self, **kwargs) -> dict:
+        opt_cfg = self.pipeline.optimizer_config or {}
+        kwargs.setdefault("litellm_kwargs", opt_cfg.get("litellm_kwargs", {}))
+        kwargs.setdefault(
+            "rewrite_agent_model", opt_cfg.get("rewrite_agent_model", "gpt-5.1")
         )
-        if os.path.dirname(checkpoint_path):
-            os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
-        with open(checkpoint_path, "w") as f:
-            json.dump(data, f)
-
-        # Update the intermediate config file with the hash for this step/operation
-        # so that future runs can validate and reuse this checkpoint.
-        if self.intermediate_dir:
-            intermediate_config_path = os.path.join(
-                self.intermediate_dir, ".docetl_intermediate_config.json"
-            )
-
-            # Initialize or load existing intermediate configuration
-            if os.path.exists(intermediate_config_path):
-                try:
-                    with open(intermediate_config_path, "r") as cfg_file:
-                        intermediate_config: dict[str, dict[str, str]] = json.load(
-                            cfg_file
-                        )
-                except json.JSONDecodeError:
-                    # If the file is corrupted, start fresh to avoid crashes
-                    intermediate_config = {}
-            else:
-                intermediate_config = {}
-
-            # Ensure nested dict structure exists
-            step_dict = intermediate_config.setdefault(step_name, {})
-
-            # Write (or overwrite) the hash for the current operation
-            step_dict[operation_name] = self.step_op_hashes[step_name][operation_name]
-
-            # Persist the updated configuration
-            with open(intermediate_config_path, "w") as cfg_file:
-                json.dump(intermediate_config, cfg_file, indent=2)
-
-        self.console.log(
-            f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
+        kwargs.setdefault(
+            "judge_agent_model", opt_cfg.get("judge_agent_model", "gpt-4o-mini")
         )
+        return kwargs
 
     def should_optimize(
         self, step_name: str, op_name: str, **kwargs
     ) -> tuple[str, float, list[dict[str, Any]], list[dict[str, Any]]]:
         self.load()
-
-        # Augment the kwargs with the runner's config if not already provided
-        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
-            "litellm_kwargs", {}
-        )
-        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "rewrite_agent_model", "gpt-5.1"
-        )
-        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "judge_agent_model", "gpt-4o-mini"
-        )
-
-        builder = Optimizer(self, **kwargs)
+        builder = Optimizer(self, **self._prepare_optimizer_kwargs(**kwargs))
         self.optimizer = builder
-        result = builder.should_optimize(step_name, op_name)
-        return result
+        return builder.should_optimize(step_name, op_name)
 
     def optimize(
         self,
@@ -881,37 +544,18 @@ class DSLRunner(ConfigWrapper):
         return_pipeline: bool = True,
         **kwargs,
     ) -> tuple[dict | "DSLRunner", float]:
-
         if not self.last_op_container:
             raise ValueError("No operations in pipeline. Cannot optimize.")
 
         self.load()
+        save_path = kwargs.pop("save_path", None)
 
-        # Augment the kwargs with the runner's config if not already provided
-        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
-            "litellm_kwargs", {}
-        )
-        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "rewrite_agent_model", "gpt-5.1"
-        )
-        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
-            "judge_agent_model", "gpt-4o-mini"
-        )
-
-        save_path = kwargs.get("save_path", None)
-        # Pop the save_path from kwargs
-        kwargs.pop("save_path", None)
-
-        builder = Optimizer(
-            self,
-            **kwargs,
-        )
+        builder = Optimizer(self, **self._prepare_optimizer_kwargs(**kwargs))
         self.optimizer = builder
         llm_api_cost = builder.optimize()
         operations_cost = self.total_cost
         self.total_cost += llm_api_cost
 
-        # Log the cost of optimization
         self.console.log(
             f"[green italic]💰 Total cost: ${self.total_cost:.4f}[/green italic]"
         )
@@ -923,16 +567,13 @@ class DSLRunner(ConfigWrapper):
         )
 
         if save:
-            # If output path is provided, save the optimized config to that path
-            if kwargs.get("save_path"):
-                save_path = kwargs["save_path"]
+            if save_path:
                 if not os.path.isabs(save_path):
                     save_path = os.path.join(os.getcwd(), save_path)
-                builder.save_optimized_config(save_path)
-                self.optimized_config_path = save_path
             else:
-                builder.save_optimized_config(f"{self.base_name}_opt.yaml")
-                self.optimized_config_path = f"{self.base_name}_opt.yaml"
+                save_path = f"{self.base_name}_opt.yaml"
+            builder.save_optimized_config(save_path)
+            self.optimized_config_path = save_path
 
         if return_pipeline:
             return (
@@ -948,34 +589,16 @@ class DSLRunner(ConfigWrapper):
         input_data: list[dict[str, Any]] | dict[str, Any],
         return_instance: bool = False,
         is_build: bool = False,
-    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation, float]:
-        """
-        Run a single operation based on its configuration.
-
-        This method creates an instance of the appropriate operation class and executes it.
-        It also updates the total operation cost.
-
-        Args:
-            op_config (dict[str, Any]): The configuration of the operation to run.
-            input_data (list[dict[str, Any]]): The input data for the operation.
-            return_instance (bool, optional): If True, return the operation instance along with the output data.
-
-        Returns:
-            list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation, float]:
-            If return_instance is False, returns the output data.
-            If return_instance is True, returns a tuple of the output data, the operation instance, and the cost.
-        """
+    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation]:
         operation_class = get_operation(op_config["type"])
-
-        oc_kwargs = {
-            "runner": self,
-            "config": op_config,
-            "default_model": self.config["default_model"],
-            "max_threads": self.max_threads,
-            "console": self.console,
-            "status": self.status,
-        }
-        operation_instance = operation_class(**oc_kwargs)
+        operation_instance = operation_class(
+            runner=self,
+            config=op_config,
+            default_model=self.default_model,
+            max_threads=self.max_threads,
+            console=self.console,
+            status=self.status,
+        )
         if op_config["type"] == "equijoin":
             output_data, cost = operation_instance.execute(
                 input_data["left_data"], input_data["right_data"]
@@ -995,30 +618,10 @@ class DSLRunner(ConfigWrapper):
     def _flush_partial_results(
         self, operation_name: str, batch_index: int, data: list[dict]
     ) -> None:
-        """
-        Save partial (batch-level) results from an operation to a directory named
-        '<operation_name>_batches' inside the intermediate directory.
-
-        Args:
-            operation_name (str): The name of the operation, e.g. 'extract_medications'.
-            batch_index (int): Zero-based index of the batch.
-            data (list[dict]): Batch results to write to disk.
-        """
-        if not self.intermediate_dir:
+        if not self.checkpoints:
             return
-
-        op_batches_dir = os.path.join(
-            self.intermediate_dir, f"{operation_name}_batches"
-        )
-        os.makedirs(op_batches_dir, exist_ok=True)
-
-        # File name: 'batch_0.json', 'batch_1.json', etc.
-        checkpoint_path = os.path.join(op_batches_dir, f"batch_{batch_index}.json")
-
-        with open(checkpoint_path, "w") as f:
-            json.dump(data, f)
-
+        path = self.checkpoints.flush_batch(operation_name, batch_index, data)
         self.console.log(
             f"[green]✓[/green] [italic]Partial checkpoint saved for '{operation_name}', "
-            f"batch {batch_index} at '{checkpoint_path}'[/italic]"
+            f"batch {batch_index} at '{path}'[/italic]"
         )

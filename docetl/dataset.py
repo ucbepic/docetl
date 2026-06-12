@@ -9,6 +9,65 @@ from docetl.base_schemas import ParsingTool
 from docetl.parsing_tools import get_parser, get_parsing_tools
 
 
+def _read_file_as_text(path: str) -> str | None:
+    """Extract text from one file for directory datasets.
+
+    Dispatches on extension: PDFs via PyMuPDF, Word/PowerPoint/Excel via
+    their parsers, everything else as UTF-8 text. Returns ``None`` (and
+    logs a warning) for files that are binary with no known extractor.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    try:
+        if ext == ".pdf":
+            import pymupdf
+
+            with pymupdf.open(path) as doc:
+                return "\n".join(page.get_text() for page in doc)
+        if ext == ".docx":
+            from docx import Document
+
+            return "\n".join(p.text for p in Document(path).paragraphs)
+        if ext == ".pptx":
+            from pptx import Presentation
+
+            slides = []
+            for slide in Presentation(path).slides:
+                slides.append(
+                    "\n".join(
+                        shape.text_frame.text
+                        for shape in slide.shapes
+                        if shape.has_text_frame
+                    )
+                )
+            return "\n\n".join(slides)
+        if ext == ".xlsx":
+            import openpyxl
+
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            rows = []
+            for sheet in wb:
+                for row in sheet.iter_rows(values_only=True):
+                    rows.append("\t".join("" if c is None else str(c) for c in row))
+            return "\n".join(rows)
+
+        with open(path, "rb") as f:
+            head = f.read(1024)
+        if b"\x00" in head:
+            from docetl.console import DOCETL_CONSOLE
+
+            DOCETL_CONSOLE.log(
+                f"[yellow]Skipping binary file with no text extractor: {path}[/yellow]"
+            )
+            return None
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except Exception as e:
+        from docetl.console import DOCETL_CONSOLE
+
+        DOCETL_CONSOLE.log(f"[yellow]Skipping unreadable file {path}: {e}[/yellow]")
+        return None
+
+
 def create_parsing_tool_map(
     parsing_tools: list[ParsingTool] | None,
 ) -> dict[str, ParsingTool]:
@@ -30,7 +89,7 @@ def create_parsing_tool_map(
     return {tool.name: tool for tool in parsing_tools}
 
 
-class Dataset:
+class DataLoader:
     """
     A class representing a dataset with various loading and parsing capabilities.
 
@@ -156,9 +215,14 @@ class Dataset:
         if self.type == "file":
             if not isinstance(path_or_data, str):
                 raise ValueError("For type 'file', path_or_data must be a string")
-            valid_extensions = (".json", ".csv")
-            if not path_or_data.lower().endswith(valid_extensions):
-                raise ValueError(f"Path must end with one of {valid_extensions}")
+            valid_extensions = (".json", ".csv", ".parquet")
+            if not path_or_data.lower().endswith(
+                valid_extensions
+            ) and not os.path.isdir(path_or_data):
+                raise ValueError(
+                    f"Path must end with one of {valid_extensions}, "
+                    "or be a directory (every file in it is read as text)"
+                )
         elif self.type == "memory":
             if not isinstance(path_or_data, (list, pd.DataFrame)):
                 raise ValueError(
@@ -205,11 +269,17 @@ class Dataset:
         Returns:
             str: A string representation of the Dataset object.
         """
-        return f"Dataset(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing={self.parsing})"
+        return f"DataLoader(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing={self.parsing})"
 
-    def load(self) -> list[dict]:
+    def load(self, limit: int | None = None) -> list[dict]:
         """
         Load the dataset from the specified path or return the in-memory data.
+
+        Args:
+            limit (int | None): If given, load only the first *limit* raw
+                rows (streaming for CSV/Parquet, so a small sample of a
+                large file is cheap). Parsing tools are applied after the
+                limit, i.e. to just the sampled rows.
 
         Returns:
             list[dict]: A list of dictionaries representing the dataset.
@@ -218,7 +288,25 @@ class Dataset:
             ValueError: If the file extension is unsupported.
         """
         if self.type == "memory":
-            return self._apply_parsing_tools(self.path_or_data)
+            data = self.path_or_data
+            if limit is not None:
+                data = data[:limit]
+            return self._apply_parsing_tools(data)
+
+        if os.path.isdir(self.path_or_data):
+            data = []
+            for path in self._dir_files(limit):
+                text = _read_file_as_text(path)
+                if text is None:
+                    continue
+                data.append(
+                    {
+                        "path": str(path),
+                        "filename": os.path.basename(path),
+                        "text": text,
+                    }
+                )
+            return self._apply_parsing_tools(data)
 
         _, ext = os.path.splitext(self.path_or_data.lower())
 
@@ -227,16 +315,89 @@ class Dataset:
 
             with open(self.path_or_data, "r") as f:
                 data = json.load(f)
+            if limit is not None:
+                data = data[:limit]
         elif ext == ".csv":
             import csv
+            import itertools
 
             with open(self.path_or_data, "r") as f:
                 reader = csv.DictReader(f)
-                data = list(reader)
+                data = list(
+                    itertools.islice(reader, limit) if limit is not None else reader
+                )
+        elif ext == ".parquet":
+            data = self._read_parquet(limit)
         else:
             raise ValueError(f"Unsupported file extension: {ext}")
 
         return self._apply_parsing_tools(data)
+
+    def _read_parquet(self, limit: int | None) -> list[dict]:
+        if limit is not None:
+            try:
+                import pyarrow.parquet as pq
+
+                batches = []
+                rows = 0
+                for batch in pq.ParquetFile(self.path_or_data).iter_batches():
+                    batches.append(batch)
+                    rows += batch.num_rows
+                    if rows >= limit:
+                        break
+                if batches:
+                    import pyarrow as pa
+
+                    table = pa.Table.from_batches(batches)
+                    return table.to_pylist()[:limit]
+                return []
+            except ImportError:
+                pass
+            return (
+                pd.read_parquet(self.path_or_data).head(limit).to_dict(orient="records")
+            )
+        return pd.read_parquet(self.path_or_data).to_dict(orient="records")
+
+    def _dir_files(self, limit: int | None = None) -> list[str]:
+        """All non-hidden files under a directory dataset, sorted, recursive."""
+        files = []
+        for root, dirs, names in os.walk(self.path_or_data):
+            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+            files.extend(os.path.join(root, n) for n in names if not n.startswith("."))
+        files.sort()
+        return files[:limit] if limit is not None else files
+
+    def count(self) -> int:
+        """Number of rows the dataset loads to, computed cheaply when possible.
+
+        With parsing tools configured the data must be fully loaded and
+        parsed (parsing can change the row count). Otherwise Parquet uses
+        file metadata and CSV streams line counts without building dicts.
+        """
+        if self.parsing:
+            return len(self.load())
+
+        if self.type == "memory":
+            return len(self.path_or_data)
+
+        if os.path.isdir(self.path_or_data):
+            return len(self._dir_files())
+
+        _, ext = os.path.splitext(self.path_or_data.lower())
+        if ext == ".parquet":
+            try:
+                import pyarrow.parquet as pq
+
+                return pq.ParquetFile(self.path_or_data).metadata.num_rows
+            except ImportError:
+                pass
+        elif ext == ".csv":
+            import csv
+
+            with open(self.path_or_data, "r") as f:
+                return sum(1 for _ in csv.DictReader(f))
+
+        return len(self.load())
 
     def _process_item(
         self,
@@ -313,75 +474,3 @@ class Dataset:
             data = new_data
 
         return data
-
-    def sample(self, n: int, random: bool = True) -> list[dict]:
-        """
-        Sample n items from the dataset.
-
-        Args:
-            n (int): Number of items to sample.
-            random (bool): If True, sample randomly. If False, take the first n items.
-
-        Returns:
-            list[dict]: A list of n sampled items.
-
-        Raises:
-            ValueError: If the sample size is larger than the dataset size or if the file extension is unsupported.
-        """
-        if self.type == "memory":
-            import random as rd
-
-            data = self.path_or_data
-            if n > len(data):
-                raise ValueError(
-                    f"Sample size {n} is larger than dataset size {len(data)}"
-                )
-            if random:
-                sampled_data = (
-                    data.sample(n=n)
-                    if isinstance(data, pd.DataFrame)
-                    else rd.sample(data, n)
-                )
-            else:
-                sampled_data = (
-                    data.iloc[:n] if isinstance(data, pd.DataFrame) else data[:n]
-                )
-            return self._apply_parsing_tools(sampled_data)
-
-        _, ext = os.path.splitext(self.path_or_data.lower())
-
-        if ext == ".json":
-            import json
-            import random as rd
-
-            with open(self.path_or_data, "r") as f:
-                if random:
-                    data = json.load(f)
-                    if n > len(data):
-                        raise ValueError(
-                            f"Sample size {n} is larger than dataset size {len(data)}"
-                        )
-                    sampled_data = rd.sample(data, n)
-                else:
-                    return json.load(f)[:n]
-
-        elif ext == ".csv":
-            import csv
-            import random as rd
-
-            with open(self.path_or_data, "r") as f:
-                reader = csv.DictReader(f)
-                if random:
-                    data = list(reader)
-                    if n > len(data):
-                        raise ValueError(
-                            f"Sample size {n} is larger than dataset size {len(data)}"
-                        )
-                    sampled_data = rd.sample(data, n)
-                else:
-                    sampled_data = [next(reader) for _ in range(n)]
-
-        else:
-            raise ValueError(f"Unsupported file extension: {ext}")
-
-        return self._apply_parsing_tools(sampled_data)

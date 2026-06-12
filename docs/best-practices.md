@@ -23,215 +23,412 @@ This guide outlines best practices for using DocETL effectively, focusing on the
 
 ## Pipeline Design
 
-1. **Start Simple**: Begin with a basic pipeline and gradually add complexity as needed.
+### Start Simple
 
-   Example: Start with a simple extraction operation before adding resolution and summarization.
+Begin with a basic pipeline and gradually add complexity as needed.
 
-   ```yaml
-   operations:
-     - name: extract_medications
-       type: map
-       output:
-         schema:
-           medication: list[str]
-       prompt: |
-         Extract and list all medications mentioned in the transcript:
-         {{ input.src }}
-   ```
+Example: Start with a simple extraction operation before adding resolution and summarization.
 
-2. **Modular Design**: Break down complex tasks into smaller, manageable operations.
+=== "YAML"
 
-   Example: The medical transcripts pipeline in the [tutorial](tutorial.md) demonstrates this by separating medication extraction, resolution, and summarization into distinct operations.
+    ```yaml
+    operations:
+      - name: extract_medications
+        type: map
+        output:
+          schema:
+            medication: list[str]
+        prompt: |
+          Extract and list all medications mentioned in the transcript:
+          {{ input.src }}
+    ```
 
-3. **Optimize Incrementally**: Optimize one operation at a time to ensure stability and verify improvements.
+=== "Python"
 
-   Example: After implementing the basic pipeline, you might optimize the `extract_medications` operation first:
+    ```python
+    pipeline = docetl.read_json("medical_transcripts.json")
+    pipeline = pipeline.map(
+        name="extract_medications",
+        prompt="""Extract and list all medications mentioned in the transcript:
+    {{ input.src }}""",
+        output={"schema": {"medication": "list[str]"}},
+    )
+    ```
 
-   ```yaml
-   operations:
-     - name: extract_medications
-       type: map
-       optimize: true
-       output:
-         schema:
-           medication: list[str]
-       prompt: |
-         Extract and list all medications mentioned in the transcript:
-         {{ input.src }}
-   ```
+### Modular Design
+
+Break down complex tasks into smaller, manageable operations.
+
+Example: The medical transcripts pipeline in the [tutorial](tutorial.md) demonstrates this by separating medication extraction, resolution, and summarization into distinct operations.
+
+### Optimize Incrementally
+
+Optimize one operation at a time to ensure stability and verify improvements.
+
+Example: After implementing the basic pipeline, you might optimize the `extract_medications` operation first:
+
+=== "YAML"
+
+    ```yaml
+    operations:
+      - name: extract_medications
+        type: map
+        optimize: true
+        output:
+          schema:
+            medication: list[str]
+        prompt: |
+          Extract and list all medications mentioned in the transcript:
+          {{ input.src }}
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="extract_medications",
+        prompt="""Extract and list all medications mentioned in the transcript:
+    {{ input.src }}""",
+        output={"schema": {"medication": "list[str]"}},
+        optimize=True,
+    )
+    ```
 
 ## Schema and Prompt Design
 
-1. **Configure System Prompts**: Set up system prompts to provide context and establish the LLM's role for each operation. This helps generate more accurate and relevant responses.
+### Configure System Prompts
 
-   Example:
-   ```yaml
-   system_prompt:
-     dataset_description: a collection of transcripts of doctor visits
-     persona: a medical practitioner analyzing patient symptoms and reactions to medications
-   ```
+Set up system prompts to provide context and establish the LLM's role for each operation. This helps generate more accurate and relevant responses.
 
-  The system prompt will be used as a system prompt for all operations in the pipeline.
+=== "YAML"
 
-2. **Keep Schemas Simple**: Use simple output schemas whenever possible. Complex nested structures can be difficult for LLMs to produce consistently.
+    ```yaml
+    system_prompt:
+      dataset_description: a collection of transcripts of doctor visits
+      persona: a medical practitioner analyzing patient symptoms and reactions to medications
+    ```
 
-   Good Example (Simple Schema):
+=== "Python"
 
-   ```yaml
-   output:
-     schema:
-       medication: list[str] # Note that this is different from the example in the tutorial.
-   ```
+    ```python
+    docetl.system_prompt = {
+        "dataset_description": "a collection of transcripts of doctor visits",
+        "persona": "a medical practitioner analyzing patient symptoms and reactions to medications",
+    }
+    ```
 
-   Avoid (Complex Nested Structure):
+The system prompt will be used as a system prompt for all operations in the pipeline.
 
-   ```yaml
-   output:
-     schema:
-       medications: "list[{name: str, dosage: {amount: float, unit: str, frequency: str}}]"
-   ```
+### Keep Schemas Simple
 
-3. **Clear and Concise Prompts**: Write clear, concise prompts for LLM operations, providing relevant context from input data. Instruct quantities (e.g., 2-3 insights, one summary) to guide the LLM.
+Use simple output schemas whenever possible. Complex nested structures can be difficult for LLMs to produce consistently.
 
-   Example: The `summarize_prescriptions` operation in the [tutorial](tutorial.md) demonstrates a clear prompt with specific instructions:
+Good Example (Simple Schema):
 
-   ```yaml
-   prompt: |
-     Here are some transcripts of conversations between a doctor and a patient:
+=== "YAML"
 
-     {% for value in inputs %}
-     Transcript {{ loop.index }}:
-     {{ value.src }}
-     {% endfor %}
+    ```yaml
+    output:
+      schema:
+        medication: list[str] # Note that this is different from the example in the tutorial.
+    ```
 
-     For the medication {{ reduce_key }}, please provide the following information based on all the transcripts above:
+=== "Python"
 
-     1. Side Effects: Summarize all mentioned side effects of {{ reduce_key }}. List 2-3 main side effects.
-     2. Therapeutic Uses: Explain the medical conditions or symptoms for which {{ reduce_key }} was prescribed or recommended. Provide 1-2 primary uses.
+    ```python
+    output={"schema": {"medication": "list[str]"}}
+    ```
 
-     Ensure your summary:
-     - Is based solely on information from the provided transcripts
-     - Focuses only on {{ reduce_key }}, not other medications
-     - Includes relevant details from all transcripts
-     - Is clear and concise
-     - Includes quotes from the transcripts
-   ```
+Avoid (Complex Nested Structure):
 
-4. **Take advantage of Jinja Templating**: Use Jinja templating to dynamically generate prompts and provide context to the LLM. Feel free to use if statements, loops, and other Jinja features to customize prompts.
+=== "YAML"
 
-   Example: Using Jinja conditionals and loops in a prompt (note that age is a made-up field for this example):
+    ```yaml
+    output:
+      schema:
+        medications: "list[{name: str, dosage: {amount: float, unit: str, frequency: str}}]"
+    ```
 
-   ```yaml
-   prompt: |
-     Analyze the following medical transcript:
-     {{ input.src }}
+=== "Python"
 
-     {% if input.patient_age %}
-     Note that the patient is {{ input.patient_age }} years old.
-     {% endif %}
+    ```python
+    output={"schema": {"medications": "list[{name: str, dosage: {amount: float, unit: str, frequency: str}}]"}}
+    ```
 
-     Please extract the following information:
-     {% for item in ["medications", "symptoms", "diagnoses"] %}
-     - List all {{ item }} mentioned in the transcript
-     {% endfor %}
-   ```
+### Clear and Concise Prompts
 
-5. **Validate Outputs**: Use the `validate` field to ensure the quality and correctness of processed data. This consists of Python statements that validate the output and optionally retry the LLM if one or more statements fail. To learn more about validation, see the [validation documentation](concepts/operators.md#validation).
+Write clear, concise prompts for LLM operations, providing relevant context from input data. Instruct quantities (e.g., 2-3 insights, one summary) to guide the LLM.
 
-   Example: Adding validation to the `extract_medications` operation:
+Example: The `summarize_prescriptions` operation in the [tutorial](tutorial.md) demonstrates a clear prompt with specific instructions:
 
-   ```yaml
-   operations:
-     - name: extract_medications
-       type: map
-       output:
-         schema:
-           medication: list[str]
-       prompt: |
-         Extract and list all medications mentioned in the transcript:
-         {{ input.src }}
-       validate: |
-         len(output.medication) > 0
-         all(isinstance(med, str) for med in output.medication)
-         all(len(med) > 1 for med in output.medication)
-   ```
+=== "YAML"
+
+    ```yaml
+    prompt: |
+      Here are some transcripts of conversations between a doctor and a patient:
+
+      {% for value in inputs %}
+      Transcript {{ loop.index }}:
+      {{ value.src }}
+      {% endfor %}
+
+      For the medication {{ reduce_key }}, please provide the following information based on all the transcripts above:
+
+      1. Side Effects: Summarize all mentioned side effects of {{ reduce_key }}. List 2-3 main side effects.
+      2. Therapeutic Uses: Explain the medical conditions or symptoms for which {{ reduce_key }} was prescribed or recommended. Provide 1-2 primary uses.
+
+      Ensure your summary:
+      - Is based solely on information from the provided transcripts
+      - Focuses only on {{ reduce_key }}, not other medications
+      - Includes relevant details from all transcripts
+      - Is clear and concise
+      - Includes quotes from the transcripts
+    ```
+
+=== "Python"
+
+    ```python
+    prompt="""Here are some transcripts of conversations between a doctor and a patient:
+
+    {% for value in inputs %}
+    Transcript {{ loop.index }}:
+    {{ value.src }}
+    {% endfor %}
+
+    For the medication {{ reduce_key }}, please provide the following information based on all the transcripts above:
+
+    1. Side Effects: Summarize all mentioned side effects of {{ reduce_key }}. List 2-3 main side effects.
+    2. Therapeutic Uses: Explain the medical conditions or symptoms for which {{ reduce_key }} was prescribed or recommended. Provide 1-2 primary uses.
+
+    Ensure your summary:
+    - Is based solely on information from the provided transcripts
+    - Focuses only on {{ reduce_key }}, not other medications
+    - Includes relevant details from all transcripts
+    - Is clear and concise
+    - Includes quotes from the transcripts"""
+    ```
+
+### Take advantage of Jinja Templating
+
+Use Jinja templating to dynamically generate prompts and provide context to the LLM. Feel free to use if statements, loops, and other Jinja features to customize prompts.
+
+Example: Using Jinja conditionals and loops in a prompt (note that age is a made-up field for this example):
+
+=== "YAML"
+
+    ```yaml
+    prompt: |
+      Analyze the following medical transcript:
+      {{ input.src }}
+
+      {% if input.patient_age %}
+      Note that the patient is {{ input.patient_age }} years old.
+      {% endif %}
+
+      Please extract the following information:
+      {% for item in ["medications", "symptoms", "diagnoses"] %}
+      - List all {{ item }} mentioned in the transcript
+      {% endfor %}
+    ```
+
+=== "Python"
+
+    ```python
+    prompt="""Analyze the following medical transcript:
+    {{ input.src }}
+
+    {% if input.patient_age %}
+    Note that the patient is {{ input.patient_age }} years old.
+    {% endif %}
+
+    Please extract the following information:
+    {% for item in ["medications", "symptoms", "diagnoses"] %}
+    - List all {{ item }} mentioned in the transcript
+    {% endfor %}"""
+    ```
+
+### Validate Outputs
+
+Use the `validate` field to ensure the quality and correctness of processed data. This consists of Python statements that validate the output and optionally retry the LLM if one or more statements fail. To learn more about validation, see the [validation documentation](concepts/operators.md#validation).
+
+Example: Adding validation to the `extract_medications` operation:
+
+=== "YAML"
+
+    ```yaml
+    operations:
+      - name: extract_medications
+        type: map
+        output:
+          schema:
+            medication: list[str]
+        prompt: |
+          Extract and list all medications mentioned in the transcript:
+          {{ input.src }}
+        validate: |
+          len(output.medication) > 0
+          all(isinstance(med, str) for med in output.medication)
+          all(len(med) > 1 for med in output.medication)
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+        name="extract_medications",
+        prompt="""Extract and list all medications mentioned in the transcript:
+    {{ input.src }}""",
+        output={"schema": {"medication": "list[str]"}},
+        validate=[
+            "len(output.medication) > 0",
+            "all(isinstance(med, str) for med in output.medication)",
+            "all(len(med) > 1 for med in output.medication)",
+        ],
+    )
+    ```
 
 ## Handling Large Documents and Entity Resolution
 
-1. **Chunk Large Inputs**: For documents exceeding token limits, consider using the optimizer to automatically chunk inputs.
+### Chunk Large Inputs
 
-2. **Use Resolve Operations**: Implement resolve operations before reduce operations when dealing with similar entities. Take care to write the compare prompts well to guide the LLM--often the optimizer-synthesized prompts are too generic.
+For documents exceeding token limits, consider using the optimizer to automatically chunk inputs.
 
-   Example: A more specific `resolve_medications` operation:
+### Use Resolve Operations
 
-   ```yaml
-   - name: resolve_medications
-     type: resolve
-     blocking_keys:
-       - medication
-     blocking_threshold: 0.6162
-     comparison_prompt: |
-       Compare the following two medication entries:
-       Entry 1: {{ input1.medication }}
-       Entry 2: {{ input2.medication }}
+Implement resolve operations before reduce operations when dealing with similar entities. Take care to write the compare prompts well to guide the LLM--often the optimizer-synthesized prompts are too generic.
 
-       Are these medications the same or closely related? Consider the following:
-       1. Are they different brand names for the same active ingredient?
-       2. Are they in the same drug class with similar effects?
-       3. Are they commonly used as alternatives for the same condition?
+Example: A more specific `resolve_medications` operation:
 
-       Respond with YES if they are the same or closely related, and NO if they are distinct medications.
-   ```
+=== "YAML"
+
+    ```yaml
+    - name: resolve_medications
+      type: resolve
+      blocking_keys:
+        - medication
+      blocking_threshold: 0.6162
+      comparison_prompt: |
+        Compare the following two medication entries:
+        Entry 1: {{ input1.medication }}
+        Entry 2: {{ input2.medication }}
+
+        Are these medications the same or closely related? Consider the following:
+        1. Are they different brand names for the same active ingredient?
+        2. Are they in the same drug class with similar effects?
+        3. Are they commonly used as alternatives for the same condition?
+
+        Respond with YES if they are the same or closely related, and NO if they are distinct medications.
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.resolve(
+        name="resolve_medications",
+        blocking_keys=["medication"],
+        blocking_threshold=0.6162,
+        comparison_prompt="""Compare the following two medication entries:
+    Entry 1: {{ input1.medication }}
+    Entry 2: {{ input2.medication }}
+
+    Are these medications the same or closely related? Consider the following:
+    1. Are they different brand names for the same active ingredient?
+    2. Are they in the same drug class with similar effects?
+    3. Are they commonly used as alternatives for the same condition?
+
+    Respond with YES if they are the same or closely related, and NO if they are distinct medications.""",
+    )
+    ```
 
 ## Optimization and Execution
 
-1. **Use the Optimizer**: Leverage DocETL's optimizer for complex pipelines or when dealing with large documents.
+### Use the Optimizer
 
-   Example: Run the optimizer on your pipeline:
+Leverage DocETL's optimizer for complex pipelines or when dealing with large documents.
 
-   ```bash
-   docetl build pipeline.yaml
-   ```
+=== "YAML"
 
-2. **Leverage Caching**: Take advantage of DocETL's caching mechanism to avoid redundant computations. DocETL caches by default.
+    ```bash
+    docetl build pipeline.yaml
+    ```
 
-   To clear the cache:
+=== "Python"
 
-   ```bash
-   docetl clear-cache
-   ```
+    ```python
+    optimized = pipeline.optimize(
+        eval_fn=my_eval_function,
+        metric_key="accuracy",
+    )
+    ```
 
-3. **Monitor Resource Usage**: Keep an eye on API costs and processing time, especially when optimizing. Use `gpt-4o-mini` for optimization (the default is `gpt-4o`) to save costs. Learn more about how to do this in the [optimizer](optimization/example.md) docs.
+See the [MOAR optimizer docs](optimization/moar.md) for details on evaluation functions.
+
+### Leverage Caching
+
+Take advantage of DocETL's caching mechanism to avoid redundant computations. DocETL caches by default.
+
+To clear the cache:
+
+```bash
+docetl clear-cache
+```
+
+### Monitor Resource Usage
+
+Keep an eye on API costs and processing time, especially when optimizing. Use `gpt-4o-mini` for optimization (the default is `gpt-4o`) to save costs. Learn more about how to do this in the [optimizer](optimization/example.md) docs.
 
 ## Additional Notes
 
 - **Sampling Operations**: If you want to run an operation on a random sample of your data, you can set the `sample` parameter for that operation.
 
-  Example:
+Example:
 
-  ```yaml
-  operations:
-    - name: extract_medications
-      type: map
-      sample: 100
-      output:
-        schema:
-          medication: list[str]
-      prompt: |
-        Extract and list all medications mentioned in the transcript:
-        {{ input.src }}
-  ```
+=== "YAML"
+
+    ```yaml
+    operations:
+     - name: extract_medications
+       type: map
+       sample: 100
+       output:
+         schema:
+           medication: list[str]
+       prompt: |
+         Extract and list all medications mentioned in the transcript:
+         {{ input.src }}
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.map(
+       name="extract_medications",
+       prompt="""Extract and list all medications mentioned in the transcript:
+    {{ input.src }}""",
+       output={"schema": {"medication": "list[str]"}},
+       sample=100,
+    )
+    ```
 
 - **Intermediate Output**: If you provide an intermediate directory in your configuration, the outputs of each operation will be saved to this directory. This allows you to inspect the results of individual steps in the pipeline and can be useful for debugging or analyzing the pipeline's progress.
 
-  Example:
+Example:
 
-  ```yaml
-  pipeline:
-    output:
-      type: file
-      path: medication_summaries.json
-      intermediate_dir: intermediate_results
-  ```
+=== "YAML"
+
+    ```yaml
+    pipeline:
+     output:
+       type: file
+       path: medication_summaries.json
+       intermediate_dir: intermediate_results
+    ```
+
+=== "Python"
+
+    ```python
+    docetl.intermediate_dir = "intermediate_results"  # relative to the CWD you run from
+    pipeline.write_json("medication_summaries.json")
+    ```
 
 By following these comprehensive best practices and examples, you can create more efficient, reliable, and maintainable DocETL pipelines for your data processing tasks. Remember to iterate on your pipeline design, continuously refine your prompts, and leverage DocETL's optimization features to get the best results.

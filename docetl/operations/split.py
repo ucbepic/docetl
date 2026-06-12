@@ -51,6 +51,16 @@ class SplitOperation(BaseOperation):
         super().__init__(*args, **kwargs)
         self.name = self.config["name"]
 
+    @classmethod
+    def transform_schema(cls, schema, config):
+        result = super().transform_schema(schema, config)
+        if config.get("split_key"):
+            result[f"{config['split_key']}_chunk"] = "string"
+        name = config.get("name", "split")
+        result[f"{name}_id"] = "string"
+        result[f"{name}_chunk_num"] = "integer"
+        return result
+
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         split_key = self.config["split_key"]
         method = self.config["method"]

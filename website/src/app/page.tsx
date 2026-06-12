@@ -94,7 +94,7 @@ export default function Home() {
             <span className="logo-text text-2xl sm:text-3xl">DocETL</span>
           </div>
           <p className="text-lg sm:text-xl mb-4 sm:mb-6">
-            A system for LLM-powered data processing
+            Declarative &amp; Agentic Map-Reduce
           </p>
 
           {/* <div className="max-w-lg mx-auto flex flex-col items-center mb-6">
@@ -228,6 +228,16 @@ export default function Home() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <a
+                      href="https://github.com/ucbepic/docetl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Github className="mr-2 h-4 w-4" />
+                      GitHub
+                    </a>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={toggleDemo}>
                     <Play className="mr-2 h-4 w-4" />
                     Example
@@ -243,16 +253,6 @@ export default function Home() {
                       <Globe className="mr-2 h-4 w-4" />
                       Scraper
                     </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a
-                      href="https://github.com/ucbepic/docetl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Github className="mr-2 h-4 w-4" />
-                      GitHub
-                    </a>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/showcase">
@@ -271,6 +271,15 @@ export default function Home() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-56">
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="https://ucbepic.github.io/docetl/"
+                      target="_blank"
+                    >
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Docs
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <a
                       href="https://arxiv.org/abs/2504.14764"
@@ -301,15 +310,6 @@ export default function Home() {
                       Discord
                     </a>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href="https://ucbepic.github.io/docetl/"
-                      target="_blank"
-                    >
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      Docs
-                    </Link>
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -317,6 +317,33 @@ export default function Home() {
             {/* Desktop Buttons - Same as before but hidden on mobile */}
             <div className="hidden sm:flex flex-col items-center gap-6 w-full">
               <div className="flex flex-wrap justify-center gap-4 w-full max-w-xl">
+                <Button
+                  asChild
+                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
+                >
+                  <a
+                    href="https://github.com/ucbepic/docetl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Github className="mr-2 h-4 w-4" />
+                    GitHub
+                  </a>
+                </Button>
+
+                <Button
+                  asChild
+                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
+                >
+                  <Link
+                    href="https://ucbepic.github.io/docetl/"
+                    target="_blank"
+                  >
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Docs
+                  </Link>
+                </Button>
+
                 <Button
                   onClick={toggleDemo}
                   className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
@@ -339,33 +366,18 @@ export default function Home() {
                     Playground
                   </Link>
                 </Button>
+              </div>
 
+              <div className="flex flex-wrap justify-center gap-4 w-full max-w-xl">
                 <Button
                   asChild
-                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
+                  className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold"
                 >
                   <Link href="/scraper">
                     <Globe className="mr-2 h-4 w-4" />
                     Scraper
                   </Link>
                 </Button>
-
-                <Button
-                  asChild
-                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
-                >
-                  <a
-                    href="https://github.com/ucbepic/docetl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Github className="mr-2 h-4 w-4" />
-                    GitHub
-                  </a>
-                </Button>
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-4 w-full max-w-xl">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold">
@@ -419,18 +431,6 @@ export default function Home() {
                   <Link href="/showcase">
                     <GalleryVertical className="mr-2 h-4 w-4" />
                     Showcase
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold"
-                >
-                  <Link
-                    href="https://ucbepic.github.io/docetl/"
-                    target="_blank"
-                  >
-                    <BookOpen className="mr-2 h-4 w-4" />
-                    Docs
                   </Link>
                 </Button>
               </div>

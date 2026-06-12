@@ -4,13 +4,20 @@ from typing import Any
 import numpy as np
 from jinja2 import Template
 
+from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
+
 from .base import BaseOperation
 from .clustering_utils import get_embeddings_for_clustering
 from .utils import RichLoopBar, strict_render
-from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
 
 
 class ClusterOperation(BaseOperation):
+    @classmethod
+    def transform_schema(cls, schema, config):
+        result = super().transform_schema(schema, config)
+        result[config.get("output_key", "clusters")] = "list"
+        return result
+
     def __init__(
         self,
         *args,
@@ -103,11 +110,11 @@ class ClusterOperation(BaseOperation):
         Args:
             input_data (list[dict]): A list of dictionaries to process.
             is_build (bool): Whether the operation is being executed
-              in the build phase. Defaults to False.
+                in the build phase. Defaults to False.
 
         Returns:
             tuple[list[dict], float]: A tuple containing the clustered
-              list of dictionaries and the total cost of the operation.
+                list of dictionaries and the total cost of the operation.
         """
         if not input_data:
             return input_data, 0

@@ -1,42 +1,63 @@
 # Reduce Operation
 
-The Reduce operation in DocETL aggregates data based on a key. It supports both batch reduction and incremental folding for large datasets, making it versatile for various data processing tasks.
+The Reduce operation aggregates data based on a key. It supports both batch reduction and incremental folding for large datasets. Examples: consolidating patient records from multiple visits, or synthesizing findings from a set of research papers.
 
-## Motivation
+```mermaid
+flowchart LR
+    a1["doc (key=A)"] --> A["one output for A"]
+    a2["doc (key=A)"] --> A
+    b1["doc (key=B)"] --> B["one output for B"]
+    c1["..."] --> C["..."]
+```
 
-Reduce operations are essential when you need to summarize or aggregate data across multiple records. For example, you might want to:
+## Example: Summarizing Customer Feedback
 
-- Analyze sentiment trends across social media posts
-- Consolidate patient medical records from multiple visits
-- Synthesize key findings from a set of research papers on a specific topic
+=== "YAML"
 
-## 🚀 Example: Summarizing Customer Feedback
+    ```yaml
+    - name: summarize_feedback
+      type: reduce
+      reduce_key: department
+      prompt: |
+        Summarize the customer feedback for the {{ inputs[0].department }} department:
 
-Let's look at a practical example of using the Reduce operation to summarize customer feedback by department:
+        {% for item in inputs %}
+        Feedback {{ loop.index }}: {{ item.feedback }}
+        {% endfor %}
 
-```yaml
-- name: summarize_feedback
-  type: reduce
-  reduce_key: department
-  prompt: |
-    Summarize the customer feedback for the {{ inputs[0].department }} department:
+        Provide a concise summary of the main points and overall sentiment.
+      output:
+        schema:
+          summary: string
+          sentiment: string
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("feedback.json")
+    frame = frame.reduce(
+        reduce_key="department",
+        prompt="""Summarize the customer feedback for the {{ inputs[0].department }} department:
 
     {% for item in inputs %}
     Feedback {{ loop.index }}: {{ item.feedback }}
     {% endfor %}
 
-    Provide a concise summary of the main points and overall sentiment.
-  output:
-    schema:
-      summary: string
-      sentiment: string
-```
-
-This Reduce operation processes customer feedback grouped by department:
-
-1. Groups all feedback entries by the 'department' key.
-2. For each department, it applies the prompt to summarize the feedback and determine overall sentiment.
-3. Outputs a summary and sentiment for each department.
+    Provide a concise summary of the main points and overall sentiment.""",
+        output={
+            "schema": {
+                "summary": "string",
+                "sentiment": "string",
+            }
+        },
+    )
+    rows = frame.collect()
+    ```
 
 ## Configuration
 
@@ -72,43 +93,67 @@ This Reduce operation processes customer feedback grouped by department:
 
 ### Limiting group processing
 
-Set `limit` to short-circuit the reduce phase after _N_ groups have been aggregated. When `limit` is set, groups are sorted by size (smallest first) and only the _N_ smallest groups are processed. This is useful for previewing results or capping LLM usage while minimizing cost by processing groups with fewer documents. Groups beyond the limit are never scheduled, so you avoid extra fold/merge calls. If a grouped reduce returns more than one record per group, the final output list is truncated to `limit`.
+Set `limit` to stop after _N_ groups:
+
+- Groups are sorted by size (smallest first) and only the _N_ smallest groups are processed; the rest are never scheduled, so you avoid extra fold/merge calls.
+- If a grouped reduce returns more than one record per group, the final output list is truncated to `limit`.
 
 ## Advanced Features
 
 ### Incremental Folding
 
-For large datasets, the Reduce operation supports incremental folding. This allows processing of large groups in smaller batches, which can be more efficient and reduce memory usage.
+Incremental folding processes large groups in smaller batches. To enable it, provide a `fold_prompt` and `fold_batch_size`:
 
-To enable incremental folding, provide a `fold_prompt` and `fold_batch_size`:
+=== "YAML"
 
-```yaml
-- name: large_data_reduce
-  type: reduce
-  reduce_key: category
-  prompt: |
-    Summarize the data for category {{ inputs[0].category }}:
+    ```yaml
+    - name: large_data_reduce
+      type: reduce
+      reduce_key: category
+      prompt: |
+        Summarize the data for category {{ inputs[0].category }}:
+        {% for item in inputs %}
+        Item {{ loop.index }}: {{ item.data }}
+        {% endfor %}
+      fold_prompt: |
+        Combine the following summaries for category {{ inputs[0].category }}:
+        Current summary: {{ output.summary }}
+        New data:
+        {% for item in inputs %}
+        Item {{ loop.index }}: {{ item.data }}
+        {% endfor %}
+      fold_batch_size: 100
+      output:
+        schema:
+          summary: string
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.reduce(
+        name="large_data_reduce",
+        reduce_key="category",
+        prompt="""Summarize the data for category {{ inputs[0].category }}:
     {% for item in inputs %}
     Item {{ loop.index }}: {{ item.data }}
-    {% endfor %}
-  fold_prompt: |
-    Combine the following summaries for category {{ inputs[0].category }}:
+    {% endfor %}""",
+        fold_prompt="""Combine the following summaries for category {{ inputs[0].category }}:
     Current summary: {{ output.summary }}
     New data:
     {% for item in inputs %}
     Item {{ loop.index }}: {{ item.data }}
-    {% endfor %}
-  fold_batch_size: 100
-  output:
-    schema:
-      summary: string
-```
+    {% endfor %}""",
+        fold_batch_size=100,
+        output={"schema": {"summary": "string"}},
+    )
+    ```
 
 #### Example Rendered Prompt
 
 !!! example "Rendered Reduce Prompt"
 
-    Let's consider an example of how a reduce operation prompt might look when rendered with actual data. Assume we have a reduce operation that summarizes product reviews, and we're processing reviews for a product with ID "PROD123". Here's what the rendered prompt might look like:
+    A reduce prompt that summarizes product reviews, rendered for product "PROD123":
 
     ```
     Summarize the reviews for product PROD123:
@@ -124,27 +169,19 @@ To enable incremental folding, provide a `fold_prompt` and `fold_batch_size`:
     Review 5: Mixed feelings about this product. The speed and performance are great for everyday use and light gaming. However, the webcam quality is poor, which is a letdown for video calls. The design is sleek, but the glossy finish attracts fingerprints easily.
     ```
 
-    This example shows how the prompt template is filled with actual review data for a specific product. The language model would then process this prompt to generate a summary of the reviews for the product.
-
 ### Scratchpad Technique
 
-When doing an incremental reduce, the task may require intermediate state that is not represented in the output. For example, if the task is to determine all features more than one person liked about the product, we need some intermediate state to keep track of the features that have been liked once, so if we see the same feature liked again, we can update the output. DocETL maintains an internal "scratchpad" to handle this.
+An incremental reduce may require intermediate state not represented in the output (e.g., to find all features liked by more than one person, you must track features liked once so far). DocETL maintains an internal "scratchpad" for this; users only write reduce and fold prompts.
 
-#### How it works
+How it works:
 
 1. The process starts with an empty accumulator and an internal scratchpad.
-2. It sequentially folds in batches of more than one element at a time.
-3. The internal scratchpad tracks additional state necessary for accurately solving tasks incrementally. The LLM decides what to write to the scratchpad.
-4. During each internal LLM call, the current scratchpad state is used along with the accumulated output and new inputs.
-5. The LLM updates both the accumulated output and the internal scratchpad, which are used in the next fold operation.
-
-The scratchpad technique is handled internally by DocETL, allowing users to define complex reduce operations without worrying about the complexities of state management across batches. Users provide their reduce and fold prompts focusing on the desired output, while DocETL uses the scratchpad technique behind the scenes to ensure accurate tracking of trends and efficient processing of large datasets.
+2. Each fold's LLM call receives the current scratchpad state, the accumulated output, and the new batch of inputs.
+3. The LLM updates both the accumulated output and the scratchpad (deciding what to write), and both are used in the next fold.
 
 ### Value Sampling
 
-For very large groups, you can use value sampling to process a representative subset of the data. This can significantly reduce processing time and costs.
-
-The following table outlines the available value sampling methods:
+For very large groups, value sampling processes a representative subset of the data. Available methods:
 
 | Method              | Description                                             |
 | ------------------- | ------------------------------------------------------- |
@@ -153,84 +190,141 @@ The following table outlines the available value sampling methods:
 | cluster             | Use K-means clustering to select representative samples |
 | semantic_similarity | Select samples based on semantic similarity to a query  |
 
-To enable value sampling, add a `value_sampling` configuration to your reduce operation. The configuration should specify the method, sample size, and any additional parameters required by the chosen method.
+To enable value sampling, add a `value_sampling` configuration specifying the method, sample size, and any parameters the method requires.
 
 !!! example "Value Sampling Configuration"
 
-    ```yaml
-    - name: sampled_reduce
-      type: reduce
-      reduce_key: product_id
-      prompt: |
-        Summarize the reviews for product {{ inputs[0].product_id }}:
+    === "YAML"
+
+        ```yaml
+        - name: sampled_reduce
+          type: reduce
+          reduce_key: product_id
+          prompt: |
+            Summarize the reviews for product {{ inputs[0].product_id }}:
+            {% for item in inputs %}
+            Review {{ loop.index }}: {{ item.review }}
+            {% endfor %}
+          value_sampling:
+            enabled: true
+            method: cluster
+            sample_size: 50
+          output:
+            schema:
+              summary: string
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.reduce(
+            name="sampled_reduce",
+            reduce_key="product_id",
+            prompt="""Summarize the reviews for product {{ inputs[0].product_id }}:
         {% for item in inputs %}
         Review {{ loop.index }}: {{ item.review }}
-        {% endfor %}
-      value_sampling:
-        enabled: true
-        method: cluster
-        sample_size: 50
-      output:
-        schema:
-          summary: string
-    ```
+        {% endfor %}""",
+            value_sampling={
+                "enabled": True,
+                "method": "cluster",
+                "sample_size": 50,
+            },
+            output={"schema": {"summary": "string"}},
+        )
+        ```
 
-    In this example, the Reduce operation will use K-means clustering to select a representative sample of 50 reviews for each product_id.
-
-For semantic similarity sampling, you can use a query to select the most relevant samples. This is particularly useful when you want to focus on specific aspects of the data.
+For semantic similarity sampling, a query selects the samples most relevant to specific aspects of the data.
 
 !!! example "Semantic Similarity Sampling"
 
-    ```yaml
-    - name: sampled_reduce_sem_sim
-      type: reduce
-      reduce_key: product_id
-      prompt: |
-        Summarize the reviews for product {{ inputs[0].product_id }}, focusing on comments about battery life and performance:
+    === "YAML"
+
+        ```yaml
+        - name: sampled_reduce_sem_sim
+          type: reduce
+          reduce_key: product_id
+          prompt: |
+            Summarize the reviews for product {{ inputs[0].product_id }}, focusing on comments about battery life and performance:
+            {% for item in inputs %}
+            Review {{ loop.index }}: {{ item.review }}
+            {% endfor %}
+          value_sampling:
+            enabled: true
+            method: sem_sim
+            sample_size: 30
+            embedding_model: text-embedding-3-small
+            embedding_keys:
+              - review
+            query_text: "Battery life and performance"
+          output:
+            schema:
+              summary: string
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.reduce(
+            name="sampled_reduce_sem_sim",
+            reduce_key="product_id",
+            prompt="""Summarize the reviews for product {{ inputs[0].product_id }}, focusing on comments about battery life and performance:
         {% for item in inputs %}
         Review {{ loop.index }}: {{ item.review }}
-        {% endfor %}
-      value_sampling:
-        enabled: true
-        method: sem_sim
-        sample_size: 30
-        embedding_model: text-embedding-3-small
-        embedding_keys:
-          - review
-        query_text: "Battery life and performance"
-      output:
-        schema:
-          summary: string
-    ```
-
-    In this example, the Reduce operation will use semantic similarity to select the 30 reviews most relevant to battery life and performance for each product_id. This allows you to focus the summarization on specific aspects of the product reviews.
+        {% endfor %}""",
+            value_sampling={
+                "enabled": True,
+                "method": "sem_sim",
+                "sample_size": 30,
+                "embedding_model": "text-embedding-3-small",
+                "embedding_keys": ["review"],
+                "query_text": "Battery life and performance",
+            },
+            output={"schema": {"summary": "string"}},
+        )
+        ```
 
 ### Lineage
 
-The Reduce operation supports lineage, which allows you to track the original input data for each output. This can be useful for debugging and auditing. To enable lineage, add a `lineage` configuration to your reduce operation, specifying the keys to include in the lineage. For example:
+Lineage tracks the original input data for each output, useful for debugging and auditing. To enable it, add a `lineage` list to the output config specifying the keys to include:
 
-```yaml
-- name: summarize_reviews_by_category
-  type: reduce
-  reduce_key: category
-  prompt: |
-    Summarize the reviews for category {{ inputs[0].category }}:
+=== "YAML"
+
+    ```yaml
+    - name: summarize_reviews_by_category
+      type: reduce
+      reduce_key: category
+      prompt: |
+        Summarize the reviews for category {{ inputs[0].category }}:
+        {% for item in inputs %}
+        Review {{ loop.index }}: {{ item.review }}
+        {% endfor %}
+      output:
+        schema:
+          summary: string
+        lineage:
+          - product_id
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.reduce(
+        name="summarize_reviews_by_category",
+        reduce_key="category",
+        prompt="""Summarize the reviews for category {{ inputs[0].category }}:
     {% for item in inputs %}
     Review {{ loop.index }}: {{ item.review }}
-    {% endfor %}
-  output:
-    schema:
-      summary: string
-    lineage:
-      - product_id
-```
+    {% endfor %}""",
+        output={
+            "schema": {"summary": "string"},
+            "lineage": ["product_id"],
+        },
+    )
+    ```
 
 This output will include a list of all product_ids for each category in the lineage, saved under the key `summarize_reviews_by_category_lineage`.
 
 ## Best Practices
 
-1. **Choose Appropriate Keys**: Select `reduce_key`(s) that logically group your data for the desired aggregation.
-2. **Design Effective Prompts**: Create prompts that clearly instruct the model on how to aggregate or summarize the grouped data.
-3. **Consider Data Size**: For large datasets, use incremental folding and value sampling to manage processing efficiently.
-4. **Optimize Your Pipeline**: Use `docetl build pipeline.yaml` to optimize your pipeline, which can introduce efficient merge operations and resolve steps if needed.
-5. **Balance Precision and Efficiency**: When dealing with very large groups, consider using value sampling to process a representative subset of the data.
+1. **Consider Data Size**: For large datasets, use incremental folding; for very large groups, use value sampling.
+2. **Optimize Your Pipeline**: Use `docetl build pipeline.yaml` to optimize your pipeline, which can introduce efficient merge operations and resolve steps if needed.

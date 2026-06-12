@@ -1,20 +1,48 @@
 # Equijoin Operation (Experimental)
 
-The Equijoin operation in DocETL is an experimental feature designed for joining two datasets based on flexible, LLM-powered criteria. It leverages many of the same techniques as the [Resolve operation](resolve.md), but applies them to the task of joining datasets rather than deduplicating within a single dataset.
+The Equijoin operation (experimental) joins two datasets based on LLM-evaluated criteria, allowing matches based on semantic similarity or complex conditions rather than exact equality. It uses many of the same techniques as the [Resolve operation](resolve.md).
 
-## Motivation
+```mermaid
+flowchart LR
+    l1["left 1"] --> m1["left 1 + right 2"]
+    r2["right 2"] --> m1
+    l2["left 2"] --> m2["left 2 + right 1"]
+    r1["right 1"] --> m2
+    ln["..."] --> mn["..."]
+    rn["..."] --> mn
+```
 
-While traditional database joins rely on exact matches, real-world data often requires more nuanced joining criteria. Equijoin allows for joins based on semantic similarity or complex conditions, making it ideal for scenarios where exact matches are impossible or undesirable.
+## Example: Matching Job Candidates to Job Postings
 
-## 🚀 Example: Matching Job Candidates to Job Postings
+=== "YAML"
 
-Let's explore a practical example of using the Equijoin operation to match job candidates with suitable job postings based on skills and experience.
+    ```yaml
+    - name: match_candidates_to_jobs
+      type: equijoin
+      comparison_prompt: |
+        Compare the following job candidate and job posting:
 
-```yaml
-- name: match_candidates_to_jobs
-  type: equijoin
-  comparison_prompt: |
-    Compare the following job candidate and job posting:
+        Candidate Skills: {{ left.skills }}
+        Candidate Experience: {{ left.years_experience }}
+
+        Job Required Skills: {{ right.required_skills }}
+        Job Desired Experience: {{ right.desired_experience }}
+
+        Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    candidates = docetl.read_json("candidates.json")
+    job_postings = docetl.read_json("job_postings.json")
+    frame = candidates.equijoin(
+        job_postings,
+        comparison_prompt="""Compare the following job candidate and job posting:
 
     Candidate Skills: {{ left.skills }}
     Candidate Experience: {{ left.years_experience }}
@@ -22,17 +50,14 @@ Let's explore a practical example of using the Equijoin operation to match job c
     Job Required Skills: {{ right.required_skills }}
     Job Desired Experience: {{ right.desired_experience }}
 
-    Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
-```
-
-This Equijoin operation matches job candidates to job postings:
-
-1. It uses the `comparison_prompt` to determine if a candidate is a good match for a job.
-2. The operation can be optimized to use efficient blocking rules, reducing the number of comparisons.
+    Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.""",
+    )
+    rows = frame.collect()
+    ```
 
 !!! note "Jinja2 Syntax with left and right"
 
-    The prompt template uses Jinja2 syntax, allowing you to reference input fields directly (e.g., `left.skills`). You can reference the left and right documents using `left` and `right` respectively.
+    The `comparison_prompt` uses Jinja2 syntax; reference the left and right documents via `left` and `right` (e.g., `left.skills`).
 
 !!! info "Automatic Blocking"
 
@@ -40,7 +65,7 @@ This Equijoin operation matches job candidates to job postings:
 
 ## Blocking
 
-Like the Resolve operation, Equijoin supports blocking techniques to improve efficiency. For details on how blocking works and how to implement it, please refer to the [Blocking section in the Resolve operation documentation](resolve.md#blocking).
+Equijoin supports the same blocking techniques as Resolve; see the [Blocking section in the Resolve documentation](resolve.md#blocking).
 
 ### Adding Blocking Rules
 
@@ -50,50 +75,96 @@ Equijoin lets you specify **explicit blocking logic** to skip record pairs that 
 Provide one or more **field names** for each side of the join. The selected values are concatenated and **embedded**; the cosine similarity of the left vs. right embeddings is then compared against `blocking_threshold` (defaults to `1.0`). If the similarity meets or exceeds that threshold, the pair moves on to the `comparison_prompt`; otherwise it is skipped.  
 If you omit `blocking_keys`, **all key–value pairs of each record are embedded by default**.
 
-```yaml
-blocking_keys:
-  left:
-    - medicine
-  right:
-    - extracted_medications
-```
+=== "YAML"
+
+    ```yaml
+    blocking_keys:
+      left:
+        - medicine
+      right:
+        - extracted_medications
+    ```
+
+=== "Python"
+
+    ```python
+    # Pass via the blocking_keys= kwarg on an equijoin call
+    blocking_keys={
+        "left": ["medicine"],
+        "right": ["extracted_medications"],
+    }
+    ```
 
 #### `blocking_threshold`
 Optionally set a numeric `blocking_threshold` \(0 – 1\) representing the minimum cosine similarity (computed with the selected `embedding_model`) that the concatenated blocking keys must achieve to be considered a candidate pair. Anything below the threshold is filtered out without invoking the LLM.
 
-```yaml
-blocking_threshold: 0.35
-embedding_model: text-embedding-3-small
-```
+=== "YAML"
+
+    ```yaml
+    blocking_threshold: 0.35
+    embedding_model: text-embedding-3-small
+    ```
+
+=== "Python"
+
+    ```python
+    # Pass via kwargs on an equijoin call
+    blocking_threshold=0.35,
+    embedding_model="text-embedding-3-small",
+    ```
 
 A full Equijoin step combining both ideas might look like:
 
-```yaml
-- name: join_meds_transcripts
-  type: equijoin
-  blocking_keys:
-    left:
-      - medicine
-    right:
-      - extracted_medications
-  blocking_threshold: 0.3535
-  embedding_model: text-embedding-3-small
-  comparison_prompt: |
-    Compare the following medication names:
+=== "YAML"
+
+    ```yaml
+    - name: join_meds_transcripts
+      type: equijoin
+      blocking_keys:
+        left:
+          - medicine
+        right:
+          - extracted_medications
+      blocking_threshold: 0.3535
+      embedding_model: text-embedding-3-small
+      comparison_prompt: |
+        Compare the following medication names:
+
+        {{ left.medicine }}
+
+        {{ right.extracted_medications }}
+
+        Determine if these entries refer to the same medication.
+    ```
+
+=== "Python"
+
+    ```python
+    frame = meds.equijoin(
+        transcripts,
+        name="join_meds_transcripts",
+        blocking_keys={
+            "left": ["medicine"],
+            "right": ["extracted_medications"],
+        },
+        blocking_threshold=0.3535,
+        embedding_model="text-embedding-3-small",
+        comparison_prompt="""Compare the following medication names:
 
     {{ left.medicine }}
 
     {{ right.extracted_medications }}
 
-    Determine if these entries refer to the same medication.
-```
+    Determine if these entries refer to the same medication.""",
+    )
+    ```
 
 #### Auto-generating Rules (Experimental)
 `docetl build pipeline.yaml` can call the **Optimizer** to propose `blocking_keys` and an appropriate `blocking_threshold` based on a sample of your data. This feature is experimental; always review the suggested rules to ensure they do not exclude valid matches.
 
 ## Parameters
 
-Equijoin shares many parameters with the Resolve operation. For a detailed list of required and optional parameters, please see the [Parameters section in the Resolve operation documentation](resolve.md#required-parameters).
+Equijoin shares many parameters with Resolve; see the [Parameters section in the Resolve documentation](resolve.md#required-parameters).
 
 ### Equijoin-Specific Parameters
 
@@ -114,61 +185,82 @@ Key differences from Resolve:
 Like resolve, equijoin supports a `cascade` block to run a cheap proxy model on
 candidate pairs and only escalate uncertain comparisons to the oracle.
 Default guarantee is `precision` (don't over-join). See
-[Model Cascades with BARGAIN](../concepts/cascades.md) for full details.
+[Model Cascades with BARGAIN](../optimization/cascades.md) for full details.
 
 ## Incorporating Into a Pipeline
 
-Here's an example of how to incorporate the Equijoin operation into a pipeline using the job candidate matching scenario:
+=== "YAML"
 
-```yaml
-model: gpt-4o-mini
+    ```yaml
+    model: gpt-4o-mini
 
-datasets:
-  candidates:
-    type: file
-    path: /path/to/candidates.json
-  job_postings:
-    type: file
-    path: /path/to/job_postings.json
+    datasets:
+      candidates:
+        type: file
+        path: /path/to/candidates.json
+      job_postings:
+        type: file
+        path: /path/to/job_postings.json
 
-operations:
-  - name: match_candidates_to_jobs:
-    type: equijoin
-    comparison_prompt: |
-      Compare the following job candidate and job posting:
+    operations:
+      - name: match_candidates_to_jobs:
+        type: equijoin
+        comparison_prompt: |
+          Compare the following job candidate and job posting:
 
-      Candidate Skills: {{ left.skills }}
-      Candidate Experience: {{ left.years_experience }}
+          Candidate Skills: {{ left.skills }}
+          Candidate Experience: {{ left.years_experience }}
 
-      Job Required Skills: {{ right.required_skills }}
-      Job Desired Experience: {{ right.desired_experience }}
+          Job Required Skills: {{ right.required_skills }}
+          Job Desired Experience: {{ right.desired_experience }}
 
-      Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
+          Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
 
-pipeline:
-  steps:
-    - name: match_candidates_to_jobs
-      operations:
-        - match_candidates_to_jobs:
-            left: candidates
-            right: job_postings
+    pipeline:
+      steps:
+        - name: match_candidates_to_jobs
+          operations:
+            - match_candidates_to_jobs:
+                left: candidates
+                right: job_postings
 
-  output:
-    type: file
-    path: "/path/to/matched_candidates_jobs.json"
-```
+      output:
+        type: file
+        path: "/path/to/matched_candidates_jobs.json"
+    ```
 
-This pipeline configuration demonstrates how to use the Equijoin operation to match job candidates with job postings. The pipeline reads candidate and job posting data from JSON files, performs the matching using the defined comparison prompt, and outputs the results to a new JSON file.
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    candidates = docetl.read_json("/path/to/candidates.json")
+    job_postings = docetl.read_json("/path/to/job_postings.json")
+    frame = candidates.equijoin(
+        job_postings,
+        name="match_candidates_to_jobs",
+        comparison_prompt="""Compare the following job candidate and job posting:
+
+    Candidate Skills: {{ left.skills }}
+    Candidate Experience: {{ left.years_experience }}
+
+    Job Required Skills: {{ right.required_skills }}
+    Job Desired Experience: {{ right.desired_experience }}
+
+    Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.""",
+    )
+    frame.write_json("/path/to/matched_candidates_jobs.json")
+    ```
 
 ## Best Practices
 
-1. **Leverage the Optimizer**: Use `docetl build pipeline.yaml` to automatically generate efficient blocking rules for your Equijoin operation.
-2. **Craft Thoughtful Comparison Prompts**: Design prompts that effectively determine whether two records should be joined based on your specific use case.
-3. **Balance Precision and Recall**: When optimizing, consider the trade-off between catching all potential matches and reducing unnecessary comparisons.
-4. **Mind Resource Constraints**: Use `limit_comparisons` if you need to cap the total number of comparisons for large datasets.
-5. **Iterate and Refine**: Start with a small sample of your data to test and refine your join criteria before running on the full dataset.
+1. **Use the Optimizer**: `docetl build pipeline.yaml` can generate efficient blocking rules for your Equijoin operation.
+2. **Balance Precision and Recall**: When optimizing, consider the trade-off between catching all potential matches and reducing unnecessary comparisons.
+3. **Mind Resource Constraints**: Use `limit_comparisons` to cap the total number of comparisons for large datasets.
 
-For additional best practices that apply to both Resolve and Equijoin operations, see the [Best Practices section in the Resolve operation documentation](resolve.md#best-practices).
+For best practices that apply to both Resolve and Equijoin, see the [Best Practices section in the Resolve documentation](resolve.md#best-practices).
 
 <!-- ## Performance Considerations
 

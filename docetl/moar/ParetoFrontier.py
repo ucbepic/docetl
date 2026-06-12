@@ -235,8 +235,14 @@ class ParetoFrontier:
         # Save old frontier nodes before updating
         old_frontier_nodes = self.frontier_plans
 
-        # Sort by real cost for frontier calculation
-        valid_nodes.sort(key=lambda node: self.plans_cost[node])
+        # Sort by real cost, best accuracy first among equal costs — the
+        # strictly-greater scan below then drops dominated equal-cost plans.
+        valid_nodes.sort(
+            key=lambda node: (
+                self.plans_cost[node],
+                -self.plans_accuracy.get(node, 0.0),
+            )
+        )
 
         # Reconstruct old frontier data using real costs
         archive_frontier_data = []

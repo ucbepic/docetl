@@ -27,20 +27,6 @@ class ProgressTracker:
         self._lock = threading.RLock()
         self.state = RunState(run_id=uuid.uuid4().hex[:8], concurrency=concurrency)
         self._current: OpState | None = None
-        # Subscribers are called (outside the lock) after each mutation so the
-        # TUI can request a redraw promptly rather than only polling.
-        self._subscribers: list = []
-
-    # -- subscription ----------------------------------------------------
-    def subscribe(self, callback) -> None:
-        self._subscribers.append(callback)
-
-    def _notify(self) -> None:
-        for cb in list(self._subscribers):
-            try:
-                cb()
-            except Exception:
-                pass
 
     # -- lifecycle -------------------------------------------------------
     def pipeline_start(self, ops: list[tuple[str, str, str, str | None]]) -> None:
@@ -57,7 +43,6 @@ class ProgressTracker:
                 )
             self.state.started = True
             self.state.start_t = time.time()
-        self._notify()
 
     def op_start(
         self, name: str, op_type: str, model: str | None, total: int | None
@@ -78,7 +63,6 @@ class ProgressTracker:
             op.status = "running"
             op.start_t = time.time()
             self._current = op
-        self._notify()
 
     def set_phase(self, total: int | None, label: str | None = None) -> None:
         """Reset the current op's progress to a fresh phase of ``total`` units.
@@ -100,14 +84,6 @@ class ProgressTracker:
             op.phase = label
             op.completed = 0
             op.errors = 0
-        self._notify()
-
-    def set_phase_label(self, label: str) -> None:
-        """Update the phase label without resetting progress counters."""
-        with self._lock:
-            if self._current is not None:
-                self._current.phase = label
-        self._notify()
 
     def freeze_grid(self) -> None:
         """Lock the grid to show all items as done.
@@ -120,7 +96,6 @@ class ProgressTracker:
             if op is not None:
                 op.grid_complete = True
                 op.grid_total = op.total
-        self._notify()
 
     def clear_phase(self) -> None:
         """Drop the live sub-phase label once a multi-phase op finishes."""
@@ -129,21 +104,18 @@ class ProgressTracker:
                 self._current.phase = None
                 self._current.grid_complete = False
                 self._current.grid_total = None
-        self._notify()
 
     def set_cascade_info(self, info: dict) -> None:
         """Store cascade stats on the current op for TUI display."""
         with self._lock:
             if self._current is not None:
                 self._current.cascade_info = info
-        self._notify()
 
     def update_cascade_info(self, updates: dict) -> None:
         """Merge additional keys into the current op's cascade_info."""
         with self._lock:
             if self._current is not None and self._current.cascade_info is not None:
                 self._current.cascade_info.update(updates)
-        self._notify()
 
     def tick(self, n: int = 1) -> None:
         """Advance the current operation by ``n`` completed documents."""
@@ -154,7 +126,6 @@ class ProgressTracker:
             op.completed += n
             if op.total is not None and op.completed > op.total:
                 op.completed = op.total
-        self._notify()
 
     def add_outputs(self, items: list[dict]) -> None:
         """Append finished documents to the current op's output sample as they
@@ -169,13 +140,11 @@ class ProgressTracker:
             room = op.sample_cap - len(op.outputs)
             if room > 0:
                 op.outputs.extend(items[:room])
-        self._notify()
 
     def doc_error(self, n: int = 1) -> None:
         with self._lock:
             if self._current is not None:
                 self._current.errors += n
-        self._notify()
 
     def op_done(
         self,
@@ -203,13 +172,11 @@ class ProgressTracker:
             if self._current is op:
                 self._current = None
             self.state.total_cost = sum(o.cost for o in self.state.ops)
-        self._notify()
 
     def pipeline_done(self) -> None:
         with self._lock:
             self.state.finished = True
             self.state.end_t = time.time()
-        self._notify()
 
     # -- reads -----------------------------------------------------------
     def snapshot(self) -> RunState:

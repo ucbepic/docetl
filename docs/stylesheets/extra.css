@@ -94,3 +94,17 @@ a {
   background-color: var(--card);
   color: var(--card-foreground);
 }
+
+/* Center mermaid diagrams and keep them compact */
+.mermaid {
+  text-align: center;
+}
+.mermaid svg {
+  max-width: 30rem;
+  height: auto;
+}
+
+/* Centered landing-page title */
+.center-title {
+  text-align: center;
+}

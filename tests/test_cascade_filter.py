@@ -258,3 +258,32 @@ def test_build_phase_bypasses_cascade():
     except Exception:
         pass  # normal map path needs a fuller runner; we only assert the branch
     assert api.proxy_calls == 0
+
+
+def test_cascade_precision_plus_recall_guarantee():
+    """The joint guarantee (BARGAIN_PR) returns a positive set meeting both
+    targets when the proxy is well-calibrated."""
+    data = make_data(n=300, every=3)
+    op, api = make_op(
+        cascade={
+            "proxy_model": "gpt-4o-mini",
+            "guarantee": "precision+recall",
+            "target": 0.9,
+            "delta": 0.1,
+        }
+    )
+    kept, cost = op.execute(data)
+
+    kept_ids = {r["id"] for r in kept}
+    true_ids = {r["id"] for r in data if r["gt"]}
+    recall = len(kept_ids & true_ids) / len(true_ids)
+    precision = len(kept_ids & true_ids) / max(len(kept_ids), 1)
+    assert recall >= 0.9, recall
+    assert precision >= 0.9, precision
+    assert api.oracle_calls < len(data)  # cheaper than all-oracle
+    assert op.cascade_stats.guarantee == "precision+recall"
+
+
+def test_cascade_rejects_unknown_guarantee_still():
+    with pytest.raises(ValueError, match="guarantee"):
+        CascadeConfig(proxy_model="m", target=0.9, guarantee="f1")

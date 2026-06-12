@@ -1,212 +1,102 @@
 # Python API Examples
 
-This document provides two examples of how to use DocETL's Python API. Each example demonstrates a single pipeline step with multiple operations.
+## Example 1: Document Chunking with Context
 
-## Example 1: Extract and Summarize Product Review Themes
-
-This example extracts themes and quotes from product reviews, then summarizes the top themes across ALL documents using the special `_all` reduce key:
+Split long documents into chunks, add surrounding context, then extract structured information:
 
 ```python
-from docetl.api import Pipeline, Dataset, MapOp, ReduceOp, PipelineStep, PipelineOutput
+import docetl
 
-# Define dataset - A CSV of product reviews
-dataset = Dataset(
-    type="file",
-    path="product_reviews.csv"  # Contains columns: review_id, product_id, rating, review_text
-)
+docetl.default_model = "gpt-4o-mini"
 
-# Define operations
-operations = [
-    # Extract themes and quotes from each review
-    MapOp(
-        name="extract_themes",
-        type="map",
-        prompt="""
-        Analyze this product review and extract the key themes and representative quotes:
-        
-        Review: {{ input.review_text }}
-        Rating: {{ input.rating }}
-        
-        Identify 2-3 major themes (e.g., usability, quality, value) and extract direct quotes that best represent each theme.
-        """,
-        output={
-            "schema": {
-                "themes": "list[string]",
-                "quotes": "list[string]",
-                "sentiment": "string"
-            }
-        }
-    ),
-    # Summarize all themes across reviews using _all key
-    ReduceOp(
-        name="summarize_themes",
-        type="reduce",
-        reduce_key="_all",  # Special key to reduce across all items
-        prompt="""
-        Analyze and synthesize the themes and quotes from these product reviews:
-        
-        {% for item in inputs %}
-        Review ID: {{ item.review_id }}
-        Product: {{ item.product_id }}
-        Rating: {{ item.rating }}
-        Themes: {{ item.themes | join(", ") }}
-        Quotes: 
-        {% for quote in item.quotes %}
-        - "{{ quote }}"
-        {% endfor %}
-        Sentiment: {{ item.sentiment }}
-        
-        {% endfor %}
-        
-        Summarize the most frequent themes, the most representative quotes for each theme, and the overall sentiment.
-        """,
-        output={
-            "schema": {
-                "summary": "string"
-            }
-        }
+df = (
+    docetl.read_json("papers.json")
+    .split(
+        split_key="full_text",
+        method="delimiter",
+        method_kwargs={"delimiter": "\n\n", "num_splits_to_group": 2},
     )
-]
+    .gather(
+        content_key="full_text_chunk",
+        doc_id_key="split_0_id",
+        order_key="split_0_chunk_num",
+        peripheral_chunks={
+            "previous": {"head": {"count": 1}},
+            "next": {"head": {"count": 1}},
+        },
+    )
+    .map(
+        prompt="""Analyze this paper section with its surrounding context:
 
-# Define pipeline step (can consist of multiple operations)
-step = PipelineStep(
-    name="review_analysis",
-    input="product_reviews",
-    operations=["extract_themes", "summarize_themes"]
+        Paper: {{ input.title }}
+        Section: {{ input.full_text_chunk_rendered }}
+
+        Extract the section type, key findings, and technical concepts.""",
+        output={"schema": {
+            "section_type": "str",
+            "key_findings": "list[str]",
+            "technical_concepts": "list[str]",
+        }},
+    )
+    .reduce(
+        reduce_key="paper_id",
+        prompt="""Create a comprehensive analysis of this paper:
+
+        {% for section in inputs %}
+        {{ section.section_type }}: {{ section.key_findings | join(", ") }}
+        {% endfor %}""",
+        output={"schema": {
+            "summary": "str",
+            "main_contributions": "list[str]",
+        }},
+    )
+    .collect()
 )
 
-# Define output
-output = PipelineOutput(type="file", path="review_analysis_summary.json")
-
-# Create and run pipeline
-pipeline = Pipeline(
-    name="review_analysis_pipeline",
-    datasets={"product_reviews": dataset},
-    operations=operations,
-    steps=[step],
-    output=output,
-    default_model="gpt-4o-mini"
-)
-
-# Run the pipeline
-cost = pipeline.run()
-print(f"Pipeline execution completed. Total cost: ${cost:.2f}")
+print(df)
 ```
 
-## Example 2: Map-Unnest-Resolve-Reduce on Theme Keys
+## Example 2: Fuzzy Aggregation with the Pandas Accessor
 
-This example extracts theme-quote pairs from reviews, unnests them, resolves similar themes, and then reduces on the theme key. Here we will also optimize the pipeline.
+The pandas `.semantic` accessor runs operations on existing DataFrames:
 
 ```python
-from docetl.api import Pipeline, Dataset, MapOp, UnnestOp, ResolveOp, ReduceOp, PipelineStep, PipelineOutput
+import pandas as pd
+import docetl
 
-# Define dataset - A JSON file with product reviews
-dataset = Dataset(
-    type="file",
-    path="product_reviews.csv" # Same csv as previously
+docetl.default_model = "gpt-4o-mini"
+
+posts = pd.DataFrame({
+    "text": [
+        "Just tried the new iPhone 15!",
+        "Having issues with iOS 17",
+        "Android is way better",
+    ],
+    "timestamp": ["2024-01-01", "2024-01-02", "2024-01-03"],
+})
+
+# Extract structured data
+analyzed = posts.semantic.map(
+    prompt="""Extract product and sentiment from: {{ input.text }}""",
+    output={"schema": {"product": "str", "sentiment": "str"}},
 )
 
-# Define operations
-operations = [
-    # Extract theme-quote pairs from each review
-    MapOp(
-        name="extract_theme_quotes",
-        type="map",
-        prompt="""
-        Extract theme and quote pairs from this product review:
-        
-        Review: {{ input.review_text }}
-        Product: {{ input.product_name }}
-        Rating: {{ input.rating }}
-        
-        For each distinct theme in the review, extract a direct quote that best represents that theme.
-        Return each theme and its representative quote as a separate object in the "theme_quotes" array.
-        """,
-        output={
-            "schema": {
-                "theme_quotes": "array"  # Array of objects with theme and quote properties
-            }
-        }
-    ),
-    # Unnest to create separate items for each theme-quote pair
-    UnnestOp(
-        name="unnest_theme_quotes",
-        type="unnest",
-        array_path="theme_quotes"
-    ),
-    # Resolve similar themes using fuzzy matching
-    ResolveOp(
-        name="resolve_themes",
-        type="resolve",
-        comparison_prompt="""
-        Determine if these two themes are the same or closely related:
-        
-        Theme 1: {{ input1.theme }}
-        Theme 2: {{ input2.theme }}
-        
-        Consider semantic similarity, synonyms, and conceptual overlap.
-        """,
-        resolution_prompt="""
-        Given the following list of similar themes, determine a canonical name that best represents all of them:
-        
-        {% for item in inputs %}
-        Theme: {{ item.theme }}
-        {% endfor %}
-        
-        Choose a clear, concise name that accurately captures the core concept shared across all these related themes.
-        """
-    ),
-    # Reduce by theme to aggregate quotes and insights
-    ReduceOp(
-        name="aggregate_by_theme",
-        type="reduce",
-        reduce_key="theme",
-        prompt="""
-        Analyze all quotes related to the theme "{{ reduce_key }}":
-        
-        {% for item in inputs %}
-        Product: {{ item.product_name }}
-        Rating: {{ item.rating }}
-        Quote: "{{ item.quote }}"
-        
-        {% endfor %}
-        
-        Summarize the key insights about this theme across all products and ratings.
-        """,
-        output={
-            "schema": {
-                "summary": "string"
-            }
-        }
-    )
-]
-
-# Define pipeline with a single step
-step = PipelineStep(
-    name="theme_analysis",
-    input="product_reviews",
-    operations=["extract_theme_quotes", "unnest_theme_quotes", "resolve_themes", "aggregate_by_theme"]
+# Filter
+relevant = analyzed.semantic.filter(
+    prompt="Is this about Apple products? {{ input }}"
 )
 
-# Define output
-output = PipelineOutput(type="file", path="theme_analysis_results.json")
-
-# Create the pipeline
-pipeline = Pipeline(
-    name="theme_analysis_pipeline",
-    datasets={"product_reviews": dataset},
-    operations=operations,
-    steps=[step],
-    output=output,
-    default_model="gpt-4o"
+# Fuzzy group-by and summarize
+summaries = relevant.semantic.agg(
+    fuzzy=True,
+    reduce_keys=["product"],
+    comparison_prompt="Do these posts discuss the same product?",
+    reduce_prompt="Summarize the feedback about this product",
+    output={"schema": {"summary": "str", "frequency": "int"}},
 )
 
-# Optimize the pipeline before running
-optimized_pipeline = pipeline.optimize()
-
-# Run the optimized pipeline
-cost = optimized_pipeline.run()
-print(f"Pipeline execution completed. Total cost: ${cost:.2f}")
+print(f"Cost: ${summaries.semantic.total_cost:.4f}")
+print(summaries)
 ```
 
-Note that datasets can be json or CSV.
+Datasets can be JSON, CSV, or Parquet.

@@ -1,16 +1,65 @@
 # Map Operation
 
-The Map operation in DocETL applies a specified transformation to each item in your input data, allowing for complex processing and insight extraction from large, unstructured documents.
+The Map operation applies a transformation to each item in your input data.
 
-## 🚀 Example: Analyzing Long-Form News Articles
+```mermaid
+flowchart LR
+    d1["doc 1"] --> o1["doc 1 + new fields"]
+    d2["doc 2"] --> o2["doc 2 + new fields"]
+    d3["doc 3"] --> o3["doc 3 + new fields"]
+    dn["..."] --> on["..."]
+```
 
-Let's see a practical example of using the Map operation to analyze long-form news articles, extracting key information and generating insights.
+## Example: Analyzing Long-Form News Articles
 
-```yaml
-- name: analyze_news_article
-  type: map
-  prompt: |
-    Analyze the following news article:
+=== "YAML"
+
+    ```yaml
+    - name: analyze_news_article
+      type: map
+      prompt: |
+        Analyze the following news article:
+        "{{ input.article }}"
+
+        Provide the following information:
+        1. Main topic (1-3 words)
+        2. Summary (2-3 sentences)
+        3. Key entities mentioned (list up to 5, with brief descriptions)
+        4. Sentiment towards the main topic (positive, negative, or neutral)
+        5. Potential biases or slants in reporting (if any)
+        6. Relevant categories (e.g., politics, technology, environment; list up to 3)
+        7. Credibility score (1-10, where 10 is highly credible)
+
+      output:
+        schema:
+          main_topic: string
+          summary: string
+          key_entities: list[object]
+          sentiment: string
+          biases: list[string]
+          categories: list[string]
+          credibility_score: integer
+
+      model: gpt-4o-mini
+      validate:
+        - len(output["main_topic"].split()) <= 3
+        - len(output["key_entities"]) <= 5
+        - output["sentiment"] in ["positive", "negative", "neutral"]
+        - len(output["categories"]) <= 3
+        - 1 <= output["credibility_score"] <= 10
+      num_retries_on_validate_failure: 2
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4o-mini"
+
+    frame = docetl.read_json("articles.json")
+    frame = frame.map(
+        prompt="""Analyze the following news article:
     "{{ input.article }}"
 
     Provide the following information:
@@ -20,39 +69,29 @@ Let's see a practical example of using the Map operation to analyze long-form ne
     4. Sentiment towards the main topic (positive, negative, or neutral)
     5. Potential biases or slants in reporting (if any)
     6. Relevant categories (e.g., politics, technology, environment; list up to 3)
-    7. Credibility score (1-10, where 10 is highly credible)
-
-  output:
-    schema:
-      main_topic: string
-      summary: string
-      key_entities: list[object]
-      sentiment: string
-      biases: list[string]
-      categories: list[string]
-      credibility_score: integer
-
-  model: gpt-4o-mini
-  validate:
-    - len(output["main_topic"].split()) <= 3
-    - len(output["key_entities"]) <= 5
-    - output["sentiment"] in ["positive", "negative", "neutral"]
-    - len(output["categories"]) <= 3
-    - 1 <= output["credibility_score"] <= 10
-  num_retries_on_validate_failure: 2
-```
-
-This Map operation processes long-form news articles to extract valuable insights:
-
-1. Identifies the main topic of the article.
-2. Generates a concise summary.
-3. Extracts key entities (people, organizations, locations) mentioned in the article.
-4. Analyzes the overall sentiment towards the main topic.
-5. Identifies potential biases or slants in the reporting.
-6. Categorizes the article into relevant topics.
-7. Assigns a credibility score based on the content and sources.
-
-The operation includes validation to ensure the output meets our expectations and will retry up to 2 times if validation fails.
+    7. Credibility score (1-10, where 10 is highly credible)""",
+        output={
+            "schema": {
+                "main_topic": "string",
+                "summary": "string",
+                "key_entities": "list[object]",
+                "sentiment": "string",
+                "biases": "list[string]",
+                "categories": "list[string]",
+                "credibility_score": "integer",
+            }
+        },
+        model="gpt-4o-mini",
+        validate=[
+            lambda output: len(output["main_topic"].split()) <= 3,
+            lambda output: len(output["key_entities"]) <= 5,
+            lambda output: output["sentiment"] in ["positive", "negative", "neutral"],
+            lambda output: 1 <= output["credibility_score"] <= 10,
+        ],
+        num_retries_on_validate_failure=2,
+    )
+    rows = frame.collect()
+    ```
 
 ??? example "Sample Input and Output"
 
@@ -120,8 +159,6 @@ The operation includes validation to ensure the output meets our expectations an
     ]
     ```
 
-This example demonstrates how the Map operation can transform long, unstructured news articles into structured, actionable insights. These insights can be used for various purposes such as trend analysis, policy impact assessment, and public opinion monitoring.
-
 ## Required Parameters
 
 - `name`: A unique name for the operation.
@@ -149,7 +186,6 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `drop_keys`                       | List of keys to drop from the input before processing                                           | None                          |
 | `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 | `max_retries_per_timeout`         | Maximum number of retries per timeout                                                           | 2                             |
-| `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 | `skip_on_error` | If true, skip the operation if the LLM returns an error. | False                          |
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
@@ -172,30 +208,52 @@ Set `limit` when you only need the first _N_ map results or want to cap LLM spen
 
 ### Batch Processing
 
-The Map operation supports processing multiple documents in a single prompt using the `batch_prompt` parameter. This can be more efficient than processing documents individually, especially for simpler tasks and shorter documents, especially when there are LLM call limits. However, larger batch sizes (even > 5) can lead to more incorrect results, so use this feature judiciously.
+The `batch_prompt` parameter processes multiple documents in a single prompt. This reduces LLM call counts for simple tasks and short documents, but larger batch sizes (even > 5) can lead to more incorrect results.
 
 ??? example "Batch Processing Example"
 
-    ```yaml
-    - name: classify_documents
-      type: map
-      max_batch_size: 5  # Process up to 5 documents in a single LLM call
-      batch_prompt: |
-        Classify each of the following documents into categories (technology, business, or science):
-        
+    === "YAML"
+
+        ```yaml
+        - name: classify_documents
+          type: map
+          max_batch_size: 5  # Process up to 5 documents in a single LLM call
+          batch_prompt: |
+            Classify each of the following documents into categories (technology, business, or science):
+            
+            {% for doc in inputs %}
+            Document {{loop.index}}:
+            {{doc.text}}
+            {% endfor %}
+            
+            Provide a classification for each document.
+          prompt: |
+            Classify the following document:
+            {{input.text}}
+          output:
+            schema:
+              category: string
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.map(
+            name="classify_documents",
+            max_batch_size=5,  # Process up to 5 documents in a single LLM call
+            batch_prompt="""Classify each of the following documents into categories (technology, business, or science):
+
         {% for doc in inputs %}
         Document {{loop.index}}:
         {{doc.text}}
         {% endfor %}
-        
-        Provide a classification for each document.
-      prompt: |
-        Classify the following document:
-        {{input.text}}
-      output:
-        schema:
-          category: string
-    ```
+
+        Provide a classification for each document.""",
+            prompt="""Classify the following document:
+        {{input.text}}""",
+            output={"schema": {"category": "string"}},
+        )
+        ```
 
 When using batch processing:
 
@@ -214,36 +272,57 @@ When using batch processing:
 
 ### Calibration for Consistency
 
-The Map operation supports calibration to improve consistency across documents, especially for classification tasks or operations that require relative positioning (like rating scales). When enabled, calibration samples a subset of your documents, processes them with the original prompt, and then uses those results to generate reference anchors that help maintain consistency across all documents.
+With `calibrate: true`, the operation samples a subset of documents, processes them with the original prompt, and uses those results to generate reference anchors that are appended to the prompt for all documents. Use it for:
 
-This is particularly useful for:
-- **Classification tasks** where documents need to be evaluated relative to each other
-- **Rating/scoring operations** where you want consistent scales
-- **Subjective judgments** that benefit from concrete examples
+- Classification tasks where documents are evaluated relative to each other
+- Rating/scoring operations that need consistent scales
+- Subjective judgments that benefit from concrete examples
+- Datasets that vary widely, when consistency matters more than individual accuracy (works best with 20+ documents)
 
 ??? example "Document Priority Classification with Calibration"
 
     Imagine you're processing a large collection of customer support tickets and want to classify them by priority. Without calibration, the LLM might be inconsistent - a "medium" priority ticket early in processing might be classified as "high" later when the LLM sees more severe issues.
 
-    ```yaml
-    - name: classify_ticket_priority
-      type: map
-      calibrate: true  # Enable calibration
-      num_calibration_docs: 15  # Use 15 tickets for calibration
-      prompt: |
-        Classify the following customer support ticket by priority level:
-        
+    === "YAML"
+
+        ```yaml
+        - name: classify_ticket_priority
+          type: map
+          calibrate: true  # Enable calibration
+          num_calibration_docs: 15  # Use 15 tickets for calibration
+          prompt: |
+            Classify the following customer support ticket by priority level:
+            
+            Subject: {{ input.subject }}
+            Description: {{ input.description }}
+            Customer Tier: {{ input.customer_tier }}
+            
+            Classify as: low, medium, high, or critical
+          output:
+            schema:
+              priority: string
+              reasoning: string
+          model: gpt-4o-mini
+        ```
+
+    === "Python"
+
+        ```python
+        frame = frame.map(
+            name="classify_ticket_priority",
+            calibrate=True,  # Enable calibration
+            num_calibration_docs=15,  # Use 15 tickets for calibration
+            prompt="""Classify the following customer support ticket by priority level:
+
         Subject: {{ input.subject }}
         Description: {{ input.description }}
         Customer Tier: {{ input.customer_tier }}
-        
-        Classify as: low, medium, high, or critical
-      output:
-        schema:
-          priority: string
-          reasoning: string
-      model: gpt-4o-mini
-    ```
+
+        Classify as: low, medium, high, or critical""",
+            output={"schema": {"priority": "string", "reasoning": "string"}},
+            model="gpt-4o-mini",
+        )
+        ```
 
     **How calibration works:**
 
@@ -261,15 +340,6 @@ This is particularly useful for:
     # Documents similar to 'Login button not working for one user' → low priority.
     # For reference, consider 'Payment processing delays affecting checkout' → high as your standard for high priority issues.
     ```
-
-!!! tip "When to Use Calibration"
-
-    Calibration is most beneficial when:
-    
-    - Your task requires relative judgments (rating scales, classifications)
-    - You're processing documents that vary widely in characteristics
-    - Consistency across the entire dataset is more important than individual accuracy
-    - You have enough data for meaningful sampling (at least 20+ documents)
 
 !!! note "Calibration Considerations"
 
@@ -291,30 +361,49 @@ The Map operation can directly process PDFs using Claude or Gemini models. To us
 
     Here's an example of processing a dataset of papers, where each paper is represented by a URL.
 
-    ```yaml
-    datasets:
-      papers:
-        type: file
-        path: "papers/urls.json"  # Contains documents with PDF URLs
+    === "YAML"
 
-    default_model: gemini/gemini-2.0-flash  # or claude models
-    operations:
-      - name: extract_paper_info
-        type: map
-        pdf_url_key: url  # Tells DocETL which field contains the PDF URL
-        prompt: |
-          Summarize the paper.
-        output:
-          schema:
-            paper_info: string
+        ```yaml
+        datasets:
+          papers:
+            type: file
+            path: "papers/urls.json"  # Contains documents with PDF URLs
 
-    pipeline:
-      steps:
-        - name: extract_paper_info
-          input: papers
-          operations:
-            - extract_paper_info
-    ```
+        default_model: gemini/gemini-2.0-flash  # or claude models
+        operations:
+          - name: extract_paper_info
+            type: map
+            pdf_url_key: url  # Tells DocETL which field contains the PDF URL
+            prompt: |
+              Summarize the paper.
+            output:
+              schema:
+                paper_info: string
+
+        pipeline:
+          steps:
+            - name: extract_paper_info
+              input: papers
+              operations:
+                - extract_paper_info
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        docetl.default_model = "gemini/gemini-2.0-flash"  # or claude models
+
+        frame = docetl.read_json("papers/urls.json")  # Contains documents with PDF URLs
+        frame = frame.map(
+            name="extract_paper_info",
+            pdf_url_key="url",  # Tells DocETL which field contains the PDF URL
+            prompt="Summarize the paper.",
+            output={"schema": {"paper_info": "string"}},
+        )
+        rows = frame.collect()
+        ```
 
     Your input data (`papers/urls.json`) should contain documents with PDF URLs:
     ```json
@@ -346,23 +435,47 @@ Tools can extend the capabilities of the Map operation. Each tool is a Python fu
 
 ??? example "Tool Definition Example"
 
-    ```yaml
-    tools:
-    - required: true
-        code: |
-        def count_words(text):
-            return {"word_count": len(text.split())}
-        function:
-        name: count_words
-        description: Count the number of words in a text string.
-        parameters:
-            type: object
-            properties:
-            text:
-                type: string
-            required:
-            - text
-    ```
+    === "YAML"
+
+        ```yaml
+        tools:
+        - required: true
+            code: |
+            def count_words(text):
+                return {"word_count": len(text.split())}
+            function:
+            name: count_words
+            description: Count the number of words in a text string.
+            parameters:
+                type: object
+                properties:
+                text:
+                    type: string
+                required:
+                - text
+        ```
+
+    === "Python"
+
+        ```python
+        # Pass via the tools= kwarg on a map call
+        tools = [
+            {
+                "required": True,
+                "code": """def count_words(text):
+            return {"word_count": len(text.split())}""",
+                "function": {
+                    "name": "count_words",
+                    "description": "Count the number of words in a text string.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                        "required": ["text"],
+                    },
+                },
+            }
+        ]
+        ```
 
 !!! warning
 
@@ -374,109 +487,166 @@ If the input doesn't fit within the token limit, DocETL automatically truncates 
 
 ### Batching
 
-If you have a really large collection of documents and you don't want to run them through the Map operation at the same time, you can use the `batch_size` parameter to process data in smaller chunks. This can significantly reduce memory usage and improve performance.
+To limit how many documents are processed concurrently, set `max_batch_size`.
 
-To enable batching in your map operations, you need to specify the `max_batch_size` parameter in your configuration.
+=== "YAML"
 
-```yaml
-- name: extract_summaries
-  type: map
-  max_batch_size: 5
-  clustering_method: random
-  prompt: |
-    Summarize this text: "{{ input.text }}"
-  output:
-    schema:
-      summary: string
-```
+    ```yaml
+    - name: extract_summaries
+      type: map
+      max_batch_size: 5
+      clustering_method: random
+      prompt: |
+        Summarize this text: "{{ input.text }}"
+      output:
+        schema:
+          summary: string
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.map(
+        name="extract_summaries",
+        max_batch_size=5,
+        clustering_method="random",
+        prompt='Summarize this text: "{{ input.text }}"',
+        output={"schema": {"summary": "string"}},
+    )
+    ```
 
 In the above config, there will be no more than 5 API calls to the LLM at a time (i.e., 5 documents processed at a time, one per API call).
 
 ### Dropping Keys
 
-You can use a map operation to act as an LLM no-op, and just drop any key-value pairs you don't want to save to the output file. To do this, you can use the `drop_keys` parameter.
+A map operation with only `drop_keys` acts as a no-op that removes the listed key-value pairs (no LLM calls).
 
-```yaml
-- name: drop_keys_example
-  type: map
-  drop_keys:
-    - "keyname1"
-    - "keyname2"
-```
+=== "YAML"
+
+    ```yaml
+    - name: drop_keys_example
+      type: map
+      drop_keys:
+        - "keyname1"
+        - "keyname2"
+    ```
+
+=== "Python"
+
+    ```python
+    frame = frame.map(
+        name="drop_keys_example",
+        drop_keys=["keyname1", "keyname2"],
+    )
+    ```
 
 ## Best Practices
 
-1. **Clear Prompts**: Write clear, specific prompts that guide the LLM to produce the desired output.
-2. **Robust Validation**: Use validation to ensure output quality and consistency.
-3. **Appropriate Model Selection**: Choose the right model for your task, balancing performance and cost.
-4. **Optimize for Scale**: For large datasets, consider using `sample` to test your operation before running on the full dataset.
-5. **Use Tools Wisely**: Leverage tools for complex calculations or operations that the LLM might struggle with. You can write any Python code in the tools, so you can even use tools to call other APIs or search the internet.
+1. **Optimize for Scale**: For large datasets, use `sample` to test your operation before running on the full dataset.
+2. **Use Tools**: Tools can run any Python code, including calling other APIs, for calculations the LLM might get wrong.
 
 ### Synthetic Data Generation
 
-The Map operation supports generating multiple outputs for each input using the `output.n` parameter. This is particularly useful for synthetic data generation, content variations, or when you need multiple alternatives for each input item.
-
-When you set `output.n` to a value greater than 1, the operation will:
-1. Process each input once
-2. Generate multiple outputs based on the same input
-3. Return all generated outputs as separate items in the result list
-
-This multiplies your dataset size by the factor of `n`.
+Set `output.n` greater than 1 to generate multiple outputs per input, returned as separate items. This multiplies your dataset size by `n`.
 
 ??? example "Synthetic Email Generation Example"
 
     Imagine you have a dataset of prospects and want to generate multiple email templates for each person. Here's how to generate 10 different email templates per prospect:
 
-    ```yaml
-    datasets:
-      prospects:
-        type: file
-        path: "prospects.json"  # Contains names, companies, roles, etc.
+    === "YAML"
 
-    operations:
-      - name: generate_email_templates
-        type: map
-        bypass_cache: true
-        optimize: true
-        output:
-          n: 10  # Generate 10 unique emails per prospect
-          schema:
-            subject: "str"
-            body: "str"
-            call_to_action: "str"
-        prompt: |
-          Create a personalized cold outreach email for the following prospect:
-          
-          Name: {{ input.name }}
-          Company: {{ input.company }}
-          Role: {{ input.role }}
-          Industry: {{ input.industry }}
-          
-          The email should:
-          - Have a compelling subject line
-          - Be brief (3-5 sentences)
-          - Mention a specific pain point for their industry
-          - Include a clear call to action
-          - Sound natural and conversational, not sales-y
-          
-          Your response should be formatted as:
-          Subject: [Your subject line]
-          
-          [Your email body]
-          
-          Call to action: [Your specific call to action]
+        ```yaml
+        datasets:
+          prospects:
+            type: file
+            path: "prospects.json"  # Contains names, companies, roles, etc.
 
-    pipeline:
-      steps:
-        - name: email_generation
-          input: prospects
-          operations:
-            - generate_email_templates
-      
-      output:
-        type: file
-        path: "email_templates.json"
-    ```
+        operations:
+          - name: generate_email_templates
+            type: map
+            bypass_cache: true
+            optimize: true
+            output:
+              n: 10  # Generate 10 unique emails per prospect
+              schema:
+                subject: "str"
+                body: "str"
+                call_to_action: "str"
+            prompt: |
+              Create a personalized cold outreach email for the following prospect:
+              
+              Name: {{ input.name }}
+              Company: {{ input.company }}
+              Role: {{ input.role }}
+              Industry: {{ input.industry }}
+              
+              The email should:
+              - Have a compelling subject line
+              - Be brief (3-5 sentences)
+              - Mention a specific pain point for their industry
+              - Include a clear call to action
+              - Sound natural and conversational, not sales-y
+              
+              Your response should be formatted as:
+              Subject: [Your subject line]
+              
+              [Your email body]
+              
+              Call to action: [Your specific call to action]
+
+        pipeline:
+          steps:
+            - name: email_generation
+              input: prospects
+              operations:
+                - generate_email_templates
+          
+          output:
+            type: file
+            path: "email_templates.json"
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        frame = docetl.read_json("prospects.json")  # Contains names, companies, roles, etc.
+        frame = frame.map(
+            name="generate_email_templates",
+            bypass_cache=True,
+            optimize=True,
+            output={
+                "n": 10,  # Generate 10 unique emails per prospect
+                "schema": {
+                    "subject": "str",
+                    "body": "str",
+                    "call_to_action": "str",
+                },
+            },
+            prompt="""Create a personalized cold outreach email for the following prospect:
+
+        Name: {{ input.name }}
+        Company: {{ input.company }}
+        Role: {{ input.role }}
+        Industry: {{ input.industry }}
+
+        The email should:
+        - Have a compelling subject line
+        - Be brief (3-5 sentences)
+        - Mention a specific pain point for their industry
+        - Include a clear call to action
+        - Sound natural and conversational, not sales-y
+
+        Your response should be formatted as:
+        Subject: [Your subject line]
+
+        [Your email body]
+
+        Call to action: [Your specific call to action]""",
+        )
+        frame.write_json("email_templates.json")
+        ```
 
     With this configuration, if your prospects.json file has 50 prospects, the output will contain 500 email templates (50 prospects × 10 emails each).
 

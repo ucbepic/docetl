@@ -1,30 +1,65 @@
-# Cluster operation
+# Link Resolve operation
 
-The `link_resolve` operation in DocETL is used to fix links between
-items, e.g. in a knoweldge graph. It assumes you have already ensured
-that the item id:s themselves are canonical, e.g. by running resolve
-first.
+The `link_resolve` operation fixes links between items, e.g. in a knowledge graph:
 
-It will examine every id specified in a link from one item to another
-and compare it to all item id:s. If it is not present with an exact
-match, it is going to be compared to each of them using an llm prompt
-to try to find a match.
+- It examines every id specified in a link from one item to another. If the id has no exact match among item ids, it is compared to each of them using an LLM prompt to find a match.
+- Unlike resolve, it is one-sided: it assumes the item ids themselves are already canonical, e.g. from running resolve first.
 
-Note that this is a one-sided approach, compared to the resolve
-operation: It assumes that item id:s are canonical / correct.
+```mermaid
+flowchart LR
+    a["doc: related_to=[Appl Inc]"] --> a2["doc: related_to=[Apple Inc]"]
+    b["doc: related_to=[]"] --> b2["doc: related_to=[]"]
+```
 
-## 🚀 Example: Knowledge graph of boating terms
+## Example: Knowledge graph of boating terms
 
-```yaml
-- name: fix_links
-  type: link_resolve
-  id_key: title
-  link_key: related_to
-  blocking_threshold: 0.85
-  embedding_model: text-embedding-ada-002
-  comparison_model: gpt-4o-mini
-  comparison_prompt: |
-    Compare the following two concepts:
+=== "YAML"
+
+    ```yaml
+    - name: fix_links
+      type: link_resolve
+      id_key: title
+      link_key: related_to
+      blocking_threshold: 0.85
+      embedding_model: text-embedding-ada-002
+      comparison_model: gpt-4o-mini
+      comparison_prompt: |
+        Compare the following two concepts:
+
+        Concept 1: [{{ link_value }}]
+        Concept 2: [{{ id_value }}]
+
+        Are these concepts likely refering to the same thing? When
+        comparing them, also consider the following description of
+        concept 2:
+
+          {{ item.description }}
+
+        Respond with "True" if they are likely the same concept, or "False" if they are likely different concepts.
+    ```
+
+=== "Python"
+
+    Link resolve has no dedicated Frame method, so construct the pipeline as a config dict and run it with `DSLRunner`:
+
+    ```python
+    from docetl.runner import DSLRunner
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "terms": {"type": "file", "path": "terms.json"},
+        },
+        "operations": [
+            {
+                "name": "fix_links",
+                "type": "link_resolve",
+                "id_key": "title",
+                "link_key": "related_to",
+                "blocking_threshold": 0.85,
+                "embedding_model": "text-embedding-ada-002",
+                "comparison_model": "gpt-4o-mini",
+                "comparison_prompt": """Compare the following two concepts:
 
     Concept 1: [{{ link_value }}]
     Concept 2: [{{ id_value }}]
@@ -35,12 +70,27 @@ operation: It assumes that item id:s are canonical / correct.
 
       {{ item.description }}
 
-    Respond with "True" if they are likely the same concept, or "False" if they are likely different concepts.
-```
+    Respond with "True" if they are likely the same concept, or "False" if they are likely different concepts.""",
+            }
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "fix_links_step",
+                    "input": "terms",
+                    "operations": ["fix_links"],
+                }
+            ],
+            "output": {"type": "file", "path": "fixed_links.json"},
+        },
+    }
+    runner = DSLRunner(config)
+    results, _ = runner.run()
+    ```
 
 ??? example "Sample Input and Output"
 
-The above make two replacements in the `related_to` keys: `Main sail` -> `Sail (main)` and `Sailing boat` -> `Sailing vessel`.
+    The above makes two replacements in the `related_to` keys: `Main sail` -> `Sail (main)` and `Sailing boat` -> `Sailing vessel`.
 
     Input:
     ```json

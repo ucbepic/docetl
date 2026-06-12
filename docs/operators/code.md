@@ -1,17 +1,8 @@
 # Code Operations
 
-Code operations in DocETL allow you to define transformations using Python code rather than LLM prompts. This is useful when you need deterministic processing, complex calculations, or want to leverage existing Python libraries.
+Code operations define transformations using Python code rather than LLM prompts. No LLM calls are made. Use them for processing that should be deterministic, math-based, or built on existing Python libraries.
 
-## Motivation
-
-While LLM-powered operations are powerful for natural language tasks, sometimes you need operations that are:
-
-- Deterministic and reproducible
-- Integrated with external Python libraries
-- Focused on structured data transformations
-- Math-based or computationally intensive (something an LLM is not good at)
-
-Code operations provide a way to handle these cases efficiently without LLM overhead.
+In YAML, `code` is a string of Python source defining a `transform` function. In the Python API, pass any callable as `code`, e.g., a lambda.
 
 ## Types of Code Operations
 
@@ -21,18 +12,34 @@ The Code Map operation applies a Python function to each item in your input data
 
 ??? example "Example Code Map Operation"
 
-    ```yaml
-    - name: extract_keywords
-      type: code_map
-      code: |
-        def transform(doc) -> dict:
-            # Your transformation code here
-            keywords = doc['text'].lower().split()
-            return {
-                'keywords': keywords,
-                'keyword_count': len(keywords)
-            }
-    ```
+    === "YAML"
+
+        ```yaml
+        - name: extract_keywords
+          type: code_map
+          code: |
+            def transform(doc) -> dict:
+                # Your transformation code here
+                keywords = doc['text'].lower().split()
+                return {
+                    'keywords': keywords,
+                    'keyword_count': len(keywords)
+                }
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        def extract_keywords(doc) -> dict:
+            keywords = doc["text"].lower().split()
+            return {"keywords": keywords, "keyword_count": len(keywords)}
+
+        frame = docetl.read_json("documents.json")
+        frame = frame.code_map(code=extract_keywords)
+        rows = frame.collect()
+        ```
 
 The code must define a `transform` function that takes a single document as input and returns a dictionary of transformed values.
 
@@ -42,20 +49,36 @@ The Code Reduce operation aggregates multiple items into a single result using a
 
 ??? example "Example Code Reduce Operation"
 
-    ```yaml
-    - name: aggregate_stats
-      type: code_reduce
-      reduce_key: category
-      code: |
-        def transform(items) -> dict:
-            total = sum(item['value'] for item in items)
-            avg = total / len(items)
-            return {
-                'total': total,
-                'average': avg,
-                'count': len(items)
-            }
-    ```
+    === "YAML"
+
+        ```yaml
+        - name: aggregate_stats
+          type: code_reduce
+          reduce_key: category
+          code: |
+            def transform(items) -> dict:
+                total = sum(item['value'] for item in items)
+                avg = total / len(items)
+                return {
+                    'total': total,
+                    'average': avg,
+                    'count': len(items)
+                }
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        def aggregate_stats(items) -> dict:
+            total = sum(item["value"] for item in items)
+            return {"total": total, "average": total / len(items), "count": len(items)}
+
+        frame = docetl.read_json("data.json")
+        frame = frame.code_reduce(reduce_key="category", code=aggregate_stats)
+        rows = frame.collect()
+        ```
 
 The transform function for reduce operations takes a list of items as input and returns a single aggregated result.
 
@@ -65,14 +88,28 @@ The Code Filter operation allows you to filter items based on custom Python logi
 
 ??? example "Example Code Filter Operation"
 
-    ```yaml
-    - name: filter_valid_entries
-      type: code_filter  
-      code: |
-        def transform(doc) -> bool:
-            # Return True to keep the document, False to filter it out
-            return doc['score'] >= 0.5 and len(doc['text']) > 100
-    ```
+    === "YAML"
+
+        ```yaml
+        - name: filter_valid_entries
+          type: code_filter  
+          code: |
+            def transform(doc) -> bool:
+                # Return True to keep the document, False to filter it out
+                return doc['score'] >= 0.5 and len(doc['text']) > 100
+        ```
+
+    === "Python"
+
+        ```python
+        import docetl
+
+        frame = docetl.read_json("entries.json")
+        frame = frame.code_filter(
+            code=lambda doc: doc["score"] >= 0.5 and len(doc["text"]) > 100
+        )
+        rows = frame.collect()
+        ```
 
 The transform function should return True for items to keep and False for items to filter out.
 
@@ -81,7 +118,7 @@ The transform function should return True for items to keep and False for items 
 ### Required Parameters
 
 - type: Must be "code_map", "code_reduce", or "code_filter"
-- code: Python code containing the transform function. For map, the function must take a single document as input and return a document (a dictionary). For reduce, the function must take a list of documents as input and return a single aggregated document (a dictionary). For filter, the function must take a single document as input and return a boolean value indicating whether to keep the document.
+- code: The transform. In YAML, a string of Python source defining a `transform` function; in the Python API, any callable (or the same string form). For map, the function takes a single document and returns a dictionary. For reduce, it takes a list of documents and returns a single aggregated dictionary. For filter, it takes a single document and returns a boolean indicating whether to keep it.
 
 ### Optional Parameters
 

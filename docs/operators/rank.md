@@ -3,36 +3,96 @@
 The Rank operation in DocETL sorts documents based on specified criteria.
 Note that this operation is designed to sort documents along some (latent) attribute in the data. **It is not specifically meant for top-k or retrieval-like queries.**
 
+```mermaid
+flowchart LR
+    subgraph in["input"]
+        d1["doc 1"]
+        d2["doc 2"]
+        d3["doc 3"]
+    end
+    subgraph out["sorted by criteria"]
+        o1["doc 3"]
+        o2["doc 1"]
+        o3["doc 2"]
+    end
+    in --> out
+```
 We adapt algorithms from Human-Powered Sorts and Joins ([VLDB 2012](https://www.vldb.org/pvldb/vol5/p013_adammarcus_vldb2012.pdf)).
 
-## 🚀 Example: Ranking Debates by Level of Controversy
+## Example: Ranking Debates by Level of Controversy
 
-Let's see a practical example of using the Rank operation to rank political debates based on how controversial they are:
+=== "YAML"
 
-```yaml
-- name: rank_by_controversy
-  type: rank
-  prompt: |
-    Order these debate transcripts based on how controversial the discussion is.
+    ```yaml
+    - name: rank_by_controversy
+      type: rank
+      prompt: |
+        Order these debate transcripts based on how controversial the discussion is.
+        Consider factors like:
+        - The level of disagreement between candidates
+        - Discussion of divisive topics
+        - Strong emotional language
+        - Presence of conflicting viewpoints
+        - Public reaction mentioned in the transcript
+        
+        Debates with the most controversial content should be ranked highest.
+      input_keys: ["content", "title", "date"]
+      direction: desc
+      rerank_call_budget: 10 # max number of LLM calls to use; also optional
+      initial_ordering_method: "likert"
+    ```
+
+=== "Python"
+
+    Rank has no dedicated Frame method, so construct the pipeline as a config dict and run it with `DSLRunner`:
+
+    ```python
+    from docetl.runner import DSLRunner
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "debates": {"type": "file", "path": "debates.json"},
+        },
+        "operations": [
+            {
+                "name": "rank_by_controversy",
+                "type": "rank",
+                "prompt": """Order these debate transcripts based on how controversial the discussion is.
     Consider factors like:
     - The level of disagreement between candidates
     - Discussion of divisive topics
     - Strong emotional language
     - Presence of conflicting viewpoints
     - Public reaction mentioned in the transcript
-    
-    Debates with the most controversial content should be ranked highest.
-  input_keys: ["content", "title", "date"]
-  direction: desc
-  rerank_call_budget: 10 # max number of LLM calls to use; also optional
-  initial_ordering_method: "likert"
-```
 
-This Rank operation ranks debate transcripts from most controversial to least controversial by:
+    Debates with the most controversial content should be ranked highest.""",
+                "input_keys": ["content", "title", "date"],
+                "direction": "desc",
+                "rerank_call_budget": 10,  # max number of LLM calls to use; also optional
+                "initial_ordering_method": "likert",
+            }
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "controversy_ranking",
+                    "input": "debates",
+                    "operations": ["rank_by_controversy"],
+                }
+            ],
+            "output": {"type": "file", "path": "ranked_debates.json"},
+        },
+    }
+    runner = DSLRunner(config)
+    results, _ = runner.run()
+    ```
 
-1. First generating ordinal scores (on the Likert scale) for the ranking criteria and each document. This executes an LLM call **per document**.
-2. Creating an initial ranking based on the scores from step 1.
-3. Using an LLM to perform more precise re-rankings on a sliding window of documents. This executes `rerank_call_budget` calls.
+This operation:
+
+1. Generates ordinal scores (Likert scale) for each document — one LLM call **per document**.
+2. Creates an initial ranking from those scores.
+3. Re-ranks a sliding window of documents with an LLM — `rerank_call_budget` calls.
 
 ??? example "Sample Input and Output"
 
@@ -70,8 +130,6 @@ This Rank operation ranks debate transcripts from most controversial to least co
     ]
     ```
 
-This example demonstrates how the Rank operation can semantically sort documents based on complex criteria, providing a ranking that would be difficult to achieve with keyword matching or rule-based approaches.
-
 ## Algorithm and Implementation
 
 The Rank operation works in these steps:
@@ -88,12 +146,11 @@ The Rank operation works in these steps:
         2. The LLM is asked to identify only the top few documents (configured via `num_top_items_per_window`)
         3. These chosen documents are then moved to the beginning of the window
     3. The window slides upward through the document set with overlapping segments
-    4. This approach enables the algorithm to process many documents while focusing LLM effort on identifying the best matches
-3. **Efficient Resource Utilization**:
+3. **Resource Utilization**:
    
-    1. The window size and step size are calculated based on the call budget to ensure optimal use of LLM calls
-    2. Overlap between windows ensures robust ranking with minimal redundancy
-    3. The algorithm tracks document positions using unique identifiers to maintain consistency 
+    1. The window size and step size are calculated from the call budget
+    2. Windows overlap (see `overlap_fraction`)
+    3. Document positions are tracked with unique identifiers
 
 4. **Output Preparation**:
    
@@ -136,70 +193,131 @@ For more complex ranking tasks, a two-step approach can be more effective:
 
 ??? example "Two-Step Ranking Example"
 
-    ```yaml
-    operations:
-      - name: extract_hostile_exchanges
-        type: map
-        output:
-          schema:
-            meanness_summary: "str"
-            hostility_level: "int"
-            key_examples: "list[str]"
-        prompt: |
-          Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+    === "YAML"
 
-          {{ input.content }}
+        ```yaml
+        operations:
+          - name: extract_hostile_exchanges
+            type: map
+            output:
+              schema:
+                meanness_summary: "str"
+                hostility_level: "int"
+                key_examples: "list[str]"
+            prompt: |
+              Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
 
-          Extract and summarize exchanges where candidates are mean or hostile to each other.
-          [... prompt details ...]
+              {{ input.content }}
 
-      - name: rank_by_meanness
-        type: rank
-        prompt: |
-          Order these debate transcripts based on how mean or hostile the candidates are to each other.
-          Focus on the meanness summaries and examples that have been extracted.
-          
-          Consider:
-          - The overall hostility level rating
-          - Severity of personal attacks in the key examples
-          [... prompt details ...]
-        input_keys: ["meanness_summary", "hostility_level", "key_examples", "title", "date"]
-        direction: desc
-        rerank_call_budget: 10
+              Extract and summarize exchanges where candidates are mean or hostile to each other.
+              [... prompt details ...]
 
-    pipeline:
-      steps:
-        - name: meanness_analysis
-          input: debates
-          operations:
-            - extract_hostile_exchanges
-            - rank_by_meanness
-    ```
+          - name: rank_by_meanness
+            type: rank
+            prompt: |
+              Order these debate transcripts based on how mean or hostile the candidates are to each other.
+              Focus on the meanness summaries and examples that have been extracted.
+              
+              Consider:
+              - The overall hostility level rating
+              - Severity of personal attacks in the key examples
+              [... prompt details ...]
+            input_keys: ["meanness_summary", "hostility_level", "key_examples", "title", "date"]
+            direction: desc
+            rerank_call_budget: 10
 
-This approach:
-1. First extracts structured data about hostility in each debate
-2. Then ranks debates based on this pre-processed data
+        pipeline:
+          steps:
+            - name: meanness_analysis
+              input: debates
+              operations:
+                - extract_hostile_exchanges
+                - rank_by_meanness
+        ```
+
+    === "Python"
+
+        ```python
+        from docetl.runner import DSLRunner
+
+        config = {
+            "default_model": "gpt-4o-mini",
+            "datasets": {
+                "debates": {"type": "file", "path": "debates.json"},
+            },
+            "operations": [
+                {
+                    "name": "extract_hostile_exchanges",
+                    "type": "map",
+                    "output": {
+                        "schema": {
+                            "meanness_summary": "str",
+                            "hostility_level": "int",
+                            "key_examples": "list[str]",
+                        }
+                    },
+                    "prompt": """Analyze the following debate transcript for {{ input.title }} on {{ input.date }}:
+
+        {{ input.content }}
+
+        Extract and summarize exchanges where candidates are mean or hostile to each other.
+        [... prompt details ...]""",
+                },
+                {
+                    "name": "rank_by_meanness",
+                    "type": "rank",
+                    "prompt": """Order these debate transcripts based on how mean or hostile the candidates are to each other.
+        Focus on the meanness summaries and examples that have been extracted.
+
+        Consider:
+        - The overall hostility level rating
+        - Severity of personal attacks in the key examples
+        [... prompt details ...]""",
+                    "input_keys": [
+                        "meanness_summary",
+                        "hostility_level",
+                        "key_examples",
+                        "title",
+                        "date",
+                    ],
+                    "direction": "desc",
+                    "rerank_call_budget": 10,
+                },
+            ],
+            "pipeline": {
+                "steps": [
+                    {
+                        "name": "meanness_analysis",
+                        "input": "debates",
+                        "operations": [
+                            "extract_hostile_exchanges",
+                            "rank_by_meanness",
+                        ],
+                    }
+                ],
+                "output": {"type": "file", "path": "ranked.json"},
+            },
+        }
+        runner = DSLRunner(config)
+        results, _ = runner.run()
+        ```
 
 ## Best Practices
 
-1. **Craft Clear Ranking Criteria**: Write clear, specific prompts that guide the LLM to understand the ranking priorities.
+1. **Choose Appropriate Input Keys**: Only include document fields relevant to the ranking criteria.
 
-2. **Choose Appropriate Input Keys**: Only include document fields that are relevant to the ranking criteria to reduce noise.
+2. **Consider Pre-Processing**: For complex criteria, use a map operation first to extract structured data, then rank on that.
 
-3. **Consider Pre-Processing**: For complex criteria, use a map operation first to extract structured data that makes ranking more effective.
-
-4. **Tune Window Parameters**:
-   - Adjust `num_top_items_per_window` based on how selective you need the ranking to be
+3. **Tune Window Parameters**:
+   - Adjust `num_top_items_per_window` based on how selective the ranking needs to be
    - Modify `overlap_fraction` to balance redundancy and completeness
    - Start with defaults and adjust based on results
 
-5. **Use Verbose Mode During Development**: Enable the `verbose` flag during development to understand how the ranking process works and verify the results.
-
-6. **Direction Matters**: Choose "asc" or "desc" carefully based on your use case:
+4. **Direction Matters**:
    - "desc" (descending) ranks the most matching items first
    - "asc" (ascending) ranks the least matching items first
 
-7. **Mind Cost Considerations**: The ranking operation makes multiple LLM calls and embedding requests. For large datasets, consider sampling first to test your approach. Use the embedding based first pass to significantly reduce cost.
+5. **Mind Cost**: Ranking makes multiple LLM calls and embedding requests. For large datasets, sample first to test your approach; the embedding-based first pass (`initial_ordering_method: embedding`) reduces cost. Enable `verbose` during development to see call statistics.
 
 ## Performance Considerations
 

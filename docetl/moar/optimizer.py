@@ -42,10 +42,10 @@ import yaml
 from docetl.console import DOCETL_CONSOLE
 from docetl.moar.models import default_agent_model, detect_available_models
 from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES
-from docetl.utils_dataset import get_dataset_stats
 
 if TYPE_CHECKING:
     import pandas as pd
+
     from docetl.api import Pipeline
 
 
@@ -136,6 +136,29 @@ class MOARResult:
         )
 
 
+def run_moar(pipeline, *, eval_fn, metric_key, **kwargs) -> "MOARResult":
+    """Validate the required MOAR arguments and run the search.
+
+    Single entry point shared by ``Pipeline.optimize(method="moar")`` and
+    ``Frame.optimize()``. *pipeline* is anything ``MOAROptimizer`` accepts
+    (a ``Pipeline``, a YAML path, or a config dict).
+    """
+    if eval_fn is None:
+        raise ValueError(
+            "eval_fn is required for MOAR optimization. "
+            "Pass a callable, e.g.: "
+            "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
+        )
+    if metric_key is None:
+        raise ValueError(
+            "metric_key is required for MOAR optimization. "
+            "This is the key in your eval function's return dict to optimize."
+        )
+    return MOAROptimizer(
+        pipeline=pipeline, eval_fn=eval_fn, metric_key=metric_key, **kwargs
+    ).optimize()
+
+
 class MOAROptimizer:
     """
     Simplified interface for MOAR (Multi-Objective Agentic Rewrites) optimization.
@@ -207,6 +230,8 @@ class MOAROptimizer:
         exploration_weight: float = 1.414,
         dataset_path: Optional[Union[str, Path]] = None,
         dataset_name: Optional[str] = None,
+        max_threads: int | None = None,
+        max_concurrent_agents: int = 3,
     ):
         self.pipeline_path = self._resolve_pipeline(pipeline, save_dir)
         self.metric_key = metric_key
@@ -238,6 +263,8 @@ class MOAROptimizer:
         self._dataset_path, self._dataset_name = self._resolve_dataset(
             dataset_path, dataset_name
         )
+        self._max_threads = max_threads
+        self._max_concurrent_agents = max_concurrent_agents
 
     def _resolve_pipeline(
         self,
@@ -248,14 +275,22 @@ class MOAROptimizer:
         from docetl.api import Pipeline as PipelineClass
 
         if isinstance(pipeline, PipelineClass):
-            target_dir = Path(save_dir).resolve() if save_dir else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            target_dir = (
+                Path(save_dir).resolve()
+                if save_dir
+                else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            )
             target_dir.mkdir(parents=True, exist_ok=True)
             yaml_path = target_dir / f"{pipeline.name}.yaml"
             pipeline.to_yaml(str(yaml_path))
             return str(yaml_path)
 
         if isinstance(pipeline, dict):
-            target_dir = Path(save_dir).resolve() if save_dir else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            target_dir = (
+                Path(save_dir).resolve()
+                if save_dir
+                else Path(tempfile.mkdtemp(prefix="moar_pipeline_"))
+            )
             target_dir.mkdir(parents=True, exist_ok=True)
             yaml_path = target_dir / "pipeline.yaml"
             with open(yaml_path, "w") as f:
@@ -371,9 +406,10 @@ class MOAROptimizer:
         DOCETL_CONSOLE.log("[bold blue]MOAROptimizer: loading dataset...[/bold blue]")
         with open(self._dataset_path, "r") as f:
             dataset_data = json.load(f)
-        sample_input = dataset_data[:5] if isinstance(dataset_data, list) else dataset_data
+        sample_input = (
+            dataset_data[:5] if isinstance(dataset_data, list) else dataset_data
+        )
 
-        dataset_stats = get_dataset_stats(self.pipeline_path, self._dataset_name)
         available_actions = set(ALL_DIRECTIVES)
 
         DOCETL_CONSOLE.log(
@@ -390,7 +426,6 @@ class MOAROptimizer:
             root_yaml_path=self.pipeline_path,
             available_actions=available_actions,
             sample_input=sample_input,
-            dataset_stats=dataset_stats,
             dataset_name=self._dataset_name,
             available_models=self.models,
             evaluate_func=self._eval_fn,
@@ -398,9 +433,10 @@ class MOAROptimizer:
             max_iterations=self.max_iterations,
             model=self.agent_model,
             output_dir=str(self._save_dir),
-            build_first_layer=False,
             custom_metric_key=self.metric_key,
             sample_dataset_path=self._dataset_path,
+            max_threads=self._max_threads,
+            max_concurrent_agents=self._max_concurrent_agents,
         )
 
         moar.search()

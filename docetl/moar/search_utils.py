@@ -7,20 +7,18 @@ but not core to the MCTS structure itself.
 
 import json
 import math
-import os
-import time
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel
 
 from docetl.reasoning_optimizer.directives import (
     DIRECTIVE_GROUPS,
-    Directive,
     get_all_cost_directive_strings,
     get_all_directive_strings,
 )
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *  # noqa: F403, F405
+from docetl.utils import op_ref_name
 
 # Maximum number of tokens we will allow in the prompt we send to the model.
 # The Azure GPT-5 family allows 272,000 tokens.
@@ -76,23 +74,6 @@ def trim_history(history: list, keep_system_first: bool = True) -> list:
     return history
 
 
-def get_directive_group(directive_name: str) -> str:
-    """
-    Get the group name for a directive.
-
-    Args:
-        directive_name: Name of the directive
-
-    Returns:
-        Group name if found, None otherwise
-    """
-    for group_name, directives in DIRECTIVE_GROUPS.items():
-        for directive in directives:
-            if directive.name == directive_name:
-                return group_name
-    return None
-
-
 def get_excluded_directives_for_operation(node, op_name: str) -> set:
     """Get compression directives to exclude for code_map and extract operations."""
     op_type = node.op_dict[op_name].get("type")
@@ -102,42 +83,114 @@ def get_excluded_directives_for_operation(node, op_name: str) -> set:
     return compression_exclusions
 
 
-def is_action_applicable(node, action: Directive) -> bool:
-    """Check if an action is applicable to a node."""
-    return True
+def patch_sample_dataset_path(config: dict, sample_dataset_path) -> None:
+    """Point the pipeline's first dataset at the sample dataset, in place."""
+    if not sample_dataset_path:
+        return
+    datasets = config.get("datasets")
+    if isinstance(datasets, dict) and datasets:
+        first = next(iter(datasets.values()))
+        if isinstance(first, dict):
+            first["path"] = sample_dataset_path
 
 
-def update_pipeline(orig_config, new_ops_list, target_ops):
+def write_pipeline_yaml(config: dict, path) -> None:
+    """Write a pipeline config with MOAR's canonical YAML settings."""
+    import yaml
+
+    with open(path, "w") as f:
+        yaml.dump(
+            config,
+            f,
+            default_flow_style=False,
+            allow_unicode=True,
+            sort_keys=False,
+        )
+
+
+def update_pipeline(orig_config, new_ops_list, target_ops, old_ops_list=None):
     """
-    Update the pipeline configuration with new operations.
+    Update the pipeline step operation lists to reflect changes in the flat
+    operations list made by a directive.
+
+    Directives transform the flat ``operations`` list (removing target ops,
+    inserting replacements at the same position).  This function diffs the
+    old and new flat lists to build a per-op replacement map, then applies
+    that map to each step — so steps that don't contain the target ops are
+    left untouched.
 
     Args:
-        orig_config (dict): The original pipeline configuration
-        new_ops_list (list): The entire pipeline operations list (not a subset)
-        target_ops (list): List of target operation names to replace
+        orig_config: Pipeline configuration dict (mutated in place).
+        new_ops_list: Full operations list after the directive ran.
+        target_ops: Operation names the directive targeted.
+        old_ops_list: Full operations list *before* the directive ran.
+            If ``None``, falls back to ``orig_config["operations"]``.
 
     Returns:
-        dict: Updated pipeline configuration
+        The (mutated) ``orig_config``.
     """
-    if new_ops_list is not None:
-        op_names = [op.get("name") for op in new_ops_list if "name" in op]
+    if new_ops_list is None:
+        return orig_config
 
-    # Update the pipeline steps to use the new operation names
-    if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
-        for step in orig_config["pipeline"]["steps"]:
-            if "operations" in step:
-                new_ops = []
-                for op in step["operations"]:
-                    if op == target_ops[0]:
-                        new_ops.extend(op_names)
-                step["operations"] = new_ops
+    if old_ops_list is None:
+        old_ops_list = orig_config.get("operations", [])
 
+    old_names = [op["name"] for op in old_ops_list]
+    new_names = [op["name"] for op in new_ops_list]
+    old_set = set(old_names)
+    new_set = set(new_names)
+    target_set = set(target_ops)
+
+    # Walk old and new name lists in parallel to build a replacement map.
+    # For each old op we record what sequence of new op names should replace
+    # it in the step's operation list.
+    replacement_map: dict[str, list[str]] = {}
+    ni = 0
+    for old_name in old_names:
+        if old_name in new_set:
+            # Op still exists — collect any insertions before it.
+            before: list[str] = []
+            while ni < len(new_names) and new_names[ni] != old_name:
+                before.append(new_names[ni])
+                ni += 1
+            ni += 1  # skip past the match
+
+            # If this is a target op, also collect insertions after it
+            # (e.g. gleaning adds a validation step right after the target).
+            after: list[str] = []
+            if old_name in target_set:
+                while ni < len(new_names) and new_names[ni] not in old_set:
+                    after.append(new_names[ni])
+                    ni += 1
+
+            replacement_map[old_name] = before + [old_name] + after
+        else:
+            # Op was removed — collect the new ops inserted at this position.
+            replacements: list[str] = []
+            while ni < len(new_names) and new_names[ni] not in old_set:
+                replacements.append(new_names[ni])
+                ni += 1
+            replacement_map[old_name] = replacements
+
+    # Apply the replacement map to each step.
+    for step in orig_config.get("pipeline", {}).get("steps", []):
+        if "operations" not in step:
+            continue
+        new_step_ops: list = []
+        for op in step["operations"]:
+            op_name = op_ref_name(op)
+            if op_name in replacement_map:
+                # Emit the original entry (preserving equijoin dict format)
+                # for the kept op; inserted ops are plain names.
+                new_step_ops.extend(
+                    op if r == op_name else r for r in replacement_map[op_name]
+                )
+            else:
+                new_step_ops.append(op)
+        step["operations"] = new_step_ops
+
+    orig_config["operations"] = new_ops_list
     return orig_config
-
-
-def fix_models(parsed_yaml):
-    """No-op: Model names should be specified correctly in the YAML."""
-    pass
 
 
 def is_fully_explored(node, max_children_multiplier: float = 1.0) -> bool:
@@ -164,70 +217,7 @@ def is_fully_explored(node, max_children_multiplier: float = 1.0) -> bool:
     return True
 
 
-def should_continue_search(
-    iteration: int,
-    max_iterations: int,
-    start_time: float,
-    max_time: Optional[float] = None,
-) -> bool:
-    """Determine if search should continue based on iteration count and time."""
-    if iteration >= max_iterations:
-        return False
-
-    if max_time is not None:
-        elapsed_time = time.time() - start_time
-        if elapsed_time >= max_time:
-            return False
-
-    return True
-
-
-def calculate_ucb1(
-    node, parent_visits: int, exploration_constant: float = math.sqrt(2)
-) -> float:
-    """Calculate UCB1 value for node selection."""
-    if node.visits == 0:
-        return float("inf")
-
-    exploitation = node.value / node.visits
-    exploration = exploration_constant * math.sqrt(
-        math.log(parent_visits) / node.visits
-    )
-    return exploitation + exploration
-
-
-def print_tree_visits_and_values(node=None, depth=0, file_handle=None, console=None):
-    """Print tree structure with visit counts and values."""
-    if node is None:
-        return
-
-    indent = "  " * depth
-    node_info = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value:.4f}"
-
-    if file_handle:
-        file_handle.write(node_info + "\n")
-    else:
-        if console is None:
-            from docetl.console import DOCETL_CONSOLE
-
-            console = DOCETL_CONSOLE
-        console.log(node_info)
-
-    for child in node.children:
-        print_tree_visits_and_values(child, depth + 1, file_handle, console)
-
-
-def log_tree_to_file(root_node, iteration_num, output_dir="./outputs", console=None):
-    """Log the tree structure to a file."""
-    log_file_path = os.path.join(output_dir, f"moar_tree_iteration_{iteration_num}.txt")
-
-    with open(log_file_path, "w") as f:
-        f.write(f"MOAR Tree Structure - Iteration {iteration_num}\n")
-        f.write("=" * 50 + "\n")
-        print_tree_visits_and_values(root_node, file_handle=f, console=console)
-
-
-def create_expansion_prompt_acc(
+def create_expansion_prompt(
     node,
     action_options,
     input_query,
@@ -238,12 +228,28 @@ def create_expansion_prompt_acc(
     sample_input,
     root_node,
     yaml_file_path,
-    dataset=None,
     node_accuracies=None,
     model_stats=None,
     available_models=None,
+    goal="acc",
 ) -> tuple[str, str]:
-    """Create expansion prompt for accuracy optimization."""
+    """Create the expansion prompt for an accuracy- or cost-goal rewrite."""
+    if goal == "acc":
+        intro = (
+            "I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.\n"
+            "    Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operators (specify by their names) in the pipeline the directive should be applied to.\n"
+            "    Make sure that your chosen directive is in the provided list of rewrite directives."
+        )
+        directive_strings = get_all_directive_strings()
+        strategy = "Consider the current query pipeline, which directive can best improve the accuracy."
+    else:
+        intro = (
+            "I have a set of operations used to process long documents, along with a list of possible rewrite directives designed to improve the cost effectiveness of the pipeline, while maintaining similar or better accuracy.\n"
+            "    Given a query pipeline composed of these operations, recommend one specific rewrite directive (identified by its name from the provided list) that would improve cost effectiveness. Also, specify which operator(s) (by name) in the pipeline the directive should be applied to.\n"
+            "    Make sure your recommended directive is selected from the provided list."
+        )
+        directive_strings = get_all_cost_directive_strings()
+        strategy = "Consider the current query pipeline, which directive can best improve cost effectiveness."
 
     # Use provided available_models list, or extract from model_stats as fallback
     if available_models:
@@ -282,9 +288,7 @@ def create_expansion_prompt_acc(
     input_schema = load_input_doc(yaml_file_path)
 
     user_message = f"""
-    I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
-    Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operators (specify by their names) in the pipeline the directive should be applied to.
-    Make sure that your chosen directive is in the provided list of rewrite directives.
+    {intro}
 
     Pipeline:
     Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
@@ -308,7 +312,7 @@ def create_expansion_prompt_acc(
     {op_resolve.to_string()}\n
 
     Rewrite directives:
-    {get_all_directive_strings()}\n
+    {directive_strings}\n
 
     Your valid choice of operation and rewrite directive combination. Only choose one of these:\n
     {availabel_actions_str}
@@ -324,13 +328,13 @@ def create_expansion_prompt_acc(
     These show the accuracy (acc) and cost for each model. Only reference this when evaluating model change options.
 
     Selection Strategy:
-    Consider the current query pipeline, which directive can best improve the accuracy.
+    {strategy}
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
     - Actions with 0 uses have unknown potential, so you should explore them if applicable.
     - fusion directives are helpful
     - Consider both immediate improvement and learning about the action space
 
-    {node.get_memo_for_llm(root_node, node_accuracies)}
+    {node.get_exploration_tree_summary(root_node, node_accuracies)}
 
     Make sure you read every rewrite directive carefully.
     Make sure you only choose from the valid choices above and avoid already used combinations or approaches too similar to what has already been tried in the current optimization path.
@@ -342,136 +346,9 @@ def create_expansion_prompt_acc(
     """
 
     # Create a condensed version for message history (without full operator/directive descriptions)
+    goal_word = "accuracy" if goal == "acc" else "cost"
     condensed_user_message = f"""
-    Recommend one specific rewrite directive for accuracy optimization.
-
-    Valid choices:
-    {availabel_actions_str}
-
-    Action Performance History:
-    {action_stats_str}
-
-    Current pipeline: {input_query}
-    """
-
-    return user_message, condensed_user_message
-
-
-def create_expansion_prompt_cost(
-    node,
-    action_options,
-    input_query,
-    available_actions,
-    action_cost_changes,
-    action_accuracy_changes,
-    action_counts,
-    sample_input,
-    root_node,
-    yaml_file_path,
-    dataset=None,
-    node_accuracies=None,
-    model_stats=None,
-    available_models=None,
-) -> tuple[str, str]:
-    """Create expansion prompt for cost optimization."""
-
-    # Use provided available_models list, or extract from model_stats as fallback
-    if available_models:
-        available_models_list = available_models
-    elif model_stats:
-        available_models_list = list(model_stats.keys())
-    else:
-        available_models_list = []
-
-    availabel_actions_str = ""
-    for item in action_options:
-        op_name = item[0]
-        action_name = item[1]
-        action_str = f"Operator: {op_name}, Rewrite directive: {action_name}\n"
-        availabel_actions_str += action_str
-
-    action_stats = []
-    for action in available_actions:
-        cost_change = action_cost_changes.get(action, 0)
-        accuracy_change = action_accuracy_changes.get(action, 0)
-        count = action_counts.get(action, 0)
-
-        if count > 0:
-            avg_cost_change = cost_change / count
-            avg_accuracy_change = accuracy_change / count
-            action_stats.append(
-                f"- {action.name}: {count} uses, avg change in cost: {avg_cost_change:+.2f}, avg change in accuracy: {avg_accuracy_change:+.4f}"
-            )
-        else:
-            action_stats.append(
-                f"- {action.name}: {count} uses, avg change in cost: Unknown (never tried), avg change in accuracy: Unknown (never tried)"
-            )
-
-    action_stats_str = "\n".join(action_stats)
-
-    input_schema = load_input_doc(yaml_file_path)
-
-    user_message = f"""
-    I have a set of operations used to process long documents, along with a list of possible rewrite directives designed to improve the cost effectiveness of the pipeline, while maintaining similar or better accuracy.
-    Given a query pipeline composed of these operations, recommend one specific rewrite directive (identified by its name from the provided list) that would improve cost effectiveness. Also, specify which operator(s) (by name) in the pipeline the directive should be applied to.
-    Make sure your recommended directive is selected from the provided list.
-
-    Pipeline:
-    Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-    - Default Model: The language model to use for the pipeline. Limit your choice of model to {available_models_list} \n
-    - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
-    - Datasets: The input data sources for your pipeline. \n
-    - Operators: The processing steps that transform your data. \n
-    - Pipeline Specification: The sequence of steps and the output configuration. \n
-
-    Operators:
-    Operators form the building blocks of data processing pipelines. Below is the list of operators:
-    {op_map.to_string()}\n
-    {op_extract.to_string()}\n
-    {op_parallel_map.to_string()}\n
-    {op_filter.to_string()}\n
-    {op_reduce.to_string()}\n
-    {op_split.to_string()}\n
-    {op_gather.to_string()}\n
-    {op_unnest.to_string()}\n
-    {op_sample.to_string()}\n
-    {op_resolve.to_string()}\n
-
-    Rewrite directives:
-    {get_all_cost_directive_strings()}\n
-
-    Your valid choice of operation and rewrite directive combination. Only choose one of these:\n
-    {availabel_actions_str}
-
-    Action Performance History:
-    Based on previous executions across DIFFERENT query pipelines, here's how each action has performed:\n
-    {action_stats_str}
-
-    Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
-
-    Model Performance Reference:
-    If you are considering a model change directive, here are model statistics on this specific dataset: \n {str(model_stats if model_stats else {})}
-    These show the accuracy (acc) and cost for each model. Only reference this when evaluating model change options.
-
-    Selection Strategy:
-    Consider the current query pipeline, which directive can best improve cost effectiveness.
-    Prioritize exploration of untested actions while balancing with exploitation of proven performers:
-    - Actions with 0 uses have unknown potential, so you should explore them if applicable.
-    - fusion directives are helpful
-    - Consider both immediate improvement and learning about the action space
-
-    {node.get_memo_for_llm(root_node, node_accuracies)}
-
-    Make sure you only choose from the valid choices above and avoid already used combinations or approaches too similar to what has already been tried in the current optimization path.
-
-    Input document schema with token statistics: {input_schema} \n
-    Input data sample: {json.dumps(sample_input, indent=2)[:5000]} \n
-    The original query in YAML format using our operations: {input_query} \n
-    The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
-    """
-
-    condensed_user_message = f"""
-    Recommend one specific rewrite directive for cost optimization.
+    Recommend one specific rewrite directive for {goal_word} optimization.
 
     Valid choices:
     {availabel_actions_str}

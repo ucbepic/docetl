@@ -1,4 +1,5 @@
 import copy
+import re
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils.validation import lookup_field
@@ -63,6 +64,21 @@ class UnnestOperation(BaseOperation):
         expand_fields: list[str] | None = None
         recursive: bool | None = None
         depth: int | None = None
+
+    @classmethod
+    def transform_schema(cls, schema, config):
+        result = super().transform_schema(schema, config)
+        key = config.get("unnest_key")
+        declared = result.get(key)
+        if isinstance(declared, str):
+            # list[X] fields become one X per row
+            match = re.fullmatch(r"list\[(.+)\]", declared.strip())
+            if match:
+                result[key] = match.group(1)
+        for field in config.get("expand_fields") or []:
+            # expanded from dict values; element types aren't declared anywhere
+            result.setdefault(field, "string")
+        return result
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """

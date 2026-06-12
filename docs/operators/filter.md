@@ -1,25 +1,57 @@
 # Filter Operation
 
-The Filter operation in DocETL is used to selectively process data items based on specific conditions. It behaves similarly to the Map operation, but with a key difference: items that evaluate to false are filtered out of the dataset, allowing you to include or exclude data points from further processing in your pipeline.
+The Filter operation behaves like Map, except items whose boolean output evaluates to false are dropped from the dataset.
 
-## Motivation
+```mermaid
+flowchart LR
+    d1["doc 1"] --> f{"keep?"}
+    d2["doc 2"] --> f
+    d3["doc 3"] --> f
+    dn["..."] --> f
+    f --> o1["doc 1"]
+    f --> o3["doc 3"]
+    f --> on["..."]
+```
 
-Filtering is crucial when you need to:
+## Example: Filtering High-Impact News Articles
 
-- Focus on the most relevant data points
-- Remove noise or irrelevant information from your dataset
-- Create subsets of data for specialized analysis
-- Optimize downstream processing by reducing data volume
+=== "YAML"
 
-## 🚀 Example: Filtering High-Impact News Articles
+    ```yaml
+    - name: filter_high_impact_articles
+      type: filter
+      prompt: |
+        Analyze the following news article:
+        Title: "{{ input.title }}"
+        Content: "{{ input.content }}"
 
-Let's look at a practical example of using the Filter operation to identify high-impact news articles based on certain criteria.
+        Determine if this article is high-impact based on the following criteria:
+        1. Covers a significant global or national event
+        2. Has potential long-term consequences
+        3. Affects a large number of people
+        4. Is from a reputable source
 
-```yaml
-- name: filter_high_impact_articles
-  type: filter
-  prompt: |
-    Analyze the following news article:
+        Respond with 'true' if the article meets at least 3 of these criteria, otherwise respond with 'false'.
+
+      output:
+        schema:
+          is_high_impact: boolean
+
+      model: gpt-4-turbo
+      validate:
+        - isinstance(output["is_high_impact"], bool)
+    ```
+
+=== "Python"
+
+    ```python
+    import docetl
+
+    docetl.default_model = "gpt-4-turbo"
+
+    frame = docetl.read_json("articles.json")
+    frame = frame.filter(
+        prompt="""Analyze the following news article:
     Title: "{{ input.title }}"
     Content: "{{ input.content }}"
 
@@ -29,18 +61,13 @@ Let's look at a practical example of using the Filter operation to identify high
     3. Affects a large number of people
     4. Is from a reputable source
 
-    Respond with 'true' if the article meets at least 3 of these criteria, otherwise respond with 'false'.
-
-  output:
-    schema:
-      is_high_impact: boolean
-
-  model: gpt-4-turbo
-  validate:
-    - isinstance(output["is_high_impact"], bool)
-```
-
-This Filter operation processes news articles and determines whether they are "high-impact" based on specific criteria. Unlike a Map operation, which would process all articles and add an "is_high_impact" field to each, this Filter operation will only pass through articles that meet the criteria, effectively removing low-impact articles from the dataset.
+    Respond with 'true' if the article meets at least 3 of these criteria, otherwise respond with 'false'.""",
+        output={"schema": {"is_high_impact": "boolean"}},
+        model="gpt-4-turbo",
+        validate=["isinstance(output['is_high_impact'], bool)"],
+    )
+    rows = frame.collect()
+    ```
 
 ??? example "Sample Input and Output"
 
@@ -68,8 +95,6 @@ This Filter operation processes news articles and determines whether they are "h
     ]
     ```
 
-This example demonstrates how the Filter operation distinguishes between high-impact news articles and those of more local or limited significance. The climate summit article is retained in the dataset due to its global significance, long-term consequences, and wide-ranging effects. The local bakery story, while interesting, doesn't meet the criteria for a high-impact article and is filtered out of the dataset.
-
 ## Configuration
 
 ### Required Parameters
@@ -85,35 +110,51 @@ See [map optional parameters](./map.md#optional-parameters) for additional confi
 
 ### Model Cascade (cost reduction)
 
-You can add a `cascade` block to run a cheap proxy model on all items first and
-only escalate uncertain cases to the expensive oracle model — with a statistical
-quality guarantee. This can dramatically reduce cost on large datasets.
+A `cascade` block runs a cheap proxy model on all items first and only escalates uncertain cases to the expensive oracle model, with a statistical quality guarantee.
 
-```yaml
-- name: is_relevant
-  type: filter
-  model: gpt-4o
-  prompt: "Is this document about climate policy? {{ input.text }}"
-  output: { schema: { keep: "bool" } }
-  cascade:
-    proxy_model: gpt-4o-mini
-    target: 0.95
-```
+=== "YAML"
+
+    ```yaml
+    - name: is_relevant
+      type: filter
+      model: gpt-4o
+      prompt: "Is this document about climate policy? {{ input.text }}"
+      output: { schema: { keep: "bool" } }
+      cascade:
+        proxy_model: gpt-4o-mini
+        target: 0.95
+    ```
+
+=== "Python"
+
+    ```python
+    pipeline = pipeline.filter(
+        name="is_relevant",
+        model="gpt-4o",
+        prompt="Is this document about climate policy? {{ input.text }}",
+        output={"schema": {"keep": "bool"}},
+        cascade={"proxy_model": "gpt-4o-mini", "target": 0.95},
+    )
+    ```
 
 | Parameter | Description | Default |
 |---|---|---|
 | `proxy_model` | The cheap model for the proxy pass (required) | — |
-| `guarantee` | `accuracy`, `precision`, or `recall` | `recall` |
+| `guarantee` | `accuracy`, `precision`, `recall`, or `precision+recall` | `recall` |
 | `target` | Target value for the guarantee metric, in `(0, 1)` (required) | — |
 | `delta` | Failure probability; guarantee holds w.p. `1 - delta` | `0.05` |
 | `label_budget` | Max oracle calls spent learning the threshold | `400` |
 
-See [Model Cascades with BARGAIN](../concepts/cascades.md) for full details,
+`proxy_model` can be a chat model (scored by logprobs) or an embedding model
+like `text-embedding-3-small` (a logistic head is fitted on an oracle-labeled
+slice of the budget — far cheaper per item for high-volume topical filters).
+
+See [Model Cascades with BARGAIN](../optimization/cascades.md) for full details,
 guarantee explanations, and examples.
 
 ### Limiting filtered outputs
 
-`limit` behaves slightly differently for filter operations than for map operations. Because filter drops documents whose predicate evaluates to `false`, the limit counts only the documents that would be retained (i.e., the ones whose boolean output is `true`). DocETL will continue evaluating additional inputs until it has collected `limit` passing documents and then stop scheduling further LLM calls. This ensures you can request “the first N matches” without paying to score the entire dataset.
+For filter, `limit` counts only retained documents (boolean output `true`). DocETL evaluates inputs until it has collected `limit` passing documents, then stops scheduling LLM calls — so you can request "the first N matches" without scoring the entire dataset.
 
 !!! info "Validation"
 
@@ -121,6 +162,5 @@ guarantee explanations, and examples.
 
 ## Best Practices
 
-1. **Clear Criteria**: Define clear and specific criteria for filtering in your prompt.
-2. **Boolean Output**: Ensure your prompt guides the LLM to produce a clear boolean output.
-3. **Data Flow Awareness**: Remember that unlike Map, Filter will reduce the size of your dataset. Ensure this aligns with your pipeline's objectives.
+1. **Boolean Output**: The output schema must have exactly one boolean field; write the prompt so the LLM produces a clear true/false judgment.
+2. **Data Flow Awareness**: Unlike Map, Filter reduces the size of your dataset.

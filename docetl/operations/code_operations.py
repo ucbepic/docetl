@@ -1,4 +1,3 @@
-import inspect
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -9,6 +8,28 @@ from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar
 
 
+def resolve_transform(code: Any):
+    """Return the transform callable from a ``code`` config value.
+
+    ``code`` is either a callable (used directly; lambdas and closures work)
+    or a string of Python source defining a ``transform`` function.
+    """
+    if callable(code):
+        return code
+    namespace = {}
+    exec(code, namespace)
+    transform = namespace.get("transform")
+    if not callable(transform):
+        raise ValueError("Code must define a 'transform' function")
+    return transform
+
+
+def _validate_code(v: Any) -> Any:
+    if isinstance(v, str) or callable(v):
+        return v
+    raise TypeError("code must be a string or a callable")
+
+
 class CodeMapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_map"
@@ -17,30 +38,12 @@ class CodeMapOperation(BaseOperation):
         drop_keys: list[str] | None = None
         limit: int | None = Field(None, gt=0)
 
-        @field_validator("code")
-        @classmethod
-        def validate_code(cls, v: Any) -> str:
-            if isinstance(v, str):
-                return v
-            if callable(v):
-                try:
-                    src = inspect.getsource(v)
-                except OSError as e:
-                    raise ValueError(
-                        "Unable to retrieve source for provided function. Please pass a normal def function."
-                    ) from e
-                return f"{src}\ntransform = {v.__name__}"
-            raise TypeError("code must be a string or a callable")
+        validate_code = field_validator("code")(_validate_code)
 
     def syntax_check(self) -> None:
         config = self.schema(**self.config)
         try:
-            namespace = {}
-            exec(config.code, namespace)
-            if "transform" not in namespace:
-                raise ValueError("Code must define a 'transform' function")
-            if not callable(namespace["transform"]):
-                raise ValueError("'transform' must be a callable function")
+            resolve_transform(config.code)
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
 
@@ -49,9 +52,7 @@ class CodeMapOperation(BaseOperation):
         if limit_value is not None:
             input_data = input_data[:limit_value]
 
-        namespace = {}
-        exec(self.config["code"], namespace)
-        transform_fn = namespace["transform"]
+        transform_fn = resolve_transform(self.config["code"])
 
         results = []
         with ThreadPoolExecutor(
@@ -85,37 +86,17 @@ class CodeReduceOperation(BaseOperation):
         concurrent_thread_count: int = os.cpu_count()
         limit: int | None = Field(None, gt=0)
 
-        @field_validator("code")
-        @classmethod
-        def validate_code(cls, v: Any) -> str:
-            if isinstance(v, str):
-                return v
-            if callable(v):
-                try:
-                    src = inspect.getsource(v)
-                except OSError as e:
-                    raise ValueError(
-                        "Unable to retrieve source for provided function. Please pass a normal def function."
-                    ) from e
-                return f"{src}\ntransform = {v.__name__}"
-            raise TypeError("code must be a string or a callable")
+        validate_code = field_validator("code")(_validate_code)
 
     def syntax_check(self) -> None:
         config = self.schema(**self.config)
         try:
-            namespace = {}
-            exec(config.code, namespace)
-            if "transform" not in namespace:
-                raise ValueError("Code must define a 'transform' function")
-            if not callable(namespace["transform"]):
-                raise ValueError("'transform' must be a callable function")
+            resolve_transform(config.code)
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
-        namespace = {}
-        exec(self.config["code"], namespace)
-        reduce_fn = namespace["transform"]
+        reduce_fn = resolve_transform(self.config["code"])
 
         reduce_keys = self.config.get("reduce_key", "_all")
         if not isinstance(reduce_keys, list):
@@ -182,37 +163,17 @@ class CodeFilterOperation(BaseOperation):
         concurrent_thread_count: int = os.cpu_count()
         limit: int | None = Field(None, gt=0)
 
-        @field_validator("code")
-        @classmethod
-        def validate_code(cls, v: Any) -> str:
-            if isinstance(v, str):
-                return v
-            if callable(v):
-                try:
-                    src = inspect.getsource(v)
-                except OSError as e:
-                    raise ValueError(
-                        "Unable to retrieve source for provided function. Please pass a normal def function."
-                    ) from e
-                return f"{src}\ntransform = {v.__name__}"
-            raise TypeError("code must be a string or a callable")
+        validate_code = field_validator("code")(_validate_code)
 
     def syntax_check(self) -> None:
         config = self.schema(**self.config)
         try:
-            namespace = {}
-            exec(config.code, namespace)
-            if "transform" not in namespace:
-                raise ValueError("Code must define a 'transform' function")
-            if not callable(namespace["transform"]):
-                raise ValueError("'transform' must be a callable function")
+            resolve_transform(config.code)
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
-        namespace = {}
-        exec(self.config["code"], namespace)
-        filter_fn = namespace["transform"]
+        filter_fn = resolve_transform(self.config["code"])
 
         limit_value = self.config.get("limit")
         results = []

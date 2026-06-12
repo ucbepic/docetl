@@ -94,17 +94,13 @@ class UnnestOperation(BaseOperation):
 
     @classmethod
     def fields_written(cls, config):
-        # List unnest overwrites unnest_key with each element; dict unnest
-        # writes the expanded fields.
-        if not config.get("unnest_key"):
+        # List unnest overwrites unnest_key with each element, but a
+        # dict-valued unnest_key with no expand_fields configured expands
+        # to the dict's *runtime* keys (execute defaults expand_fields to
+        # item[key].keys()) — statically unknowable, so fail closed.
+        if not config.get("unnest_key") or config.get("expand_fields") is None:
             return None
-        return frozenset({config["unnest_key"]}) | frozenset(
-            config.get("expand_fields") or []
-        )
-
-    @classmethod
-    def is_deterministic(cls, config):
-        return True
+        return frozenset({config["unnest_key"]}) | frozenset(config["expand_fields"])
 
     @classmethod
     def is_row_local(cls, config):

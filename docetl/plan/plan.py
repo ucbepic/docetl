@@ -49,6 +49,11 @@ class LogicalPlan:
     steps: list[StepGroup]
     ops_by_name: dict[str, dict[str, Any]]
     issues: list[PlanIssue] = field(default_factory=list)
+    # Lazily-built edge indexes; rules call invalidate() after surgery.
+    _consumer_map: dict[int, list[PlanNode]] | None = field(
+        default=None, repr=False, compare=False
+    )
+    _ref_counts: dict[str, int] | None = field(default=None, repr=False, compare=False)
 
     @property
     def root(self) -> PlanNode | None:
@@ -62,13 +67,29 @@ class LogicalPlan:
         for step in self.steps:
             yield from step.nodes
 
+    def invalidate(self) -> None:
+        """Drop cached edge indexes after graph surgery."""
+        self._consumer_map = None
+        self._ref_counts = None
+
     def consumers(self, node: PlanNode) -> list[PlanNode]:
-        return [n for n in self.nodes() if any(i is node for i in n.inputs)]
+        if self._consumer_map is None:
+            cmap: dict[int, list[PlanNode]] = {}
+            for n in self.nodes():
+                for i in n.inputs:
+                    cmap.setdefault(id(i), []).append(n)
+            self._consumer_map = cmap
+        return self._consumer_map.get(id(node), [])
 
     def references(self, op_name: str) -> int:
         """How many step entries reference this op name. Rules must not
         rewrite an op whose config is shared across entries."""
-        return sum(1 for n in self.nodes() if n.name == op_name)
+        if self._ref_counts is None:
+            counts: dict[str, int] = {}
+            for n in self.nodes():
+                counts[n.name] = counts.get(n.name, 0) + 1
+            self._ref_counts = counts
+        return self._ref_counts.get(op_name, 0)
 
     def step_of(self, node: PlanNode) -> StepGroup | None:
         for step in self.steps:
@@ -81,6 +102,7 @@ class LogicalPlan:
         inputs and equijoin left/right) to its own input."""
         assert not step.nodes, "only empty steps can be dropped"
         self.steps.remove(step)
+        self.invalidate()
         for other in self.steps:
             if other.input_ref == step.name:
                 other.input_ref = step.input_ref

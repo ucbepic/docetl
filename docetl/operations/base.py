@@ -15,9 +15,21 @@ from docetl.console import DOCETL_CONSOLE
 
 
 class Cardinality(str, Enum):
-    """How an operation's output row count relates to its input row count."""
+    """How an operation's output row count relates to its input row count.
 
-    ONE_TO_ONE = "one_to_one"  # exactly one output row per input row
+    ONE_TO_ONE is an *at-most* contract, not an exactness guarantee: the
+    operation intends one output per input, decides each row locally,
+    never inserts or reorders rows — but may still drop a row on a
+    per-row failure (an exhausted LLM timeout silently drops the row
+    today rather than raising). That is sufficient for selection swaps
+    (filter pushdown commutes with row-local drops: both orders keep
+    exactly the rows that pass the predicate AND survive the op) but NOT
+    for count- or position-sensitive rewrites like a positional head —
+    which is why LimitPushdown is not a default rule.
+    """
+
+    ONE_TO_ONE = "one_to_one"  # at most one output row per input row,
+    # decided row-locally; never inserts or reorders (see class docstring)
     SELECTION = "selection"  # a subset of the input rows (any added
     # annotation fields show up in fields_written)
     MANY_TO_ONE = "many_to_one"  # group-by style aggregation
@@ -152,13 +164,16 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         return None
 
     @classmethod
-    def is_llm(cls, config: dict[str, Any]) -> bool:
-        """Whether executing this config costs LLM calls."""
-        return False
+    def fields_removed(cls, config: dict[str, Any]) -> "frozenset[str]":
+        """Fields this operation *definitely* removes from every row it
+        emits (``drop_keys``, a filter's popped decision key). Used for
+        the only sound missing-field check in an open world: reading a
+        field that was definitely removed upstream."""
+        return frozenset(config.get("drop_keys") or [])
 
     @classmethod
-    def is_deterministic(cls, config: dict[str, Any]) -> bool:
-        """Whether the same input always produces the same output."""
+    def is_llm(cls, config: dict[str, Any]) -> bool:
+        """Whether executing this config costs LLM calls."""
         return False
 
     @classmethod

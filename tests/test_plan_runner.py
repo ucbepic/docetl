@@ -155,6 +155,7 @@ class TestRewrittenPipelines:
 
         def build():
             # docs → code_map → sample(first): the head hops the 1:1 map.
+            # LimitPushdown is opt-in, so the test selects it explicitly.
             config = code_config(marker, tmp_path, inter)
             config["operations"] = [
                 config["operations"][0],
@@ -164,6 +165,7 @@ class TestRewrittenPipelines:
                 {"name": "s1", "input": "docs", "operations": ["cm"]},
                 {"name": "s2", "input": "s1", "operations": ["head"]},
             ]
+            config["plan_rewrites"] = ["selection_pushdown", "limit_pushdown"]
             return DSLRunner(config)
 
         first = build()
@@ -191,3 +193,56 @@ class TestFrameMemoization:
         second = frame.collect()
         assert first == second
         assert len(marker.read_text()) == 3
+
+
+class TestGlobalKillSwitch:
+    def test_module_global_disables_rewrites_for_dict_configs(self, tmp_path, monkeypatch):
+        """Regression: docetl.plan_rewrites=False used to reach only the
+        Frame API; the runner gate now falls back to it for every
+        in-process construction."""
+        import docetl._config as _config
+
+        config = rewritable_config(tmp_path)
+        runner_on = DSLRunner(copy.deepcopy(config))
+        assert runner_on.applied_rewrites, "sanity: pushdown fires by default"
+
+        monkeypatch.setattr(_config, "plan_rewrites", False)
+        cfg = copy.deepcopy(config)
+        runner_off = DSLRunner(cfg)
+        assert runner_off.applied_rewrites == []
+        assert runner_off.config is cfg
+
+    def test_config_key_overrides_module_global(self, tmp_path, monkeypatch):
+        import docetl._config as _config
+
+        monkeypatch.setattr(_config, "plan_rewrites", False)
+        config = rewritable_config(tmp_path)
+        config["plan_rewrites"] = True
+        runner = DSLRunner(config)
+        assert runner.applied_rewrites
+
+    def test_misconfigured_setting_raises(self, tmp_path):
+        config = rewritable_config(tmp_path)
+        config["plan_rewrites"] = ["selection-pushdwn"]  # typo'd name
+        with pytest.raises(ValueError, match="selection-pushdwn"):
+            DSLRunner(config)
+
+
+class TestPrepareConfigSingleLift:
+    def test_one_lift_for_validate_and_rewrite(self, tmp_path, monkeypatch):
+        import docetl.plan.prepare as prepare_mod
+        from docetl.plan import prepare_config
+        from docetl.plan.lift import lift as real_lift
+
+        calls = []
+
+        def counting_lift(config):
+            calls.append(1)
+            return real_lift(config)
+
+        monkeypatch.setattr(prepare_mod, "lift", counting_lift)
+        config = rewritable_config(tmp_path)
+        out, issues, applied = prepare_config(config)
+        assert len(calls) == 1
+        assert applied and out is not config
+        assert not [i for i in issues if i.level == "error"]

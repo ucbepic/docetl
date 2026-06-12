@@ -73,10 +73,6 @@ class GatherOperation(BaseOperation):
             return None
         return frozenset({f"{config['content_key']}_rendered"})
 
-    @classmethod
-    def is_deterministic(cls, config):
-        return True
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the GatherOperation.

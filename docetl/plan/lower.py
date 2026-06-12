@@ -24,7 +24,11 @@ def _step_entries(step: StepGroup) -> tuple[list[Any], str | None]:
     if step.is_join_headed:
         join = step.nodes[0]
         assert isinstance(join, JoinNode)
-        entries: list[Any] = [{join.name: {"left": join.left_ref, "right": join.right_ref}}]
+        # Rebuild from the verbatim original inner dict so unknown keys
+        # survive; dict-unpacking updates left/right in their original
+        # key positions.
+        inner = {**join.entry_config, "left": join.left_ref, "right": join.right_ref}
+        entries: list[Any] = [{join.name: inner}]
         entries.extend(n.name for n in step.nodes[1:])
         return entries, None
     return [n.name for n in step.nodes], step.input_ref
@@ -37,7 +41,9 @@ def lower(plan: LogicalPlan) -> dict[str, Any]:
     new_steps: list[dict[str, Any]] = []
     for step in plan.steps:
         entries, input_ref = _step_entries(step)
-        if entries == step.original.get("operations") and input_ref == step.original.get("input"):
+        if entries == step.original.get(
+            "operations"
+        ) and input_ref == step.original.get("input"):
             new_steps.append(step.original)
             continue
         emitted = dict(step.original)  # shallow copy keeps unknown keys & key order

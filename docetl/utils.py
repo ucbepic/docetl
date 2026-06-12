@@ -1,3 +1,4 @@
+import functools
 import json
 import math
 import os
@@ -133,19 +134,34 @@ def extract_input_field_reads(
     """The set of *var* fields a Jinja template reads, or None if unknown.
 
     Sound for plan-rewrite decisions, unlike ``extract_jinja_variables``:
-    every use of *var* must be a static attribute access (``input.x``) or
-    constant subscript (``input["x"]``) for a result to be returned. Any
-    other use — bare ``{{ input }}``, a filter over the whole object, a
-    dynamic subscript, aliasing through ``{% set %}`` or a loop — and the
-    template may read the entire row, so this returns None (fail closed).
+    every use of *var* must be a static attribute access (``input.x``), a
+    constant subscript (``input["x"]``), or a constant ``.get`` call
+    (``input.get("x")``) for a result to be returned. Any other use —
+    bare ``{{ input }}``, a filter over the whole object, a dynamic
+    subscript, dict-method calls that touch the whole row
+    (``input.items()``, ``input.keys()``, ``input.values()``), aliasing
+    through ``{% set %}`` or a loop — and the template may read the
+    entire row, so this returns None (fail closed). An attribute access
+    that is the callee of a call is a method invocation, never a field
+    read: ``input.get`` resolves to ``dict.get`` at render time, so the
+    read field is the call's argument, not ``"get"``.
 
     Non-Jinja strings also return None: at runtime the operation appends
     the whole document to such prompts (``_append_document_to_prompt``).
     """
-    from jinja2 import nodes
-
     if not isinstance(template_string, str) or not has_jinja_syntax(template_string):
         return None
+    return _input_field_reads_cached(template_string, var)
+
+
+@functools.lru_cache(maxsize=512)
+def _input_field_reads_cached(
+    template_string: str, var: str
+) -> "frozenset[str] | None":
+    # Re-parsed per trait lookup per fixpoint pass otherwise; templates are
+    # immutable strings, so caching is free.
+    from jinja2 import nodes
+
     env = Environment(autoescape=True)
     try:
         ast = env.parse(template_string)
@@ -155,7 +171,36 @@ def extract_input_field_reads(
     fields: set[str] = set()
     # Every Name node for *var* must be consumed by a static field access.
     consumed: set[int] = set()
+    # Getattr nodes that are really method invocations on *var*; handled
+    # in the Call pre-pass, skipped by the field-access loop below.
+    called: set[int] = set()
+    for node in ast.find_all(nodes.Call):
+        callee = node.node
+        if not (
+            isinstance(callee, nodes.Getattr)
+            and isinstance(callee.node, nodes.Name)
+            and callee.node.name == var
+        ):
+            continue
+        if callee.attr != "get":
+            return None  # items()/keys()/values()/... read the whole row
+        if (
+            not (
+                node.args
+                and isinstance(node.args[0], nodes.Const)
+                and isinstance(node.args[0].value, str)
+            )
+            or node.kwargs
+            or node.dyn_args
+            or node.dyn_kwargs
+        ):
+            return None  # dynamic .get key: unknown field
+        fields.add(node.args[0].value)
+        called.add(id(callee))
+        consumed.add(id(callee.node))
     for node in ast.find_all((nodes.Getattr, nodes.Getitem)):
+        if id(node) in called:
+            continue
         target = node.node
         if not (isinstance(target, nodes.Name) and target.name == var):
             continue

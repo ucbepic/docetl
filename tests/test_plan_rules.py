@@ -228,7 +228,6 @@ class TestExecutionEquivalence:
         return {"name": "cm", "type": "code_map", "code": code}
 
     def base_config(self, marker, selection_op, tmp_path, suffix):
-        out = tmp_path / f"out_{suffix}.json"
         return make_config(
             [self.counting_map(marker), selection_op],
             [
@@ -295,6 +294,9 @@ class TestExecutionEquivalence:
             "docetl.plan.rules.pushdown._chain_has_llm", lambda plan, node: True
         )
         config_on = self.base_config(marker_on, head, tmp_path, "on")
+        # The head swap is LimitPushdown, which is opt-in (not a default
+        # rule: it assumes failure-free exact 1:1 upstreams).
+        config_on["plan_rewrites"] = ["selection_pushdown", "limit_pushdown"]
         runner = DSLRunner(config_on)
         assert runner.applied_rewrites, "patched gate should let the rule fire"
         out_on, _ = runner.run()
@@ -302,3 +304,147 @@ class TestExecutionEquivalence:
         assert out_on == out_off
         assert len(marker_off.read_text()) == 6
         assert len(marker_on.read_text()) == 2
+
+
+class TestRuleConfiguration:
+    def test_limit_pushdown_not_in_defaults(self):
+        from docetl.plan import all_rules, default_rules
+
+        assert [r.name for r in default_rules()] == ["selection_pushdown"]
+        assert {r.name for r in all_rules()} == {
+            "selection_pushdown",
+            "limit_pushdown",
+        }
+
+    def test_resolve_rules_accepts_string(self):
+        from docetl.plan import resolve_rules
+
+        assert [r.name for r in resolve_rules("limit_pushdown")] == ["limit_pushdown"]
+
+    def test_resolve_rules_rejects_unknown_names(self):
+        from docetl.plan import resolve_rules
+
+        with pytest.raises(ValueError, match="selection-pushdwn"):
+            resolve_rules(["selection-pushdwn"])
+
+    def test_resolve_rules_rejects_other_types(self):
+        from docetl.plan import resolve_rules
+
+        with pytest.raises(ValueError, match="plan_rewrites must be"):
+            resolve_rules(42)
+
+    def test_precheck_skips_lift_when_no_trigger_ops(self, monkeypatch):
+        import docetl.plan.rewrite as rewrite_mod
+        from docetl.plan import apply_rewrites_to_config
+
+        def boom(config):
+            raise AssertionError("lift should not run without trigger ops")
+
+        monkeypatch.setattr(rewrite_mod, "lift", boom)
+        config = {
+            "datasets": {"d": {"type": "memory", "path": [{"x": 1}]}},
+            "operations": [
+                {
+                    "name": "m",
+                    "type": "map",
+                    "prompt": "p {{ input.x }}",
+                    "output": {"schema": {"y": "string"}},
+                }
+            ],
+            "pipeline": {
+                "steps": [{"name": "s", "input": "d", "operations": ["m"]}],
+                "output": {"type": "file", "path": "out.json"},
+            },
+        }
+        out, applied = apply_rewrites_to_config(config)
+        assert out is config and applied == []
+
+
+class TestUnsoundPushdownsNoLongerFire:
+    """End-to-end regressions for the confirmed review exploits: each of
+    these configs used to qualify for SelectionPushdown."""
+
+    def base(self, filter_op):
+        return {
+            "datasets": {"d": {"type": "memory", "path": [{"text": "t"}]}},
+            "operations": [
+                {
+                    "name": "summarize",
+                    "type": "map",
+                    "prompt": "Summarize {{ input.text }}",
+                    "output": {"schema": {"summary": "string"}},
+                },
+                filter_op,
+            ],
+            "pipeline": {
+                "steps": [
+                    {"name": "s1", "input": "d", "operations": ["summarize"]},
+                    {"name": "s2", "input": "s1", "operations": ["keep"]},
+                ],
+                "output": {"type": "file", "path": "out.json"},
+            },
+        }
+
+    def assert_not_rewritten(self, config):
+        from docetl.plan import apply_rewrites_to_config
+
+        out, applied = apply_rewrites_to_config(config)
+        assert out is config and applied == []
+
+    def test_input_get_prompt_blocks_pushdown(self):
+        self.assert_not_rewritten(
+            self.base(
+                {
+                    "name": "keep",
+                    "type": "filter",
+                    "prompt": "Good? {{ input.get('summary', '') }}",
+                    "output": {"schema": {"keep": "bool"}},
+                }
+            )
+        )
+
+    def test_whole_row_items_prompt_blocks_pushdown(self):
+        self.assert_not_rewritten(
+            self.base(
+                {
+                    "name": "keep",
+                    "type": "filter",
+                    "prompt": "{% for k, v in input.items() %}{{k}}: {{v}}{% endfor %} ok?",
+                    "output": {"schema": {"keep": "bool"}},
+                }
+            )
+        )
+
+    def test_validate_dependency_blocks_pushdown(self):
+        self.assert_not_rewritten(
+            self.base(
+                {
+                    "name": "keep",
+                    "type": "filter",
+                    "prompt": "Good? {{ input.text }}",
+                    "output": {"schema": {"keep": "bool"}},
+                    "validate": ["output['summary'] != ''"],
+                }
+            )
+        )
+
+    def test_dotted_pdf_url_key_blocks_pushdown(self):
+        config = self.base(
+            {
+                "name": "keep",
+                "type": "filter",
+                "prompt": "Good? {{ input.text }}",
+                "output": {"schema": {"keep": "bool"}},
+                "pdf_url_key": "summary.url",
+            }
+        )
+        self.assert_not_rewritten(config)
+
+    def test_bound_method_code_filter_blocks_pushdown(self):
+        class Pred:
+            def keep(self, doc):
+                return doc["summary"] != ""
+
+        self.assert_not_rewritten(
+            self.base({"name": "keep", "type": "code_filter", "code": Pred().keep})
+        )

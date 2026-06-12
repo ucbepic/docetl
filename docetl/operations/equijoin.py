@@ -16,7 +16,7 @@ from pydantic import field_validator
 from rich.console import Console
 from rich.prompt import Confirm
 
-from docetl.operations.base import BaseOperation, Cardinality
+from docetl.operations.base import BaseOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin

@@ -219,15 +219,6 @@ class SampleOperation(BaseOperation):
         return config.get("method") in ("outliers", "top_embedding")
 
     @classmethod
-    def is_deterministic(cls, config: dict[str, Any]) -> bool:
-        method = config.get("method")
-        if method == "first":
-            return True
-        if method == "uniform":
-            return config.get("random_state") is not None
-        return False
-
-    @classmethod
     def preserves_order(cls, config: dict[str, Any]) -> bool:
         # Stratified "first" regroups rows before taking heads.
         return config.get("method") == "first" and not config.get("stratify_key")

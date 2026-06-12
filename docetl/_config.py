@@ -18,9 +18,12 @@ intermediate_dir: str | None = None
 # Rate limiting
 rate_limits: dict | None = None
 
-# Logical-plan rewrites (docetl.plan): True (all rules), False, or a
-# list of rule names to enable.
-plan_rewrites: "bool | list" = True
+# Logical-plan rewrites (docetl.plan): True (default rules), False, or a
+# rule name / list of rule names to enable (opt-in rules included).
+# Consulted by every in-process DSLRunner construction (Frame, dicts,
+# from_yaml) as the default when the config has no plan_rewrites key;
+# the CLI runs in its own process, so only the YAML key reaches it.
+plan_rewrites: "bool | str | list" = True
 
 # Optional system prompt applied to all operations:
 # {"dataset_description": ..., "persona": ...}

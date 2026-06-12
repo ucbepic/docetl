@@ -59,7 +59,12 @@ class ExtractOperation(BaseOperation):
 
     @classmethod
     def cardinality(cls, config):
-        if config.get("skip_on_error") or config.get("limit"):
+        # execute() reads skip_on_error with a *True* default (unlike the
+        # schema's declared False — a pre-existing discrepancy), and under
+        # it rows whose document_keys are missing/non-string are dropped
+        # entirely. The trait must mirror what execute() does: only an
+        # explicit skip_on_error=False yields at-most-one-output-per-row.
+        if config.get("skip_on_error", True) or config.get("limit"):
             return Cardinality.MANY_TO_MANY
         return Cardinality.ONE_TO_ONE
 

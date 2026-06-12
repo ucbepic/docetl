@@ -881,15 +881,18 @@ class Frame:
         """Render the logical plan as an indented tree and return it
         (also printed for interactive use).
 
-        With ``optimized=True``, applies the plan rewrite rules first and
-        lists what fired as ``-- applied <rule>: ...`` header lines.
+        With ``optimized=True``, applies the plan rewrite rules first
+        (the same set the runner would use, honoring this frame's
+        ``plan_rewrites`` setting) and lists what fired as
+        ``-- applied <rule>: ...`` header lines.
         """
-        from docetl.plan import apply_rules, format_plan
+        from docetl.plan import apply_rules, configured_rules, format_plan
 
         plan = self.plan()
         lines = []
         if optimized:
-            for rewrite in apply_rules(plan):
+            rules = configured_rules(self._build_config(checkpoint=False))
+            for rewrite in apply_rules(plan, rules=rules):
                 lines.append(f"-- applied {rewrite}")
         lines.append(format_plan(plan, schemas=schemas))
         text = "\n".join(lines)

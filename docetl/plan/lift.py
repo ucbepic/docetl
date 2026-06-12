@@ -27,7 +27,13 @@ def lift(config: dict[str, Any]) -> LogicalPlan:
     for op in config.get("operations") or []:
         name = op.get("name")
         if not name:
-            issues.append(PlanIssue("error", "<operations>", f"operation without a name: {op.get('type', '?')}"))
+            issues.append(
+                PlanIssue(
+                    "error",
+                    "<operations>",
+                    f"operation without a name: {op.get('type', '?')}",
+                )
+            )
             continue
         if name in ops_by_name:
             issues.append(PlanIssue("error", name, "duplicate operation name"))
@@ -46,7 +52,11 @@ def lift(config: dict[str, Any]) -> LogicalPlan:
         if node is None:
             node = ScanNode(
                 name=f"scan_{dataset_name}",
-                op_config={"type": "scan", "name": f"scan_{dataset_name}", "dataset_name": dataset_name},
+                op_config={
+                    "type": "scan",
+                    "name": f"scan_{dataset_name}",
+                    "dataset_name": dataset_name,
+                },
                 dataset_name=dataset_name,
             )
             scans[dataset_name] = node
@@ -56,15 +66,27 @@ def lift(config: dict[str, Any]) -> LogicalPlan:
         if ref in last_node_by_step:
             return last_node_by_step[ref]
         if ref not in datasets:
-            issues.append(PlanIssue("error", where, f"input {ref!r} is neither an earlier step nor a dataset"))
+            issues.append(
+                PlanIssue(
+                    "error",
+                    where,
+                    f"input {ref!r} is neither an earlier step nor a dataset",
+                )
+            )
         return scan(ref)
 
-    def node_for(op_name: str, inputs: list[PlanNode], step_name: str, where: str) -> PlanNode:
+    def node_for(op_name: str, inputs: list[PlanNode], where: str) -> PlanNode:
         op_config = ops_by_name.get(op_name)
         if op_config is None:
-            issues.append(PlanIssue("error", where, f"operation {op_name!r} is not defined in `operations`"))
+            issues.append(
+                PlanIssue(
+                    "error",
+                    where,
+                    f"operation {op_name!r} is not defined in `operations`",
+                )
+            )
             op_config = {"name": op_name, "type": ""}
-        return make_node(op_name, op_config, inputs, step_name)
+        return make_node(op_name, op_config, inputs)
 
     for idx, step_cfg in enumerate(steps_cfg):
         step_name = step_cfg.get("name") or f"<step {idx}>"
@@ -91,13 +113,18 @@ def lift(config: dict[str, Any]) -> LogicalPlan:
             right_ref = join_cfg.get("right", "")
             left = resolve_ref(left_ref, f"{step_name}/{join_name}")
             right = resolve_ref(right_ref, f"{step_name}/{join_name}")
-            join = node_for(join_name, [left, right], step_name, f"{step_name}/{join_name}")
+            join = node_for(join_name, [left, right], f"{step_name}/{join_name}")
             if isinstance(join, JoinNode):
                 join.left_ref = left_ref
                 join.right_ref = right_ref
+                join.entry_config = join_cfg
             else:
                 issues.append(
-                    PlanIssue("error", f"{step_name}/{join_name}", f"step-entry join reference must be an equijoin, got {join.op_type!r}")
+                    PlanIssue(
+                        "error",
+                        f"{step_name}/{join_name}",
+                        f"step-entry join reference must be an equijoin, got {join.op_type!r}",
+                    )
                 )
             group.nodes.append(join)
             upstream = join
@@ -105,16 +132,26 @@ def lift(config: dict[str, Any]) -> LogicalPlan:
         elif input_ref is not None:
             upstream = resolve_ref(input_ref, step_name)
         else:
-            issues.append(PlanIssue("warning", step_name, "step has no input; treating as empty scan"))
+            issues.append(
+                PlanIssue(
+                    "warning", step_name, "step has no input; treating as empty scan"
+                )
+            )
             upstream = scan("__empty__")
 
         for entry in rest:
             if not isinstance(entry, str):
                 issues.append(
-                    PlanIssue("error", step_name, f"operation entry {entry!r} should be a string (equijoin entries must come first, with no step input)")
+                    PlanIssue(
+                        "error",
+                        step_name,
+                        f"operation entry {entry!r} should be a string (equijoin entries must come first, with no step input)",
+                    )
                 )
                 continue
-            node = node_for(entry, [upstream] if upstream else [], step_name, f"{step_name}/{entry}")
+            node = node_for(
+                entry, [upstream] if upstream else [], f"{step_name}/{entry}"
+            )
             group.nodes.append(node)
             upstream = node
 
@@ -122,4 +159,6 @@ def lift(config: dict[str, Any]) -> LogicalPlan:
         if upstream is not None and step_cfg.get("name"):
             last_node_by_step[step_name] = upstream
 
-    return LogicalPlan(config=config, steps=steps, ops_by_name=ops_by_name, issues=issues)
+    return LogicalPlan(
+        config=config, steps=steps, ops_by_name=ops_by_name, issues=issues
+    )

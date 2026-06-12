@@ -1,9 +1,9 @@
 """Classical pushdown rules over the LLM-op plan.
 
 Both rules move a selection-like node earlier so upstream LLM ops run on
-fewer rows — pure cost wins with unchanged output. Every condition here
-is required for equivalence; the traits they consult fail closed, so an
-op the analysis can't see through simply never qualifies.
+fewer rows. Every condition here is required for equivalence; the traits
+they consult fail closed, so an op the analysis can't see through simply
+never qualifies.
 """
 
 from __future__ import annotations
@@ -14,45 +14,45 @@ from docetl.plan.plan import LogicalPlan
 from docetl.plan.rewrite import AppliedRewrite, push_below
 
 
+def _transparent_hop(plan: LogicalPlan, node: PlanNode, upstream: PlanNode) -> bool:
+    """Whether *node* (whose single input is *upstream*) could hop over
+    *upstream* as far as structure is concerned: upstream is a 1:1,
+    row-local, order-preserving op consumed only by *node*, and neither
+    op's config is shared across step entries (rewiring a shared node
+    would silently edit the other occurrence)."""
+    if isinstance(upstream, (ScanNode, JoinNode)):
+        return False
+    if upstream.cardinality != Cardinality.ONE_TO_ONE:
+        return False
+    if not (upstream.is_row_local and upstream.preserves_order):
+        return False
+    if plan.consumers(upstream) != [node]:
+        return False
+    if plan.references(upstream.name) != 1 or plan.references(node.name) != 1:
+        return False
+    return True
+
+
 def _swappable_upstream(plan: LogicalPlan, node: PlanNode) -> PlanNode | None:
-    """The single upstream op *node* could hop over, if structure allows:
-    a 1:1, row-local, order-preserving op consumed only by *node*, with
-    neither op's config shared across step entries."""
+    """The single upstream op *node* could hop over, if any."""
     if len(node.inputs) != 1:
         return None
     upstream = node.inputs[0]
-    if isinstance(upstream, (ScanNode, JoinNode)):
-        return None
-    if upstream.cardinality != Cardinality.ONE_TO_ONE:
-        return None
-    if not (upstream.is_row_local and upstream.preserves_order):
-        return None
-    if plan.consumers(upstream) != [node]:
-        return None
-    if plan.references(upstream.name) != 1 or plan.references(node.name) != 1:
-        return None
-    return upstream
+    return upstream if _transparent_hop(plan, node, upstream) else None
 
 
 def _chain_has_llm(plan: LogicalPlan, start: PlanNode) -> bool:
-    """Whether *start* or a 1:1 row-local order-preserving chain above it
-    contains an LLM op — the benefit gate that keeps both rules from
-    churning configs for free code-over-code swaps."""
+    """Whether *start* or a transparent chain above it contains an LLM op
+    — the benefit gate that keeps both rules from churning configs for
+    free code-over-code swaps."""
     node = start
     while True:
         if node.is_llm:
             return True
-        if (
-            node.cardinality != Cardinality.ONE_TO_ONE
-            or not node.is_row_local
-            or not node.preserves_order
-            or len(node.inputs) != 1
-        ):
+        if len(node.inputs) != 1:
             return False
         upstream = node.inputs[0]
-        if isinstance(upstream, (ScanNode, JoinNode)):
-            return False
-        if plan.consumers(upstream) != [node]:
+        if not _transparent_hop(plan, node, upstream):
             return False
         node = upstream
 
@@ -61,22 +61,25 @@ class SelectionPushdown:
     """Push a filter below a 1:1 op that doesn't produce (or disturb)
     anything the filter reads.
 
-    Equivalence argument for swapping ``U; S`` to ``S; U``: U is 1:1,
-    row-local, and order-preserving, so each row meets S with the same
-    field values either way *provided* U writes nothing S reads (cond.
-    R_S ∩ W_U = ∅). When S annotates kept rows (an LLM filter's
-    _short_explanation), U's inputs gain those fields after the swap, so
-    U must provably not read or overwrite them. An LLM filter qualifies:
-    surviving rows render identical prompts in both orders, so its
-    decisions (and cache hits) are unchanged — only U now runs on fewer
-    rows.
+    Equivalence argument for swapping ``U; S`` to ``S; U``: U is 1:1 in
+    the at-most sense (see ``Cardinality``), row-local, and
+    order-preserving, so each row meets S with the same field values
+    either way *provided* U writes nothing S reads (cond. R_S ∩ W_U = ∅).
+    Row-local drops by U commute with the swap: both orders keep exactly
+    the rows that pass S's predicate AND survive U. When S annotates kept
+    rows (an LLM filter's _short_explanation), U's inputs gain those
+    fields after the swap, so U must provably not read or overwrite them.
+    An LLM filter qualifies: surviving rows render identical prompts in
+    both orders, so its decisions (and cache hits) are unchanged — only U
+    now runs on fewer rows.
     """
 
     name = "selection_pushdown"
+    trigger_op_types = frozenset({"filter", "code_filter"})
 
     def find(self, plan: LogicalPlan) -> PlanNode | None:
         for node in plan.nodes():
-            if node.op_type not in ("filter", "code_filter"):
+            if node.op_type not in self.trigger_op_types:
                 continue
             upstream = _swappable_upstream(plan, node)
             if upstream is None:
@@ -120,9 +123,22 @@ class LimitPushdown:
     op are exactly its outputs on the first N inputs. Stratified samples
     are excluded (already non-order-preserving by trait), and ``uniform``
     is excluded outright — a different draw without a fixed seam.
+
+    NOT a default rule. Unlike SelectionPushdown, this rewrite is count-
+    and position-sensitive, and ONE_TO_ONE is only an at-most contract:
+    an LLM op can silently drop a row on an exhausted timeout, in which
+    case head-then-op yields N-1 rows on a different row set than
+    op-then-head's N. Since hopping over LLM ops is also this rule's only
+    benefit case (the gate below requires one), enabling it means
+    accepting that failure-free assumption: opt in via
+    ``plan_rewrites: ["selection_pushdown", "limit_pushdown"]``. The
+    fully sound version of this optimization is fusing the head into the
+    scan's load ``limit`` so the file read itself stops early — future
+    work at the scan boundary, not a node swap.
     """
 
     name = "limit_pushdown"
+    trigger_op_types = frozenset({"sample"})
 
     def find(self, plan: LogicalPlan) -> PlanNode | None:
         for node in plan.nodes():

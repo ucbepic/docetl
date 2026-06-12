@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 import litellm
 
 from docetl.console import DOCETL_CONSOLE
+from docetl.plan import InvalidCandidatePlan, prepare_config, validate_config
 from docetl.reasoning_optimizer.directives import (
     DIRECTIVE_GROUPS,
     MULTI_INSTANCE_DIRECTIVES,
@@ -18,7 +19,6 @@ from docetl.reasoning_optimizer.directives.change_model_cost import (
     ChangeModelCostDirective,
     create_model_specific_directives,
 )
-from docetl.plan import InvalidCandidatePlan, apply_rewrites_to_config, validate_config
 from docetl.reasoning_optimizer.op_descriptions import *  # noqa: F403, F405
 from docetl.utils import extract_output_from_json
 
@@ -1175,20 +1175,16 @@ class MOARSearch:
 
         patch_sample_dataset_path(new_parsed_yaml, self.sample_dataset_path)
 
-        # Reject invalid candidates before paying any execution cost
-        # (previously they only failed at runtime in Node.execute_plan).
-        plan_errors = [
-            issue
-            for issue in validate_config(new_parsed_yaml)
-            if issue.level == "error"
-        ]
+        # One lift: reject invalid candidates before paying any execution
+        # cost, then canonicalize with the rewrite rules the candidate's
+        # own plan_rewrites setting selects (inherited from the root
+        # YAML — a user opt-out is honored here exactly as the runner
+        # honors it). Saved candidate YAMLs carry the rewrites, so the
+        # runner's re-application is a fixpoint no-op.
+        new_parsed_yaml, plan_issues, applied_rewrites = prepare_config(new_parsed_yaml)
+        plan_errors = [issue for issue in plan_issues if issue.level == "error"]
         if plan_errors:
             raise InvalidCandidatePlan(directive_name, plan_errors)
-
-        # Canonicalize with the classical rewrite rules so saved candidate
-        # YAMLs already carry them (the runner's re-application is a
-        # fixpoint no-op).
-        new_parsed_yaml, applied_rewrites = apply_rewrites_to_config(new_parsed_yaml)
         for rewrite in applied_rewrites:
             self.console.log(f"[dim]Plan rewrite on candidate — {rewrite}[/dim]")
 

@@ -10,27 +10,12 @@ propagated alongside the schemas.
 
 from __future__ import annotations
 
-from typing import Any
-
 from docetl.plan.nodes import JoinNode, PlanNode, ScanNode
 from docetl.plan.plan import LogicalPlan, PlanIssue
 
-
-def removed_fields(node: PlanNode) -> frozenset[str]:
-    """Fields this node definitely removes from its output rows."""
-    cfg = node.op_config
-    removed = set(cfg.get("drop_keys") or [])
-    if node.op_type == "filter":
-        decision_keys = [
-            k
-            for k in ((cfg.get("output") or {}).get("schema") or {})
-            if k != "_short_explanation"
-        ]
-        if decision_keys:
-            removed.add(decision_keys[0])  # popped from every kept row
-    if node.op_type == "unnest_columns" and cfg.get("unnest_key"):
-        removed.add(cfg["unnest_key"])
-    return frozenset(removed)
+# Definite removals come from the fields_removed trait on the operation
+# classes (drop_keys in the base, the decision key on filter, unnest_key
+# on unnest_columns) — one description per op, next to its other traits.
 
 
 def propagate_schemas(
@@ -88,7 +73,7 @@ def propagate_schemas(
             # *definitely* removed.
             out_removed: frozenset[str] = frozenset()
         else:
-            out_removed = (in_removed - written) | removed_fields(node)
+            out_removed = (in_removed - written) | node.fields_removed
         schemas[id(node)] = out_schema
         removed[id(node)] = out_removed
 

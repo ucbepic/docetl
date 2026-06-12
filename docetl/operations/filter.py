@@ -87,22 +87,21 @@ class FilterOperation(MapOperation, CascadeMixin):
         # validate failures only drop more of them.
         return Cardinality.SELECTION
 
-    @classmethod
-    def fields_written(cls, config: dict[str, Any]) -> "frozenset[str] | None":
-        # The decision key is overwritten then popped (removing any
-        # same-named input field), and _short_explanation survives on
-        # kept rows — both count as writes.
-        if config.get("tools"):
-            return None
-        written = set((config.get("output") or {}).get("schema") or {})
-        written |= set(config.get("drop_keys") or [])
-        if config.get("enable_observability"):
-            written.add(f"_observability_{config.get('name', '')}")
-        return frozenset(written)
+    # fields_written and is_llm are inherited from MapOperation: the
+    # decision key is in output.schema (overwritten then popped — a write
+    # by the added-overwritten-or-removed definition), and the map body
+    # already covers drop_keys, observability, and retriever-output keys.
 
     @classmethod
-    def is_llm(cls, config: dict[str, Any]) -> bool:
-        return True
+    def fields_removed(cls, config: dict[str, Any]) -> "frozenset[str]":
+        # The decision key is popped from every kept row.
+        removed = set(super().fields_removed(config))
+        removed.update(
+            k
+            for k in ((config.get("output") or {}).get("schema") or {})
+            if k != "_short_explanation"
+        )
+        return frozenset(removed)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

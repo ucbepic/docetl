@@ -52,8 +52,11 @@ class UnnestColumnsOperation(BaseOperation):
         return frozenset(config["keys"]) | frozenset({config.get("unnest_key")})
 
     @classmethod
-    def is_deterministic(cls, config):
-        return True
+    def fields_removed(cls, config):
+        removed = set(super().fields_removed(config))
+        if config.get("unnest_key"):
+            removed.add(config["unnest_key"])
+        return frozenset(removed)
 
     @classmethod
     def is_row_local(cls, config):

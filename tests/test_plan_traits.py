@@ -249,7 +249,6 @@ class TestSampleTraits:
         cfg = {"name": "s", "type": "sample", "method": "first", "samples": 3}
         assert cls.cardinality(cfg) == Cardinality.SELECTION
         assert cls.fields_read(cfg) == frozenset()
-        assert cls.is_deterministic(cfg)
         assert cls.preserves_order(cfg)
 
     def test_stratified_first_not_order_preserving(self):
@@ -261,11 +260,9 @@ class TestSampleTraits:
         assert not cls.preserves_order(cfg)
         assert cls.fields_read(cfg) == {"grp"}
 
-    def test_uniform_determinism_needs_seed(self):
+    def test_uniform_not_order_preserving(self):
         cls = _op("sample")
         cfg = {"name": "s", "type": "sample", "method": "uniform", "samples": 3}
-        assert not cls.is_deterministic(cfg)
-        assert cls.is_deterministic({**cfg, "random_state": 42})
         assert not cls.preserves_order(cfg)
 
     def test_embedding_methods_fail_closed(self):
@@ -288,14 +285,16 @@ class TestStructuralOpTraits:
         assert cls.cardinality(cfg) == Cardinality.ONE_TO_MANY
         assert cls.fields_read(cfg) == {"text"}
         assert cls.fields_written(cfg) == {"text_chunk", "sp_id", "sp_chunk_num"}
-        assert not cls.is_deterministic(cfg)  # fresh uuid per document
 
     def test_unnest(self):
         cls = _op("unnest")
         cfg = {"name": "u", "type": "unnest", "unnest_key": "tags"}
         assert cls.cardinality(cfg) == Cardinality.ONE_TO_MANY
         assert cls.fields_read(cfg) == {"tags"}
-        assert cls.fields_written(cfg) == {"tags"}
+        # Without expand_fields the unnest_key may hold dicts, whose
+        # runtime keys all get written -- statically unknowable.
+        assert cls.fields_written(cfg) is None
+        assert cls.fields_written({**cfg, "expand_fields": ["a"]}) == {"tags", "a"}
 
     def test_gather_not_row_local(self):
         cls = _op("gather")
@@ -318,12 +317,11 @@ class TestStructuralOpTraits:
         assert not cls.preserves_order(cfg)
         assert cls.fields_written(cfg) == {"_rank"}
 
-    def test_add_uuid_not_deterministic(self):
+    def test_add_uuid(self):
         cls = _op("add_uuid")
         cfg = {"name": "ids", "type": "add_uuid"}
         assert cls.cardinality(cfg) == Cardinality.ONE_TO_ONE
         assert cls.fields_written(cfg) == {"ids_id"}
-        assert not cls.is_deterministic(cfg)
 
 
 class TestConservativeDefaults:
@@ -333,7 +331,6 @@ class TestConservativeDefaults:
         assert BaseOperation.fields_read(cfg) is None
         assert BaseOperation.fields_written(cfg) is None
         assert not BaseOperation.is_llm(cfg)
-        assert not BaseOperation.is_deterministic(cfg)
         assert not BaseOperation.is_row_local(cfg)
         assert not BaseOperation.preserves_order(cfg)
 
@@ -346,3 +343,165 @@ class TestConservativeDefaults:
         assert cls.cardinality(cfg) == Cardinality.MANY_TO_ONE
         assert cls.fields_read(cfg) is None
         assert cls.fields_written(cfg) is None
+
+
+class TestJinjaCallSoundness:
+    """Regression: dict-method calls on the row must not produce phantom
+    field reads ('get'/'items') that license unsound pushdowns."""
+
+    def test_get_with_constant_key_reads_that_field(self):
+        assert extract_input_field_reads("{{ input.get('summary', '') }}") == {
+            "summary"
+        }
+
+    def test_get_default_arg_reads_are_collected(self):
+        assert extract_input_field_reads("{{ input.get('a', input.b) }}") == {"a", "b"}
+
+    def test_get_with_dynamic_key_fails_closed(self):
+        assert extract_input_field_reads("{{ input.get(key) }}") is None
+
+    def test_whole_row_methods_fail_closed(self):
+        assert (
+            extract_input_field_reads(
+                "{% for k, v in input.items() %}{{ k }}: {{ v }}{% endfor %}"
+            )
+            is None
+        )
+        assert extract_input_field_reads("{{ input.keys() }}") is None
+        assert extract_input_field_reads("{{ input.values() }}") is None
+
+
+class TestCodeExtractorCallables:
+    """Regression: parameter identification must come from the runtime
+    signature, not AST position — a bound method's AST keeps `self`."""
+
+    def test_bound_method_reads_resolved(self):
+        class Pred:
+            def keep(self, doc):
+                return doc["score"] > 5
+
+        assert extract_doc_field_reads(Pred().keep) == {"score"}
+
+    def test_multi_arg_callable_fails_closed(self):
+        def two(doc, other):
+            return doc["x"]
+
+        assert extract_doc_field_reads(two) is None
+
+    def test_multi_arg_string_transform_fails_closed(self):
+        assert (
+            extract_doc_field_reads("def transform(doc, extra):\n    return doc['x']")
+            is None
+        )
+
+
+class TestEvalFieldReads:
+    def test_subscript_and_get(self):
+        from docetl.operations.code_operations import extract_eval_field_reads
+
+        assert extract_eval_field_reads("output['score'] > 0.5") == {"score"}
+        assert extract_eval_field_reads("output.get('score', 0) > 0.5") == {"score"}
+
+    def test_whole_object_fails_closed(self):
+        from docetl.operations.code_operations import extract_eval_field_reads
+
+        assert extract_eval_field_reads("len(output) > 2") is None
+        assert extract_eval_field_reads("output[key]") is None
+
+
+class TestMapFieldReadCompleteness:
+    """Regression: validate rules and dotted pdf_url_key are real input
+    dependencies and must appear in (or fail) the read set."""
+
+    def test_validate_reads_passthrough_fields(self):
+        cls = _op("filter")
+        cfg = {
+            "name": "f",
+            "type": "filter",
+            "prompt": "Good? {{ input.text }}",
+            "output": {"schema": {"keep": "bool"}},
+            "validate": ["output['score'] > 0.5"],
+        }
+        # 'score' is not in the filter's own output schema, so the
+        # validate rule reads it from the merged-in input row.
+        assert cls.fields_read(cfg) == {"text", "score"}
+
+    def test_validate_of_own_output_is_not_an_input_read(self):
+        cls = _op("map")
+        cfg = {
+            "name": "m",
+            "type": "map",
+            "prompt": "p {{ input.text }}",
+            "output": {"schema": {"summary": "string"}},
+            "validate": ["len(output['summary']) > 0"],
+        }
+        assert cls.fields_read(cfg) == {"text"}
+
+    def test_unanalyzable_validate_fails_closed(self):
+        cls = _op("map")
+        cfg = {
+            "name": "m",
+            "type": "map",
+            "prompt": "p {{ input.text }}",
+            "output": {"schema": {"summary": "string"}},
+            "validate": ["all(v for v in output.values())"],
+        }
+        assert cls.fields_read(cfg) is None
+
+    def test_pdf_url_key_dotted_path_reads_root(self):
+        cls = _op("map")
+        cfg = {
+            "name": "m",
+            "type": "map",
+            "prompt": "p {{ input.text }}",
+            "output": {"schema": {"summary": "string"}},
+            "pdf_url_key": "docmeta.url",
+        }
+        # lookup_field resolves "docmeta.url" as doc["docmeta"]["url"];
+        # the top-level dependency is the root field.
+        assert cls.fields_read(cfg) == {"text", "docmeta"}
+
+
+class TestExtractCardinalityMirrorsRuntime:
+    def test_default_config_is_not_one_to_one(self):
+        # execute() defaults skip_on_error to True (dropping rows whose
+        # document_keys are missing/non-string), so the default config
+        # must not claim 1:1.
+        cls = _op("extract")
+        cfg = {
+            "name": "e",
+            "type": "extract",
+            "prompt": "p {{ input.text }}",
+            "document_keys": ["text"],
+        }
+        assert cls.cardinality(cfg) == Cardinality.MANY_TO_MANY
+        assert (
+            cls.cardinality({**cfg, "skip_on_error": False})
+            == Cardinality.ONE_TO_ONE
+        )
+
+
+class TestFilterInheritsMapWrites:
+    def test_save_retriever_output_key_included(self):
+        # Regression: filter's hand-copied fields_written had drifted
+        # from map's (missing this branch); it now inherits.
+        cls = _op("filter")
+        cfg = {
+            "name": "f",
+            "type": "filter",
+            "prompt": "p {{ input.text }}",
+            "output": {"schema": {"keep": "bool"}},
+            "save_retriever_output": True,
+        }
+        assert "_f_retrieved_context" in cls.fields_written(cfg)
+
+    def test_decision_key_definitely_removed(self):
+        cls = _op("filter")
+        cfg = {
+            "name": "f",
+            "type": "filter",
+            "prompt": "p {{ input.text }}",
+            "output": {"schema": {"keep": "bool", "_short_explanation": "string"}},
+            "drop_keys": ["raw"],
+        }
+        assert cls.fields_removed(cfg) == {"keep", "raw"}

@@ -142,6 +142,15 @@ class DSLRunner:
         self.console = kwargs.pop("console", None) or get_console()
         for rewrite in self.applied_rewrites:
             self.console.log(f"[dim]Plan rewrite — {rewrite}[/dim]")
+        if getattr(self, "_pipeline_rederived", False):
+            self.console.log(
+                "[dim]Plan rewrites changed the config, so the passed-in "
+                "Pipeline object was re-derived from it; custom op types "
+                "outside the typed registry lose their class in "
+                "runner.pipeline (execution uses the raw config and is "
+                "unaffected). Set plan_rewrites=False on the Pipeline to "
+                "keep the original object.[/dim]"
+            )
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
 
@@ -185,17 +194,19 @@ class DSLRunner:
         # hashes are derived — so everything downstream keys on the
         # rewritten config. Rewriting is idempotent (fixpoint), and when
         # no rule fires the original config object is returned, so
-        # existing pipelines see zero hash churn.
+        # existing pipelines see zero hash churn. The gate falls back to
+        # the docetl.plan_rewrites module global, covering from_yaml and
+        # dict constructions too (the CLI is a separate process — only
+        # the YAML key reaches it).
         self.applied_rewrites = []
-        rewrite_setting = cfg.get("plan_rewrites", True)
-        if rewrite_setting:
-            from docetl.plan import apply_rewrites_to_config, resolve_rules
+        from docetl.plan import apply_rewrites_to_config, configured_rules
 
-            cfg, self.applied_rewrites = apply_rewrites_to_config(
-                cfg, rules=resolve_rules(rewrite_setting)
-            )
+        rules = configured_rules(cfg)
+        if rules:
+            cfg, self.applied_rewrites = apply_rewrites_to_config(cfg, rules=rules)
 
         self.config = cfg
+        self._pipeline_rederived = pipeline is not None and bool(self.applied_rewrites)
         if pipeline is not None and not self.applied_rewrites:
             # Keep the caller's typed Pipeline: from_dict degrades op
             # types missing from its registry, so don't re-derive it

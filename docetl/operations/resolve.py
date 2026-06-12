@@ -12,8 +12,13 @@ from jinja2 import Template
 from litellm import model_cost
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from docetl.operations.base import BaseOperation, Cardinality
-from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render, lookup_field
+from docetl.operations.base import BaseOperation
+from docetl.operations.utils import (
+    RichLoopBar,
+    lookup_field,
+    rich_as_completed,
+    strict_render,
+)
 from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.utils import (
@@ -457,7 +462,9 @@ class ResolveOperation(BaseOperation, CascadeMixin):
 
                     texts = [
                         " ".join(
-                            filter(None, (_safe_lookup(item, key) for key in blocking_keys))
+                            filter(
+                                None, (_safe_lookup(item, key) for key in blocking_keys)
+                            )
                         )[: model_input_context_length * 3]
                         for item in batch
                     ]
@@ -627,9 +634,7 @@ class ResolveOperation(BaseOperation, CascadeMixin):
             # proxy on all pairs, oracle on a calibrated subset (precision
             # guarantee by default). Merge matched pairs into the union-find,
             # then empty the work list so the per-batch loop below no-ops.
-            pair_items = [
-                (input_data[i], input_data[j]) for (i, j) in blocked_pairs
-            ]
+            pair_items = [(input_data[i], input_data[j]) for (i, j) in blocked_pairs]
             labels, pair_costs = self._cascade_match_pairs(pair_items, blocking_keys)
             for (i, j), is_match in zip(blocked_pairs, labels):
                 if is_match:

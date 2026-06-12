@@ -1,7 +1,6 @@
 """lift/lower round-trip: deep-equal, yaml-dump-equal, identity on no-op."""
 
 import copy
-import json
 
 import pytest
 import yaml
@@ -254,7 +253,9 @@ class TestLiftStructuralIssues:
                 },
             }
         )
-        assert any(i.level == "error" and "raw" in i.message and i.where == "reader" for i in issues)
+        # Warning, not error: the read-set extractor has known false
+        # positives (guarded reads), so this check must not reject plans.
+        assert any(i.level == "warning" and "raw" in i.message and i.where == "reader" for i in issues)
 
     def test_import_docetl_plan_submodule(self):
         # The sys.modules replacement in docetl/__init__.py must not break
@@ -263,3 +264,69 @@ class TestLiftStructuralIssues:
 
         module = importlib.import_module("docetl.plan")
         assert hasattr(module, "lift")
+
+
+class TestJoinEntryUnknownKeys:
+    def config(self):
+        return {
+            "datasets": {
+                "l": {"type": "file", "path": "l.json"},
+                "r": {"type": "file", "path": "r.json"},
+            },
+            "operations": [
+                {
+                    "name": "j",
+                    "type": "equijoin",
+                    "comparison_prompt": "same? {{ left.a }} {{ right.b }}",
+                },
+                {
+                    "name": "keep",
+                    "type": "code_filter",
+                    "code": "def transform(doc):\n    return doc['x'] > 1",
+                },
+                {
+                    "name": "m",
+                    "type": "map",
+                    "prompt": "p {{ input.text }}",
+                    "output": {"schema": {"s": "string"}},
+                },
+            ],
+            "pipeline": {
+                "steps": [
+                    {
+                        "name": "joined",
+                        "operations": [
+                            # Unknown key inside the join entry must survive.
+                            {"j": {"left": "l", "right": "r", "note": "KEEPME"}}
+                        ],
+                    },
+                    {"name": "post", "input": "joined", "operations": ["m", "keep"]},
+                ],
+                "output": {"type": "file", "path": "out.json"},
+            },
+        }
+
+    def test_roundtrip_preserves_join_entry_keys(self):
+        import yaml as _yaml
+
+        from docetl.plan import lift, lower
+
+        config = self.config()
+        lowered = lower(lift(config))
+        assert lowered is config or _yaml.safe_dump(
+            lowered, sort_keys=False
+        ) == _yaml.safe_dump(config, sort_keys=False)
+
+    def test_rewrite_elsewhere_keeps_join_entry_keys(self, monkeypatch):
+        # Regression: when a rule fired anywhere, lower used to regenerate
+        # the join entry as bare {left, right}, dropping unknown keys.
+        monkeypatch.setattr(
+            "docetl.plan.rules.pushdown._chain_has_llm", lambda plan, node: True
+        )
+        from docetl.plan import apply_rewrites_to_config
+
+        config = self.config()
+        rewritten, applied = apply_rewrites_to_config(config)
+        assert applied, "the m→keep pushdown should fire"
+        join_entry = rewritten["pipeline"]["steps"][0]["operations"][0]
+        assert join_entry["j"]["note"] == "KEEPME"

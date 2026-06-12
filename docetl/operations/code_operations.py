@@ -1,4 +1,5 @@
 import ast
+import functools
 import inspect
 import os
 import textwrap
@@ -11,53 +12,12 @@ from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import RichLoopBar
 
 
-def extract_doc_field_reads(code: Any) -> "frozenset[str] | None":
-    """The set of document fields a code op's transform reads, or None.
-
-    Sound for plan-rewrite decisions: every use of the document parameter
-    must be a constant subscript (``doc["k"]``) or a constant ``.get``
-    call (``doc.get("k")``). Any other use — aliasing, ``**doc``,
-    iteration, dynamic keys, reassignment — returns None (fail closed).
-    Callables are analyzed via ``inspect.getsource`` best-effort.
-    """
-    try:
-        if callable(code):
-            source = textwrap.dedent(inspect.getsource(code))
-        elif isinstance(code, str):
-            source = code
-        else:
-            return None
-        module = ast.parse(source)
-    except Exception:
-        return None
-
-    # String code must define `transform` (see resolve_transform); for
-    # callables, take the first function/lambda in the extracted source.
-    if isinstance(code, str):
-        fn = next(
-            (
-                node
-                for node in ast.walk(module)
-                if isinstance(node, ast.FunctionDef) and node.name == "transform"
-            ),
-            None,
-        )
-    else:
-        fn = next(
-            (
-                node
-                for node in ast.walk(module)
-                if isinstance(node, (ast.FunctionDef, ast.Lambda))
-            ),
-            None,
-        )
-    if fn is None or not fn.args.args:
-        return None
-    param = fn.args.args[0].arg
-
+def _name_field_reads(tree: ast.AST, param: str) -> "frozenset[str] | None":
+    """Reads of ``param`` within *tree* as constant subscripts or constant
+    ``.get`` calls, or None on any other use of the name (fail closed)."""
     fields: set[str] = set()
     consumed: set[int] = set()
-    for node in ast.walk(fn):
+    for node in ast.walk(tree):
         if (
             isinstance(node, ast.Subscript)
             and isinstance(node.value, ast.Name)
@@ -85,10 +45,112 @@ def extract_doc_field_reads(code: Any) -> "frozenset[str] | None":
                 return None
             fields.add(node.args[0].value)
             consumed.add(id(node.func.value))
-    for node in ast.walk(fn):
+    for node in ast.walk(tree):
         if isinstance(node, ast.Name) and node.id == param and id(node) not in consumed:
             return None
     return frozenset(fields)
+
+
+def extract_doc_field_reads(code: Any) -> "frozenset[str] | None":
+    """The set of document fields a code op's transform reads, or None.
+
+    Sound for plan-rewrite decisions: every use of the document parameter
+    must be a constant subscript (``doc["k"]``) or a constant ``.get``
+    call (``doc.get("k")``). Any other use — aliasing, ``**doc``,
+    iteration, dynamic keys, reassignment — returns None (fail closed).
+    Callables are analyzed via ``inspect.getsource`` best-effort.
+
+    The document parameter is identified through ``inspect.signature``
+    for callables (bound methods drop ``self`` there but keep it in the
+    source AST, so positional matching would silently analyze the wrong
+    name) and matched against the AST argument list by name. Transforms
+    must take exactly one parameter; anything else returns None.
+    """
+    if isinstance(code, str):
+        return _doc_field_reads_str(code)
+    if not callable(code):
+        return None
+    try:
+        return _doc_field_reads_callable(code)
+    except TypeError:
+        # Unhashable callable (e.g. functools.partial): analyze uncached.
+        return _doc_field_reads_callable.__wrapped__(code)
+
+
+@functools.lru_cache(maxsize=256)
+def _doc_field_reads_str(code: str) -> "frozenset[str] | None":
+    try:
+        module = ast.parse(code)
+    except Exception:
+        return None
+    # String code must define `transform` (see resolve_transform).
+    fn = next(
+        (
+            node
+            for node in ast.walk(module)
+            if isinstance(node, ast.FunctionDef) and node.name == "transform"
+        ),
+        None,
+    )
+    return _single_param_reads(fn, expected_param=None)
+
+
+@functools.lru_cache(maxsize=256)
+def _doc_field_reads_callable(code: Any) -> "frozenset[str] | None":
+    try:
+        params = list(inspect.signature(code).parameters.values())
+        source = textwrap.dedent(inspect.getsource(code))
+        module = ast.parse(source)
+    except Exception:
+        return None
+    positional = [
+        p for p in params if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+    ]
+    if len(positional) != 1 or len(params) != 1:
+        return None
+    fn = next(
+        (
+            node
+            for node in ast.walk(module)
+            if isinstance(node, (ast.FunctionDef, ast.Lambda))
+        ),
+        None,
+    )
+    return _single_param_reads(fn, expected_param=positional[0].name)
+
+
+def _single_param_reads(
+    fn: "ast.FunctionDef | ast.Lambda | None", expected_param: "str | None"
+) -> "frozenset[str] | None":
+    if fn is None or not fn.args.args:
+        return None
+    if expected_param is None:
+        # String-defined transform: the contract is transform(doc).
+        if len(fn.args.args) != 1:
+            return None
+        param = fn.args.args[0].arg
+    else:
+        # Match the runtime signature's parameter by name; a bound
+        # method's AST keeps `self` at position 0, so position is a lie.
+        names = [a.arg for a in fn.args.args]
+        if expected_param not in names:
+            return None
+        param = expected_param
+    return _name_field_reads(fn, param)
+
+
+def extract_eval_field_reads(expr: Any, var: str = "output") -> "frozenset[str] | None":
+    """Fields of *var* a ``validate``-style python expression reads, or
+    None if it can't be soundly enumerated. Same access grammar as
+    ``extract_doc_field_reads``: ``output["k"]`` and ``output.get("k")``
+    only; any other use of *var* fails closed."""
+    if not isinstance(expr, str):
+        return None
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except Exception:
+        return None
+    return _name_field_reads(tree, var)
 
 
 def resolve_transform(code: Any):
@@ -113,7 +175,26 @@ def _validate_code(v: Any) -> Any:
     raise TypeError("code must be a string or a callable")
 
 
-class CodeMapOperation(BaseOperation):
+class _RowWiseCodeTraits:
+    """Shared plan traits for per-row code ops (code_map, code_filter):
+    reads come from AST analysis of the transform; execution is row-local
+    and order-preserving. Defined once so a fix to read derivation can't
+    apply to one op type and not the other."""
+
+    @classmethod
+    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
+        return extract_doc_field_reads(config.get("code"))
+
+    @classmethod
+    def is_row_local(cls, config: dict[str, Any]) -> bool:
+        return True
+
+    @classmethod
+    def preserves_order(cls, config: dict[str, Any]) -> bool:
+        return True
+
+
+class CodeMapOperation(_RowWiseCodeTraits, BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_map"
         code: Any
@@ -138,19 +219,7 @@ class CodeMapOperation(BaseOperation):
             return Cardinality.MANY_TO_MANY
         return Cardinality.ONE_TO_ONE
 
-    @classmethod
-    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
-        return extract_doc_field_reads(config.get("code"))
-
     # fields_written stays None: arbitrary code can add any keys.
-
-    @classmethod
-    def is_row_local(cls, config: dict[str, Any]) -> bool:
-        return True
-
-    @classmethod
-    def preserves_order(cls, config: dict[str, Any]) -> bool:
-        return True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         limit_value = self.config.get("limit")
@@ -267,7 +336,7 @@ class CodeReduceOperation(BaseOperation):
         return results, 0.0
 
 
-class CodeFilterOperation(BaseOperation):
+class CodeFilterOperation(_RowWiseCodeTraits, BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_filter"
         code: Any
@@ -290,20 +359,8 @@ class CodeFilterOperation(BaseOperation):
         return Cardinality.SELECTION
 
     @classmethod
-    def fields_read(cls, config: dict[str, Any]) -> "frozenset[str] | None":
-        return extract_doc_field_reads(config.get("code"))
-
-    @classmethod
     def fields_written(cls, config: dict[str, Any]) -> "frozenset[str]":
         return frozenset()  # kept rows pass through untouched
-
-    @classmethod
-    def is_row_local(cls, config: dict[str, Any]) -> bool:
-        return True
-
-    @classmethod
-    def preserves_order(cls, config: dict[str, Any]) -> bool:
-        return True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         filter_fn = resolve_transform(self.config["code"])

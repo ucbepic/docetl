@@ -4,6 +4,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 
 import asyncio
 import base64
+import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
@@ -15,6 +16,7 @@ from tqdm import tqdm
 
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation, Cardinality
+from docetl.operations.code_operations import extract_eval_field_reads
 from docetl.operations.utils import (
     RichLoopBar,
     lookup_field,
@@ -167,8 +169,12 @@ class MapOperation(BaseOperation):
 
     @classmethod
     def cardinality(cls, config: dict[str, Any]) -> Cardinality:
-        # skip_on_error and validate failures drop rows, limit truncates
-        # inputs, and tool-based parsing can emit several outputs per row.
+        # limit truncates inputs positionally and tools can emit several
+        # outputs per row — neither fits ONE_TO_ONE's at-most contract.
+        # skip_on_error and validate drops are row-local and *would* fit
+        # it; they stay excluded out of conservatism for now. A plain map
+        # is ONE_TO_ONE in the at-most sense: an exhausted LLM timeout
+        # still drops the row silently (see Cardinality docstring).
         if (
             config.get("skip_on_error")
             or config.get("limit")
@@ -200,8 +206,19 @@ class MapOperation(BaseOperation):
                     fields |= reads
         elif gleaning is not None:
             return None
+        # validate rules run via safe_eval against the output dict AFTER
+        # input passthrough fields are merged in (_process_map_item), so
+        # output['k'] is an input read unless k is this op's own output.
+        own_outputs = frozenset((config.get("output") or {}).get("schema") or {})
+        for rule in config.get("validate") or []:
+            reads = extract_eval_field_reads(rule, var="output")
+            if reads is None:
+                return None
+            fields |= reads - own_outputs
         if config.get("pdf_url_key"):
-            fields.add(config["pdf_url_key"])
+            # lookup_field treats the key as a jinja path ("a.0.b" →
+            # doc["a"][0]["b"]); the input dependency is the root field.
+            fields.add(re.split(r"[.\[]", config["pdf_url_key"])[0])
         return frozenset(fields)
 
     @classmethod

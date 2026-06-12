@@ -15,9 +15,10 @@ Engine-readiness notes
 The IR is modeled in spirit on DataFusion's LogicalPlan so a future
 Rust executor can consume the same plans:
 
-- ``ScanNode`` ↔ ``TableScan``; ``SelectionNode``/``ProjectionNode``/
-  ``AggregateNode`` ↔ the native Filter/Projection/Aggregate nodes with
-  the LLM work expressed as Extension nodes (``UserDefinedLogicalNode``).
+- ``ScanNode`` ↔ ``TableScan``; selection/projection/aggregate-shaped
+  ops (per their ``cardinality`` trait) ↔ the native Filter/Projection/
+  Aggregate nodes with the LLM work expressed as Extension nodes
+  (``UserDefinedLogicalNode``).
 - The operator traits (cardinality, fields_read/written, row-locality,
   order preservation) become node properties driving custom
   ``OptimizerRule`` impls — DataFusion's built-in pushdowns treat
@@ -31,21 +32,13 @@ from docetl.operations.base import Cardinality
 from docetl.plan.explain import format_plan
 from docetl.plan.lift import lift
 from docetl.plan.lower import lower
-from docetl.plan.nodes import (
-    AggregateNode,
-    ExpandNode,
-    JoinNode,
-    OpaqueNode,
-    PlanNode,
-    ProjectionNode,
-    ResolveNode,
-    ScanNode,
-    SelectionNode,
-)
+from docetl.plan.nodes import JoinNode, OpaqueNode, PlanNode, ScanNode
 from docetl.plan.plan import LogicalPlan, PlanIssue, StepGroup
+from docetl.plan.prepare import configured_rules, prepare_config
 from docetl.plan.rewrite import (
     AppliedRewrite,
     RewriteRule,
+    all_rules,
     apply_rewrites_to_config,
     apply_rules,
     default_rules,
@@ -55,29 +48,27 @@ from docetl.plan.schema import output_schema, propagate_schemas
 from docetl.plan.validate import InvalidCandidatePlan, validate, validate_config
 
 __all__ = [
-    "AggregateNode",
     "AppliedRewrite",
     "Cardinality",
-    "ExpandNode",
     "InvalidCandidatePlan",
     "JoinNode",
     "LogicalPlan",
     "OpaqueNode",
     "PlanIssue",
     "PlanNode",
-    "ProjectionNode",
-    "ResolveNode",
     "RewriteRule",
     "ScanNode",
-    "SelectionNode",
     "StepGroup",
+    "all_rules",
     "apply_rewrites_to_config",
     "apply_rules",
+    "configured_rules",
     "default_rules",
     "format_plan",
     "lift",
     "lower",
     "output_schema",
+    "prepare_config",
     "propagate_schemas",
     "resolve_rules",
     "validate",

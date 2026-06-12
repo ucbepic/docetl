@@ -62,9 +62,14 @@ def validate(plan: LogicalPlan) -> list[PlanIssue]:
         if reads:
             missing = reads & in_removed
             if missing:
+                # Warning, not error: the read-set extractor counts
+                # guarded reads ({% if input.x is defined %}, |default)
+                # as hard reads, and those templates are runtime-safe.
+                # A check with known false positives must not reject
+                # candidate plans.
                 issues.append(
                     PlanIssue(
-                        "error",
+                        "warning",
                         node.name,
                         f"reads field(s) {sorted(missing)} that were removed upstream",
                     )

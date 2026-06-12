@@ -31,6 +31,9 @@ class AppliedRewrite:
 @runtime_checkable
 class RewriteRule(Protocol):
     name: str
+    # Op types that must be present in a config for this rule to possibly
+    # fire — lets apply_rewrites_to_config skip the lift entirely.
+    trigger_op_types: frozenset[str]
 
     def find(self, plan: LogicalPlan) -> PlanNode | None: ...
 
@@ -46,33 +49,61 @@ def push_below(plan: LogicalPlan, node: PlanNode, upstream: PlanNode) -> None:
         consumer.inputs = [upstream if i is node else i for i in consumer.inputs]
     node.inputs = list(upstream.inputs)
     upstream.inputs = [node]
+    plan.invalidate()
 
     src = plan.step_of(node)
     dst = plan.step_of(upstream)
     assert src is not None and dst is not None
     src.nodes.remove(node)
     dst.nodes.insert(next(i for i, n in enumerate(dst.nodes) if n is upstream), node)
-    node.step_name = dst.name
     if not src.nodes:
         plan.drop_step(src)
 
 
 def default_rules() -> list[RewriteRule]:
+    # LimitPushdown is deliberately NOT a default: it is only sound when
+    # every hopped-over op emits exactly one row per input, and LLM ops
+    # can silently drop a row on an exhausted timeout — which is also the
+    # only case the rule saves money on. Opt in with
+    # ``plan_rewrites: ["selection_pushdown", "limit_pushdown"]`` if that
+    # failure-free assumption is acceptable for your pipeline.
+    from docetl.plan.rules.pushdown import SelectionPushdown
+
+    return [SelectionPushdown()]
+
+
+def all_rules() -> list[RewriteRule]:
+    """Every shipped rule, including the opt-in ones."""
     from docetl.plan.rules.pushdown import LimitPushdown, SelectionPushdown
 
     return [SelectionPushdown(), LimitPushdown()]
 
 
 def resolve_rules(spec: Any) -> list[RewriteRule]:
-    """Resolve a ``plan_rewrites`` setting value into rule instances:
-    True/None → all default rules; a list → that subset by name."""
-    rules = default_rules()
+    """Resolve a ``plan_rewrites`` setting value into rule instances.
+
+    True/None → the default rules; a string or list of strings → exactly
+    those rules by name (opt-in rules included). Unknown names or other
+    spec types raise — a misspelled setting must not silently disable
+    the optimizations the user asked for.
+    """
     if spec is None or spec is True:
-        return rules
+        return default_rules()
+    if isinstance(spec, str):
+        spec = [spec]
     if isinstance(spec, (list, tuple, set)):
-        wanted = set(spec)
-        return [r for r in rules if r.name in wanted]
-    return []
+        by_name = {r.name: r for r in all_rules()}
+        unknown = [n for n in spec if n not in by_name]
+        if unknown:
+            raise ValueError(
+                f"plan_rewrites names unknown rule(s) {unknown}; "
+                f"available rules: {sorted(by_name)}"
+            )
+        return [by_name[n] for n in spec]
+    raise ValueError(
+        "plan_rewrites must be true, false, a rule name, or a list of "
+        f"rule names; got {spec!r}"
+    )
 
 
 def apply_rules(
@@ -98,12 +129,25 @@ def apply_rules(
     return applied
 
 
+def could_fire(config: dict[str, Any], rules: list[RewriteRule]) -> bool:
+    """Cheap pre-check: a rule can only fire if one of its trigger op
+    types appears in the config. Saves the lift (deepcopies, node
+    construction) on every runner startup for pipelines with no
+    selection-like ops."""
+    present = {op.get("type") for op in config.get("operations") or []}
+    return any(present & rule.trigger_op_types for rule in rules)
+
+
 def apply_rewrites_to_config(
     config: dict[str, Any], rules: list[RewriteRule] | None = None
 ) -> tuple[dict[str, Any], list[AppliedRewrite]]:
     """Rewrite a pipeline config. Identity short-circuit: returns the
     original object (and ``[]``) when nothing fires or the config has
     structural problems we won't rewrite through."""
+    if rules is None:
+        rules = default_rules()
+    if not rules or not could_fire(config, rules):
+        return config, []
     plan = lift(config)
     if any(issue.level == "error" for issue in plan.issues):
         return config, []

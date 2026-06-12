@@ -114,3 +114,39 @@ class TestRootValidationWarnings:
         }
         errors = [i for i in validate_config(config) if i.level == "error"]
         assert errors and "ghost" in errors[0].message
+
+
+class TestCandidateRespectsPlanRewritesSetting:
+    def test_opt_out_is_honored(self, tmp_path):
+        """Regression: candidate canonicalization used to apply the default
+        rules unconditionally, baking rewrites into saved YAMLs even when
+        the root pipeline set plan_rewrites: false."""
+        config = yaml.safe_load(open(root_yaml(tmp_path)))
+        config["plan_rewrites"] = False
+        opt_out_path = tmp_path / "root_optout.yaml"
+        opt_out_path.write_text(yaml.safe_dump(config, sort_keys=False))
+
+        node = Node(str(opt_out_path))
+        search = make_search(tmp_path)
+        child = search.instantiate_node(
+            node, list(node.parsed_yaml["operations"]), "noop_directive", ["m"], "acc", []
+        )
+        saved = yaml.safe_load(open(child.yaml_file_path))
+        steps = saved["pipeline"]["steps"]
+        # Same shape as the root: NOT rewritten to the pushed-down form.
+        assert [s["operations"] for s in steps] == [["m"], ["f"]]
+        assert saved["plan_rewrites"] is False  # carried for the runner
+
+    def test_rule_subset_is_honored(self, tmp_path):
+        config = yaml.safe_load(open(root_yaml(tmp_path)))
+        config["plan_rewrites"] = ["limit_pushdown"]  # not selection_pushdown
+        subset_path = tmp_path / "root_subset.yaml"
+        subset_path.write_text(yaml.safe_dump(config, sort_keys=False))
+
+        node = Node(str(subset_path))
+        search = make_search(tmp_path)
+        child = search.instantiate_node(
+            node, list(node.parsed_yaml["operations"]), "noop_directive", ["m"], "acc", []
+        )
+        saved = yaml.safe_load(open(child.yaml_file_path))
+        assert [s["operations"] for s in saved["pipeline"]["steps"]] == [["m"], ["f"]]

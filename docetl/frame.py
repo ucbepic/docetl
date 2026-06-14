@@ -28,6 +28,7 @@ from docetl.utils import op_ref_name
 
 if TYPE_CHECKING:
     import pandas as pd
+    import pyarrow as pa
 
     from docetl.plan import LogicalPlan
 
@@ -1031,6 +1032,17 @@ class Frame:
         df.attrs["_token_usage"] = self._token_usage
         return df
 
+    def to_arrow(self, max_threads: int | None = None) -> "pa.Table":
+        """Execute the pipeline and return results as a PyArrow Table.
+
+        The zero-copy handoff format for the SQL layer (see
+        ``docs/design/ai-sql.md``). Cost remains on ``self._total_cost``.
+        """
+        import pyarrow as pa
+
+        data, _ = self._execute(max_threads=max_threads)
+        return pa.Table.from_pylist(data)
+
     def _execute(
         self, max_threads: int | None = None, checkpoint: bool = True
     ) -> tuple[list[dict], float]:
@@ -1430,6 +1442,16 @@ def read_dir(path: str, *, parsing: list[dict[str, str]] | None = None) -> Frame
 def from_list(data: list[dict], name: str = "data") -> Frame:
     """Create a Frame from an in-memory list of dicts."""
     return Frame({name: {"type": "memory", "path": data}}, _first_dataset=name)
+
+
+def from_arrow(table: "pa.Table", name: str = "data") -> Frame:
+    """Create a Frame from a PyArrow Table.
+
+    The inbound side of the SQL layer's zero-copy handoff (see
+    ``docs/design/ai-sql.md``): a relational fragment runs in DuckDB,
+    returns Arrow, and lands here as a memory dataset.
+    """
+    return from_list(table.to_pylist(), name=name)
 
 
 # ── codegen formatting helpers ─────────────────────────────────────

@@ -98,14 +98,6 @@ class TestCompile:
         assert stages[0].sql == "SELECT * FROM docs"
         assert stages[2].sql == "SELECT id, s FROM _prev"
 
-    def test_ai_in_where_rejected(self):
-        import pytest
-
-        from docetl.aisql import compile_sql
-
-        with pytest.raises(NotImplementedError, match="WHERE"):
-            compile_sql("SELECT id FROM t WHERE ai_filter(text, 'q')")
-
     def test_ai_in_select_needs_alias(self):
         import pytest
 
@@ -168,3 +160,91 @@ class TestRun:
             {"id": 4, "tax": 2.0},
             {"id": 5, "tax": 2.5},
         ]
+
+
+class TestSplitter:
+    def test_and_splits_relational_and_ai_filter(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT ai_summarize(transcript) AS s FROM calls "
+            "WHERE duration > 300 AND ai_filter(transcript, 'about billing?')"
+        ).stages
+        assert len(stages) == 3
+        # relational half of WHERE goes to DuckDB
+        assert stages[0].sql == "SELECT * FROM calls WHERE duration > 300"
+        # ai_filter runs before the SELECT-list map (shrink first)
+        types = [(o["type"], o["name"]) for o in stages[1].operations]
+        assert types == [("filter", "aifilter_0"), ("map", "ai_s")]
+        assert stages[1].operations[0]["output"]["schema"] == {"keep": "boolean"}
+        assert stages[2].sql == "SELECT s FROM _prev"
+
+    def test_ai_filter_only(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql("SELECT * FROM t WHERE ai_filter(body, 'spam?')").stages
+        assert stages[0].sql == "SELECT * FROM t"  # no relational WHERE
+        assert [o["type"] for o in stages[1].operations] == ["filter"]
+        assert stages[2].sql == "SELECT * FROM _prev"
+
+    def test_multiple_relational_conjuncts_preserved(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT * FROM t WHERE a > 1 AND b < 5 AND ai_filter(x, 'q')"
+        ).stages
+        assert stages[0].sql == "SELECT * FROM t WHERE a > 1 AND b < 5"
+
+    def test_or_with_ai_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="OR/NOT"):
+            compile_sql("SELECT id FROM t WHERE a > 1 OR ai_filter(x, 'q')")
+
+    def test_comparison_on_ai_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="comparison"):
+            compile_sql("SELECT id FROM t WHERE ai_score(x, 'q') > 0.8")
+
+
+class TestSplitterExecution:
+    def test_filter_threads_across_boundary(self, tmp_path):
+        # A code_filter standing in for ai_filter: validates that a filter
+        # op in the semantic stage drops rows and threads through the
+        # DuckDB -> DocETL -> DuckDB handoff, no LLM.
+        import pyarrow.parquet as pq
+
+        from docetl.aisql import (
+            CompiledQuery,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        path = tmp_path / "products.parquet"
+        pq.write_table(
+            pa.Table.from_pylist([{"id": i, "price": i * 5} for i in range(1, 6)]),
+            path,
+        )
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}' WHERE price > 5"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "even",
+                            "type": "code_filter",
+                            "code": "def transform(doc):\n    return doc['id'] % 2 == 0",
+                        }
+                    ]
+                ),
+                RelationalStage(sql="SELECT id FROM _prev ORDER BY id", reads_prev=True),
+            ]
+        )
+        # price>5 -> ids 2..5; even -> 2,4
+        assert run_compiled(compiled).to_pylist() == [{"id": 2}, {"id": 4}]

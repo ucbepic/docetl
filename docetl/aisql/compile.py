@@ -1,19 +1,24 @@
 """Compile an AI-SQL query into an ordered list of execution stages.
 
-v1 handles the straight-line shape::
+v1 handles::
 
-    SELECT <items, some ai_*(...) AS alias>  FROM <source>  [WHERE <relational>]
+    SELECT <items, some ai_*(...) AS alias>
+    FROM <source>
+    [WHERE <relational conjuncts> AND <ai_filter(...) conjuncts>]
 
-which lowers to three stages (the middle one absent when there are no AI
-functions):
+which lowers to up to three stages (any absent when not needed):
 
-  1. relational  — ``SELECT * FROM <source> WHERE <relational>`` in DuckDB
-  2. semantic    — one DocETL ``map`` per AI function
+  1. relational  — ``SELECT * FROM <source> WHERE <relational conjuncts>``
+  2. semantic    — DocETL ``filter`` per WHERE ``ai_filter`` (run first, to
+     shrink), then a ``map`` per SELECT-list AI function
   3. relational  — the original SELECT list (AI calls replaced by their
      alias) over the semantic output
 
-AI functions in WHERE/GROUP BY/JOIN are detected and rejected with a clear
-error — those are the splitter / aggregate / join milestones.
+The WHERE split is the design's selection pushdown across the boundary:
+relational conjuncts run first in DuckDB (file pushdown), the LLM filters
+run only on survivors. Deferred (clear errors): ``OR``/``NOT`` around an
+AI predicate, and AI functions inside a comparison (``ai_score(...) > k``);
+plus AI functions in GROUP BY / JOIN / ORDER (later milestones).
 """
 
 from __future__ import annotations
@@ -23,7 +28,12 @@ from dataclasses import dataclass, field
 import sqlglot
 from sqlglot import exp
 
-from docetl.aisql.functions import ALL_FUNCTIONS, AIFunctionCall, build_map_op
+from docetl.aisql.functions import (
+    ALL_FUNCTIONS,
+    AIFunctionCall,
+    build_filter_op,
+    build_map_op,
+)
 
 PREV = "_prev"  # name under which a stage's output is registered for the next
 
@@ -73,11 +83,6 @@ def compile_sql(query: str) -> CompiledQuery:
     if not isinstance(parsed, exp.Select):
         raise NotImplementedError("only SELECT queries are supported")
 
-    where = parsed.args.get("where")
-    if where is not None and _ai_calls_in(where):
-        raise NotImplementedError(
-            "AI functions in WHERE need the predicate splitter (milestone 4)"
-        )
     for label, cls in (
         ("GROUP BY", exp.Group),
         ("HAVING", exp.Having),
@@ -87,6 +92,11 @@ def compile_sql(query: str) -> CompiledQuery:
         node = parsed.find(cls)
         if node is not None and _ai_calls_in(node):
             raise NotImplementedError(f"AI functions in {label} are not yet supported")
+
+    # Split WHERE into relational conjuncts (DuckDB) and ai_filter
+    # conjuncts (DocETL filters).
+    where = parsed.args.get("where")
+    relational_where, filter_calls = _split_where(where)
 
     # Pair each SELECT item with the AI call it contains (if any).
     select_ai: list[tuple[exp.Expression, AIFunctionCall | None]] = []
@@ -102,18 +112,24 @@ def compile_sql(query: str) -> CompiledQuery:
         else:
             select_ai.append((item, None))
 
-    if not any(call for _, call in select_ai):
+    has_select_ai = any(call for _, call in select_ai)
+    if not has_select_ai and not filter_calls:
         # Pure relational — hand the whole query to DuckDB unchanged.
         return CompiledQuery(stages=[RelationalStage(sql=parsed.sql(dialect="duckdb"))])
 
-    # Stage 1: scan + relational filter, project everything.
+    # Stage 1: scan + the relational half of WHERE, project everything.
     scan = exp.select("*").from_(parsed.find(exp.From).this)
-    if where is not None:
-        scan = scan.where(where.this)
+    if relational_where is not None:
+        scan = scan.where(relational_where)
     stages: list = [RelationalStage(sql=scan.sql(dialect="duckdb"))]
 
-    # Stage 2: a map per AI function.
+    # Stage 2: WHERE ai_filters first (they shrink the set), then a map
+    # per SELECT-list AI function.
     ops = [
+        build_filter_op(call, name=f"aifilter_{i}")
+        for i, call in enumerate(filter_calls)
+    ]
+    ops += [
         build_map_op(call, name=f"ai_{call.alias}")
         for _, call in select_ai
         if call is not None
@@ -134,3 +150,49 @@ def _final_select_item(item: exp.Expression, call: AIFunctionCall | None):
     if call is None:
         return item
     return exp.column(call.alias)
+
+
+def _conjuncts(node: exp.Expression) -> list[exp.Expression]:
+    """Flatten a top-level AND chain into its conjuncts."""
+    if isinstance(node, exp.Paren):
+        return _conjuncts(node.this)
+    if isinstance(node, exp.And):
+        return _conjuncts(node.left) + _conjuncts(node.right)
+    return [node]
+
+
+def _split_where(
+    where: exp.Where | None,
+) -> tuple[exp.Expression | None, list[AIFunctionCall]]:
+    """Partition a WHERE into (relational predicate, ai_filter calls).
+
+    Only top-level ``AND`` of [relational | ``ai_filter(col, 'q')``] is
+    supported. An AI function anywhere else in the predicate (inside an
+    ``OR``/``NOT``, or as an argument to a comparison) raises — those are
+    the next splitter sub-milestones.
+    """
+    if where is None:
+        return None, []
+
+    relational: list[exp.Expression] = []
+    filters: list[AIFunctionCall] = []
+    for conj in _conjuncts(where.this):
+        calls = _ai_calls_in(conj)
+        if not calls:
+            relational.append(conj)
+            continue
+        if isinstance(conj, exp.Anonymous) and conj.name.lower() == "ai_filter":
+            filters.append(_parse_call(conj, alias="keep"))
+        else:
+            raise NotImplementedError(
+                "in WHERE, AI functions are only supported as a top-level "
+                "ai_filter(col, 'question') conjunct; OR/NOT and comparisons "
+                "like ai_score(col, 'q') > 0.8 are not yet supported"
+            )
+
+    relational_pred = None
+    if relational:
+        relational_pred = relational[0]
+        for extra in relational[1:]:
+            relational_pred = exp.and_(relational_pred, extra)
+    return relational_pred, filters

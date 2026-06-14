@@ -78,3 +78,17 @@ def build_map_op(call: AIFunctionCall, name: str) -> dict:
         "prompt": spec["prompt"],
         "output": {"schema": spec["schema"]},
     }
+
+
+def build_filter_op(call: AIFunctionCall, name: str) -> dict:
+    """A DocETL ``filter`` op for an ``ai_filter(column, 'question')``
+    predicate in WHERE. The decision key is consumed by the filter, so it
+    doesn't appear in the output rows."""
+    if not call.literals:
+        raise ValueError("ai_filter(column, 'question') needs a question")
+    return {
+        "name": name,
+        "type": "filter",
+        "prompt": f"{call.literals[0]}\n\n{{{{ input.{call.column} }}}}",
+        "output": {"schema": {"keep": "boolean"}},
+    }

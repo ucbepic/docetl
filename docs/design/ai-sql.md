@@ -1,6 +1,10 @@
 # AI SQL for DocETL
 
-Status: proposed.
+Status: v1 implemented on branch `ai-sql` (`docetl/aisql/`, opt-in extra
+`docetl[aisql]`); SELECT / WHERE / GROUP BY / JOIN / `ai_resolve` compile
+and run, tested LLM-free. Remaining: OR/NOT around AI predicates,
+multiple `ai_agg` per query, the user-facing entry surface, and live-LLM
+end-to-end tests (see Milestones / Open questions).
 Foundation: the plan IR in `docetl/plan/` (PR #497) is the compile target.
 
 ## Goal
@@ -99,12 +103,22 @@ adapters; orchestrator that walks the partitioned plan.
 
 ## Milestones
 
-1. Frame `from_arrow` / `to_arrow`.
-2. DuckDB delegate — pure-relational queries end to end.
-3. Straight-line frontend — the leading example.
-4. Splitter — boolean + mixed leaves.
-5. Aggregates + joins — `reduce`, `equijoin`.
-6. MOAR over compiled plans (should be free — same IR).
+1. ✅ Frame `from_arrow` / `to_arrow`.
+2. ✅ DuckDB delegate (`DuckDBEngine`) — pure-relational queries end to end.
+3. ✅ Straight-line frontend — `SELECT ai_*(...) FROM src [WHERE relational]`.
+4. ✅ Splitter — `AND` of relational / `ai_filter` / `ai_score(...) <cmp> k`
+   (cost-correct staging). Deferred: `OR`/`NOT` around an AI predicate.
+5. ✅ Aggregates + joins + resolve — `GROUP BY` + `ai_agg` → `reduce`,
+   `JOIN ON ai_match` → `equijoin`, `ai_resolve(...)` → `resolve`.
+   Deferred: multiple `ai_agg` per query, `WHERE`/extra-AI with a join.
+6. ✅ Plan-IR bridge (`semantic_pipelines`) — compiled ops lift into the
+   IR and the rewrite engine runs over them. End-to-end MOAR *tuning* of
+   a whole query goes through `run_sql` + an eval function.
+
+Tested LLM-free throughout (compile structure asserted; execution via
+relational + code ops). What is *not* yet covered: live-LLM end-to-end
+runs of the AI operators, and a top-level user entry point (`run_sql`
+returns Arrow today — see open questions).
 
 ## DuckDB vs DataFusion
 

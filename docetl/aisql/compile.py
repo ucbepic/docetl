@@ -387,9 +387,17 @@ def _compile_resolve(parsed: exp.Select, fn: exp.Func) -> CompiledQuery:
     """``SELECT ... FROM ai_resolve(table, on := col, prompt := 'q')`` →
     DuckDB scan, DocETL resolve, DuckDB projection."""
     args = _func_args(fn)
-    if not args or not isinstance(args[0], exp.Column):
+    if not args:
         raise NotImplementedError("ai_resolve(table, ...) needs a table as first arg")
-    source = args[0].name
+    src = args[0]
+    if isinstance(src, exp.Column):  # bare table name
+        source = src.name
+    elif isinstance(src, exp.Literal) and src.is_string:  # quoted file path
+        source = f"'{src.this}'"
+    else:
+        raise NotImplementedError(
+            "ai_resolve's first arg must be a table name or a quoted file path"
+        )
     named: dict[str, exp.Expression] = {}
     positional: list[exp.Expression] = []
     for a in args[1:]:

@@ -70,6 +70,11 @@ retrieval = [
 tui = [
   "textual>=8.2.7",
 ]
+aisql = [
+  "duckdb>=1.0.0",
+  "sqlglot>=25.0.0",
+  "pyarrow>=14.0.0",
+]
 
 [project.scripts]
 docetl = "docetl.cli:app"
@@ -128,6 +133,10 @@ dev = [
   "types-requests>=2.32.4.20250611",
   # Used by tests/tui_screenshots.py to export the Textual SVG screenshots to PNG.
   "cairosvg>=2.7.0",
+  # AI SQL layer (also a runtime extra: docetl[aisql]); in dev so tests run.
+  "duckdb>=1.0.0",
+  "sqlglot>=25.0.0",
+  "pyarrow>=14.0.0",
 ]
 
 [build-system]

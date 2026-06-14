@@ -13,7 +13,7 @@ from docetl.moar.optimizer import MOARResult, OptimizedPipeline
 from docetl.utils_evaluation import register_eval
 
 from docetl import _config
-from docetl.frame import Frame, Retriever, read_json, read_csv, read_dir, read_parquet, from_list, yaml_to_python
+from docetl.frame import Frame, Retriever, read_json, read_csv, read_dir, read_parquet, from_list, from_arrow, yaml_to_python
 
 # Drop unsupported params for models like gpt-5 that don't support temperature=0
 litellm.drop_params = True
@@ -35,6 +35,7 @@ __all__ = [
     "read_dir",
     "read_parquet",
     "from_list",
+    "from_arrow",
     "yaml_to_python",
     # config attrs
     "default_model",

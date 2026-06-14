@@ -61,6 +61,7 @@ ALL_FUNCTIONS = set(SELECT_FUNCTIONS) | {
     "ai_agg",
     "ai_match",
     "ai_score",
+    "ai_resolve",
 }
 
 
@@ -92,6 +93,55 @@ def build_compare_map_op(call: AIFunctionCall, name: str, output_type: str) -> d
         "type": "map",
         "prompt": f"{call.literals[0]}\n\n{{{{ input.{call.column} }}}}{suffix}",
         "output": {"schema": {call.alias: output_type}},
+    }
+
+
+def build_reduce_op(call: AIFunctionCall, name: str, reduce_key: list[str]) -> dict:
+    """A DocETL ``reduce`` for ``GROUP BY k ... ai_agg(col, 'instruction')``.
+    The prompt folds the grouped rows (``{{ inputs }}``)."""
+    if not call.literals:
+        raise ValueError("ai_agg(column, 'instruction') needs an instruction")
+    prompt = (
+        f"{call.literals[0]}\n\n"
+        f"{{% for item in inputs %}}{{{{ item.{call.column} }}}}\n{{% endfor %}}"
+    )
+    return {
+        "name": name,
+        "type": "reduce",
+        "reduce_key": reduce_key,
+        "prompt": prompt,
+        "output": {"schema": {call.alias: "string"}},
+    }
+
+
+def build_equijoin_op(name: str, left_col: str, right_col: str, prompt: str) -> dict:
+    """A DocETL ``equijoin`` for ``JOIN ... ON ai_match(l.col, r.col, 'q')``.
+    The comparison prompt reads ``{{ left.col }}`` and ``{{ right.col }}``."""
+    return {
+        "name": name,
+        "type": "equijoin",
+        "comparison_prompt": (
+            f"{prompt}\n\nLeft: {{{{ left.{left_col} }}}}\n"
+            f"Right: {{{{ right.{right_col} }}}}"
+        ),
+    }
+
+
+def build_resolve_op(name: str, column: str, prompt: str, output_key: str) -> dict:
+    """A DocETL ``resolve`` for ``ai_resolve(table, on := col, prompt := q)``.
+    Compares pairs on ``column`` and canonicalizes the matched value."""
+    return {
+        "name": name,
+        "type": "resolve",
+        "comparison_prompt": (
+            f"{prompt}\n\nRecord 1: {{{{ input1.{column} }}}}\n"
+            f"Record 2: {{{{ input2.{column} }}}}"
+        ),
+        "resolution_prompt": (
+            f"Produce one canonical value for {column} from these records:\n"
+            f"{{% for item in inputs %}}{{{{ item.{column} }}}}\n{{% endfor %}}"
+        ),
+        "output": {"schema": {output_key: "string"}},
     }
 
 

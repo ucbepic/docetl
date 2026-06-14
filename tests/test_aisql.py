@@ -331,3 +331,191 @@ class TestComparisonExecution:
         assert out == [{"id": 3}, {"id": 4}, {"id": 5}]
         # hidden score column was dropped by EXCLUDE
         assert all("score" not in r for r in out)
+
+
+class TestReduce:
+    def test_group_by_ai_agg(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT category, ai_agg(review, 'summarize the reviews') AS summary "
+            "FROM reviews GROUP BY category"
+        ).stages
+        assert [type(s).__name__ for s in stages] == [
+            "RelationalStage",
+            "SemanticStage",
+            "RelationalStage",
+        ]
+        assert stages[0].sql == "SELECT * FROM reviews"
+        (op,) = stages[1].operations
+        assert op["type"] == "reduce"
+        assert op["reduce_key"] == ["category"]
+        assert "{{ inputs }}" in op["prompt"] or "for item in inputs" in op["prompt"]
+        assert op["output"]["schema"] == {"summary": "string"}
+        assert stages[2].sql == "SELECT category, summary FROM _prev"
+
+    def test_multiple_ai_agg_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="one ai_agg"):
+            compile_sql(
+                "SELECT k, ai_agg(a, 'x') AS m, ai_agg(b, 'y') AS n FROM t GROUP BY k"
+            )
+
+    def test_ai_in_where_with_group_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="WHERE with GROUP BY"):
+            compile_sql(
+                "SELECT k, ai_agg(a,'x') AS m FROM t WHERE ai_filter(a,'q') GROUP BY k"
+            )
+
+
+class TestReduceExecution:
+    def test_code_reduce_threads(self, tmp_path):
+        import pyarrow.parquet as pq
+
+        from docetl.aisql import (
+            CompiledQuery,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        path = tmp_path / "r.parquet"
+        pq.write_table(
+            pa.Table.from_pylist(
+                [{"cat": "a", "v": 1}, {"cat": "a", "v": 2}, {"cat": "b", "v": 5}]
+            ),
+            path,
+        )
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}'"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "agg",
+                            "type": "code_reduce",
+                            "reduce_key": ["cat"],
+                            "code": "def transform(items):\n    return {'total': sum(i['v'] for i in items)}",
+                        }
+                    ]
+                ),
+                RelationalStage(sql="SELECT cat, total FROM _prev ORDER BY cat", reads_prev=True),
+            ]
+        )
+        assert run_compiled(compiled).to_pylist() == [
+            {"cat": "a", "total": 3},
+            {"cat": "b", "total": 5},
+        ]
+
+
+class TestJoin:
+    def test_join_on_ai_match(self):
+        from docetl.aisql import compile_sql, JoinStage, RelationalStage
+
+        stages = compile_sql(
+            "SELECT * FROM products p JOIN listings l "
+            "ON ai_match(p.name, l.title, 'same product?')"
+        ).stages
+        assert isinstance(stages[0], JoinStage)
+        assert stages[0].left_sql == "SELECT * FROM products AS p"
+        assert stages[0].right_sql == "SELECT * FROM listings AS l"
+        op = stages[0].operation
+        assert op["type"] == "equijoin"
+        assert "{{ left.name }}" in op["comparison_prompt"]
+        assert "{{ right.title }}" in op["comparison_prompt"]
+        assert isinstance(stages[1], RelationalStage)
+        assert stages[1].sql == "SELECT * FROM _prev"
+
+    def test_non_ai_match_on_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="ai_match"):
+            compile_sql(
+                "SELECT * FROM a JOIN b ON ai_score(a.x, 'q') JOIN c ON a.id = c.id"
+            )
+
+    def test_join_two_input_wiring(self, tmp_path, monkeypatch):
+        # Monkeypatch equijoin to an inner join so we can verify, LLM-free,
+        # that run_compiled runs both scans and feeds them to the join.
+        import pyarrow.parquet as pq
+
+        import docetl
+        from docetl.aisql import CompiledQuery, JoinStage, RelationalStage, run_compiled
+
+        lpath, rpath = tmp_path / "l.parquet", tmp_path / "r.parquet"
+        pq.write_table(pa.Table.from_pylist([{"id": 1, "a": "x"}, {"id": 2, "a": "y"}]), lpath)
+        pq.write_table(pa.Table.from_pylist([{"id": 1, "b": "P"}, {"id": 2, "b": "Q"}]), rpath)
+
+        seen = {}
+
+        def rows(frame):
+            # read the memory dataset directly; from_arrow frames have no
+            # operations, so they can't be .collect()'d
+            return frame._datasets[frame._first_dataset]["path"]
+
+        def fake_equijoin(self, right, **kw):
+            seen["left"] = rows(self)
+            seen["right"] = rows(right)
+            lj = {r["id"]: r for r in rows(self)}
+            merged = [{**lj[r["id"]], **r} for r in rows(right) if r["id"] in lj]
+            # needs an op to be executable by to_arrow (op-less frames can't run)
+            return docetl.from_list(merged).code_map(
+                code="def transform(doc):\n    return {}"
+            )
+
+        monkeypatch.setattr(docetl.Frame, "equijoin", fake_equijoin)
+        compiled = CompiledQuery(
+            stages=[
+                JoinStage(
+                    left_sql=f"SELECT * FROM '{lpath}'",
+                    right_sql=f"SELECT * FROM '{rpath}'",
+                    operation={"name": "j", "type": "equijoin", "comparison_prompt": "x"},
+                ),
+                RelationalStage(sql="SELECT id, a, b FROM _prev ORDER BY id", reads_prev=True),
+            ]
+        )
+        out = run_compiled(compiled).to_pylist()
+        assert {r["id"] for r in seen["left"]} == {1, 2}
+        assert {r["id"] for r in seen["right"]} == {1, 2}
+        assert out == [{"id": 1, "a": "x", "b": "P"}, {"id": 2, "a": "y", "b": "Q"}]
+
+
+class TestResolve:
+    def test_resolve_named_args(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT * FROM ai_resolve(customers, on := name, prompt := 'same customer?')"
+        ).stages
+        assert stages[0].sql == "SELECT * FROM customers"
+        (op,) = stages[1].operations
+        assert op["type"] == "resolve"
+        assert "{{ input1.name }}" in op["comparison_prompt"]
+        assert "{{ input2.name }}" in op["comparison_prompt"]
+        assert op["output"]["schema"] == {"name": "string"}
+        assert stages[2].sql == "SELECT * FROM _prev"
+
+    def test_resolve_positional_args(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT * FROM ai_resolve(customers, 'name', 'same customer?')"
+        ).stages
+        assert stages[1].operations[0]["type"] == "resolve"
+
+    def test_resolve_missing_args_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="on:=column"):
+            compile_sql("SELECT * FROM ai_resolve(customers)")

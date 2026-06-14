@@ -7,6 +7,7 @@ sqlglot, pyarrow).
 
 from docetl.aisql.compile import (
     CompiledQuery,
+    JoinStage,
     RelationalStage,
     SemanticStage,
     compile_sql,
@@ -17,6 +18,7 @@ from docetl.aisql.run import run_compiled, run_sql
 __all__ = [
     "CompiledQuery",
     "DuckDBEngine",
+    "JoinStage",
     "RelationalStage",
     "SemanticStage",
     "compile_sql",

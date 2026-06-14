@@ -13,6 +13,7 @@ from docetl.aisql.compile import (
     compile_sql,
 )
 from docetl.aisql.engine import DuckDBEngine
+from docetl.aisql.plan_bridge import semantic_pipelines, to_pipeline_config
 from docetl.aisql.run import run_compiled, run_sql
 
 __all__ = [
@@ -24,4 +25,6 @@ __all__ = [
     "compile_sql",
     "run_compiled",
     "run_sql",
+    "semantic_pipelines",
+    "to_pipeline_config",
 ]

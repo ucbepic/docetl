@@ -519,3 +519,57 @@ class TestResolve:
 
         with pytest.raises(NotImplementedError, match="on:=column"):
             compile_sql("SELECT * FROM ai_resolve(customers)")
+
+
+class TestPlanIRBridge:
+    """Milestone 6: a compiled query's semantic operations are ordinary
+    DocETL ops that lift into the plan IR (the substrate the rewrite rules
+    and MOAR consume) with no special-casing."""
+
+    def test_select_where_semantic_lifts_and_validates(self):
+        from docetl.aisql import compile_sql, semantic_pipelines
+        from docetl.plan import lift, validate
+
+        compiled = compile_sql(
+            "SELECT ai_summarize(t) AS s FROM x "
+            "WHERE a > 1 AND ai_filter(t, 'relevant?')"
+        )
+        pipelines = semantic_pipelines(compiled)
+        assert pipelines  # the filter + map stage
+        for cfg in pipelines:
+            plan = lift(cfg)
+            errors = [i for i in validate(plan) if i.level == "error"]
+            assert not errors, errors
+            # the AI functions became real, recognized DocETL operators
+            assert {n.op_type for n in plan.nodes() if n.op_type} <= {
+                "map",
+                "filter",
+                "reduce",
+                "resolve",
+                "scan",
+            }
+
+    def test_reduce_query_lifts(self):
+        from docetl.aisql import compile_sql, semantic_pipelines
+        from docetl.plan import lift, validate
+
+        compiled = compile_sql(
+            "SELECT k, ai_agg(v, 'summarize') AS s FROM t GROUP BY k"
+        )
+        (cfg,) = semantic_pipelines(compiled)
+        plan = lift(cfg)
+        assert not [i for i in validate(plan) if i.level == "error"]
+        assert any(n.op_type == "reduce" for n in plan.nodes())
+
+    def test_rewrite_rules_run_over_compiled_ops(self):
+        # The plan-IR rewrite engine accepts the compiled pipeline. The
+        # AI-SQL compiler already pushed selections across the engine
+        # boundary, so the in-pipeline rules typically find nothing to do
+        # — the point is they run cleanly on the same IR.
+        from docetl.aisql import compile_sql, semantic_pipelines
+        from docetl.plan import apply_rewrites_to_config
+
+        compiled = compile_sql("SELECT ai_summarize(t) AS s FROM x")
+        (cfg,) = semantic_pipelines(compiled)
+        out, applied = apply_rewrites_to_config(cfg)
+        assert isinstance(applied, list)  # ran without error

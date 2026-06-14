@@ -80,6 +80,21 @@ def build_map_op(call: AIFunctionCall, name: str) -> dict:
     }
 
 
+def build_compare_map_op(call: AIFunctionCall, name: str, output_type: str) -> dict:
+    """A DocETL ``map`` for an AI function used inside a comparison
+    (``ai_score(col, 'criteria') > 0.8``): it produces the value column
+    that the relational comparison then filters on."""
+    if not call.literals:
+        raise ValueError(f"{call.name}(column, 'criteria') needs a criteria string")
+    suffix = "\n\nRespond with a single number." if output_type == "number" else ""
+    return {
+        "name": name,
+        "type": "map",
+        "prompt": f"{call.literals[0]}\n\n{{{{ input.{call.column} }}}}{suffix}",
+        "output": {"schema": {call.alias: output_type}},
+    }
+
+
 def build_filter_op(call: AIFunctionCall, name: str) -> dict:
     """A DocETL ``filter`` op for an ``ai_filter(column, 'question')``
     predicate in WHERE. The decision key is consumed by the filter, so it

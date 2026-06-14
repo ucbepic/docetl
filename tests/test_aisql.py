@@ -203,14 +203,6 @@ class TestSplitter:
         with pytest.raises(NotImplementedError, match="OR/NOT"):
             compile_sql("SELECT id FROM t WHERE a > 1 OR ai_filter(x, 'q')")
 
-    def test_comparison_on_ai_rejected(self):
-        import pytest
-
-        from docetl.aisql import compile_sql
-
-        with pytest.raises(NotImplementedError, match="comparison"):
-            compile_sql("SELECT id FROM t WHERE ai_score(x, 'q') > 0.8")
-
 
 class TestSplitterExecution:
     def test_filter_threads_across_boundary(self, tmp_path):
@@ -248,3 +240,94 @@ class TestSplitterExecution:
         )
         # price>5 -> ids 2..5; even -> 2,4
         assert run_compiled(compiled).to_pylist() == [{"id": 2}, {"id": 4}]
+
+
+class TestComparisonSplit:
+    def test_score_comparison_cost_correct_order(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT ai_summarize(text) AS summary FROM tickets "
+            "WHERE ai_score(text, 'how urgent?') > 0.8"
+        ).stages
+        # scan, score-map, DuckDB shrink (drops hidden col), select-map, project
+        assert [type(s).__name__ for s in stages] == [
+            "RelationalStage",
+            "SemanticStage",
+            "RelationalStage",
+            "SemanticStage",
+            "RelationalStage",
+        ]
+        assert stages[1].operations[0]["output"]["schema"] == {"__aicmp_0": "number"}
+        assert stages[2].sql == (
+            "SELECT * EXCLUDE (__aicmp_0) FROM _prev WHERE __aicmp_0 > 0.8"
+        )
+        assert stages[3].operations[0]["output"]["schema"] == {"summary": "string"}
+        assert stages[4].sql == "SELECT summary FROM _prev"
+
+    def test_score_only_no_select_maps(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT * FROM t WHERE ai_score(body, 'quality 0-1') >= 0.5"
+        ).stages
+        # no SELECT-list maps -> no second semantic stage
+        assert [type(s).__name__ for s in stages] == [
+            "RelationalStage",
+            "SemanticStage",
+            "RelationalStage",
+            "RelationalStage",
+        ]
+        assert "EXCLUDE (__aicmp_0)" in stages[2].sql
+
+    def test_both_sides_ai_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="exactly one side"):
+            compile_sql(
+                "SELECT id FROM t WHERE ai_score(a,'q') > ai_score(b,'q')"
+            )
+
+
+class TestComparisonExecution:
+    def test_exclude_and_residual_thread(self, tmp_path):
+        # code_map stands in for ai_score: validates the EXCLUDE + residual
+        # filter stage and the multi-stage relational threading, no LLM.
+        import pyarrow.parquet as pq
+
+        from docetl.aisql import (
+            CompiledQuery,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        path = tmp_path / "v.parquet"
+        pq.write_table(
+            pa.Table.from_pylist([{"id": i, "val": i} for i in range(1, 6)]), path
+        )
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}'"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "score",
+                            "type": "code_map",
+                            "code": "def transform(doc):\n    return {'score': doc['val'] * 0.1}",
+                        }
+                    ]
+                ),
+                RelationalStage(
+                    sql="SELECT * EXCLUDE (score) FROM _prev WHERE score > 0.25",
+                    reads_prev=True,
+                ),
+                RelationalStage(sql="SELECT id FROM _prev ORDER BY id", reads_prev=True),
+            ]
+        )
+        out = run_compiled(compiled).to_pylist()
+        assert out == [{"id": 3}, {"id": 4}, {"id": 5}]
+        # hidden score column was dropped by EXCLUDE
+        assert all("score" not in r for r in out)

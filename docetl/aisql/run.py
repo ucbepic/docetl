@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from docetl.aisql.compile import (
     PREV,
     CompiledQuery,
+    JoinStage,
     RelationalStage,
     SemanticStage,
     compile_sql,
@@ -35,6 +36,11 @@ def run_compiled(compiled: CompiledQuery, max_threads: int | None = None) -> "pa
                 for op in stage.operations:
                     frame = frame._append_op(op["type"], op["name"], _op_kwargs(op))
                 table = frame.to_arrow(max_threads=max_threads)
+            elif isinstance(stage, JoinStage):
+                left = docetl.from_arrow(engine.sql(stage.left_sql), name="left")
+                right = docetl.from_arrow(engine.sql(stage.right_sql), name="right")
+                joined = left.equijoin(right, **_op_kwargs(stage.operation))
+                table = joined.to_arrow(max_threads=max_threads)
             else:  # pragma: no cover - exhaustive
                 raise TypeError(f"unknown stage type: {type(stage).__name__}")
     assert table is not None, "query compiled to no stages"

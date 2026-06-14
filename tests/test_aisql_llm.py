@@ -155,3 +155,57 @@ class TestResolve:
         assert len(out) == 3  # resolve canonicalizes values, keeps rows
         # the two John variants collapse to one canonical name -> 2 distinct
         assert len({r["name"] for r in out}) == 2
+
+
+class TestScale:
+    @pytest.mark.flaky(reruns=3)
+    def test_relational_filter_caps_ai_filter_input(self, tmp_path, monkeypatch):
+        # A million-row Parquet file where a relational predicate narrows to
+        # exactly 100 rows; the AI filter must then run on those 100 only,
+        # never the full million. Proves the DuckDB/DocETL split: without it
+        # the LLM would attempt 1M calls.
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        import docetl
+
+        n, rare = 1_000_000, 100
+        animal = [
+            "Lions roam the African savanna.",
+            "Dolphins are intelligent marine mammals.",
+            "The eagle soared over the canyon.",
+            "Honeybees pollinate the wildflowers.",
+        ]
+        finance = [
+            "Q3 revenue rose 8% year over year.",
+            "The central bank held rates steady.",
+            "Shares dipped on weak guidance.",
+        ]
+        region = ["common"] * (n - rare) + ["rare"] * rare
+        text = (
+            [finance[i % len(finance)] for i in range(n - rare)]
+            + [animal[i % len(animal)] for i in range(60)]
+            + [finance[i % len(finance)] for i in range(40)]
+        )
+        path = tmp_path / "big.parquet"
+        pq.write_table(pa.table({"id": list(range(n)), "region": region, "text": text}), path)
+
+        # Spy on the rows handed to each semantic (AI) stage.
+        seen = []
+        original = docetl.from_arrow
+        monkeypatch.setattr(
+            docetl,
+            "from_arrow",
+            lambda t, name="data": (seen.append(t.num_rows), original(t, name=name))[1],
+        )
+
+        out = run_sql(
+            f"SELECT id FROM '{path}' "
+            "WHERE region = 'rare' AND ai_filter(text, 'Is this text about animals?')"
+        ).to_pylist()
+
+        # The LLM saw exactly the 100 relationally-filtered rows, not 1M.
+        assert seen == [rare]
+        # Everything kept is within the rare 100, and it found some animals.
+        assert out and all(r["id"] >= n - rare for r in out)
+        assert len(out) <= rare

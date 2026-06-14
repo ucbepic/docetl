@@ -19,9 +19,10 @@ WHERE conjuncts are routed by kind:
   - ``ai_fn(col, 'q') <cmp> v``   → a DocETL ``map`` (hidden value column)
                                     + a DuckDB residual filter over it
 
-Deferred (clear errors): ``OR``/``NOT`` around an AI predicate, an AI
-function on both sides of a comparison, and AI functions in
-GROUP BY / JOIN / ORDER (later milestones).
+Relational ``ORDER BY`` / ``LIMIT`` are carried into the final
+projection. Deferred (clear errors): ``OR``/``NOT`` around an AI
+predicate, an AI function on both sides of a comparison, and AI
+functions inside GROUP BY / JOIN ON (beyond ai_match) / ORDER BY.
 """
 
 from __future__ import annotations
@@ -222,7 +223,9 @@ def _compile_select_where(parsed: exp.Select) -> CompiledQuery:
     # Final stage: the original SELECT list with AI calls replaced by
     # their alias column, over the semantic output.
     stages.append(
-        _final_projection([_final_select_item(item, call) for item, call in select_ai])
+        _final_projection(
+            [_final_select_item(item, call) for item, call in select_ai], parsed
+        )
     )
     return CompiledQuery(stages=stages)
 
@@ -244,12 +247,23 @@ def _scan_stage(
     return RelationalStage(sql=scan.sql(dialect="duckdb"))
 
 
-def _final_projection(items: list[exp.Expression]) -> RelationalStage:
+def _final_projection(
+    items: list[exp.Expression], parsed: exp.Select
+) -> RelationalStage:
     """The query's SELECT list (AI calls already replaced by their alias
-    columns) read from the prior stage's output."""
-    return RelationalStage(
-        sql=exp.select(*items).from_(PREV).sql(dialect="duckdb"), reads_prev=True
-    )
+    columns) read from the prior stage's output, carrying the query's
+    ORDER BY / LIMIT — they apply to the final result, which is exactly
+    what this stage produces."""
+    final = exp.select(*items).from_(PREV)
+    order = parsed.args.get("order")
+    if order is not None:
+        if _ai_calls_in(order):
+            raise NotImplementedError("AI functions in ORDER BY are not yet supported")
+        final = final.order_by(*[o.copy() for o in order.expressions])
+    limit = parsed.args.get("limit")
+    if limit is not None:
+        final = final.limit(limit.expression.copy())
+    return RelationalStage(sql=final.sql(dialect="duckdb"), reads_prev=True)
 
 
 def _conjuncts(node: exp.Expression) -> list[exp.Expression]:
@@ -334,7 +348,8 @@ def _compile_grouped(parsed: exp.Select, group: exp.Group) -> CompiledQuery:
             _scan_stage(parsed, where.this if where is not None else None),
             SemanticStage(operations=[reduce_op]),
             _final_projection(
-                [_final_select_item(i, _select_call(i)) for i in parsed.expressions]
+                [_final_select_item(i, _select_call(i)) for i in parsed.expressions],
+                parsed,
             ),
         ]
     )
@@ -370,7 +385,7 @@ def _compile_join(parsed: exp.Select, join: exp.Join) -> CompiledQuery:
                 right_sql=exp.select("*").from_(join.this).sql(dialect="duckdb"),
                 operation=op,
             ),
-            _final_projection(list(parsed.expressions)),
+            _final_projection(list(parsed.expressions), parsed),
         ]
     )
 
@@ -423,7 +438,7 @@ def _compile_resolve(parsed: exp.Select, fn: exp.Func) -> CompiledQuery:
         stages=[
             RelationalStage(sql=f"SELECT * FROM {source}"),
             SemanticStage(operations=[op]),
-            _final_projection(list(parsed.expressions)),
+            _final_projection(list(parsed.expressions), parsed),
         ]
     )
 

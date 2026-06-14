@@ -608,3 +608,37 @@ class TestEmptyIntermediate:
         out = run_compiled(compiled)
         assert out.num_rows == 0
         assert "id" in out.column_names
+
+
+class TestOrderByLimit:
+    def test_order_by_and_limit_carried_to_final(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT ai_summarize(t) AS s FROM x ORDER BY s LIMIT 5"
+        ).stages
+        assert stages[-1].sql == "SELECT s FROM _prev ORDER BY s LIMIT 5"
+
+    def test_order_by_with_filter(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT id FROM x WHERE ai_filter(t, 'q?') ORDER BY id DESC LIMIT 3"
+        ).stages
+        assert stages[-1].sql == "SELECT id FROM _prev ORDER BY id DESC LIMIT 3"
+
+    def test_order_by_in_grouped(self):
+        from docetl.aisql import compile_sql
+
+        stages = compile_sql(
+            "SELECT cat, ai_agg(v, 'list') AS items FROM r GROUP BY cat ORDER BY cat"
+        ).stages
+        assert stages[-1].sql == "SELECT cat, items FROM _prev ORDER BY cat"
+
+    def test_ai_function_in_order_by_rejected(self):
+        import pytest
+
+        from docetl.aisql import compile_sql
+
+        with pytest.raises(NotImplementedError, match="ORDER BY"):
+            compile_sql("SELECT t FROM x ORDER BY ai_score(t, 'q')")

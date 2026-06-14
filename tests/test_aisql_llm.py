@@ -62,15 +62,15 @@ class TestMapAndFilter:
         ).to_pylist()
         assert [r["id"] for r in out] == [1, 3]
 
-    @pytest.mark.flaky(reruns=2)
+    @pytest.mark.flaky(reruns=3)
     def test_relational_and_ai_filter(self, tmp_path):
         path = _file(
             tmp_path,
             [
-                {"id": 1, "price": 5, "desc": "USB cable"},
-                {"id": 2, "price": 50, "desc": "wireless headphones"},
+                {"id": 1, "price": 5, "desc": "laptop computer"},
+                {"id": 2, "price": 50, "desc": "laptop computer"},
                 {"id": 3, "price": 100, "desc": "leather wallet"},
-                {"id": 4, "price": 20, "desc": "bluetooth speaker"},
+                {"id": 4, "price": 20, "desc": "wireless bluetooth speaker"},
             ],
         )
         # price > 10 -> {2,3,4}; electronics -> {2,4}

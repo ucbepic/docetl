@@ -4,7 +4,9 @@ DocETL conducts; this is the subroutine it hands relational work to. The
 engine reads source files directly (with DuckDB's pushdown), executes a
 relational SQL string, and returns Arrow; DocETL operator output is
 registered back as a named table so relational steps can run on top of
-it. The handoff is zero-copy Arrow in both directions.
+it. The DuckDB side is zero-copy (it views the registered Arrow tables
+in place); crossing into DocETL still materializes rows to dicts, since
+the operators run on ``list[dict]``.
 """
 
 from __future__ import annotations

@@ -65,14 +65,18 @@ def _op_kwargs(op: dict) -> dict:
 
 def _empty_like(in_schema, operations):
     """A zero-row Arrow table whose columns cover what a downstream stage
-    might reference: the input columns plus each op's output-schema keys
-    (filters add none — their decision key is consumed)."""
+    might reference: the input columns (keeping their types) plus each
+    op's output-schema keys (filters add none — their decision key is
+    consumed)."""
     import pyarrow as pa
 
-    names = list(in_schema.names)
+    fields = list(in_schema)  # input columns keep their original types
+    have = set(in_schema.names)
     for op in operations:
-        if op.get("type") != "filter":
-            names += list((op.get("output") or {}).get("schema") or {})
-    seen: set[str] = set()
-    cols = [n for n in names if not (n in seen or seen.add(n))]
-    return pa.table({c: pa.array([], type=pa.string()) for c in cols})
+        if op.get("type") == "filter":
+            continue
+        for col in (op.get("output") or {}).get("schema") or {}:
+            if col not in have:
+                fields.append(pa.field(col, pa.string()))
+                have.add(col)
+    return pa.schema(fields).empty_table()

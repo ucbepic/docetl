@@ -1,10 +1,11 @@
 # AI SQL for DocETL
 
 Status: v1 implemented on branch `ai-sql` (`docetl/aisql/`, opt-in extra
-`docetl[aisql]`); SELECT / WHERE / GROUP BY / JOIN / `ai_resolve` compile
-and run, tested LLM-free. Remaining: OR/NOT around AI predicates,
-multiple `ai_agg` per query, the user-facing entry surface, and live-LLM
-end-to-end tests (see Milestones / Open questions).
+`docetl[aisql]`). SELECT / WHERE / GROUP BY / JOIN / `ai_resolve` /
+relational ORDER BY / LIMIT compile and run; covered by LLM-free tests
+and end-to-end live-LLM tests; user docs at `docs/aisql.md`. Entry point:
+`docetl.aisql.run_sql(query)` → Arrow. Remaining: OR/NOT around AI
+predicates, AI functions inside ORDER BY, multiple `ai_agg` per query.
 Foundation: the plan IR in `docetl/plan/` (PR #497) is the compile target.
 
 ## Goal

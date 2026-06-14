@@ -573,3 +573,38 @@ class TestPlanIRBridge:
         (cfg,) = semantic_pipelines(compiled)
         out, applied = apply_rewrites_to_config(cfg)
         assert isinstance(applied, list)  # ran without error
+
+
+class TestEmptyIntermediate:
+    def test_filter_dropping_all_rows_yields_empty_not_crash(self, tmp_path):
+        # Regression: an empty semantic result used to lose its schema
+        # (from_pylist([])) and crash the next DuckDB stage.
+        import pyarrow.parquet as pq
+
+        from docetl.aisql import (
+            CompiledQuery,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        path = tmp_path / "v.parquet"
+        pq.write_table(pa.Table.from_pylist([{"id": 1, "v": 1}, {"id": 2, "v": 2}]), path)
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}'"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "none",
+                            "type": "code_filter",
+                            "code": "def transform(doc):\n    return False",
+                        }
+                    ]
+                ),
+                RelationalStage(sql="SELECT id FROM _prev", reads_prev=True),
+            ]
+        )
+        out = run_compiled(compiled)
+        assert out.num_rows == 0
+        assert "id" in out.column_names

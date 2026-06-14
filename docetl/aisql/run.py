@@ -32,10 +32,17 @@ def run_compiled(compiled: CompiledQuery, max_threads: int | None = None) -> "pa
                 table = engine.sql(stage.sql)
             elif isinstance(stage, SemanticStage):
                 assert table is not None, "semantic stage has no input rows"
+                in_schema = table.schema
                 frame = docetl.from_arrow(table)
                 for op in stage.operations:
                     frame = frame._append_op(op["type"], op["name"], _op_kwargs(op))
                 table = frame.to_arrow(max_threads=max_threads)
+                if table.num_columns == 0:
+                    # All rows dropped (e.g. a filter): from_pylist([]) loses
+                    # the schema, which breaks the next relational stage.
+                    # Rebuild an empty table carrying the columns the next
+                    # stage may reference (input columns + op outputs).
+                    table = _empty_like(in_schema, stage.operations)
             elif isinstance(stage, JoinStage):
                 left = docetl.from_arrow(engine.sql(stage.left_sql), name="left")
                 right = docetl.from_arrow(engine.sql(stage.right_sql), name="right")
@@ -54,3 +61,18 @@ def run_sql(query: str, max_threads: int | None = None) -> "pa.Table":
 
 def _op_kwargs(op: dict) -> dict:
     return {k: v for k, v in op.items() if k not in ("name", "type")}
+
+
+def _empty_like(in_schema, operations):
+    """A zero-row Arrow table whose columns cover what a downstream stage
+    might reference: the input columns plus each op's output-schema keys
+    (filters add none — their decision key is consumed)."""
+    import pyarrow as pa
+
+    names = list(in_schema.names)
+    for op in operations:
+        if op.get("type") != "filter":
+            names += list((op.get("output") or {}).get("schema") or {})
+    seen: set[str] = set()
+    cols = [n for n in names if not (n in seen or seen.add(n))]
+    return pa.table({c: pa.array([], type=pa.string()) for c in cols})

@@ -1029,8 +1029,9 @@ class Frame:
     def to_arrow(self, max_threads: int | None = None) -> "pa.Table":
         """Execute the pipeline and return results as a PyArrow Table.
 
-        The zero-copy handoff format for the SQL layer (see
-        ``docs/design/ai-sql.md``). Cost remains on ``self._total_cost``.
+        Arrow is the SQL layer's interchange format (see
+        ``docs/design/ai-sql.md``); results are materialized from the
+        runner's ``list[dict]`` output. Cost remains on ``self._total_cost``.
         """
         import pyarrow as pa
 
@@ -1432,9 +1433,10 @@ def from_list(data: list[dict], name: str = "data") -> Frame:
 def from_arrow(table: "pa.Table", name: str = "data") -> Frame:
     """Create a Frame from a PyArrow Table.
 
-    The inbound side of the SQL layer's zero-copy handoff (see
+    The inbound side of the SQL layer's Arrow handoff (see
     ``docs/design/ai-sql.md``): a relational fragment runs in DuckDB,
-    returns Arrow, and lands here as a memory dataset.
+    returns Arrow, and lands here as a memory dataset (materialized to
+    dicts, since operators run on ``list[dict]``).
     """
     return from_list(table.to_pylist(), name=name)
 

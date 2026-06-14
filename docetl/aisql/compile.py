@@ -186,10 +186,7 @@ def _compile_select_where(parsed: exp.Select) -> CompiledQuery:
         return CompiledQuery(stages=[RelationalStage(sql=parsed.sql(dialect="duckdb"))])
 
     # Stage 1: scan + the relational half of WHERE, project everything.
-    scan = exp.select("*").from_(parsed.find(exp.From).this)
-    if relational_where is not None:
-        scan = scan.where(relational_where)
-    stages: list = [RelationalStage(sql=scan.sql(dialect="duckdb"))]
+    stages: list = [_scan_stage(parsed, relational_where)]
 
     filter_ops = [
         build_filter_op(call, name=f"aifilter_{i}")
@@ -224,11 +221,9 @@ def _compile_select_where(parsed: exp.Select) -> CompiledQuery:
 
     # Final stage: the original SELECT list with AI calls replaced by
     # their alias column, over the semantic output.
-    final = exp.select(
-        *[_final_select_item(item, call) for item, call in select_ai]
-    ).from_(PREV)
-    stages.append(RelationalStage(sql=final.sql(dialect="duckdb"), reads_prev=True))
-
+    stages.append(
+        _final_projection([_final_select_item(item, call) for item, call in select_ai])
+    )
     return CompiledQuery(stages=stages)
 
 
@@ -236,6 +231,25 @@ def _final_select_item(item: exp.Expression, call: AIFunctionCall | None):
     if call is None:
         return item
     return exp.column(call.alias)
+
+
+def _scan_stage(
+    parsed: exp.Select, where_pred: exp.Expression | None
+) -> RelationalStage:
+    """A DuckDB scan of the query's FROM source, projecting everything,
+    with an optional relational predicate."""
+    scan = exp.select("*").from_(parsed.find(exp.From).this)
+    if where_pred is not None:
+        scan = scan.where(where_pred)
+    return RelationalStage(sql=scan.sql(dialect="duckdb"))
+
+
+def _final_projection(items: list[exp.Expression]) -> RelationalStage:
+    """The query's SELECT list (AI calls already replaced by their alias
+    columns) read from the prior stage's output."""
+    return RelationalStage(
+        sql=exp.select(*items).from_(PREV).sql(dialect="duckdb"), reads_prev=True
+    )
 
 
 def _conjuncts(node: exp.Expression) -> list[exp.Expression]:
@@ -279,11 +293,7 @@ def _split_where(
                 "ai_score(col, 'q') > 0.8; OR/NOT and other nestings are not"
             )
 
-    relational_pred = None
-    if relational:
-        relational_pred = relational[0]
-        for extra in relational[1:]:
-            relational_pred = exp.and_(relational_pred, extra)
+    relational_pred = exp.and_(*relational) if relational else None
     return relational_pred, filters, scores
 
 
@@ -318,18 +328,14 @@ def _compile_grouped(parsed: exp.Select, group: exp.Group) -> CompiledQuery:
     if len(agg_calls) != 1:
         raise NotImplementedError("exactly one ai_agg per GROUP BY query in v1")
 
-    scan = exp.select("*").from_(parsed.find(exp.From).this)
-    if where is not None:
-        scan = scan.where(where.this)
     reduce_op = build_reduce_op(agg_calls[0], name="ai_agg", reduce_key=reduce_key)
-    final = exp.select(
-        *[_final_select_item(item, _select_call(item)) for item in parsed.expressions]
-    ).from_(PREV)
     return CompiledQuery(
         stages=[
-            RelationalStage(sql=scan.sql(dialect="duckdb")),
+            _scan_stage(parsed, where.this if where is not None else None),
             SemanticStage(operations=[reduce_op]),
-            RelationalStage(sql=final.sql(dialect="duckdb"), reads_prev=True),
+            _final_projection(
+                [_final_select_item(i, _select_call(i)) for i in parsed.expressions]
+            ),
         ]
     )
 
@@ -364,10 +370,7 @@ def _compile_join(parsed: exp.Select, join: exp.Join) -> CompiledQuery:
                 right_sql=exp.select("*").from_(join.this).sql(dialect="duckdb"),
                 operation=op,
             ),
-            RelationalStage(
-                sql=exp.select(*parsed.expressions).from_(PREV).sql(dialect="duckdb"),
-                reads_prev=True,
-            ),
+            _final_projection(list(parsed.expressions)),
         ]
     )
 
@@ -420,10 +423,7 @@ def _compile_resolve(parsed: exp.Select, fn: exp.Func) -> CompiledQuery:
         stages=[
             RelationalStage(sql=f"SELECT * FROM {source}"),
             SemanticStage(operations=[op]),
-            RelationalStage(
-                sql=exp.select(*parsed.expressions).from_(PREV).sql(dialect="duckdb"),
-                reads_prev=True,
-            ),
+            _final_projection(list(parsed.expressions)),
         ]
     )
 

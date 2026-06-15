@@ -4,7 +4,7 @@ This tutorial shows how to use DocETL's Python API when map, filter, or reduce
 agents need tools over multiple turns. We will build a market-research pipeline:
 
 1. A **map agent** researches each company with the OpenAI Agents SDK
-   `WebSearchTool`, uses a shared hosted bash sandbox for scratch work, and
+   `WebSearchTool`, uses a hosted bash sandbox for scratch work, and
    calls a specialist evidence subagent.
 2. A **reduce agent** groups companies by sector, uses the same kind of sandbox
    tool for tabulation, calls a specialist memo editor, and returns a structured
@@ -55,9 +55,10 @@ from agents import WebSearchTool
 import docetl
 
 
-# Reuse this tool object anywhere agents should have the same hosted bash
-# capability. The sandbox is for scratch work inside an agent run; durable
-# map-to-reduce state should flow through DocETL schemas.
+# Reuse this tool object anywhere agents should have the same hosted bash tool
+# configuration. Hosted providers may still allocate separate containers for
+# separate operation calls unless you explicitly use a container_reference.
+# Durable map-to-reduce state should flow through DocETL schemas.
 sandbox = docetl.tools.bash(network="disabled", memory_limit="1g")
 
 
@@ -73,6 +74,11 @@ companies = [
         "question": "What recent product, partnership, or demand signals matter for AI infrastructure buyers?",
     },
     {
+        "company": "Broadcom",
+        "sector": "AI infrastructure",
+        "question": "What recent product, partnership, or demand signals matter for AI infrastructure buyers?",
+    },
+    {
         "company": "Stripe",
         "sector": "payments",
         "question": "What recent product, partnership, or regulatory signals matter for enterprise payments teams?",
@@ -81,6 +87,41 @@ companies = [
         "company": "Adyen",
         "sector": "payments",
         "question": "What recent product, partnership, or regulatory signals matter for enterprise payments teams?",
+    },
+    {
+        "company": "Block",
+        "sector": "payments",
+        "question": "What recent product, partnership, or regulatory signals matter for enterprise payments teams?",
+    },
+    {
+        "company": "Datadog",
+        "sector": "observability",
+        "question": "What recent product, platform, or demand signals matter for engineering leaders buying observability tools?",
+    },
+    {
+        "company": "New Relic",
+        "sector": "observability",
+        "question": "What recent product, platform, or demand signals matter for engineering leaders buying observability tools?",
+    },
+    {
+        "company": "Grafana Labs",
+        "sector": "observability",
+        "question": "What recent product, platform, or demand signals matter for engineering leaders buying observability tools?",
+    },
+    {
+        "company": "CrowdStrike",
+        "sector": "cybersecurity",
+        "question": "What recent product, threat, or platform signals matter for security leaders buying cybersecurity tools?",
+    },
+    {
+        "company": "Palo Alto Networks",
+        "sector": "cybersecurity",
+        "question": "What recent product, threat, or platform signals matter for security leaders buying cybersecurity tools?",
+    },
+    {
+        "company": "Cloudflare",
+        "sector": "cybersecurity",
+        "question": "What recent product, threat, or platform signals matter for security leaders buying cybersecurity tools?",
     },
 ]
 
@@ -221,9 +262,12 @@ The reduce operation's manager agent has two tools:
 - `edit_sector_brief(...)` is a specialist subagent exposed with
   `brief_editor.as_tool(...)`.
 
-The same `sandbox` tool object is passed to managers and specialists so they
-share the same sandbox capability within a run. Durable data between DocETL
-operations flows through the declared output schemas, not through hidden files.
+The same `sandbox` tool object is passed to managers and specialists so they use
+the same hosted shell tool configuration. Do not assume every map row and reduce
+group shares one persistent filesystem: hosted `container_auto` tools may create
+separate containers for separate operation calls. If you need a specific hosted
+container, use a provider `container_reference`; otherwise, pass durable data
+between DocETL operations through declared output schemas, not hidden files.
 
 ## Why use tools here?
 

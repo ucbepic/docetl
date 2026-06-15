@@ -238,8 +238,11 @@ agent = docetl.Agent(
 ```
 
 Reuse the same `sandbox` tool object across a manager and its specialist
-subagents when they should have the same sandbox capability. Pass durable data
-between DocETL operations through output schemas, not through hidden sandbox
+subagents when they should have the same hosted shell tool configuration. Do not
+assume every DocETL operation call shares one persistent filesystem:
+`container_auto` may allocate separate containers. If you need a specific hosted
+container, use `container_id=` to create a `container_reference`. Pass durable
+data between DocETL operations through output schemas, not through hidden sandbox
 files.
 
 #### `.resolve()`

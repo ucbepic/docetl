@@ -429,7 +429,38 @@ The Map operation can directly process PDFs using Claude or Gemini models. To us
     ]
     ```
 
-### Tool Use
+### Agentic Tool Use
+
+For Python pipelines, prefer `agent=` when the model should use tools over
+multiple turns before returning the map output. Agentic operations use the
+OpenAI Agents SDK with LiteLLM model names, so the operation's `model=` can be
+`azure/gpt-4o-mini`, `anthropic/...`, `together_ai/...`, etc. as long as the
+selected model/provider supports the SDK tool-calling flow.
+
+```python
+import docetl
+
+@docetl.tool
+def count_words(text: str) -> dict[str, int]:
+    """Count words in text."""
+    return {"word_count": len(text.split())}
+
+agent = docetl.Agent(tools=[count_words], max_turns=5, max_tool_calls=3)
+
+frame = frame.map(
+    prompt="Use the count_words tool for: {{ input.text }}",
+    output={"schema": {"word_count": "int"}},
+    model="azure/gpt-4o-mini",
+    agent=agent,
+)
+```
+
+Plain Python tools execute as trusted Python in your process. OpenAI Agents SDK
+tools, including sandbox/native tools where supported by the SDK backend, can be
+passed through in Python agent configs. Agent configs are Python-only and cannot
+be exported to YAML.
+
+### Legacy single-step tool use
 
 Tools can extend the capabilities of the Map operation. Each tool is a Python function that can be called by the LLM during execution, and follows the [OpenAI Function Calling API](https://platform.openai.com/docs/guides/function-calling).
 

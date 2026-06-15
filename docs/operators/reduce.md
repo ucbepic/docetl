@@ -87,6 +87,7 @@ flowchart LR
 | `timeout`                 | Timeout for each LLM call in seconds                                                                   | 120                         |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                                                  | 2                           |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
+| `agent` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models. Python API only. | None                          |
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
 | `retriever` | Name of a retriever to use for RAG. See [Retrievers](../retrievers.md). | None                          |
 | `save_retriever_output` | If true, saves the retrieved context to `_<operation_name>_retrieved_context` in the output. | False                          |
@@ -97,6 +98,33 @@ Set `limit` to stop after _N_ groups:
 
 - Groups are sorted by size (smallest first) and only the _N_ smallest groups are processed; the rest are never scheduled, so you avoid extra fold/merge calls.
 - If a grouped reduce returns more than one record per group, the final output list is truncated to `limit`.
+
+### Agentic reduction
+
+In Python, `reduce` supports `agent=` when each group needs tools before
+producing the final aggregate. The operation-level `model=` remains the LiteLLM
+model name used by the OpenAI Agents SDK LiteLLM integration.
+
+```python
+import docetl
+
+@docetl.tool
+def add_numbers(values: list[int]) -> int:
+    """Add integer values."""
+    return sum(values)
+
+agent = docetl.Agent(tools=[add_numbers], max_turns=5, max_tool_calls=3)
+
+frame = frame.reduce(
+    reduce_key="department",
+    prompt="Use add_numbers to sum scores in these inputs: {{ inputs }}",
+    output={"schema": {"total_score": "int"}},
+    model="azure/gpt-4o-mini",
+    agent=agent,
+)
+```
+
+Agentic reduce is Python-only and cannot currently be combined with gleaning.
 
 ## Advanced Features
 

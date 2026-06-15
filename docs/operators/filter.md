@@ -108,6 +108,33 @@ flowchart LR
 
 See [map optional parameters](./map.md#optional-parameters) for additional configuration options, including `batch_prompt` and `max_batch_size`.
 
+### Agentic filtering
+
+In Python, `filter` supports `agent=` just like `map`. The agent can call tools
+over multiple turns, then returns the filter's single boolean output field.
+DocETL drops that boolean field from kept rows.
+
+```python
+import docetl
+
+@docetl.tool
+def is_urgent(text: str) -> bool:
+    """Return whether text mentions an urgent issue."""
+    return "urgent" in text.lower()
+
+agent = docetl.Agent(tools=[is_urgent], max_turns=5, max_tool_calls=3)
+
+frame = frame.filter(
+    prompt="Use is_urgent to decide whether to keep: {{ input.text }}",
+    output={"schema": {"keep": "bool"}},
+    model="azure/gpt-4o-mini",
+    agent=agent,
+)
+```
+
+Agentic filters cannot currently be combined with `cascade`, because cascades
+use a separate proxy/oracle execution path.
+
 ### Model Cascade (cost reduction)
 
 A `cascade` block runs a cheap proxy model on all items first and only escalates uncertain cases to the expensive oracle model, with a statistical quality guarantee.

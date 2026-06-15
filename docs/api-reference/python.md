@@ -100,7 +100,8 @@ frame.map(
 | `validate` | `list[str \| callable]` | `None` | Validators: expression strings over `output`, or callables taking the output dict (callables can't be exported to YAML) |
 | `num_retries_on_validate_failure` | `int` | `None` | Retries on validation failure |
 | `sample` | `int` | `None` | Process only N documents |
-| `tools` | `list[dict]` | `None` | Tool definitions for function calling |
+| `tools` | `list[dict]` | `None` | Legacy single-step tool definitions for function calling |
+| `agent` | `docetl.Agent` | `None` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models |
 | `drop_keys` | `list[str]` | `None` | Keys to remove from output |
 | `timeout` | `int` | `None` | Timeout per LLM call (seconds) |
 | `max_batch_size` | `int` | `None` | Batch size for batch processing |
@@ -126,6 +127,7 @@ frame.filter(
 | `output` | `dict` | — | Schema with one boolean field |
 | `model` | `str` | `None` | Override default model |
 | `validate` | `list[str \| callable]` | `None` | Validators: expression strings or callables over the output dict |
+| `agent` | `docetl.Agent` | `None` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 | `cascade` | `dict` | `None` | [Model cascade](../optimization/cascades.md): run a cheap proxy (chat or embedding model) on all items and escalate only uncertain ones, with a statistical guarantee. Also available on `resolve` and `equijoin`. |
 
@@ -160,7 +162,45 @@ frame.reduce(
 | `merge_prompt` | `str` | `None` | Prompt for merging fold results |
 | `pass_through` | `bool` | `None` | Pass through non-reduced keys |
 | `associative` | `bool` | `None` | Enable parallel reduction |
+| `agent` | `docetl.Agent` | `None` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
+
+#### Agentic map/filter/reduce
+
+Use `docetl.Agent` when an operation should call tools over multiple turns
+before returning DocETL's structured output. DocETL adapts Python functions into
+OpenAI Agents SDK tools and routes the operation's LiteLLM model through the
+SDK's LiteLLM integration.
+
+```python
+import docetl
+
+@docetl.tool
+def count_words(text: str) -> dict[str, int]:
+    """Count words in text."""
+    return {"word_count": len(text.split())}
+
+agent = docetl.Agent(tools=[count_words], max_turns=5, max_tool_calls=3)
+
+rows = (
+    docetl.from_list([{"text": "one two three"}])
+    .map(
+        prompt="Use the count_words tool for: {{ input.text }}",
+        output={"schema": {"word_count": "int"}},
+        model="azure/gpt-4o-mini",
+        agent=agent,
+    )
+    .collect()
+)
+```
+
+The model is still specified on the operation (`model=`) or through
+`docetl.default_model`; use LiteLLM model names such as `azure/gpt-4o-mini`,
+`anthropic/...`, or `together_ai/...`. The selected model/provider must work
+with the OpenAI Agents SDK LiteLLM integration and the requested tools. Plain
+Python function tools execute as trusted Python in your process; OpenAI Agents
+SDK sandbox/native tools may provide isolation where that SDK/backend supports
+it. Agent configs are Python-only and cannot be exported to YAML.
 
 #### `.resolve()`
 

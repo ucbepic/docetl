@@ -38,6 +38,7 @@ class MapOperation(BaseOperation):
         tools: list[dict[str, Any]] | None = (
             None  # FIXME: Why isn't this using the Tool data class so validation works automatically?
         )
+        agent: Any | None = None
         validation_rules: list[str | Callable] | None = Field(None, alias="validate")
         num_retries_on_validate_failure: int | None = None
         drop_keys: list[str] | None = None
@@ -114,6 +115,10 @@ class MapOperation(BaseOperation):
 
         @model_validator(mode="after")
         def validate_prompt_and_output_requirements(self):
+            if self.agent is not None and self.tools:
+                raise ValueError("Use either 'agent' or legacy 'tools', not both")
+            if self.agent is not None and self.gleaning is not None:
+                raise ValueError("Agentic operations cannot be combined with gleaning")
             # If drop_keys is not specified, both prompt and output must be present
             if not self.drop_keys:
                 if not self.prompt or not self.output:
@@ -423,6 +428,7 @@ Reference anchors:"""
                     "litellm_completion_kwargs", {}
                 ),
                 op_config=self.config,
+                agent_config=self.config.get("agent"),
             )
 
             if llm_result.validated:

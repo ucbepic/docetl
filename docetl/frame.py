@@ -342,6 +342,7 @@ class Frame:
         recursively_optimize: bool | None = None,
         sample: int | None = None,
         tools: list[dict[str, Any]] | None = None,
+        agent: Any | None = None,
         validate: list[str] | None = None,
         num_retries_on_validate_failure: int | None = None,
         drop_keys: list[str] | None = None,
@@ -370,6 +371,7 @@ class Frame:
                 "recursively_optimize": recursively_optimize,
                 "sample": sample,
                 "tools": tools,
+                "agent": agent,
                 "validate": validate,
                 "num_retries_on_validate_failure": num_retries_on_validate_failure,
                 "drop_keys": drop_keys,
@@ -422,6 +424,7 @@ class Frame:
         model: str | None = None,
         optimize: bool | None = None,
         tools: list[dict[str, Any]] | None = None,
+        agent: Any | None = None,
         validate: list[str] | None = None,
         drop_keys: list[str] | None = None,
         timeout: int | None = None,
@@ -441,6 +444,7 @@ class Frame:
                 "model": model,
                 "optimize": optimize,
                 "tools": tools,
+                "agent": agent,
                 "validate": validate,
                 "drop_keys": drop_keys,
                 "timeout": timeout,
@@ -474,6 +478,7 @@ class Frame:
         verbose: bool | None = None,
         timeout: int | None = None,
         litellm_completion_kwargs: dict[str, Any] | None = None,
+        agent: Any | None = None,
         enable_observability: bool | None = None,
         limit: int | None = None,
         retriever: Retriever | str | None = None,
@@ -500,6 +505,7 @@ class Frame:
                 "verbose": verbose,
                 "timeout": timeout,
                 "litellm_completion_kwargs": litellm_completion_kwargs,
+                "agent": agent,
                 "enable_observability": enable_observability,
                 "limit": limit,
                 "retriever": retriever,
@@ -1198,6 +1204,10 @@ class Frame:
         """
         import yaml
 
+        if _has_python_only_agent(self._operations):
+            raise ValueError(
+                "Agent tools are Python-only and cannot be exported to YAML."
+            )
         config = self._build_config(output_path="output.json")
         out = yaml.dump(config, default_flow_style=False, sort_keys=False)
         if path:
@@ -1209,6 +1219,11 @@ class Frame:
 
     def to_python(self) -> str:
         """Generate Python source that recreates this pipeline using the Frame API."""
+        if _has_python_only_agent(self._operations):
+            raise ValueError(
+                "Agent tools cannot be exported to Python source automatically; "
+                "recreate the docetl.Agent and tools in Python code."
+            )
         ops_by_name = {op["name"]: op for op in self._operations}
         steps_by_name = {s["name"]: s for s in self._steps}
         lines: list[str] = ["import docetl", ""]
@@ -1390,6 +1405,10 @@ def from_list(data: list[dict], name: str = "data") -> Frame:
 # ── codegen formatting helpers ─────────────────────────────────────
 
 _SKIP_KEYS = {"name", "type"}
+
+
+def _has_python_only_agent(operations: list[dict[str, Any]]) -> bool:
+    return any(op.get("agent") is not None for op in operations)
 
 
 def _unique(name: str, taken) -> str:

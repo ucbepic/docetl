@@ -96,10 +96,31 @@ def cache_key(
     key_dict = {
         "model": model,
         "op_type": op_type,
-        "messages": json.dumps(messages, sort_keys=True),
-        "output_schema": json.dumps(output_schema, sort_keys=True),
+        "messages": json.dumps(messages, sort_keys=True, default=_cache_json_default),
+        "output_schema": json.dumps(
+            output_schema, sort_keys=True, default=_cache_json_default
+        ),
         "scratchpad": scratchpad,
-        "system_prompt": json.dumps(system_prompt, sort_keys=True),
-        "op_config": json.dumps(op_config, sort_keys=True),
+        "system_prompt": json.dumps(
+            system_prompt, sort_keys=True, default=_cache_json_default
+        ),
+        "op_config": json.dumps(
+            op_config, sort_keys=True, default=_cache_json_default
+        ),
     }
     return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()
+
+
+def _cache_json_default(value: Any) -> Any:
+    if hasattr(value, "cache_identity"):
+        return value.cache_identity()
+    if callable(value):
+        callable_name = getattr(
+            value, "__qualname__", getattr(value, "__name__", repr(value))
+        )
+        return {
+            "kind": "callable",
+            "module": getattr(value, "__module__", None),
+            "name": callable_name,
+        }
+    return repr(value)

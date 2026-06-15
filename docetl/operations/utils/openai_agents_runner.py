@@ -17,6 +17,16 @@ class AgentExecutionError(Exception):
     """Raised when an agentic operation cannot complete successfully."""
 
 
+class AgentResult(dict):
+    """Dictionary result with attached cost metadata for APIWrapper accounting."""
+
+    _docetl_total_cost: float
+
+    def __init__(self, output: dict[str, Any], total_cost: float):
+        super().__init__(output)
+        self._docetl_total_cost = total_cost
+
+
 def run_openai_agent(
     *,
     runner: Any,
@@ -28,7 +38,7 @@ def run_openai_agent(
     system_prompt: str,
     scratchpad: str | None = None,
     litellm_completion_kwargs: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], float]:
+) -> AgentResult:
     """Run an OpenAI Agents SDK agent backed by a LiteLLM model."""
     agent = normalize_agent(agent_config)
     prompt = _render_messages_for_agent(messages)
@@ -45,7 +55,8 @@ def run_openai_agent(
         scratchpad=scratchpad,
         litellm_completion_kwargs=litellm_completion_kwargs or {},
     )
-    return _run_async_safely(coro)
+    output, cost = _run_async_safely(coro)
+    return AgentResult(output, cost)
 
 
 async def _run_openai_agent_async(

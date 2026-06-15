@@ -33,6 +33,7 @@ from .llm import (
     timeout,
     truncate_messages,
 )
+from .openai_agents_runner import run_openai_agent
 from .validation import (
     convert_dict_schema_to_list_schema,
     convert_val,
@@ -284,6 +285,7 @@ class APIWrapper(object):
         initial_result: Any | None = None,
         litellm_completion_kwargs: dict[str, Any] = {},
         op_config: dict[str, Any] = {},
+        agent_config: Any | None = None,
     ) -> LLMResult:
         """
         Cached version of the call_llm function.
@@ -314,6 +316,13 @@ class APIWrapper(object):
             "mode", OutputMode.TOOLS.value
         )
         use_structured_output = output_mode_str == OutputMode.STRUCTURED_OUTPUT.value
+        if agent_config is not None and use_structured_output:
+            raise ValueError(
+                "agent cannot be combined with output.mode='structured_output'; "
+                "agentic operations use the OpenAI Agents SDK final output schema."
+            )
+        if agent_config is not None and gleaning_config:
+            raise ValueError("agent cannot be combined with gleaning.")
         if (
             model.startswith("gpt")
             and not os.environ.get("OPENAI_API_KEY")
@@ -343,9 +352,13 @@ class APIWrapper(object):
                         litellm_completion_kwargs,
                         op_config=op_config,
                         use_structured_output=use_structured_output,
+                        agent_config=agent_config,
                     )
-                    total_cost += completion_cost(response)
-                    self._track_token_usage(model, response)
+                    if isinstance(response, ModelResponse):
+                        total_cost += completion_cost(response)
+                        self._track_token_usage(model, response)
+                    else:
+                        total_cost += getattr(response, "_docetl_total_cost", 0.0)
                 else:
                     response = initial_result
 
@@ -494,6 +507,7 @@ class APIWrapper(object):
                             litellm_completion_kwargs,
                             op_config=op_config,
                             use_structured_output=use_structured_output,
+                            agent_config=agent_config,
                         )
                         parsed_output = self.parse_llm_response(
                             response, output_schema, tools, False, use_structured_output
@@ -553,9 +567,13 @@ class APIWrapper(object):
                             litellm_completion_kwargs,
                             op_config=op_config,
                             use_structured_output=use_structured_output,
+                            agent_config=agent_config,
                         )
-                        total_cost += completion_cost(response)
-                        self._track_token_usage(model, response)
+                        if isinstance(response, ModelResponse):
+                            total_cost += completion_cost(response)
+                            self._track_token_usage(model, response)
+                        else:
+                            total_cost += getattr(response, "_docetl_total_cost", 0.0)
 
                 else:
                     # No validation, so we assume the result is valid
@@ -584,6 +602,7 @@ class APIWrapper(object):
         initial_result: Any | None = None,
         litellm_completion_kwargs: dict[str, Any] = {},
         op_config: dict[str, Any] = {},
+        agent_config: Any | None = None,
     ) -> LLMResult:
         """
         Wrapper function that uses caching for LLM calls.
@@ -617,6 +636,15 @@ class APIWrapper(object):
             raise ValueError(
                 f"Invalid output mode '{output_mode_str}'. Must be 'tools' or 'structured_output'."
             )
+        if agent_config is not None and output_mode_str == OutputMode.STRUCTURED_OUTPUT.value:
+            raise ValueError(
+                "agent cannot be combined with output.mode='structured_output'; "
+                "agentic operations use the OpenAI Agents SDK final output schema."
+            )
+        if agent_config is not None and gleaning_config:
+            raise ValueError("agent cannot be combined with gleaning.")
+        if agent_config is not None and not getattr(agent_config, "cache", False):
+            bypass_cache = True
 
         key = cache_key(
             model,
@@ -648,6 +676,7 @@ class APIWrapper(object):
                     initial_result=initial_result,
                     litellm_completion_kwargs=litellm_completion_kwargs,
                     op_config=op_config,
+                    agent_config=agent_config,
                 )
                 # Log input and output if verbose
                 if verbose:
@@ -715,6 +744,7 @@ class APIWrapper(object):
         litellm_completion_kwargs: dict[str, Any] = {},
         op_config: dict[str, Any] = {},
         use_structured_output: bool = False,
+        agent_config: Any | None = None,
     ) -> Any:
         """
         Make an LLM call with caching.
@@ -909,6 +939,19 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             extra_litellm_kwargs["allowed_openai_params"] = ["tools", "tool_choice"]
         if self.default_lm_api_base:
             extra_litellm_kwargs["api_base"] = self.default_lm_api_base
+
+        if agent_config is not None:
+            return run_openai_agent(
+                runner=self.runner,
+                model=model,
+                op_type=op_type,
+                messages=messages,
+                output_schema=output_schema,
+                agent_config=agent_config,
+                system_prompt=system_prompt,
+                scratchpad=scratchpad,
+                litellm_completion_kwargs=extra_litellm_kwargs,
+            )
 
         # Use router if available (for fallback models), otherwise use direct completion
         # When using router, ensure operation's model is tried first, then fallback models

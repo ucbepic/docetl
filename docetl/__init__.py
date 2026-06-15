@@ -13,7 +13,7 @@ from docetl.moar.optimizer import MOARResult, OptimizedPipeline
 from docetl.utils_evaluation import register_eval
 
 from docetl import _config
-from docetl.frame import Frame, Retriever, read_json, read_csv, read_dir, read_parquet, from_list, yaml_to_python
+from docetl.frame import Frame, Retriever, read_json, read_csv, read_dir, read_parquet, from_list, from_arrow, yaml_to_python
 
 # Drop unsupported params for models like gpt-5 that don't support temperature=0
 litellm.drop_params = True
@@ -35,10 +35,12 @@ __all__ = [
     "read_dir",
     "read_parquet",
     "from_list",
+    "from_arrow",
     "yaml_to_python",
     # config attrs
     "default_model",
     "agent_model",
+    "agent_mode",
     "fallback_models",
     "fallback_embedding_models",
     "max_threads",
@@ -51,6 +53,7 @@ __all__ = [
 _CONFIG_ATTRS = {
     "default_model",
     "agent_model",
+    "agent_mode",
     "fallback_models",
     "fallback_embedding_models",
     "max_threads",
@@ -59,6 +62,7 @@ _CONFIG_ATTRS = {
     "rate_limits",
     "system_prompt",
     "plan_rewrites",
+    "quiet",
 }
 
 

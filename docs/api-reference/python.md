@@ -224,6 +224,24 @@ manager = docetl.Agent(
 The specialist uses the same operation-level LiteLLM model as the manager unless
 you pass an SDK-native tool object with its own model configuration.
 
+For shell/sandbox work, use `docetl.tools.bash(...)` to create an OpenAI Agents
+SDK hosted shell tool:
+
+```python
+sandbox = docetl.tools.bash(network="disabled", memory_limit="1g")
+
+agent = docetl.Agent(
+    tools=[sandbox],
+    max_turns=4,
+    max_tool_calls=6,
+)
+```
+
+Reuse the same `sandbox` tool object across a manager and its specialist
+subagents when they should have the same sandbox capability. Pass durable data
+between DocETL operations through output schemas, not through hidden sandbox
+files.
+
 #### `.resolve()`
 
 Deduplicates entities by pairwise LLM comparison.

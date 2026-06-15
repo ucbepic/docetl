@@ -6,6 +6,7 @@ import warnings
 
 import litellm
 
+from docetl import tools
 from docetl.runner import DSLRunner
 from docetl.optimizer import Optimizer
 from docetl.agents import Agent, AgentTool, Tool, as_tool, tool
@@ -30,6 +31,7 @@ __all__ = [
     "Tool",
     "as_tool",
     "tool",
+    "tools",
     "SemanticAccessor",
     "MOARResult",
     "OptimizedPipeline",

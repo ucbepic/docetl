@@ -1,18 +1,17 @@
 # Equipping DocETL Agents with Tools
 
 This tutorial shows how to use DocETL's Python API when map, filter, or reduce
-operations need tools over multiple turns. We will build a market-research
-pipeline:
+agents need tools over multiple turns. We will build a market-research pipeline:
 
 1. A **map agent** researches each company with the OpenAI Agents SDK
-   `WebSearchTool`, calls a specialist evidence subagent, and writes a compact
-   evidence file.
-2. A **reduce agent** groups companies by sector, reads those evidence files,
-   calls a specialist editor subagent, and writes a sector brief.
+   `WebSearchTool`, uses a shared hosted bash sandbox for scratch work, and
+   calls a specialist evidence subagent.
+2. A **reduce agent** groups companies by sector, uses the same kind of sandbox
+   tool for tabulation, calls a specialist memo editor, and returns a structured
+   sector brief.
 
-This pattern is useful when the work cannot be done from the input row alone.
-The model has to search for current facts, persist evidence, and then synthesize
-across files.
+DocETL owns the dataflow and schemas. Tools help each operation do work before
+returning its structured result.
 
 !!! note
 
@@ -37,10 +36,10 @@ name, for example `model="azure/gpt-4o-mini"`.
 
 !!! tip
 
-    `WebSearchTool` is an OpenAI Agents SDK hosted tool. Hosted SDK tools depend
-    on the selected model/provider. For non-OpenAI LiteLLM providers, use tools
-    that provider supports, MCP tools, or Python tools wrapped with
-    `@docetl.tool`.
+    `WebSearchTool` and hosted `ShellTool` are OpenAI Agents SDK tools. Hosted
+    SDK tools depend on the selected model/provider. For non-OpenAI LiteLLM
+    providers, use tools that provider supports, MCP tools, or Python tools
+    wrapped with `@docetl.tool`.
 
 ## Full script
 
@@ -49,51 +48,17 @@ Save this as `tool_equipped_research_agents.py`.
 ```python
 from __future__ import annotations
 
-import hashlib
 import json
-import re
-from pathlib import Path
 
 from agents import WebSearchTool
 
 import docetl
 
 
-WORKSPACE = Path("agent_workspace")
-EVIDENCE_DIR = WORKSPACE / "evidence"
-REPORT_DIR = WORKSPACE / "reports"
-EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
-REPORT_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def safe_name(value: str) -> str:
-    cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip().lower()).strip("-")
-    return cleaned or hashlib.sha256(value.encode()).hexdigest()[:12]
-
-
-@docetl.tool
-def write_json_file(filename: str, payload: dict) -> str:
-    """Write JSON evidence under agent_workspace/evidence and return the path."""
-    path = EVIDENCE_DIR / f"{safe_name(filename)}.json"
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True))
-    return str(path)
-
-
-@docetl.tool
-def read_json_file(path: str) -> dict:
-    """Read a JSON evidence file written by the map agent."""
-    resolved = Path(path)
-    if not resolved.is_relative_to(EVIDENCE_DIR):
-        raise ValueError("Can only read files from agent_workspace/evidence.")
-    return json.loads(resolved.read_text())
-
-
-@docetl.tool
-def write_markdown_file(filename: str, content: str) -> str:
-    """Write a markdown report under agent_workspace/reports and return the path."""
-    path = REPORT_DIR / f"{safe_name(filename)}.md"
-    path.write_text(content)
-    return str(path)
+# Reuse this tool object anywhere agents should have the same hosted bash
+# capability. The sandbox is for scratch work inside an agent run; durable
+# map-to-reduce state should flow through DocETL schemas.
+sandbox = docetl.tools.bash(network="disabled", memory_limit="1g")
 
 
 companies = [
@@ -120,18 +85,22 @@ companies = [
 ]
 
 evidence_specialist = docetl.Agent(
+    tools=[sandbox],
     instructions=(
-        "You are an evidence specialist. Given raw search findings, produce "
-        "compact JSON-ready evidence with source URLs, short factual claims, "
-        "and no hype."
+        "You are an evidence specialist. Use bash for scratch notes or small "
+        "tables when helpful. Return compact evidence: claims, source URLs, "
+        "risks, and a 0-100 signal score. Do not rely on sandbox files as the "
+        "only output; the manager must receive the evidence text."
     ),
     max_turns=4,
 )
 
 brief_editor = docetl.Agent(
+    tools=[sandbox],
     instructions=(
-        "You are a memo editor. Tighten the draft into a decision-ready brief "
-        "with concise bullets, cited URLs, and explicit business implications."
+        "You are a memo editor. Use bash for scratch formatting or table checks "
+        "when helpful. Tighten the brief into decision-ready prose with concise "
+        "bullets, cited URLs, and explicit business implications."
     ),
     max_turns=4,
 )
@@ -139,36 +108,34 @@ brief_editor = docetl.Agent(
 map_agent = docetl.Agent(
     tools=[
         WebSearchTool(),
+        sandbox,
         evidence_specialist.as_tool(
             name="extract_evidence",
             description="Turn raw search findings into compact cited evidence.",
         ),
-        write_json_file,
     ],
     max_turns=8,
     max_tool_calls=10,
     instructions=(
-        "Use web search for current sources. Prefer primary sources when "
-        "available. Call extract_evidence before write_json_file. Save compact "
-        "evidence with source URLs and the specific signals you found."
+        "Use web search for current sources. Use bash for scratch notes or quick "
+        "tables if useful. Call extract_evidence before final output. Return the "
+        "DocETL schema fields directly; do not put durable state only in files."
     ),
 )
 
 reduce_agent = docetl.Agent(
     tools=[
-        read_json_file,
+        sandbox,
         brief_editor.as_tool(
             name="edit_sector_brief",
             description="Edit a sector brief for clarity and decision usefulness.",
         ),
-        write_markdown_file,
     ],
     max_turns=8,
-    max_tool_calls=12,
+    max_tool_calls=10,
     instructions=(
-        "Read every evidence file in the group. Draft the brief, call "
-        "edit_sector_brief, then write the final markdown brief with cited URLs "
-        "and clear implications for a business reader."
+        "Use bash to tabulate the grouped inputs if helpful. Draft the brief, "
+        "call edit_sector_brief, then return the DocETL schema fields directly."
     ),
 )
 
@@ -180,21 +147,25 @@ rows = (
         Research {{ input.company }} for this question:
         {{ input.question }}
 
-        Use web search to find recent sources, call extract_evidence to condense
-        findings, then write_json_file to save compact evidence. Return the path
-        and the most important signals.
+        Find current sources, condense the evidence, and return structured
+        evidence for this company.
         """,
         output={
             "schema": {
                 "company": "str",
                 "sector": "str",
-                "evidence_file": "str",
+                "evidence_summary": "str",
+                "signal_score": "int",
+                "risks": "list[str]",
                 "source_urls": "list[str]",
-                "signals": "list[str]",
             }
         },
         model="gpt-4o-mini",
         agent=map_agent,
+        validate=[
+            "0 <= output['signal_score'] <= 100",
+            "len(output['source_urls']) >= 1",
+        ],
     )
     .reduce(
         name="write_sector_brief",
@@ -202,24 +173,32 @@ rows = (
         prompt="""
         You are writing a sector brief for {{ inputs[0].sector }}.
 
-        Read each evidence_file with read_json_file:
+        Company evidence:
         {% for item in inputs %}
-        - {{ item.company }}: {{ item.evidence_file }}
+        - {{ item.company }} (score {{ item.signal_score }}):
+          {{ item.evidence_summary }}
+          risks={{ item.risks }}
+          sources={{ item.source_urls }}
         {% endfor %}
 
-        Draft the sector brief, call edit_sector_brief, then write the markdown
-        brief with write_markdown_file.
+        Rank the companies, synthesize the shared signals, and return a concise
+        markdown brief.
         """,
         output={
             "schema": {
                 "sector_summary": "str",
+                "ranked_companies": "list[str]",
                 "top_signals": "list[str]",
-                "brief_file": "str",
+                "brief_markdown": "str",
                 "source_urls": "list[str]",
             }
         },
         model="gpt-4o-mini",
         agent=reduce_agent,
+        validate=[
+            "len(output['ranked_companies']) >= 1",
+            "len(output['source_urls']) >= 1",
+        ],
     )
     .collect(max_threads=2)
 )
@@ -232,27 +211,29 @@ print(json.dumps(rows, indent=2))
 The map operation's manager agent has three tools:
 
 - `WebSearchTool()` finds current sources through the OpenAI Agents SDK.
+- `sandbox` is a hosted bash tool created with `docetl.tools.bash(...)`.
 - `extract_evidence(...)` is a specialist subagent exposed with
   `evidence_specialist.as_tool(...)`.
-- `write_json_file(...)` persists the evidence that reduce will consume.
 
-The reduce operation's manager agent has three tools:
+The reduce operation's manager agent has two tools:
 
-- `read_json_file(...)` loads every evidence file in the sector group.
+- `sandbox` lets the agent create scratch CSV/Markdown or run small checks.
 - `edit_sector_brief(...)` is a specialist subagent exposed with
   `brief_editor.as_tool(...)`.
-- `write_markdown_file(...)` writes a human-readable sector brief.
+
+The same `sandbox` tool object is passed to managers and specialists so they
+share the same sandbox capability within a run. Durable data between DocETL
+operations flows through the declared output schemas, not through hidden files.
 
 ## Why use tools here?
 
 A plain map prompt can only transform the row it receives. In this workflow,
-each row needs external actions:
+each row benefits from external actions:
 
-- search queries may need refinement;
-- current sources are not in the input dataset;
-- evidence must be saved so the reduce step can audit what was used;
-- the reduce step needs to read multiple files before writing a sector-level
-  deliverable.
+- search current sources that are not in the input dataset;
+- use bash for scratch extraction, sorting, or table checks;
+- delegate evidence extraction to a specialist with narrower instructions;
+- reduce structured evidence into a ranked sector brief.
 
 DocETL still owns the dataflow and output schemas. The agent simply gets tool
 turns before it returns each map or reduce result.
@@ -286,22 +267,37 @@ frame = docetl.from_list(companies).filter(
 DocETL removes the `keep` field from rows that pass the filter, so downstream
 map/reduce steps see the original row shape.
 
+## How schema enforcement works
+
+For agent-backed operations, DocETL converts the operation's `output.schema` into
+an OpenAI Agents SDK `output_type`. The SDK asks the agent for that typed final
+output. DocETL then runs the normal operation validation path:
+
+- missing output fields fail type validation;
+- values must match the declared DocETL schema types;
+- any `validate=[...]` expressions must pass;
+- failed validation retries according to `num_retries_on_validate_failure`.
+
+The sandbox can contain scratch files, but the accepted DocETL result is the
+validated structured output.
+
 ## Tuning tool budgets
 
 Use small budgets first:
 
 ```python
-docetl.Agent(tools=[WebSearchTool(), write_json_file], max_turns=4, max_tool_calls=6)
+docetl.Agent(tools=[WebSearchTool(), sandbox], max_turns=4, max_tool_calls=6)
 ```
 
 Increase `max_turns` when the agent needs more reasoning steps. Increase
-`max_tool_calls` when each item legitimately requires more sources or file
-operations. The limits are per operation call, so map limits apply per row,
-filter limits apply per row, and reduce limits apply per group.
+`max_tool_calls` when each item legitimately requires more sources or sandbox
+actions. The limits are per operation call, so map limits apply per row, filter
+limits apply per row, and reduce limits apply per group.
 
 ## Security notes
 
-Python tools execute as trusted Python in your process. Keep file tools scoped
-to a workspace directory and avoid exposing secrets through tool outputs. Hosted
-OpenAI Agents SDK tools, such as web search or sandbox/code tools, follow the
-SDK and provider behavior for the selected model backend.
+Python tools execute as trusted Python in your process. Hosted OpenAI Agents SDK
+tools, such as web search or hosted bash, follow the SDK and provider behavior
+for the selected model backend. Keep sandbox network access disabled unless the
+task requires it, and pass durable data between DocETL operations through output
+schemas rather than hidden sandbox state.

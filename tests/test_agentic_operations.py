@@ -133,6 +133,37 @@ def test_agent_as_tool_builds_sdk_function_tool() -> None:
     assert tools[0].description == "Extract numeric evidence from a note."
 
 
+def test_bash_tool_helper_builds_hosted_shell_tool() -> None:
+    shell_tool = docetl.tools.bash(network="disabled", memory_limit="1g")
+    assert shell_tool.name == "bash"
+    assert shell_tool.environment["type"] == "container_auto"
+    assert shell_tool.environment["network_policy"] == {"type": "disabled"}
+    assert shell_tool.environment["memory_limit"] == "1g"
+
+
+def test_agentic_map_retries_invalid_schema(monkeypatch) -> None:
+    calls = iter([AgentResult({"wrong": "shape"}, 0.01), AgentResult({"count": 2}, 0.01)])
+
+    def fake_run_openai_agent(**kwargs):
+        return next(calls)
+
+    monkeypatch.setattr(api_mod, "run_openai_agent", fake_run_openai_agent)
+
+    rows = (
+        docetl.from_list([{"text": "one two"}])
+        .map(
+            prompt="Count words in {{ input.text }}",
+            output={"schema": {"count": "int"}},
+            model="azure/gpt-4o-mini",
+            agent=docetl.Agent(),
+            num_retries_on_validate_failure=1,
+        )
+        .collect(max_threads=1)
+    )
+
+    assert rows == [{"text": "one two", "count": 2}]
+
+
 def test_agentic_map_operation(monkeypatch) -> None:
     def fake_run_openai_agent(**kwargs):
         assert kwargs["model"] == "azure/gpt-4o-mini"

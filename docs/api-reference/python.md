@@ -175,17 +175,29 @@ SDK's LiteLLM integration.
 import docetl
 
 @docetl.tool
-def count_words(text: str) -> dict[str, int]:
-    """Count words in text."""
-    return {"word_count": len(text.split())}
+def lookup_sla(customer_tier: str) -> dict[str, str | int]:
+    """Return support entitlements for a customer tier."""
+    return {
+        "enterprise": {"response_hours": 1, "escalation": "page-on-call"},
+        "growth": {"response_hours": 4, "escalation": "queue-lead"},
+        "free": {"response_hours": 48, "escalation": "self-serve"},
+    }.get(customer_tier.lower(), {"response_hours": 24, "escalation": "standard"})
 
-agent = docetl.Agent(tools=[count_words], max_turns=5, max_tool_calls=3)
+agent = docetl.Agent(tools=[lookup_sla], max_turns=5, max_tool_calls=3)
 
 rows = (
-    docetl.from_list([{"text": "one two three"}])
+    docetl.from_list([
+        {
+            "ticket": "Production API latency is above the SLO.",
+            "customer_tier": "enterprise",
+        }
+    ])
     .map(
-        prompt="Use the count_words tool for: {{ input.text }}",
-        output={"schema": {"word_count": "int"}},
+        prompt=(
+            "Use lookup_sla to classify this ticket and explain the next action: "
+            "{{ input.ticket }} / tier={{ input.customer_tier }}"
+        ),
+        output={"schema": {"priority": "str", "next_action": "str"}},
         model="azure/gpt-4o-mini",
         agent=agent,
     )

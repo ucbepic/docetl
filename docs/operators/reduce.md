@@ -109,16 +109,29 @@ the model used for the reduce call.
 import docetl
 
 @docetl.tool
-def add_numbers(values: list[int]) -> int:
-    """Add integer values."""
-    return sum(values)
+def get_region_target(region: str) -> dict[str, str | int]:
+    """Return sales target context for a region."""
+    return {
+        "na": {"pipeline_target": 2_500_000, "focus": "enterprise expansion"},
+        "emea": {"pipeline_target": 1_800_000, "focus": "regulated industries"},
+        "apac": {"pipeline_target": 1_200_000, "focus": "partner-sourced deals"},
+    }[region.lower()]
 
-agent = docetl.Agent(tools=[add_numbers], max_turns=5, max_tool_calls=3)
+agent = docetl.Agent(tools=[get_region_target], max_turns=5, max_tool_calls=3)
 
 frame = frame.reduce(
-    reduce_key="department",
-    prompt="Use add_numbers to sum scores in these inputs: {{ inputs }}",
-    output={"schema": {"total_score": "int"}},
+    reduce_key="region",
+    prompt=(
+        "Use get_region_target for {{ inputs[0].region }}, then summarize the "
+        "opportunities in this group and compare them with the target: {{ inputs }}"
+    ),
+    output={
+        "schema": {
+            "region_summary": "str",
+            "target_gap": "str",
+            "recommended_actions": "list[str]",
+        }
+    },
     model="azure/gpt-4o-mini",
     agent=agent,
 )

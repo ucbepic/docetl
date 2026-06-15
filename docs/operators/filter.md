@@ -118,14 +118,18 @@ single boolean output field. DocETL drops that boolean field from kept rows.
 import docetl
 
 @docetl.tool
-def is_urgent(text: str) -> bool:
-    """Return whether text mentions an urgent issue."""
-    return "urgent" in text.lower()
+def has_active_legal_hold(account_id: str) -> bool:
+    """Return whether an account is currently under legal hold."""
+    return account_id in {"acct_1042", "acct_7788", "acct_9910"}
 
-agent = docetl.Agent(tools=[is_urgent], max_turns=5, max_tool_calls=3)
+agent = docetl.Agent(tools=[has_active_legal_hold], max_turns=5, max_tool_calls=3)
 
 frame = frame.filter(
-    prompt="Use is_urgent to decide whether to keep: {{ input.text }}",
+    prompt=(
+        "Keep only records that require compliance review. Use "
+        "has_active_legal_hold for account {{ input.account_id }} and consider "
+        "the event text: {{ input.event_text }}"
+    ),
     output={"schema": {"keep": "bool"}},
     model="azure/gpt-4o-mini",
     agent=agent,

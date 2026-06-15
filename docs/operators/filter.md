@@ -108,11 +108,11 @@ flowchart LR
 
 See [map optional parameters](./map.md#optional-parameters) for additional configuration options, including `batch_prompt` and `max_batch_size`.
 
-### Agentic filtering
+### Tool-equipped filter agents
 
-In Python, `filter` supports `agent=` just like `map`. The agent can call tools
-over multiple turns, then returns the filter's single boolean output field.
-DocETL drops that boolean field from kept rows.
+In Python, `filter` supports `agent=docetl.Agent(...)` just like `map`. The
+filter agent can call tools over multiple turns, then returns the filter's
+single boolean output field. DocETL drops that boolean field from kept rows.
 
 ```python
 import docetl
@@ -132,8 +132,14 @@ frame = frame.filter(
 )
 ```
 
-Agentic filters cannot currently be combined with `cascade`, because cascades
-use a separate proxy/oracle execution path.
+Agent configs are Python-only and cannot be exported to YAML. Filters with
+`agent=` cannot currently be combined with `cascade`, because cascades use a
+separate proxy/oracle execution path.
+
+See the [Python API reference](../api-reference/python.md#tool-equipped-mapfilterreduce)
+for the full API and the
+[Tool-Equipped Agents tutorial](../examples/tool-equipped-research-agents.md) for
+an end-to-end tool-equipped pipeline.
 
 ### Model Cascade (cost reduction)
 

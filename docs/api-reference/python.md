@@ -100,7 +100,7 @@ frame.map(
 | `validate` | `list[str \| callable]` | `None` | Validators: expression strings over `output`, or callables taking the output dict (callables can't be exported to YAML) |
 | `num_retries_on_validate_failure` | `int` | `None` | Retries on validation failure |
 | `sample` | `int` | `None` | Process only N documents |
-| `agent` | `docetl.Agent` | `None` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models |
+| `agent` | `docetl.Agent` | `None` | Tool-equipped agent using the OpenAI Agents SDK |
 | `drop_keys` | `list[str]` | `None` | Keys to remove from output |
 | `timeout` | `int` | `None` | Timeout per LLM call (seconds) |
 | `max_batch_size` | `int` | `None` | Batch size for batch processing |
@@ -126,7 +126,7 @@ frame.filter(
 | `output` | `dict` | — | Schema with one boolean field |
 | `model` | `str` | `None` | Override default model |
 | `validate` | `list[str \| callable]` | `None` | Validators: expression strings or callables over the output dict |
-| `agent` | `docetl.Agent` | `None` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models |
+| `agent` | `docetl.Agent` | `None` | Tool-equipped agent using the OpenAI Agents SDK |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 | `cascade` | `dict` | `None` | [Model cascade](../optimization/cascades.md): run a cheap proxy (chat or embedding model) on all items and escalate only uncertain ones, with a statistical guarantee. Also available on `resolve` and `equijoin`. |
 
@@ -161,10 +161,10 @@ frame.reduce(
 | `merge_prompt` | `str` | `None` | Prompt for merging fold results |
 | `pass_through` | `bool` | `None` | Pass through non-reduced keys |
 | `associative` | `bool` | `None` | Enable parallel reduction |
-| `agent` | `docetl.Agent` | `None` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models |
+| `agent` | `docetl.Agent` | `None` | Tool-equipped agent using the OpenAI Agents SDK |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 
-#### Agentic map/filter/reduce
+#### Tool-equipped map/filter/reduce
 
 Use `docetl.Agent` when an operation should call tools over multiple turns
 before returning DocETL's structured output. DocETL adapts Python functions into
@@ -259,6 +259,9 @@ portable to Claude, Together, or other LiteLLM providers. For provider-portable
 tooling, use `@docetl.tool` Python functions, MCP tools, or provider-native SDK
 tools. See OpenAI's
 [sandbox agents guide](https://developers.openai.com/api/docs/guides/agents/sandboxes).
+
+For an end-to-end example, see the
+[Tool-Equipped Agents tutorial](../examples/tool-equipped-research-agents.md).
 
 #### `.resolve()`
 

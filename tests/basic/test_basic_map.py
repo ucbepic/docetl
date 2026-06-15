@@ -1,18 +1,7 @@
 # ruff: noqa: F811
 
 from docetl.operations.map import MapOperation
-from tests.conftest import (
-    runner,
-    map_config_with_batching,
-    default_model,
-    max_threads,
-    map_sample_data,
-    map_sample_data_large,
-    map_config,
-    synthetic_data,
-)
 import pytest
-import docetl
 
 
 # =============================================================================
@@ -499,8 +488,6 @@ def test_map_operation_partial_checkpoint(
     - Verifies that at least one partial checkpoint file (e.g. batch_0.json) is present and contains valid JSON.
     """
     import json
-    import os
-
     # Set up the intermediate directory in the temporary path.
     intermediate_dir = tmp_path / "intermediate_results"
     intermediate_dir.mkdir()

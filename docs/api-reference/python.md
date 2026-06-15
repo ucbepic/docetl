@@ -51,6 +51,7 @@ Set global defaults as module-level attributes:
 | `docetl.fallback_models` | `list[str]` | `None` | Fallback chain on failure |
 | `docetl.fallback_embedding_models` | `list[str]` | `None` | Fallback embedding models |
 | `docetl.system_prompt` | `dict` | `None` | `{"dataset_description": ..., "persona": ...}` applied to all operations |
+| `docetl.agent_mode` | `bool` | `False` | Enable [agent-mode checks](../agent-mode.md) — pre-execution validation that raises structured errors before LLM calls |
 
 **Precedence.** Settings layer from most to least specific: a per-operation
 parameter (e.g. `model=` on `.map()`) beats per-pipeline settings carried by a

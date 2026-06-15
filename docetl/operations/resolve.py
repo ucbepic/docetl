@@ -323,6 +323,11 @@ class ResolveOperation(BaseOperation, CascadeMixin):
 
         The method also calculates and logs statistics such as comparisons saved by blocking and self-join selectivity.
         """
+        if self.agent_mode:
+            from docetl.checks import run_checks_for_op
+
+            run_checks_for_op(input_data, self.config)
+
         if len(input_data) == 0:
             return [], 0
 

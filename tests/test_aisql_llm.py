@@ -12,7 +12,12 @@ import json
 import pytest
 from dotenv import load_dotenv
 
-from docetl.aisql import run_sql
+from docetl.aisql import run_sql as _run_sql
+
+
+def run_sql_table(query, **kw):
+    table, _cost = _run_sql(query, **kw)
+    return table
 
 load_dotenv()
 
@@ -41,7 +46,7 @@ class TestMapAndFilter:
                 {"id": 2, "text": "Quarterly revenue rose 12% year over year."},
             ],
         )
-        out = run_sql(f"SELECT ai_summarize(text) AS summary FROM '{path}'").to_pylist()
+        out = run_sql_table(f"SELECT ai_summarize(text) AS summary FROM '{path}'").to_pylist()
         assert len(out) == 2
         assert all(isinstance(r["summary"], str) and r["summary"] for r in out)
 
@@ -56,7 +61,7 @@ class TestMapAndFilter:
                 {"id": 4, "text": "The new tax policy affects small businesses."},
             ],
         )
-        out = run_sql(
+        out = run_sql_table(
             f"SELECT id FROM '{path}' "
             "WHERE ai_filter(text, 'Is this text about animals?') ORDER BY id"
         ).to_pylist()
@@ -74,7 +79,7 @@ class TestMapAndFilter:
             ],
         )
         # price > 10 -> {2,3,4}; electronics -> {2,4}
-        out = run_sql(
+        out = run_sql_table(
             f"SELECT id FROM '{path}' WHERE price > 10 "
             "AND ai_filter(desc, 'Is this an electronic device?') ORDER BY id"
         ).to_pylist()
@@ -90,7 +95,7 @@ class TestMapAndFilter:
                 {"id": 3, "text": "This made my day, fantastic and delightful!"},
             ],
         )
-        out = run_sql(
+        out = run_sql_table(
             f"SELECT id FROM '{path}' "
             "WHERE ai_score(text, 'Rate the positivity from 0 to 1') > 0.5 ORDER BY id"
         ).to_pylist()
@@ -108,7 +113,7 @@ class TestReduce:
                 {"cat": "vegetable", "item": "carrot"},
             ],
         )
-        out = run_sql(
+        out = run_sql_table(
             f"SELECT cat, ai_agg(item, 'List the items in one sentence') AS items "
             f"FROM '{path}' GROUP BY cat"
         ).to_pylist()
@@ -131,7 +136,7 @@ class TestJoin:
             [{"lid": 1, "title": "iPhone 15 by Apple"}, {"lid": 2, "title": "Sony WH-1000XM5 headphones"}],
             "listings.json",
         )
-        out = run_sql(
+        out = run_sql_table(
             f"SELECT name, title FROM '{products}' p "
             f"JOIN '{listings}' l ON ai_match(p.name, l.title, 'Are these the same product?')"
         ).to_pylist()
@@ -148,7 +153,7 @@ class TestResolve:
             [{"name": "John Smith"}, {"name": "J. Smith"}, {"name": "Jane Doe"}],
             "customers.json",
         )
-        out = run_sql(
+        out = run_sql_table(
             f"SELECT name FROM ai_resolve('{path}', on := name, "
             "prompt := 'Do these refer to the same person?')"
         ).to_pylist()
@@ -199,7 +204,7 @@ class TestScale:
             lambda t, name="data": (seen.append(t.num_rows), original(t, name=name))[1],
         )
 
-        out = run_sql(
+        out = run_sql_table(
             f"SELECT id FROM '{path}' "
             "WHERE region = 'rare' AND ai_filter(text, 'Is this text about animals?')"
         ).to_pylist()

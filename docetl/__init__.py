@@ -40,6 +40,7 @@ __all__ = [
     # config attrs
     "default_model",
     "agent_model",
+    "agent_mode",
     "fallback_models",
     "fallback_embedding_models",
     "max_threads",
@@ -52,6 +53,7 @@ __all__ = [
 _CONFIG_ATTRS = {
     "default_model",
     "agent_model",
+    "agent_mode",
     "fallback_models",
     "fallback_embedding_models",
     "max_threads",
@@ -60,6 +62,7 @@ _CONFIG_ATTRS = {
     "rate_limits",
     "system_prompt",
     "plan_rewrites",
+    "quiet",
 }
 
 

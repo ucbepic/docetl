@@ -373,6 +373,11 @@ Reference anchors:"""
 
         The method uses parallel processing to improve performance.
         """
+        if self.agent_mode and "prompt" in self.config:
+            from docetl.checks import run_checks_for_op
+
+            run_checks_for_op(input_data, self.config)
+
         limit_value = self.config.get("limit")
 
         # Check if there's no prompt and only drop_keys
@@ -732,6 +737,11 @@ Reference anchors:"""
 
         if self.status:
             self.status.start()
+
+        if self.agent_mode and "prompt" in self.config and results:
+            from docetl.checks import check_ambiguous_source
+
+            check_ambiguous_source(input_data, results, self.config)
 
         return results, total_cost
 

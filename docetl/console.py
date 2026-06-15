@@ -152,6 +152,8 @@ class ThreadSafeConsole(Console):
 
 
 def get_console():
+    from docetl import _config
+
     # Check if we're running with a frontend
     if os.environ.get("USE_FRONTEND") == "true":
         return ThreadSafeConsole(
@@ -173,7 +175,10 @@ def get_console():
             def post_optimizer_rationale(self, *args, **kwargs):
                 pass
 
-        return NoOpConsole(log_path=False)
+        kwargs = {"log_path": False}
+        if _config.quiet:
+            kwargs["file"] = StringIO()
+        return NoOpConsole(**kwargs)
 
 
 # Create the console first

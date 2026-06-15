@@ -37,6 +37,8 @@ dependencies = [
   "bargain>=0.1.3",
   "modal>=0.64.0",
   "google-auth>=2.49.2",
+  "openai>=2.36.0",
+  "pyarrow>=14.0.0",
 ]
 
 [tool.uv]
@@ -73,7 +75,9 @@ tui = [
 aisql = [
   "duckdb>=1.0.0",
   "sqlglot>=25.0.0",
-  "pyarrow>=14.0.0",
+]
+agents = [
+  "openai-agents>=0.17",
 ]
 
 [project.scripts]

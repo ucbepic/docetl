@@ -124,8 +124,9 @@ class TestRun:
         from docetl.aisql import run_sql
 
         path = self._parquet(tmp_path)
-        out = run_sql(f"SELECT id FROM '{path}' WHERE price > 10 ORDER BY id")
+        out, cost = run_sql(f"SELECT id FROM '{path}' WHERE price > 10 ORDER BY id")
         assert out.to_pylist() == [{"id": 3}, {"id": 4}, {"id": 5}]
+        assert cost == 0.0  # pure relational, no LLM
 
     def test_hybrid_threads_duckdb_and_docetl(self, tmp_path):
         # Manually-built plan with a code_map semantic stage: exercises the
@@ -154,7 +155,7 @@ class TestRun:
                 RelationalStage(sql="SELECT id, tax FROM _prev ORDER BY id", reads_prev=True),
             ]
         )
-        out = run_compiled(compiled).to_pylist()
+        out = run_compiled(compiled)[0].to_pylist()
         assert out == [
             {"id": 3, "tax": 1.5},
             {"id": 4, "tax": 2.0},
@@ -195,13 +196,38 @@ class TestSplitter:
         ).stages
         assert stages[0].sql == "SELECT * FROM t WHERE a > 1 AND b < 5"
 
-    def test_or_with_ai_rejected(self):
-        import pytest
-
+    def test_or_with_ai(self):
         from docetl.aisql import compile_sql
 
-        with pytest.raises(NotImplementedError, match="OR/NOT"):
-            compile_sql("SELECT id FROM t WHERE a > 1 OR ai_filter(x, 'q')")
+        cq = compile_sql("SELECT id FROM t WHERE a > 1 OR ai_filter(x, 'q')")
+        names = [type(s).__name__ for s in cq.stages]
+        assert "SemanticStage" in names
+        # The AI filter becomes a hidden boolean column, OR is relational
+        rel_sqls = [s.sql for s in cq.stages if hasattr(s, "sql")]
+        or_sql = [s for s in rel_sqls if "__aior_0" in s]
+        assert len(or_sql) == 1
+        assert "OR" in or_sql[0]
+
+    def test_or_with_not_ai(self):
+        from docetl.aisql import compile_sql
+
+        cq = compile_sql(
+            "SELECT id FROM t WHERE NOT ai_filter(x, 'spam?') OR priority = 1"
+        )
+        rel_sqls = [s.sql for s in cq.stages if hasattr(s, "sql")]
+        or_sql = [s for s in rel_sqls if "__aior_0" in s]
+        assert len(or_sql) == 1
+        assert "NOT __aior_0" in or_sql[0]
+
+    def test_or_with_multiple_ai(self):
+        from docetl.aisql import compile_sql
+
+        cq = compile_sql(
+            "SELECT id FROM t WHERE ai_filter(x, 'q1') OR ai_filter(x, 'q2')"
+        )
+        rel_sqls = " ".join(s.sql for s in cq.stages if hasattr(s, "sql"))
+        assert "__aior_0" in rel_sqls
+        assert "__aior_1" in rel_sqls
 
 
 class TestSplitterExecution:
@@ -239,7 +265,7 @@ class TestSplitterExecution:
             ]
         )
         # price>5 -> ids 2..5; even -> 2,4
-        assert run_compiled(compiled).to_pylist() == [{"id": 2}, {"id": 4}]
+        assert run_compiled(compiled)[0].to_pylist() == [{"id": 2}, {"id": 4}]
 
 
 class TestComparisonSplit:
@@ -280,15 +306,20 @@ class TestComparisonSplit:
         ]
         assert "EXCLUDE (__aicmp_0)" in stages[2].sql
 
-    def test_both_sides_ai_rejected(self):
-        import pytest
-
+    def test_both_sides_ai(self):
         from docetl.aisql import compile_sql
 
-        with pytest.raises(NotImplementedError, match="exactly one side"):
-            compile_sql(
-                "SELECT id FROM t WHERE ai_score(a,'q') > ai_score(b,'q')"
-            )
+        cq = compile_sql(
+            "SELECT id FROM t WHERE ai_score(a,'q1') > ai_score(b,'q2')"
+        )
+        names = [type(s).__name__ for s in cq.stages]
+        # One semantic stage with two map ops, then relational comparison
+        assert "SemanticStage" in names
+        # The relational stage after the semantic one should compare hidden cols
+        rel_sqls = [s.sql for s in cq.stages if hasattr(s, "sql")]
+        exclude_sql = [s for s in rel_sqls if "__aicmp_0_l" in s]
+        assert len(exclude_sql) == 1
+        assert "__aicmp_0_r" in exclude_sql[0]
 
 
 class TestComparisonExecution:
@@ -327,7 +358,7 @@ class TestComparisonExecution:
                 RelationalStage(sql="SELECT id FROM _prev ORDER BY id", reads_prev=True),
             ]
         )
-        out = run_compiled(compiled).to_pylist()
+        out = run_compiled(compiled)[0].to_pylist()
         assert out == [{"id": 3}, {"id": 4}, {"id": 5}]
         # hidden score column was dropped by EXCLUDE
         assert all("score" not in r for r in out)
@@ -354,25 +385,35 @@ class TestReduce:
         assert op["output"]["schema"] == {"summary": "string"}
         assert stages[2].sql == "SELECT category, summary FROM _prev"
 
-    def test_multiple_ai_agg_rejected(self):
-        import pytest
-
+    def test_multiple_ai_agg(self):
         from docetl.aisql import compile_sql
 
-        with pytest.raises(NotImplementedError, match="one ai_agg"):
-            compile_sql(
-                "SELECT k, ai_agg(a, 'x') AS m, ai_agg(b, 'y') AS n FROM t GROUP BY k"
-            )
+        cq = compile_sql(
+            "SELECT k, ai_agg(a, 'x') AS m, ai_agg(b, 'y') AS n FROM t GROUP BY k"
+        )
+        # Should produce a semantic stage with two reduce ops
+        sem = [s for s in cq.stages if type(s).__name__ == "SemanticStage"]
+        assert len(sem) >= 1
+        reduce_ops = [
+            op for s in sem for op in s.operations if op.get("type") == "reduce"
+        ]
+        assert len(reduce_ops) == 2
 
-    def test_ai_in_where_with_group_rejected(self):
-        import pytest
-
+    def test_ai_in_where_with_group(self):
         from docetl.aisql import compile_sql
 
-        with pytest.raises(NotImplementedError, match="WHERE with GROUP BY"):
-            compile_sql(
-                "SELECT k, ai_agg(a,'x') AS m FROM t WHERE ai_filter(a,'q') GROUP BY k"
-            )
+        cq = compile_sql(
+            "SELECT k, ai_agg(a,'x') AS m FROM t WHERE ai_filter(a,'q') GROUP BY k"
+        )
+        # Should have a filter stage before the reduce stage
+        op_types = [
+            op.get("type")
+            for s in cq.stages
+            if type(s).__name__ == "SemanticStage"
+            for op in s.operations
+        ]
+        assert "filter" in op_types
+        assert "reduce" in op_types
 
 
 class TestReduceExecution:
@@ -409,7 +450,7 @@ class TestReduceExecution:
                 RelationalStage(sql="SELECT cat, total FROM _prev ORDER BY cat", reads_prev=True),
             ]
         )
-        assert run_compiled(compiled).to_pylist() == [
+        assert run_compiled(compiled)[0].to_pylist() == [
             {"cat": "a", "total": 3},
             {"cat": "b", "total": 5},
         ]
@@ -483,7 +524,7 @@ class TestJoin:
                 RelationalStage(sql="SELECT id, a, b FROM _prev ORDER BY id", reads_prev=True),
             ]
         )
-        out = run_compiled(compiled).to_pylist()
+        out = run_compiled(compiled)[0].to_pylist()
         assert {r["id"] for r in seen["left"]} == {1, 2}
         assert {r["id"] for r in seen["right"]} == {1, 2}
         assert out == [{"id": 1, "a": "x", "b": "P"}, {"id": 2, "a": "y", "b": "Q"}]
@@ -605,7 +646,7 @@ class TestEmptyIntermediate:
                 RelationalStage(sql="SELECT id FROM _prev", reads_prev=True),
             ]
         )
-        out = run_compiled(compiled)
+        out, cost = run_compiled(compiled)
         assert out.num_rows == 0
         assert "id" in out.column_names
 
@@ -635,10 +676,237 @@ class TestOrderByLimit:
         ).stages
         assert stages[-1].sql == "SELECT cat, items FROM _prev ORDER BY cat"
 
-    def test_ai_function_in_order_by_rejected(self):
-        import pytest
-
+    def test_ai_function_in_order_by(self):
         from docetl.aisql import compile_sql
 
-        with pytest.raises(NotImplementedError, match="ORDER BY"):
-            compile_sql("SELECT t FROM x ORDER BY ai_score(t, 'q')")
+        cq = compile_sql("SELECT t FROM x ORDER BY ai_score(t, 'q')")
+        # Should produce a semantic stage for the sort column, then a
+        # relational stage with ORDER BY on the hidden column + EXCLUDE
+        sem = [s for s in cq.stages if type(s).__name__ == "SemanticStage"]
+        assert len(sem) >= 1
+        rel_sqls = " ".join(s.sql for s in cq.stages if hasattr(s, "sql"))
+        assert "ORDER BY" in rel_sqls
+
+
+class TestChunking:
+    def test_agent_mode_chunk_overflow(self, tmp_path):
+        """agent_mode=True raises ChunkOverflowError with structured
+        column stats instead of silently auto-chunking."""
+        import pyarrow.parquet as pq
+        import pytest
+
+        from docetl.aisql import (
+            ChunkOverflowError,
+            CompiledQuery,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        long_text = ("filler " * 2000).strip() + "\n\n" + "The answer is 42."
+        path = tmp_path / "agent.parquet"
+        pq.write_table(
+            pa.Table.from_pylist([{"id": 1, "text": long_text}]), path
+        )
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}'"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "extract",
+                            "type": "map",
+                            "prompt": "Extract the answer from: {{ input.text }}",
+                            "output": {"schema": {"answer": "string"}},
+                            "model": "gpt-4o-mini",
+                        }
+                    ]
+                ),
+            ]
+        )
+        with pytest.raises(ChunkOverflowError) as exc_info:
+            run_compiled(compiled, max_chunk_tokens=100, agent_mode=True)
+        err = exc_info.value
+        assert err.num_rows == 1
+        assert err.max_tokens == 100
+        assert "text" in err.columns
+        assert err.columns["text"]["rows_over_limit"] == 1
+        assert "Text too long" in str(err)
+        assert "regexp_split_to_array" in str(err)
+
+    def test_agent_mode_high_cardinality(self, tmp_path):
+        """agent_mode=True raises HighCardinalityError when GROUP BY key
+        has near-unique values."""
+        import pyarrow.parquet as pq
+        import pytest
+
+        from docetl.aisql import (
+            CompiledQuery,
+            HighCardinalityError,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        rows = [{"id": i, "cat": f"unique_{i}", "text": f"item {i}"} for i in range(20)]
+        path = tmp_path / "highcard.parquet"
+        pq.write_table(pa.Table.from_pylist(rows), path)
+
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}'"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "agg",
+                            "type": "reduce",
+                            "reduce_key": ["cat"],
+                            "prompt": "Summarize: {% for item in inputs %}{{ item.text }}\n{% endfor %}",
+                            "output": {"schema": {"summary": "string"}},
+                        }
+                    ]
+                ),
+            ]
+        )
+        with pytest.raises(HighCardinalityError) as exc_info:
+            run_compiled(compiled, agent_mode=True)
+        err = exc_info.value
+        assert err.num_rows == 20
+        assert err.n_distinct == 20
+        assert err.reduce_key == ["cat"]
+        assert "ai_resolve" in str(err)
+
+    def test_nocheck_bypasses_agent_mode(self, tmp_path):
+        """/* nocheck */ in the SQL disables agent checks for that query."""
+        import pyarrow.parquet as pq
+
+        from docetl.aisql import run_sql
+
+        rows = [{"id": i, "cat": f"unique_{i}", "val": i} for i in range(20)]
+        path = tmp_path / "nocheck.parquet"
+        pq.write_table(pa.Table.from_pylist(rows), path)
+
+        # This would raise HighCardinalityError without nocheck,
+        # but it's a pure relational query so it runs fine.
+        out, cost = run_sql(
+            f"/* nocheck */ SELECT cat, count(*) AS n FROM '{path}' GROUP BY cat",
+            agent_mode=True,
+        )
+        assert out.num_rows == 20
+        assert cost == 0.0
+
+    def test_agent_mode_empty_input(self, tmp_path):
+        """agent_mode=True raises EmptyInputError when relational
+        predicates match zero rows before a semantic stage."""
+        import pyarrow.parquet as pq
+        import pytest
+
+        from docetl.aisql import (
+            CompiledQuery,
+            EmptyInputError,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        path = tmp_path / "data.parquet"
+        pq.write_table(
+            pa.Table.from_pylist([{"id": 1, "text": "hello"}]), path
+        )
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}' WHERE id = 999"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "up",
+                            "type": "code_map",
+                            "code": "def transform(doc):\n    return {'upper': doc['text'].upper()}",
+                            "output": {"schema": {"upper": "string"}},
+                        }
+                    ]
+                ),
+            ]
+        )
+        with pytest.raises(EmptyInputError, match="0 rows"):
+            run_compiled(compiled, agent_mode=True)
+
+    def test_agent_mode_missing_column(self, tmp_path):
+        """agent_mode=True raises MissingColumnError when a prompt
+        references a column that doesn't exist in the table."""
+        import pyarrow.parquet as pq
+        import pytest
+
+        from docetl.aisql import (
+            CompiledQuery,
+            MissingColumnError,
+            RelationalStage,
+            SemanticStage,
+            run_compiled,
+        )
+
+        path = tmp_path / "data.parquet"
+        pq.write_table(
+            pa.Table.from_pylist([{"id": 1, "text": "hello"}]), path
+        )
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}'"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "extract",
+                            "type": "map",
+                            "prompt": "Extract from: {{ input.body }}",
+                            "output": {"schema": {"answer": "string"}},
+                            "model": "gpt-4o-mini",
+                        }
+                    ]
+                ),
+            ]
+        )
+        with pytest.raises(MissingColumnError) as exc_info:
+            run_compiled(compiled, agent_mode=True)
+        err = exc_info.value
+        assert "body" in err.missing
+        assert "text" in err.available
+
+    def test_agent_mode_too_many_rows(self, tmp_path):
+        """agent_mode=True raises TooManyRowsError when the input
+        exceeds max_ai_rows."""
+        import pyarrow.parquet as pq
+        import pytest
+
+        from docetl.aisql import (
+            CompiledQuery,
+            RelationalStage,
+            SemanticStage,
+            TooManyRowsError,
+            run_compiled,
+        )
+
+        rows = [{"id": i, "text": f"row {i}"} for i in range(50)]
+        path = tmp_path / "big.parquet"
+        pq.write_table(pa.Table.from_pylist(rows), path)
+
+        compiled = CompiledQuery(
+            stages=[
+                RelationalStage(sql=f"SELECT * FROM '{path}'"),
+                SemanticStage(
+                    operations=[
+                        {
+                            "name": "extract",
+                            "type": "map",
+                            "prompt": "Extract from: {{ input.text }}",
+                            "output": {"schema": {"answer": "string"}},
+                            "model": "gpt-4o-mini",
+                        }
+                    ]
+                ),
+            ]
+        )
+        with pytest.raises(TooManyRowsError) as exc_info:
+            run_compiled(compiled, agent_mode=True, max_ai_rows=10)
+        err = exc_info.value
+        assert err.num_rows == 50
+        assert err.threshold == 10

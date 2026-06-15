@@ -14,9 +14,28 @@ from docetl.aisql.compile import (
 )
 from docetl.aisql.engine import DuckDBEngine
 from docetl.aisql.plan_bridge import semantic_pipelines, to_pipeline_config
-from docetl.aisql.run import run_compiled, run_sql
+from docetl.checks import (
+    AgentCheckError,
+    AmbiguousSourceError,
+    ChunkOverflowError,
+    EmptyInputError,
+    HighCardinalityError,
+    MissingColumnError,
+    TooManyRowsError,
+)
+from docetl.aisql.run import (
+    run_compiled,
+    run_sql,
+)
 
 __all__ = [
+    "AgentCheckError",
+    "AmbiguousSourceError",
+    "ChunkOverflowError",
+    "EmptyInputError",
+    "HighCardinalityError",
+    "MissingColumnError",
+    "TooManyRowsError",
     "CompiledQuery",
     "DuckDBEngine",
     "JoinStage",

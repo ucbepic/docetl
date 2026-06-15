@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass
 class AIFunctionCall:
     """A recognized AI function in a query: its name, the input column it
     reads, optional literal args (e.g. a prompt), and its output alias."""
@@ -19,6 +19,7 @@ class AIFunctionCall:
     column: str
     literals: tuple[str, ...]
     alias: str
+    negated: bool = False
 
 
 def _doc(call: AIFunctionCall) -> str:
@@ -37,8 +38,66 @@ def _map_op(name: str, prompt: str, schema: dict) -> dict:
     return {"name": name, "type": "map", "prompt": prompt, "output": {"schema": schema}}
 
 
+_TYPE_MAP = {
+    # DuckDB text types
+    "varchar": "string",
+    "text": "string",
+    "string": "string",
+    "str": "string",
+    # DuckDB integer types
+    "int": "integer",
+    "integer": "integer",
+    "bigint": "integer",
+    "smallint": "integer",
+    "tinyint": "integer",
+    "hugeint": "integer",
+    # DuckDB float types
+    "float": "number",
+    "double": "number",
+    "real": "number",
+    "decimal": "number",
+    "number": "number",
+    "numeric": "number",
+    # DuckDB boolean
+    "boolean": "boolean",
+    "bool": "boolean",
+    # list
+    "list": "list",
+    "array": "list",
+}
+
+
+def _parse_schema_spec(spec: str) -> dict[str, str]:
+    """Parse ``'key1:TYPE, key2:TYPE'`` into a DocETL output schema dict.
+
+    Types are DuckDB names (VARCHAR, INT, DOUBLE, BOOLEAN, etc.) mapped
+    to DocETL schema types (string, integer, number, boolean, list).
+    A bare key without a type defaults to string.
+    """
+    schema = {}
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if ":" in part:
+            key, typ = part.split(":", 1)
+            schema[key.strip()] = _TYPE_MAP.get(
+                typ.strip().lower(), typ.strip().lower()
+            )
+        else:
+            schema[part] = "string"
+    return schema
+
+
+def _output_schema(call: AIFunctionCall) -> dict[str, str]:
+    """Schema from the call's second literal, or ``{alias: 'string'}``."""
+    if len(call.literals) >= 2:
+        return _parse_schema_spec(call.literals[1])
+    return {call.alias: "string"}
+
+
 def _select_spec(call: AIFunctionCall, preamble: str) -> dict:
-    return {"prompt": f"{preamble}\n\n{_doc(call)}", "schema": {call.alias: "string"}}
+    return {"prompt": f"{preamble}\n\n{_doc(call)}", "schema": _output_schema(call)}
 
 
 def _summarize(call: AIFunctionCall) -> dict:
@@ -49,34 +108,61 @@ def _prompted(call: AIFunctionCall) -> dict:
     return _select_spec(call, _require_literal(call))
 
 
+def _extract_output_col(call: AIFunctionCall) -> str:
+    """The column name that a DocETL extract op will produce."""
+    return f"{call.column}_extracted"
+
+
 # name -> builder returning {"prompt", "schema"} for a map op.
-SELECT_FUNCTIONS = {
+SELECT_MAP_FUNCTIONS = {
     "ai": _prompted,
+    "ai_map": _prompted,
     "ai_summarize": _summarize,
     "ai_classify": _prompted,
-    "ai_extract": _prompted,
 }
+
+EXTRACT_FUNCTIONS = {"ai_extract"}
 
 # Recognized everywhere, so the compiler can detect (and reject, for now)
 # AI functions outside the SELECT list.
-ALL_FUNCTIONS = set(SELECT_FUNCTIONS) | {
-    "ai_filter",
-    "ai_agg",
-    "ai_match",
-    "ai_score",
-    "ai_resolve",
-}
+ALL_FUNCTIONS = (
+    set(SELECT_MAP_FUNCTIONS)
+    | EXTRACT_FUNCTIONS
+    | {
+        "ai_filter",
+        "ai_agg",
+        "ai_match",
+        "ai_score",
+        "ai_resolve",
+    }
+)
 
 
 def build_map_op(call: AIFunctionCall, name: str) -> dict:
     """A DocETL ``map`` op config for a SELECT-position AI function."""
-    builder = SELECT_FUNCTIONS.get(call.name)
+    builder = SELECT_MAP_FUNCTIONS.get(call.name)
     if builder is None:
         raise NotImplementedError(
             f"AI function {call.name!r} is not yet supported in SELECT"
         )
     spec = builder(call)
     return _map_op(name, spec["prompt"], spec["schema"])
+
+
+def build_extract_op(call: AIFunctionCall, name: str) -> dict:
+    """A DocETL ``extract`` op for ``ai_extract(col, 'what to find') AS alias``.
+
+    Uses the line-number strategy to pull verbatim passages from the text.
+    Output column is ``{col}_extracted``; the compiler renames it to the
+    SQL alias in the final projection.
+    """
+    return {
+        "name": name,
+        "type": "extract",
+        "document_keys": [call.column],
+        "prompt": _require_literal(call),
+        "extraction_key_suffix": "_extracted",
+    }
 
 
 def build_compare_map_op(call: AIFunctionCall, name: str, output_type: str) -> dict:
@@ -100,18 +186,25 @@ def build_reduce_op(call: AIFunctionCall, name: str, reduce_key: list[str]) -> d
         "type": "reduce",
         "reduce_key": reduce_key,
         "prompt": prompt,
-        "output": {"schema": {call.alias: "string"}},
+        "output": {"schema": _output_schema(call)},
     }
 
 
 def build_filter_op(call: AIFunctionCall, name: str) -> dict:
     """A DocETL ``filter`` op for an ``ai_filter(column, 'question')``
     predicate in WHERE. The decision key is consumed by the filter, so it
-    doesn't appear in the output rows."""
+    doesn't appear in the output rows.
+
+    When ``call.negated`` is True (``NOT ai_filter(...)``), the prompt
+    asks the LLM to negate the question so that rows matching the
+    original question are filtered out."""
+    prompt = _require_literal(call)
+    if call.negated:
+        prompt = f"Answer the OPPOSITE of the following question (return true if the answer to the original question is false, and vice versa):\n\n{prompt}"
     return {
         "name": name,
         "type": "filter",
-        "prompt": f"{_require_literal(call)}\n\n{_doc(call)}",
+        "prompt": f"{prompt}\n\n{_doc(call)}",
         "output": {"schema": {"keep": "boolean"}},
     }
 

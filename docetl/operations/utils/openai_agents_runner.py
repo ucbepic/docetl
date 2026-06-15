@@ -277,8 +277,9 @@ def _build_agent_instructions(
     return (
         f"{system_prompt}\n\n"
         "You are running inside a DocETL operation. Use the available tools when "
-        "they help answer the user's task. Return only the final structured "
-        f"output matching this DocETL schema: {schema_text}."
+        "they help answer the user's task. Your final answer must be exactly one "
+        "JSON object matching this DocETL schema, with no prose, Markdown, or "
+        f"code fences: {schema_text}."
         f"{custom}"
     )
 
@@ -290,7 +291,8 @@ def _build_subagent_instructions(system_prompt: str, agent_tool: AgentTool) -> s
         else ""
     )
     schema_text = (
-        "\n\nReturn output matching this JSON schema: "
+        "\n\nReturn exactly one JSON object matching this schema, with no prose, "
+        "Markdown, or code fences: "
         + json.dumps(agent_tool.output_schema, sort_keys=True)
         if agent_tool.output_schema
         else ""
@@ -369,8 +371,6 @@ def _coerce_final_output(
                 return parsed
         except json.JSONDecodeError:
             pass
-        if len(output_schema) == 1:
-            return {next(iter(output_schema)): final_output}
     if hasattr(final_output, "__dict__"):
         return dict(final_output.__dict__)
     raise AgentExecutionError(f"Could not parse agent final output: {final_output!r}")

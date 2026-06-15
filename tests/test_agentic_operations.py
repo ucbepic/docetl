@@ -5,7 +5,14 @@ import pytest
 import docetl
 import docetl.operations.utils.api as api_mod
 from docetl.display import format_query_plan
-from docetl.operations.utils.openai_agents_runner import AgentResult, _build_sdk_tools
+from docetl.operations.utils.openai_agents_runner import (
+    AgentExecutionError,
+    AgentResult,
+    _build_agent_instructions,
+    _build_sdk_tools,
+    _build_subagent_instructions,
+    _coerce_final_output,
+)
 
 
 def test_tool_decorator_builds_json_schema() -> None:
@@ -29,6 +36,36 @@ def test_frame_to_yaml_rejects_agent() -> None:
     )
     with pytest.raises(ValueError, match="Python-only"):
         frame.to_yaml()
+
+
+def test_agent_instructions_require_json_object() -> None:
+    instructions = _build_agent_instructions(
+        "system",
+        docetl.Agent(),
+        {"answer": "str"},
+    )
+    assert "exactly one JSON object" in instructions
+    assert "no prose, Markdown, or code fences" in instructions
+    assert '"answer": "str"' in instructions
+
+
+def test_subagent_instructions_require_json_when_schema_is_set() -> None:
+    specialist = docetl.Agent()
+    instructions = _build_subagent_instructions(
+        "system",
+        specialist.as_tool(
+            name="summarize",
+            description="Summarize text.",
+            output_schema={"summary": "str"},
+        ),
+    )
+    assert "exactly one JSON object" in instructions
+    assert '"summary": "str"' in instructions
+
+
+def test_agent_string_output_is_not_wrapped_for_single_field_schema() -> None:
+    with pytest.raises(AgentExecutionError, match="Could not parse"):
+        _coerce_final_output("plain text", {"answer": "str"})
 
 
 def test_agent_tools_are_visible_in_query_plan() -> None:

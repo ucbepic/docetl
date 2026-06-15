@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 
 import docetl
@@ -281,3 +283,57 @@ def test_agentic_reduce_operation(monkeypatch) -> None:
 
     assert rows[0]["group"] == "a"
     assert rows[0]["total"] == 7
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="needs OPENAI_API_KEY for live OpenAI Agents SDK run",
+)
+def test_live_openai_agent_with_subagent_tool_and_schema() -> None:
+    @docetl.tool
+    def count_words(text: str) -> dict[str, int]:
+        """Count words in text."""
+        return {"word_count": len(text.split())}
+
+    specialist = docetl.Agent(
+        tools=[count_words],
+        max_turns=4,
+        max_tool_calls=2,
+        instructions=(
+            "Always call count_words with the supplied text. Return exactly one "
+            "JSON object with word_count."
+        ),
+    )
+    manager = docetl.Agent(
+        tools=[
+            specialist.as_tool(
+                name="count_words_specialist",
+                description="Count words in supplied text.",
+                output_schema={"word_count": "int"},
+            )
+        ],
+        max_turns=6,
+        max_tool_calls=3,
+        instructions=(
+            "Call count_words_specialist exactly once, then return the DocETL "
+            "schema fields using that result."
+        ),
+    )
+
+    rows = (
+        docetl.from_list([{"text": "alpha beta gamma"}])
+        .map(
+            prompt="Count words in this text: {{ input.text }}",
+            output={"schema": {"word_count": "int", "method": "str"}},
+            model="gpt-4o-mini",
+            agent=manager,
+            validate=["output['word_count'] == 3"],
+            num_retries_on_validate_failure=1,
+        )
+        .collect(max_threads=1)
+    )
+
+    assert rows[0]["text"] == "alpha beta gamma"
+    assert rows[0]["word_count"] == 3
+    assert isinstance(rows[0]["method"], str)
+    assert rows[0]["method"]

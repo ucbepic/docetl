@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -178,6 +179,75 @@ def test_bash_tool_helper_builds_hosted_shell_tool() -> None:
     assert shell_tool.environment["type"] == "container_auto"
     assert shell_tool.environment["network_policy"] == {"type": "disabled"}
     assert shell_tool.environment["memory_limit"] == "1g"
+
+
+def test_sandbox_bash_uses_container_reference() -> None:
+    sandbox = docetl.tools.Sandbox(container_id="cntr_test123")
+    shell_tool = sandbox.bash()
+    assert shell_tool.environment == {
+        "type": "container_reference",
+        "container_id": "cntr_test123",
+    }
+
+
+def test_sandbox_create_builds_persistent_container(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class FakeContainers:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(id="cntr_created")
+
+    class FakeOpenAI:
+        def __init__(self):
+            self.containers = FakeContainers()
+
+    import openai
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    sandbox = docetl.tools.Sandbox.create(
+        name="docetl-test",
+        network="allowlist",
+        allowed_domains=["example.com"],
+        memory_limit="1g",
+        expires_after_minutes=15,
+    )
+    assert sandbox.container_id == "cntr_created"
+    assert calls == [
+        {
+            "name": "docetl-test",
+            "network_policy": {
+                "type": "allowlist",
+                "allowed_domains": ["example.com"],
+            },
+            "memory_limit": "1g",
+            "expires_after": {"anchor": "last_active_at", "minutes": 15},
+        }
+    ]
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="needs OPENAI_API_KEY for live OpenAI container creation",
+)
+def test_live_openai_sandbox_create_and_reference() -> None:
+    from openai import OpenAI
+
+    sandbox = docetl.tools.Sandbox.create(
+        name="docetl-live-test",
+        network="disabled",
+        memory_limit="1g",
+        expires_after_minutes=5,
+    )
+    try:
+        assert sandbox.container_id.startswith("cntr_")
+        shell_tool = sandbox.bash()
+        assert shell_tool.environment == {
+            "type": "container_reference",
+            "container_id": sandbox.container_id,
+        }
+    finally:
+        OpenAI().containers.delete(sandbox.container_id)
 
 
 def test_agentic_map_retries_invalid_schema(monkeypatch) -> None:

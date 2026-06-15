@@ -4,7 +4,7 @@ This tutorial shows how to use DocETL's Python API when map, filter, or reduce
 agents need tools over multiple turns. We will build a market-research pipeline:
 
 1. A **map agent** researches each company with the OpenAI Agents SDK
-   `WebSearchTool`, uses a hosted bash sandbox for scratch work, and
+   `WebSearchTool`, uses a persistent hosted bash sandbox for scratch work, and
    calls a specialist evidence subagent.
 2. A **reduce agent** groups companies by sector, uses the same kind of sandbox
    tool for tabulation, calls a specialist memo editor, and returns a structured
@@ -55,11 +55,15 @@ from agents import WebSearchTool
 import docetl
 
 
-# Reuse this tool object anywhere agents should have the same hosted bash tool
-# configuration. Hosted providers may still allocate separate containers for
-# separate operation calls unless you explicitly use a container_reference.
-# Durable map-to-reduce state should flow through DocETL schemas.
-sandbox = docetl.tools.bash(network="disabled", memory_limit="1g")
+# Create one hosted container and bind every bash tool to that container. Agents
+# can share this filesystem because sandbox.bash() uses container_reference.
+# Durable map-to-reduce state still flows through DocETL schemas.
+sandbox = docetl.tools.Sandbox.create(
+    name="docetl-market-research",
+    network="disabled",
+    memory_limit="1g",
+)
+bash = sandbox.bash()
 
 
 companies = [
@@ -126,7 +130,7 @@ companies = [
 ]
 
 evidence_specialist = docetl.Agent(
-    tools=[sandbox],
+    tools=[bash],
     instructions=(
         "You are an evidence specialist. Use bash for scratch notes or small "
         "tables when helpful. Return compact evidence: claims, source URLs, "
@@ -137,7 +141,7 @@ evidence_specialist = docetl.Agent(
 )
 
 brief_editor = docetl.Agent(
-    tools=[sandbox],
+    tools=[bash],
     instructions=(
         "You are a memo editor. Use bash for scratch formatting or table checks "
         "when helpful. Tighten the brief into decision-ready prose with concise "
@@ -149,7 +153,7 @@ brief_editor = docetl.Agent(
 map_agent = docetl.Agent(
     tools=[
         WebSearchTool(),
-        sandbox,
+        bash,
         evidence_specialist.as_tool(
             name="extract_evidence",
             description="Turn raw search findings into compact cited evidence.",
@@ -166,7 +170,7 @@ map_agent = docetl.Agent(
 
 reduce_agent = docetl.Agent(
     tools=[
-        sandbox,
+        bash,
         brief_editor.as_tool(
             name="edit_sector_brief",
             description="Edit a sector brief for clarity and decision usefulness.",
@@ -252,22 +256,22 @@ print(json.dumps(rows, indent=2))
 The map operation's manager agent has three tools:
 
 - `WebSearchTool()` finds current sources through the OpenAI Agents SDK.
-- `sandbox` is a hosted bash tool created with `docetl.tools.bash(...)`.
+- `bash` is a hosted shell tool bound to one persistent container created with
+  `docetl.tools.Sandbox.create(...)`.
 - `extract_evidence(...)` is a specialist subagent exposed with
   `evidence_specialist.as_tool(...)`.
 
 The reduce operation's manager agent has two tools:
 
-- `sandbox` lets the agent create scratch CSV/Markdown or run small checks.
+- `bash` lets the agent create scratch CSV/Markdown or run small checks.
 - `edit_sector_brief(...)` is a specialist subagent exposed with
   `brief_editor.as_tool(...)`.
 
-The same `sandbox` tool object is passed to managers and specialists so they use
-the same hosted shell tool configuration. Do not assume every map row and reduce
-group shares one persistent filesystem: hosted `container_auto` tools may create
-separate containers for separate operation calls. If you need a specific hosted
-container, use a provider `container_reference`; otherwise, pass durable data
-between DocETL operations through declared output schemas, not hidden files.
+Every manager and specialist receives `bash`, which is bound to the same hosted
+container id. They can read and write the same sandbox filesystem. Still pass
+durable data between DocETL operations through declared output schemas, not only
+through hidden files, so checkpointing, validation, and downstream operations
+remain auditable.
 
 ## Why use tools here?
 
@@ -330,7 +334,7 @@ validated structured output.
 Use small budgets first:
 
 ```python
-docetl.Agent(tools=[WebSearchTool(), sandbox], max_turns=4, max_tool_calls=6)
+docetl.Agent(tools=[WebSearchTool(), bash], max_turns=4, max_tool_calls=6)
 ```
 
 Increase `max_turns` when the agent needs more reasoning steps. Increase
@@ -344,4 +348,4 @@ Python tools execute as trusted Python in your process. Hosted OpenAI Agents SDK
 tools, such as web search or hosted bash, follow the SDK and provider behavior
 for the selected model backend. Keep sandbox network access disabled unless the
 task requires it, and pass durable data between DocETL operations through output
-schemas rather than hidden sandbox state.
+schemas even when agents also share a persistent sandbox filesystem.

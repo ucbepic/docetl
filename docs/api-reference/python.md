@@ -224,26 +224,29 @@ manager = docetl.Agent(
 The specialist uses the same operation-level LiteLLM model as the manager unless
 you pass an SDK-native tool object with its own model configuration.
 
-For shell/sandbox work, use `docetl.tools.bash(...)` to create an OpenAI Agents
-SDK hosted shell tool:
+For a persistent shell/sandbox filesystem, create a hosted container once and
+bind shell tools to it:
 
 ```python
-sandbox = docetl.tools.bash(network="disabled", memory_limit="1g")
+sandbox = docetl.tools.Sandbox.create(
+    name="docetl-research",
+    network="disabled",
+    memory_limit="1g",
+)
+bash = sandbox.bash()
 
 agent = docetl.Agent(
-    tools=[sandbox],
+    tools=[bash],
     max_turns=4,
     max_tool_calls=6,
 )
 ```
 
-Reuse the same `sandbox` tool object across a manager and its specialist
-subagents when they should have the same hosted shell tool configuration. Do not
-assume every DocETL operation call shares one persistent filesystem:
-`container_auto` may allocate separate containers. If you need a specific hosted
-container, use `container_id=` to create a `container_reference`. Pass durable
-data between DocETL operations through output schemas, not through hidden sandbox
-files.
+Reuse `bash` across a manager and its specialist subagents when they should read
+and write the same hosted filesystem. If you only need an ephemeral shell tool,
+use `docetl.tools.bash(...)`, which uses `container_auto`. Pass durable data
+between DocETL operations through output schemas, not only through hidden
+sandbox files.
 
 #### `.resolve()`
 

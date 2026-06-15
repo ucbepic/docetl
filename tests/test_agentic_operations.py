@@ -4,6 +4,7 @@ import pytest
 
 import docetl
 import docetl.operations.utils.api as api_mod
+from docetl.display import format_query_plan
 from docetl.operations.utils.openai_agents_runner import AgentResult
 
 
@@ -28,6 +29,43 @@ def test_frame_to_yaml_rejects_agent() -> None:
     )
     with pytest.raises(ValueError, match="Python-only"):
         frame.to_yaml()
+
+
+def test_agent_tools_are_visible_in_query_plan() -> None:
+    @docetl.tool
+    def lookup_city(city: str) -> dict[str, str]:
+        """Lookup city metadata."""
+        return {"city": city}
+
+    frame = docetl.from_list([{"city": "Berkeley"}]).map(
+        prompt="Lookup {{ input.city }}",
+        output={"schema": {"city": "str"}},
+        agent=docetl.Agent(tools=[lookup_city]),
+    )
+    runner = frame._build_runner()
+    _, plan = format_query_plan(
+        runner.last_op_container,
+        runner.op_container_map,
+        default_model=runner.default_model,
+    )
+    assert "agent tools" in plan
+    assert "lookup_city" in plan
+
+
+def test_agent_tools_are_visible_in_progress_state() -> None:
+    @docetl.tool
+    def lookup_city(city: str) -> dict[str, str]:
+        """Lookup city metadata."""
+        return {"city": city}
+
+    frame = docetl.from_list([{"city": "Berkeley"}]).filter(
+        prompt="Keep {{ input.city }}",
+        output={"schema": {"keep": "bool"}},
+        agent=docetl.Agent(tools=[lookup_city]),
+    )
+    runner = frame._build_runner()
+    operation = runner.list_pipeline_operations()[0]
+    assert operation[-1] == ["lookup_city"]
 
 
 def test_agentic_map_operation(monkeypatch) -> None:

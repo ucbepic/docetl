@@ -116,11 +116,6 @@ def _build_sdk_tools(agent: Agent, counter: dict[str, int]) -> list[Any]:
         if isinstance(tool_item, Tool) or callable(tool_item):
             tools.append(_build_function_tool(as_tool(tool_item), agent, counter))
             continue
-        if _is_legacy_tool_dict(tool_item):
-            tools.append(
-                _build_function_tool(_legacy_tool_to_tool(tool_item), agent, counter)
-            )
-            continue
         tools.append(tool_item)
     return tools
 
@@ -153,29 +148,6 @@ def _build_function_tool(tool: Tool, agent: Agent, counter: dict[str, int]) -> A
         strict_json_schema=True,
         timeout_seconds=tool.timeout or agent.tool_timeout,
         timeout_behavior="error_as_result",
-    )
-
-
-def _legacy_tool_to_tool(tool_config: dict[str, Any]) -> Tool:
-    function_config = tool_config["function"]
-    function_name = function_config["name"]
-    local_scope: dict[str, Any] = {}
-    exec(tool_config["code"].strip(), {}, local_scope)
-    function = local_scope[function_name]
-    return Tool(
-        function=function,
-        name=function_name,
-        description=function_config["description"],
-        parameters=function_config["parameters"],
-        timeout=tool_config.get("timeout"),
-    )
-
-
-def _is_legacy_tool_dict(tool_item: Any) -> bool:
-    return (
-        isinstance(tool_item, dict)
-        and "code" in tool_item
-        and isinstance(tool_item.get("function"), dict)
     )
 
 

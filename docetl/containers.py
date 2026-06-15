@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from rich.panel import Panel
 
+from docetl.agents import get_agent_tool_names
 from docetl.dataset import DataLoader
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
@@ -325,6 +326,7 @@ class OpContainer:
                 self.config.get("type", "?"),
                 self.config.get("model", self.runner.default_model),
                 len(data),
+                get_agent_tool_names(self.config.get("agent")),
             )
             tracker.op_done(self.name, cost=0.0, prompt_tokens=0, completion_tokens=0, outputs=data)
 
@@ -368,6 +370,7 @@ class OpContainer:
                 self.config.get("type", "?"),
                 self.config.get("model", self.runner.default_model),
                 input_len,
+                get_agent_tool_names(self.config.get("agent")),
             )
 
         with self.runner.console.status(f"Running {self.name}") as status:

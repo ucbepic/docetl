@@ -100,7 +100,6 @@ frame.map(
 | `validate` | `list[str \| callable]` | `None` | Validators: expression strings over `output`, or callables taking the output dict (callables can't be exported to YAML) |
 | `num_retries_on_validate_failure` | `int` | `None` | Retries on validation failure |
 | `sample` | `int` | `None` | Process only N documents |
-| `tools` | `list[dict]` | `None` | Legacy single-step tool definitions for function calling |
 | `agent` | `docetl.Agent` | `None` | Agentic tool loop using the OpenAI Agents SDK with LiteLLM models |
 | `drop_keys` | `list[str]` | `None` | Keys to remove from output |
 | `timeout` | `int` | `None` | Timeout per LLM call (seconds) |

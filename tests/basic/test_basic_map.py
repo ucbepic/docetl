@@ -238,15 +238,9 @@ def test_map_operation_with_large_max_batch_size(
     assert len(results) == len(map_sample_data)
 
 
-def test_map_operation_with_word_count_tool(
-    map_config_with_tools, synthetic_data, runner
-):
-    operation = MapOperation(runner, map_config_with_tools, "gpt-4o-mini", 4)
-    results, cost = operation.execute(synthetic_data)
-
-    assert len(results) == len(synthetic_data)
-    assert all("word_count" in result for result in results)
-    assert [result["word_count"] for result in results] == [5, 6, 5, 1]
+def test_map_operation_rejects_legacy_tools(map_config_with_tools, runner):
+    with pytest.raises(ValueError, match="legacy 'tools'.*removed"):
+        MapOperation(runner, map_config_with_tools, "gpt-4o-mini", 4)
 
 
 @pytest.fixture

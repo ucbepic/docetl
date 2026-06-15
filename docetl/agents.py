@@ -130,6 +130,14 @@ def normalize_agent(agent_config: Agent | dict[str, Any]) -> Agent:
     raise TypeError("agent must be a docetl.Agent or a dictionary of Agent fields")
 
 
+def get_agent_tool_names(agent_config: Agent | dict[str, Any] | None) -> list[str]:
+    """Return display names for tools configured on an agent."""
+    if agent_config is None:
+        return []
+    agent = normalize_agent(agent_config)
+    return [_get_tool_name(tool_item) for tool_item in agent.tools]
+
+
 def _get_parameters_schema(function: Callable[..., Any]) -> JsonSchema:
     signature = inspect.signature(function)
     properties: dict[str, Any] = {}
@@ -215,3 +223,14 @@ def _get_tool_identity(tool_item: Any) -> Any:
         return tool_item
     except TypeError:
         return repr(tool_item)
+
+
+def _get_tool_name(tool_item: Any) -> str:
+    if isinstance(tool_item, Tool):
+        return tool_item.name
+    if callable(tool_item):
+        return getattr(tool_item, "__name__", repr(tool_item))
+    name = getattr(tool_item, "name", None)
+    if isinstance(name, str) and name:
+        return name
+    return type(tool_item).__name__

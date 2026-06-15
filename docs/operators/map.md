@@ -178,7 +178,7 @@ flowchart LR
 | `recursively_optimize`            | Flag to enable recursive optimization of operators synthesized as part of rewrite rules         | `false`                       |
 | `sample`                     | Number of samples to use for the operation                                                      | Processes all data            |
 | `limit`                      | Maximum number of outputs to produce before stopping                                            | Processes all data            |
-| `tools`                           | List of tool definitions for LLM use                                                            | None                          |
+| `agent`                           | Python-only agentic tool loop using the OpenAI Agents SDK with LiteLLM models                   | None                          |
 | `validate`                        | List of Python expressions to validate the output                                               | None                          |
 | `flush_partial_results`           | Write results of individual batches of map operation to disk for faster inspection              | False  |
 | `num_retries_on_validate_failure` | Number of retry attempts on validation failure                                                  | 0                             |
@@ -431,9 +431,9 @@ The Map operation can directly process PDFs using Claude or Gemini models. To us
 
 ### Agentic Tool Use
 
-For Python pipelines, prefer `agent=` when the model should use tools over
-multiple turns before returning the map output. Agentic operations use the
-OpenAI Agents SDK with LiteLLM model names, so the operation's `model=` can be
+For Python pipelines, use `agent=` when the model should use tools over multiple
+turns before returning the map output. Agentic operations use the OpenAI Agents
+SDK with LiteLLM model names, so the operation's `model=` can be
 `azure/gpt-4o-mini`, `anthropic/...`, `together_ai/...`, etc. as long as the
 selected model/provider supports the SDK tool-calling flow.
 
@@ -459,58 +459,6 @@ Plain Python tools execute as trusted Python in your process. OpenAI Agents SDK
 tools, including sandbox/native tools where supported by the SDK backend, can be
 passed through in Python agent configs. Agent configs are Python-only and cannot
 be exported to YAML.
-
-### Legacy single-step tool use
-
-Tools can extend the capabilities of the Map operation. Each tool is a Python function that can be called by the LLM during execution, and follows the [OpenAI Function Calling API](https://platform.openai.com/docs/guides/function-calling).
-
-??? example "Tool Definition Example"
-
-    === "YAML"
-
-        ```yaml
-        tools:
-        - required: true
-            code: |
-            def count_words(text):
-                return {"word_count": len(text.split())}
-            function:
-            name: count_words
-            description: Count the number of words in a text string.
-            parameters:
-                type: object
-                properties:
-                text:
-                    type: string
-                required:
-                - text
-        ```
-
-    === "Python"
-
-        ```python
-        # Pass via the tools= kwarg on a map call
-        tools = [
-            {
-                "required": True,
-                "code": """def count_words(text):
-            return {"word_count": len(text.split())}""",
-                "function": {
-                    "name": "count_words",
-                    "description": "Count the number of words in a text string.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"text": {"type": "string"}},
-                        "required": ["text"],
-                    },
-                },
-            }
-        ]
-        ```
-
-!!! warning
-
-    Tool use and gleaning cannot be used simultaneously.
 
 ### Input Truncation
 

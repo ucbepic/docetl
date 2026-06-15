@@ -81,6 +81,7 @@ nav:
   
   - Tutorials & Examples:
     - Python API Examples: python/examples.md
+    - Agentic Map-Reduce Research: examples/agentic-market-research.md
     - Presidential Debate Analysis: examples/presidential-debate-themes.md
     - Product Review Mining: examples/mining-product-reviews.md
     - Medical Document Classification: examples/ollama.md

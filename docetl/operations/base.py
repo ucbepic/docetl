@@ -104,6 +104,9 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         )
         self.is_build = is_build
         self.bypass_cache = self.runner.config.get("bypass_cache", False)
+        self.agent_mode = self.config.get(
+            "agent_mode", self.runner.config.get("agent_mode", False)
+        )
         self.syntax_check()
 
     # This must be overridden in a subclass

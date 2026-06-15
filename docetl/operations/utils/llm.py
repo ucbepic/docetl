@@ -121,7 +121,9 @@ def truncate_messages(
 
     warning_type = "User" if not from_agent else "Agent"
     rprint(
-        f"[yellow]{warning_type} Warning:[/yellow] Cutting {tokens_to_remove} tokens from a prompt with {total_tokens} tokens..."
+        f"[yellow]{warning_type} Warning:[/yellow] Cutting {tokens_to_remove} tokens from a prompt with {total_tokens} tokens. "
+        f"Truncated results may be inaccurate. Consider using split/gather operators to chunk long text before this operation. "
+        f"See https://ucbepic.github.io/docetl/operators/split/ and https://ucbepic.github.io/docetl/operators/gather/"
     )
 
     longest_message["content"] = truncated_content

@@ -58,6 +58,7 @@ nav:
           - TopK: operators/topk.md
           - Code: operators/code.md
       - AI SQL: aisql.md
+      - Agent Mode: agent-mode.md
       - Retrievers: retrievers.md
       - Interactive Progress View: execution/interactive-progress.md
       - Python API Reference: api-reference/python.md

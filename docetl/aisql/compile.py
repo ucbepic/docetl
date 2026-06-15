@@ -20,13 +20,15 @@ WHERE conjuncts are routed by kind:
                                     + a DuckDB residual filter over it
 
 Relational ``ORDER BY`` / ``LIMIT`` are carried into the final
-projection. Deferred (clear errors): ``OR``/``NOT`` around an AI
-predicate, an AI function on both sides of a comparison, and AI
-functions inside GROUP BY / JOIN ON (beyond ai_match) / ORDER BY.
+projection. ``NOT ai_filter`` negates the predicate. AI functions on
+both sides of a comparison are supported. ``OR`` between an AI
+predicate and another predicate raises (can't push the relational side
+ahead). AI functions inside GROUP BY are not yet supported.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import sqlglot
@@ -34,9 +36,13 @@ from sqlglot import exp
 
 from docetl.aisql.functions import (
     ALL_FUNCTIONS,
+    EXTRACT_FUNCTIONS,
     AIFunctionCall,
+    _extract_output_col,
+    _parse_schema_spec,
     build_compare_map_op,
     build_equijoin_op,
+    build_extract_op,
     build_filter_op,
     build_map_op,
     build_reduce_op,
@@ -86,6 +92,10 @@ class JoinStage:
 @dataclass
 class CompiledQuery:
     stages: list  # RelationalStage | SemanticStage, in execution order
+    skip_checks: bool = False
+
+
+_NOCHECK_RE = re.compile(r"/\*\s*nocheck\s*\*/", re.IGNORECASE)
 
 
 def _ai_func_name(node: exp.Expression) -> str | None:
@@ -125,13 +135,44 @@ def _parse_call(fn: exp.Func, alias: str) -> AIFunctionCall:
         raise NotImplementedError(
             f"{_ai_func_name(fn)}(...) must take a column as its first argument in v1"
         )
-    literals = tuple(a.this for a in args[1:] if isinstance(a, exp.Literal))
+    raw_literals = [a.this for a in args[1:] if isinstance(a, exp.Literal)]
+    if raw_literals and "||" in raw_literals[0]:
+        prompt, schema = raw_literals[0].split("||", 1)
+        literals = (prompt, schema)
+    else:
+        literals = tuple(raw_literals)
     return AIFunctionCall(
         name=_ai_func_name(fn), column=args[0].name, literals=literals, alias=alias
     )
 
 
+_SCHEMA_FNS = "|".join(
+    sorted(
+        {"ai", "ai_map", "ai_agg", "ai_summarize", "ai_classify"},
+        key=len,
+        reverse=True,
+    )
+)
+_SCHEMA_ARG_RE = re.compile(
+    rf"((?:{_SCHEMA_FNS})\s*\(\s*\w+\s*,\s*')([^']*)'(\s*,\s*')([^']*)'\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _merge_schema_args(sql: str) -> str:
+    """Merge 3-arg AI calls ``ai_fn(col, 'prompt', 'schema')`` into
+    2-arg ``ai_fn(col, 'prompt||schema')`` so sqlglot can parse them
+    (some AI function names like ai_agg are recognized by sqlglot with
+    a 2-arg max)."""
+    return _SCHEMA_ARG_RE.sub(r"\1\2||\4')", sql)
+
+
 def compile_sql(query: str) -> CompiledQuery:
+    skip_checks = bool(_NOCHECK_RE.search(query))
+    if skip_checks:
+        query = _NOCHECK_RE.sub("", query).strip()
+
+    query = _merge_schema_args(query)
     parsed = sqlglot.parse_one(query, read="duckdb")
     if not isinstance(parsed, exp.Select):
         raise NotImplementedError("only SELECT queries are supported")
@@ -140,14 +181,16 @@ def compile_sql(query: str) -> CompiledQuery:
     # the SELECT/WHERE path handles everything else.
     resolve_fn = _resolve_source(parsed)
     if resolve_fn is not None:
-        return _compile_resolve(parsed, resolve_fn)
-    join = parsed.find(exp.Join)
-    if join is not None and _ai_calls_in(join):
-        return _compile_join(parsed, join)
-    group = parsed.find(exp.Group)
-    if group is not None and _select_ai_agg(parsed):
-        return _compile_grouped(parsed, group)
-    return _compile_select_where(parsed)
+        result = _compile_resolve(parsed, resolve_fn)
+    elif (join := parsed.find(exp.Join)) is not None and _ai_calls_in(join):
+        result = _compile_join(parsed, join)
+    elif (group := parsed.find(exp.Group)) is not None and _select_ai_agg(parsed):
+        result = _compile_grouped(parsed, group)
+    else:
+        result = _compile_select_where(parsed)
+
+    result.skip_checks = skip_checks
+    return result
 
 
 def _compile_select_where(parsed: exp.Select) -> CompiledQuery:
@@ -155,85 +198,48 @@ def _compile_select_where(parsed: exp.Select) -> CompiledQuery:
         ("GROUP BY", exp.Group),
         ("HAVING", exp.Having),
         ("JOIN", exp.Join),
-        ("ORDER BY", exp.Order),
     ):
         node = parsed.find(cls)
         if node is not None and _ai_calls_in(node):
             raise NotImplementedError(f"AI functions in {label} are not yet supported")
 
-    # Split WHERE into relational conjuncts (DuckDB), ai_filter conjuncts
-    # (DocETL filters), and comparisons over an AI function (a map that
-    # computes a column + a residual relational predicate over it).
     where = parsed.args.get("where")
     relational_where, filter_calls, score_specs = _split_where(where)
-
-    # Pair each SELECT item with the AI call it contains (if any).
-    select_ai: list[tuple[exp.Expression, AIFunctionCall | None]] = []
-    for item in parsed.expressions:
-        calls = _ai_calls_in(item)
-        if len(calls) > 1:
-            raise NotImplementedError("one AI function per SELECT item in v1")
-        if calls:
-            alias = item.alias_or_name
-            if not alias or _ai_func_name(item) is not None:
-                raise NotImplementedError("AI function in SELECT needs an AS alias")
-            select_ai.append((item, _parse_call(calls[0], alias)))
-        else:
-            select_ai.append((item, None))
+    select_ai = _collect_select_ai(parsed)
 
     has_select_ai = any(call for _, call in select_ai)
-    if not has_select_ai and not filter_calls and not score_specs:
-        # Pure relational — hand the whole query to DuckDB unchanged.
+    order = parsed.args.get("order")
+    has_order_ai = order is not None and bool(_ai_calls_in(order))
+    if not has_select_ai and not filter_calls and not score_specs and not has_order_ai:
         return CompiledQuery(stages=[RelationalStage(sql=parsed.sql(dialect="duckdb"))])
 
-    # Stage 1: scan + the relational half of WHERE, project everything.
     stages: list = [_scan_stage(parsed, relational_where)]
-
-    filter_ops = [
-        build_filter_op(call, name=f"aifilter_{i}")
-        for i, call in enumerate(filter_calls)
-    ]
-    select_ops = [
-        build_map_op(call, name=f"ai_{call.alias}")
-        for _, call in select_ai
-        if call is not None
-    ]
+    select_ops = _build_select_ops(select_ai)
 
     if score_specs:
-        # WHERE ai_filters + the score maps; then a DuckDB stage applies
-        # the residual comparisons (and drops the hidden score columns),
-        # so the SELECT-list maps run only on the survivors.
-        stages.append(
-            SemanticStage(operations=filter_ops + [s.op for s in score_specs])
-        )
-        residual = " AND ".join(s.residual_sql for s in score_specs)
-        hidden = ", ".join(s.hidden for s in score_specs)
-        stages.append(
-            RelationalStage(
-                sql=f"SELECT * EXCLUDE ({hidden}) FROM {PREV} WHERE {residual}",
-                reads_prev=True,
-            )
-        )
+        _emit_where_stages(stages, filter_calls, score_specs)
         if select_ops:
             stages.append(SemanticStage(operations=select_ops))
     else:
-        # ai_filters first (they shrink), then the SELECT-list maps.
-        stages.append(SemanticStage(operations=filter_ops + select_ops))
+        _emit_where_stages(stages, filter_calls, score_specs, extra_ops=select_ops)
 
-    # Final stage: the original SELECT list with AI calls replaced by
-    # their alias column, over the semantic output.
-    stages.append(
-        _final_projection(
-            [_final_select_item(item, call) for item, call in select_ai], parsed
-        )
-    )
+    final_items = []
+    for item, call in select_ai:
+        final_items.extend(_final_select_items(item, call))
+    stages.extend(_final_projection(final_items, parsed))
     return CompiledQuery(stages=stages)
 
 
-def _final_select_item(item: exp.Expression, call: AIFunctionCall | None):
+def _final_select_items(item: exp.Expression, call: AIFunctionCall | None):
+    """Return a list of projection columns for one SELECT item."""
     if call is None:
-        return item
-    return exp.column(call.alias)
+        return [item]
+    if call.name in EXTRACT_FUNCTIONS:
+        return [exp.column(_extract_output_col(call)).as_(call.alias)]
+    if len(call.literals) >= 2:
+        schema = _parse_schema_spec(call.literals[1])
+        return [exp.column(k) for k in schema]
+    return [exp.column(call.alias)]
 
 
 def _scan_stage(
@@ -247,23 +253,128 @@ def _scan_stage(
     return RelationalStage(sql=scan.sql(dialect="duckdb"))
 
 
+def _collect_select_ai(
+    parsed: exp.Select,
+) -> list[tuple[exp.Expression, AIFunctionCall | None]]:
+    """Pair each SELECT item with its AI call (if any), validating aliases."""
+    result: list[tuple[exp.Expression, AIFunctionCall | None]] = []
+    for item in parsed.expressions:
+        calls = _ai_calls_in(item)
+        if len(calls) > 1:
+            raise NotImplementedError("one AI function per SELECT item in v1")
+        if calls:
+            alias = item.alias_or_name
+            if not alias or _ai_func_name(item) is not None:
+                raise NotImplementedError("AI function in SELECT needs an AS alias")
+            result.append((item, _parse_call(calls[0], alias)))
+        else:
+            result.append((item, None))
+    return result
+
+
+def _build_select_ops(
+    select_ai: list[tuple[exp.Expression, AIFunctionCall | None]],
+) -> list[dict]:
+    """Build DocETL ops for AI functions in the SELECT list."""
+    return [
+        (
+            build_extract_op(call, name=f"ai_{call.alias}")
+            if call.name in EXTRACT_FUNCTIONS
+            else build_map_op(call, name=f"ai_{call.alias}")
+        )
+        for _, call in select_ai
+        if call is not None
+    ]
+
+
+def _emit_where_stages(
+    stages: list,
+    filter_calls: list[AIFunctionCall],
+    score_specs: list[ScoreSpec],
+    extra_ops: list[dict] | None = None,
+) -> None:
+    """Append semantic + residual relational stages for WHERE AI predicates.
+
+    Handles ai_filter ops, score-comparison ops (including both-sides-AI
+    where some ScoreSpec.op may be None), and optional extra ops to merge
+    into the same semantic stage."""
+    filter_ops = [
+        build_filter_op(call, name=f"aifilter_{i}")
+        for i, call in enumerate(filter_calls)
+    ]
+    all_ops = filter_ops + (extra_ops or [])
+
+    if score_specs:
+        score_ops = [s.op for s in score_specs if s.op is not None]
+        stages.append(SemanticStage(operations=all_ops + score_ops))
+        residual_parts = [s.residual_sql for s in score_specs if s.residual_sql]
+        hidden_parts = [s.hidden for s in score_specs if s.hidden]
+        residual = " AND ".join(residual_parts)
+        if hidden_parts:
+            hidden = ", ".join(hidden_parts)
+            stages.append(
+                RelationalStage(
+                    sql=f"SELECT * EXCLUDE ({hidden}) FROM {PREV} WHERE {residual}",
+                    reads_prev=True,
+                )
+            )
+        elif residual:
+            stages.append(
+                RelationalStage(
+                    sql=f"SELECT * FROM {PREV} WHERE {residual}",
+                    reads_prev=True,
+                )
+            )
+    elif all_ops:
+        stages.append(SemanticStage(operations=all_ops))
+
+
 def _final_projection(
-    items: list[exp.Expression], parsed: exp.Select
-) -> RelationalStage:
+    items: list[exp.Expression],
+    parsed: exp.Select,
+) -> list[RelationalStage | SemanticStage]:
     """The query's SELECT list (AI calls already replaced by their alias
     columns) read from the prior stage's output, carrying the query's
-    ORDER BY / LIMIT — they apply to the final result, which is exactly
-    what this stage produces."""
-    final = exp.select(*items).from_(PREV)
+    ORDER BY / LIMIT.
+
+    Always returns a list of stages (length 1 or 3 when ORDER BY has
+    AI functions)."""
     order = parsed.args.get("order")
+    order_ai_ops: list[dict] = []
+    order_hidden: list[str] = []
+
+    if order is not None and _ai_calls_in(order):
+        for i, ordered in enumerate(order.expressions):
+            ai_calls = _ai_calls_in(ordered)
+            if ai_calls:
+                hidden = f"__aiord_{i}"
+                call = _parse_call(ai_calls[0], alias=hidden)
+                op = build_compare_map_op(call, name=hidden, output_type="number")
+                order_ai_ops.append(op)
+                order_hidden.append(hidden)
+                ai_calls[0].replace(exp.column(hidden))
+
+    extra_cols = [exp.column(h) for h in order_hidden]
+    final = exp.select(*items, *extra_cols).from_(PREV)
     if order is not None:
-        if _ai_calls_in(order):
-            raise NotImplementedError("AI functions in ORDER BY are not yet supported")
         final = final.order_by(*[o.copy() for o in order.expressions])
     limit = parsed.args.get("limit")
     if limit is not None:
         final = final.limit(limit.expression.copy())
-    return RelationalStage(sql=final.sql(dialect="duckdb"), reads_prev=True)
+
+    stages: list = []
+    if order_ai_ops:
+        stages.append(SemanticStage(operations=order_ai_ops))
+    stages.append(RelationalStage(sql=final.sql(dialect="duckdb"), reads_prev=True))
+    if order_hidden:
+        exclude = ", ".join(order_hidden)
+        stages.append(
+            RelationalStage(
+                sql=f"SELECT * EXCLUDE ({exclude}) FROM {PREV}",
+                reads_prev=True,
+            )
+        )
+    return stages
 
 
 def _conjuncts(node: exp.Expression) -> list[exp.Expression]:
@@ -282,10 +393,11 @@ def _split_where(
     AI-comparison specs).
 
     Supports a top-level ``AND`` whose conjuncts are each: relational (no
-    AI), a bare ``ai_filter(col, 'q')``, or a comparison with an AI
-    function on one side (``ai_score(col, 'q') > 0.8``). An AI function
-    inside an ``OR``/``NOT``, on both sides of a comparison, or otherwise
-    nested raises — those remain unsupported.
+    AI), a bare ``ai_filter(col, 'q')``, ``NOT ai_filter(col, 'q')``,
+    or a comparison with AI function(s) on one or both sides.
+
+    ``OR`` between an AI predicate and anything else is not supported
+    (it would prevent pushing the relational side ahead).
     """
     if where is None:
         return None, [], []
@@ -298,13 +410,17 @@ def _split_where(
             relational.append(conj)
         elif _ai_func_name(conj) == "ai_filter":
             filters.append(_parse_call(conj, alias="keep"))
+        elif isinstance(conj, exp.Not) and _ai_func_name(conj.this) == "ai_filter":
+            call = _parse_call(conj.this, alias="keep")
+            call.negated = True
+            filters.append(call)
         elif isinstance(conj, _COMPARISONS):
-            scores.append(_parse_comparison(conj, idx=len(scores)))
+            scores.extend(_parse_comparison(conj, idx=len(scores)))
+        elif isinstance(conj, exp.Or):
+            _rewrite_or_ai(conj, scores)
         else:
             raise NotImplementedError(
-                "in WHERE, AI functions are supported as a top-level "
-                "ai_filter(col, 'q') conjunct or a comparison like "
-                "ai_score(col, 'q') > 0.8; OR/NOT and other nestings are not"
+                f"unsupported AI predicate form in WHERE: {conj.sql()}"
             )
 
     relational_pred = exp.and_(*relational) if relational else None
@@ -320,50 +436,64 @@ def _select_ai_agg(parsed: exp.Select) -> bool:
 
 
 def _compile_grouped(parsed: exp.Select, group: exp.Group) -> CompiledQuery:
-    """``SELECT k, ai_agg(col, 'q') AS x FROM src [WHERE relational] GROUP BY k``
-    → DuckDB scan, DocETL reduce, DuckDB projection."""
-    if parsed.args.get("having") is not None:
-        raise NotImplementedError("HAVING with ai_agg is not yet supported")
-    where = parsed.args.get("where")
-    if where is not None and _ai_calls_in(where):
-        raise NotImplementedError(
-            "AI functions in WHERE with GROUP BY are not yet supported"
-        )
-
+    """``SELECT k, ai_agg(col, 'q') AS x FROM src [WHERE ...] GROUP BY k``
+    → DuckDB scan, [AI filters], DocETL reduce(s), [HAVING filter],
+    DuckDB projection."""
     reduce_key = [e.name for e in group.expressions]
     if not all(isinstance(e, exp.Column) for e in group.expressions):
-        raise NotImplementedError("GROUP BY must be over plain columns in v1")
+        raise NotImplementedError("GROUP BY must be over plain columns")
 
-    agg_calls = [
-        _parse_call(_ai_calls_in(item)[0], item.alias_or_name)
-        for item in parsed.expressions
-        if any(_ai_func_name(c) == "ai_agg" for c in _ai_calls_in(item))
-    ]
-    if len(agg_calls) != 1:
-        raise NotImplementedError("exactly one ai_agg per GROUP BY query in v1")
+    # WHERE: split into relational (DuckDB) and AI (DocETL) parts
+    where = parsed.args.get("where")
+    relational_where, filter_calls, score_specs = _split_where(where)
 
-    reduce_op = build_reduce_op(agg_calls[0], name="ai_agg", reduce_key=reduce_key)
-    return CompiledQuery(
-        stages=[
-            _scan_stage(parsed, where.this if where is not None else None),
-            SemanticStage(operations=[reduce_op]),
-            _final_projection(
-                [_final_select_item(i, _select_call(i)) for i in parsed.expressions],
-                parsed,
-            ),
-        ]
-    )
+    stages: list = [_scan_stage(parsed, relational_where)]
+
+    if filter_calls or score_specs:
+        _emit_where_stages(stages, filter_calls, score_specs)
+
+    # Multiple ai_agg calls: each becomes its own reduce op chained in
+    # sequence (each reads the prior's output). Schemas are merged so
+    # later reduces pass through earlier columns.
+    agg_calls = []
+    for item in parsed.expressions:
+        calls = _ai_calls_in(item)
+        if any(_ai_func_name(c) == "ai_agg" for c in calls):
+            agg_calls.append(_parse_call(calls[0], item.alias_or_name))
+    if not agg_calls:
+        raise NotImplementedError("GROUP BY query has no ai_agg calls")
+
+    for i, call in enumerate(agg_calls):
+        reduce_op = build_reduce_op(
+            call,
+            name=f"ai_agg_{i}" if len(agg_calls) > 1 else "ai_agg",
+            reduce_key=reduce_key,
+        )
+        stages.append(SemanticStage(operations=[reduce_op]))
+
+    # HAVING: runs as a DuckDB filter on the reduce output
+    having = parsed.args.get("having")
+    if having is not None:
+        if _ai_calls_in(having):
+            raise NotImplementedError("AI functions in HAVING are not yet supported")
+        stages.append(
+            RelationalStage(
+                sql=f"SELECT * FROM {PREV} WHERE {having.this.sql(dialect='duckdb')}",
+                reads_prev=True,
+            )
+        )
+
+    final_items = []
+    for i in parsed.expressions:
+        final_items.extend(_final_select_items(i, _select_call(i)))
+    stages.extend(_final_projection(final_items, parsed))
+    return CompiledQuery(stages=stages)
 
 
 def _compile_join(parsed: exp.Select, join: exp.Join) -> CompiledQuery:
-    """``SELECT ... FROM l JOIN r ON ai_match(l.a, r.b, 'q')`` → two DuckDB
-    scans, a DocETL equijoin, a DuckDB projection."""
-    if parsed.args.get("where") is not None:
-        raise NotImplementedError("WHERE with an AI join is not yet supported")
-    if _ai_calls_in(exp.select(*parsed.expressions)):
-        raise NotImplementedError(
-            "AI functions in SELECT with an AI join are not yet supported"
-        )
+    """``SELECT ... FROM l JOIN r ON ai_match(l.a, r.b, 'q') [WHERE ...]``
+    → two DuckDB scans, a DocETL equijoin, [WHERE filter], [SELECT AI ops],
+    DuckDB projection."""
     on = join.args.get("on")
     on_args = _func_args(on) if _ai_func_name(on) == "ai_match" else []
     if not (
@@ -378,16 +508,38 @@ def _compile_join(parsed: exp.Select, join: exp.Join) -> CompiledQuery:
     left_col, right_col, prompt = on_args
     op = build_equijoin_op("aijoin", left_col.name, right_col.name, prompt.this)
     left_src = parsed.find(exp.From).this
-    return CompiledQuery(
-        stages=[
-            JoinStage(
-                left_sql=exp.select("*").from_(left_src).sql(dialect="duckdb"),
-                right_sql=exp.select("*").from_(join.this).sql(dialect="duckdb"),
-                operation=op,
-            ),
-            _final_projection(list(parsed.expressions), parsed),
-        ]
-    )
+
+    stages: list = [
+        JoinStage(
+            left_sql=exp.select("*").from_(left_src).sql(dialect="duckdb"),
+            right_sql=exp.select("*").from_(join.this).sql(dialect="duckdb"),
+            operation=op,
+        ),
+    ]
+
+    where = parsed.args.get("where")
+    if where is not None:
+        relational_where, filter_calls, score_specs = _split_where(where)
+        if relational_where is not None:
+            stages.append(
+                RelationalStage(
+                    sql=f"SELECT * FROM {PREV} WHERE {relational_where.sql(dialect='duckdb')}",
+                    reads_prev=True,
+                )
+            )
+        if filter_calls or score_specs:
+            _emit_where_stages(stages, filter_calls, score_specs)
+
+    select_ai = _collect_select_ai(parsed)
+    select_ops = _build_select_ops(select_ai)
+    if select_ops:
+        stages.append(SemanticStage(operations=select_ops))
+
+    final_items = []
+    for item, call in select_ai:
+        final_items.extend(_final_select_items(item, call))
+    stages.extend(_final_projection(final_items, parsed))
+    return CompiledQuery(stages=stages)
 
 
 def _resolve_source(parsed: exp.Select) -> exp.Func | None:
@@ -434,13 +586,12 @@ def _compile_resolve(parsed: exp.Select, fn: exp.Func) -> CompiledQuery:
         prompt_node.this if isinstance(prompt_node, exp.Literal) else prompt_node.name
     )
     op = build_resolve_op("airesolve", column=on_col, prompt=prompt, output_key=on_col)
-    return CompiledQuery(
-        stages=[
-            RelationalStage(sql=f"SELECT * FROM {source}"),
-            SemanticStage(operations=[op]),
-            _final_projection(list(parsed.expressions), parsed),
-        ]
-    )
+    stages = [
+        RelationalStage(sql=f"SELECT * FROM {source}"),
+        SemanticStage(operations=[op]),
+    ]
+    stages.extend(_final_projection(list(parsed.expressions), parsed))
+    return CompiledQuery(stages=stages)
 
 
 def _select_call(item: exp.Expression) -> AIFunctionCall | None:
@@ -448,13 +599,55 @@ def _select_call(item: exp.Expression) -> AIFunctionCall | None:
     return _parse_call(calls[0], item.alias_or_name) if calls else None
 
 
-def _parse_comparison(conj: exp.Expression, idx: int) -> ScoreSpec:
+def _rewrite_or_ai(node: exp.Expression, scores: list[ScoreSpec]) -> None:
+    """Rewrite AI calls inside an OR expression into hidden boolean columns.
+
+    Each ai_filter becomes a map op producing a boolean column. The AI
+    call node is replaced in-place with a column reference, so the
+    whole OR expression becomes a purely relational residual predicate.
+    NOT is preserved in the SQL (``NOT __aior_0``) — no prompt negation."""
+    for fn in list(node.find_all(exp.Func)):
+        name = _ai_func_name(fn)
+        if name is None:
+            continue
+        if name != "ai_filter":
+            raise NotImplementedError(
+                f"only ai_filter is supported inside OR (found {name})"
+            )
+        idx = len(scores)
+        hidden = f"__aior_{idx}"
+        call = _parse_call(fn, alias=hidden)
+        op = build_compare_map_op(call, name=hidden, output_type="boolean")
+        fn.replace(exp.column(hidden))
+        scores.append(ScoreSpec(op=op, residual_sql="", hidden=hidden))
+    residual = node.sql(dialect="duckdb")
+    scores.append(ScoreSpec(op=None, residual_sql=residual, hidden=""))
+
+
+def _parse_comparison(conj: exp.Expression, idx: int) -> list[ScoreSpec]:
     left, right = conj.left, conj.right
     left_ai, right_ai = _ai_calls_in(left), _ai_calls_in(right)
-    if bool(left_ai) == bool(right_ai):
+
+    if left_ai and right_ai:
+        hidden_l = f"__aicmp_{idx}_l"
+        hidden_r = f"__aicmp_{idx}_r"
+        call_l = _parse_call(left_ai[0], alias=hidden_l)
+        call_r = _parse_call(right_ai[0], alias=hidden_r)
+        op_l = build_compare_map_op(call_l, name=hidden_l, output_type="number")
+        op_r = build_compare_map_op(call_r, name=hidden_r, output_type="number")
+        left.replace(exp.column(hidden_l))
+        right.replace(exp.column(hidden_r))
+        return [
+            ScoreSpec(op=op_l, residual_sql="", hidden=hidden_l),
+            ScoreSpec(op=op_r, residual_sql="", hidden=hidden_r),
+            ScoreSpec(op=None, residual_sql=conj.sql(dialect="duckdb"), hidden=""),
+        ]
+
+    if not left_ai and not right_ai:
         raise NotImplementedError(
-            "a comparison must have an AI function on exactly one side"
+            "a comparison in the AI WHERE split must have an AI function"
         )
+
     ai_side, other = (left, right) if left_ai else (right, left)
     if not (_ai_func_name(ai_side) is not None and len(_ai_calls_in(ai_side)) == 1):
         raise NotImplementedError(
@@ -467,7 +660,5 @@ def _parse_comparison(conj: exp.Expression, idx: int) -> ScoreSpec:
         "string" if isinstance(other, exp.Literal) and other.is_string else "number"
     )
     op = build_compare_map_op(call, name=hidden, output_type=output_type)
-    # Rewrite the comparison to reference the hidden column for the
-    # residual relational filter, then render it.
     ai_side.replace(exp.column(hidden))
-    return ScoreSpec(op=op, residual_sql=conj.sql(dialect="duckdb"), hidden=hidden)
+    return [ScoreSpec(op=op, residual_sql=conj.sql(dialect="duckdb"), hidden=hidden)]

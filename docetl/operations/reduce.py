@@ -257,6 +257,11 @@ class ReduceOperation(BaseOperation):
         Returns:
             tuple[list[dict], float]: A tuple containing the processed results and the total cost of the operation.
         """
+        if self.agent_mode:
+            from docetl.checks import run_checks_for_op
+
+            run_checks_for_op(input_data, self.config)
+
         if self.config.get("gleaning", {}).get("validation_prompt", None):
             self.console.log(
                 f"Using gleaning with validation prompt: {self.config.get('gleaning', {}).get('validation_prompt', '')}"

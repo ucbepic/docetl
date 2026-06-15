@@ -14,6 +14,7 @@ fallback_embedding_models: list[str] | None = None
 max_threads: int | None = None
 bypass_cache: bool = False
 intermediate_dir: str | None = None
+agent_mode: bool = False
 
 # Rate limiting
 rate_limits: dict | None = None
@@ -24,6 +25,9 @@ rate_limits: dict | None = None
 # from_yaml) as the default when the config has no plan_rewrites key;
 # the CLI runs in its own process, so only the YAML key reaches it.
 plan_rewrites: "bool | str | list" = True
+
+# Suppress pipeline execution logs (checking operations, loading datasets, etc.)
+quiet: bool = False
 
 # Optional system prompt applied to all operations:
 # {"dataset_description": ..., "persona": ...}
@@ -51,4 +55,6 @@ def runner_settings() -> dict:
         settings["system_prompt"] = system_prompt
     if plan_rewrites is not True:  # default-on; only emit overrides
         settings["plan_rewrites"] = plan_rewrites
+    if agent_mode:
+        settings["agent_mode"] = True
     return settings

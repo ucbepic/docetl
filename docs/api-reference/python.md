@@ -199,7 +199,10 @@ The model is still specified on the operation (`model=`) or through
 with the OpenAI Agents SDK LiteLLM integration and the requested tools. Plain
 Python function tools execute as trusted Python in your process; OpenAI Agents
 SDK sandbox/native tools may provide isolation where that SDK/backend supports
-it. Agent configs are Python-only and cannot be exported to YAML.
+it. Agent configs are Python-only and cannot be exported to YAML. See OpenAI's
+[Agents SDK guide](https://developers.openai.com/api/docs/guides/agents) and
+[tools guide](https://openai.github.io/openai-agents-python/tools/) for hosted
+tool behavior.
 
 Agents can also expose specialist agents as tools. Use this when a manager agent
 should keep ownership of the DocETL output while delegating a bounded task:
@@ -222,10 +225,12 @@ manager = docetl.Agent(
 ```
 
 The specialist uses the same operation-level LiteLLM model as the manager unless
-you pass an SDK-native tool object with its own model configuration.
+you pass an SDK-native tool object with its own model configuration. This follows
+OpenAI's
+[agents-as-tools orchestration pattern](https://developers.openai.com/api/docs/guides/agents/orchestration).
 
-For a persistent shell/sandbox filesystem, create a hosted container once and
-bind shell tools to it:
+For a persistent shell/sandbox filesystem on OpenAI, create a hosted container
+once and bind shell tools to it:
 
 ```python
 sandbox = docetl.tools.Sandbox.create(
@@ -247,6 +252,13 @@ and write the same hosted filesystem. If you only need an ephemeral shell tool,
 use `docetl.tools.bash(...)`, which uses `container_auto`. Pass durable data
 between DocETL operations through output schemas, not only through hidden
 sandbox files.
+
+`docetl.tools.Sandbox.create(...)` is OpenAI-specific: it calls the OpenAI
+Containers API and returns shell tools using `container_reference`. It is not
+portable to Claude, Together, or other LiteLLM providers. For provider-portable
+tooling, use `@docetl.tool` Python functions, MCP tools, or provider-native SDK
+tools. See OpenAI's
+[sandbox agents guide](https://developers.openai.com/api/docs/guides/agents/sandboxes).
 
 #### `.resolve()`
 

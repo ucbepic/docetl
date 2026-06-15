@@ -36,10 +36,27 @@ name, for example `model="azure/gpt-4o-mini"`.
 
 !!! tip
 
-    `WebSearchTool` and hosted `ShellTool` are OpenAI Agents SDK tools. Hosted
-    SDK tools depend on the selected model/provider. For non-OpenAI LiteLLM
-    providers, use tools that provider supports, MCP tools, or Python tools
-    wrapped with `@docetl.tool`.
+    `WebSearchTool` and hosted `ShellTool` are
+    [OpenAI Agents SDK tools](https://developers.openai.com/api/docs/guides/agents).
+    Hosted OpenAI tools depend on the selected model/provider. For non-OpenAI
+    LiteLLM providers, use tools that provider supports, MCP tools, or Python
+    tools wrapped with `@docetl.tool`.
+
+## Provider compatibility
+
+The DocETL agent loop can route models through LiteLLM, but hosted OpenAI tools
+are not provider-portable:
+
+- `docetl.tools.Sandbox.create(...)` calls the OpenAI Containers API and is only
+  for OpenAI hosted containers. See OpenAI's
+  [sandbox agents guide](https://developers.openai.com/api/docs/guides/agents/sandboxes).
+- `WebSearchTool()` and hosted `ShellTool` are OpenAI Agents SDK hosted tools.
+  See OpenAI's [tools guide](https://openai.github.io/openai-agents-python/tools/).
+- `Agent.as_tool(...)` follows the OpenAI Agents SDK "agents as tools" pattern.
+  See OpenAI's
+  [orchestration guide](https://developers.openai.com/api/docs/guides/agents/orchestration).
+- For Claude, Together, or other LiteLLM providers, prefer Python tools
+  decorated with `@docetl.tool`, MCP tools, or that provider's SDK-native tools.
 
 ## Full script
 

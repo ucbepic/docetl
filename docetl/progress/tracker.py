@@ -29,34 +29,59 @@ class ProgressTracker:
         self._current: OpState | None = None
 
     # -- lifecycle -------------------------------------------------------
-    def pipeline_start(self, ops: list[tuple[str, str, str, str | None]]) -> None:
+    def pipeline_start(
+        self,
+        ops: list[
+            tuple[str, str, str, str | None]
+            | tuple[str, str, str, str | None, list[str]]
+        ],
+    ) -> None:
         """Register all operations up front, in pipeline order.
 
-        ``ops`` is a list of ``(step, name, op_type, model)`` tuples.
+        ``ops`` is a list of ``(step, name, op_type, model[, agent_tools])`` tuples.
         """
         with self._lock:
             self.state.ops.clear()
             self.state._by_name.clear()
-            for step, name, op_type, model in ops:
+            for op_info in ops:
+                step, name, op_type, model = op_info[:4]
+                agent_tools = list(op_info[4]) if len(op_info) > 4 else []
                 self.state.register(
-                    OpState(step=step, name=name, op_type=op_type, model=model)
+                    OpState(
+                        step=step,
+                        name=name,
+                        op_type=op_type,
+                        model=model,
+                        agent_tools=agent_tools,
+                    )
                 )
             self.state.started = True
             self.state.start_t = time.time()
 
     def op_start(
-        self, name: str, op_type: str, model: str | None, total: int | None
+        self,
+        name: str,
+        op_type: str,
+        model: str | None,
+        total: int | None,
+        agent_tools: list[str] | None = None,
     ) -> None:
         with self._lock:
             op = self.state.get(name)
             if op is None:
                 # Operation not pre-registered (e.g. optimizer-injected); add it.
                 op = OpState(
-                    step=name.split("/")[0], name=name, op_type=op_type, model=model
+                    step=name.split("/")[0],
+                    name=name,
+                    op_type=op_type,
+                    model=model,
+                    agent_tools=list(agent_tools or []),
                 )
                 self.state.register(op)
             op.op_type = op_type
             op.model = model
+            if agent_tools is not None:
+                op.agent_tools = list(agent_tools)
             op.total = total
             op.completed = 0
             op.errors = 0

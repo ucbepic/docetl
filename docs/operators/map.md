@@ -178,7 +178,7 @@ flowchart LR
 | `recursively_optimize`            | Flag to enable recursive optimization of operators synthesized as part of rewrite rules         | `false`                       |
 | `sample`                     | Number of samples to use for the operation                                                      | Processes all data            |
 | `limit`                      | Maximum number of outputs to produce before stopping                                            | Processes all data            |
-| `tools`                           | List of tool definitions for LLM use                                                            | None                          |
+| `agent`                           | Python-only `docetl.Agent` config for tool-equipped map agents                                  | None                          |
 | `validate`                        | List of Python expressions to validate the output                                               | None                          |
 | `flush_partial_results`           | Write results of individual batches of map operation to disk for faster inspection              | False  |
 | `num_retries_on_validate_failure` | Number of retry attempts on validation failure                                                  | 0                             |
@@ -429,57 +429,48 @@ The Map operation can directly process PDFs using Claude or Gemini models. To us
     ]
     ```
 
-### Tool Use
+### Tool-equipped map agents
 
-Tools can extend the capabilities of the Map operation. Each tool is a Python function that can be called by the LLM during execution, and follows the [OpenAI Function Calling API](https://platform.openai.com/docs/guides/function-calling).
+For Python pipelines, pass `agent=docetl.Agent(...)` when a map operation should
+call tools before returning its structured output. The operation's `model=`
+still controls model selection. Function tools wrapped with `@docetl.tool` work
+through the OpenAI Agents SDK tool loop; OpenAI-hosted tools such as web search
+or hosted shell require an OpenAI-compatible hosted-tool path.
 
-??? example "Tool Definition Example"
+```python
+import docetl
 
-    === "YAML"
+@docetl.tool
+def lookup_sla(customer_tier: str) -> dict[str, str | int]:
+    """Return support entitlements for a customer tier."""
+    return {
+        "enterprise": {"response_hours": 1, "escalation": "page-on-call"},
+        "growth": {"response_hours": 4, "escalation": "queue-lead"},
+        "free": {"response_hours": 48, "escalation": "self-serve"},
+    }.get(customer_tier.lower(), {"response_hours": 24, "escalation": "standard"})
 
-        ```yaml
-        tools:
-        - required: true
-            code: |
-            def count_words(text):
-                return {"word_count": len(text.split())}
-            function:
-            name: count_words
-            description: Count the number of words in a text string.
-            parameters:
-                type: object
-                properties:
-                text:
-                    type: string
-                required:
-                - text
-        ```
+agent = docetl.Agent(tools=[lookup_sla], max_turns=5, max_tool_calls=3)
 
-    === "Python"
+frame = frame.map(
+    prompt=(
+        "Use lookup_sla to classify this ticket and explain the next action: "
+        "{{ input.ticket }} / tier={{ input.customer_tier }}"
+    ),
+    output={"schema": {"priority": "str", "next_action": "str"}},
+    model="azure/gpt-4o-mini",
+    agent=agent,
+)
+```
 
-        ```python
-        # Pass via the tools= kwarg on a map call
-        tools = [
-            {
-                "required": True,
-                "code": """def count_words(text):
-            return {"word_count": len(text.split())}""",
-                "function": {
-                    "name": "count_words",
-                    "description": "Count the number of words in a text string.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"text": {"type": "string"}},
-                        "required": ["text"],
-                    },
-                },
-            }
-        ]
-        ```
+Plain Python tools execute as trusted Python in your process. OpenAI Agents SDK
+tools, including sandbox/native tools where supported by the SDK backend, can be
+passed through in Python agent configs. Agent configs are Python-only and cannot
+be exported to YAML.
 
-!!! warning
-
-    Tool use and gleaning cannot be used simultaneously.
+See the [Python API reference](../api-reference/python.md#tool-equipped-mapfilterreduce)
+for the full API and the
+[Tool-Equipped Agents tutorial](../examples/tool-equipped-research-agents.md) for
+a map/reduce example with web search, hosted shell, and specialist subagents.
 
 ### Input Truncation
 

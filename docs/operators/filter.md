@@ -108,6 +108,43 @@ flowchart LR
 
 See [map optional parameters](./map.md#optional-parameters) for additional configuration options, including `batch_prompt` and `max_batch_size`.
 
+### Tool-equipped filter agents
+
+In Python, `filter` supports `agent=docetl.Agent(...)` just like `map`. The
+filter agent can call tools over multiple turns, then returns the filter's
+single boolean output field. DocETL drops that boolean field from kept rows.
+
+```python
+import docetl
+
+@docetl.tool
+def has_active_legal_hold(account_id: str) -> bool:
+    """Return whether an account is currently under legal hold."""
+    return account_id in {"acct_1042", "acct_7788", "acct_9910"}
+
+agent = docetl.Agent(tools=[has_active_legal_hold], max_turns=5, max_tool_calls=3)
+
+frame = frame.filter(
+    prompt=(
+        "Keep only records that require compliance review. Use "
+        "has_active_legal_hold for account {{ input.account_id }} and consider "
+        "the event text: {{ input.event_text }}"
+    ),
+    output={"schema": {"keep": "bool"}},
+    model="azure/gpt-4o-mini",
+    agent=agent,
+)
+```
+
+Agent configs are Python-only and cannot be exported to YAML. Filters with
+`agent=` cannot currently be combined with `cascade`, because cascades use a
+separate proxy/oracle execution path.
+
+See the [Python API reference](../api-reference/python.md#tool-equipped-mapfilterreduce)
+for the full API and the
+[Tool-Equipped Agents tutorial](../examples/tool-equipped-research-agents.md) for
+an end-to-end tool-equipped pipeline.
+
 ### Model Cascade (cost reduction)
 
 A `cascade` block runs a cheap proxy model on all items first and only escalates uncertain cases to the expensive oracle model, with a statistical quality guarantee.

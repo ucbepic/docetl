@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from pyrate_limiter import BucketFullException, LimiterDelayException
 from rich.panel import Panel
 
+from docetl.agents import get_agent_tool_names
 from docetl.console import get_console
 from docetl.dataset import DataLoader, create_parsing_tool_map
 from docetl.display import format_execution_summary, format_query_plan
@@ -400,9 +401,11 @@ class DSLRunner:
         except KeyError:
             raise ValueError(f"Operation '{op_name}' not found in configuration.")
 
-    def list_pipeline_operations(self) -> list[tuple[str, str, str, str | None]]:
+    def list_pipeline_operations(
+        self,
+    ) -> list[tuple[str, str, str, str | None, list[str]]]:
         ops_by_name = self.pipeline.ops_by_name
-        ops: list[tuple[str, str, str, str | None]] = []
+        ops: list[tuple[str, str, str, str | None, list[str]]] = []
         for step in self.pipeline.steps:
             for entry in step.operations:
                 op_name = op_ref_name(entry)
@@ -411,7 +414,10 @@ class DSLRunner:
                 if op_type in ("scan", "step_boundary"):
                     continue
                 model = getattr(typed_op, "model", None) or self.default_model
-                ops.append((step.name, f"{step.name}/{op_name}", op_type, model))
+                agent_tools = get_agent_tool_names(getattr(typed_op, "agent", None))
+                ops.append(
+                    (step.name, f"{step.name}/{op_name}", op_type, model, agent_tools)
+                )
         return ops
 
     def _should_use_tui(self) -> bool:

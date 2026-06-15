@@ -23,6 +23,7 @@ class OpState:
     name: str
     op_type: str
     model: str | None = None
+    agent_tools: list[str] = field(default_factory=list)
 
     status: OpStatus = "queued"
     total: int | None = None  # total input docs (None until known)
@@ -164,6 +165,7 @@ class RunState:
                     "name": op.name,
                     "type": op.op_type,
                     "model": op.model,
+                    "agent_tools": op.agent_tools,
                     "status": op.status,
                     "phase": op.phase,
                     "total": op.total,

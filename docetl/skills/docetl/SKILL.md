@@ -228,6 +228,49 @@ print(f"Cost: ${pipeline.total_cost:.4f}")
 
 All operation parameters are the same between YAML and Python — just pass them as keyword arguments (e.g., `validate=["len(output['items']) >= 1"]`, `fold_prompt="..."`, `fold_batch_size=100`).
 
+### Tool-equipped agents (Python API only)
+
+Use `agent=docetl.Agent(...)` on `.map()`, `.filter()`, or `.reduce()` when an operation needs tools before returning structured output:
+
+```python
+@docetl.tool
+def lookup_sla(customer_tier: str) -> dict[str, str | int]:
+    """Return support entitlements for a customer tier."""
+    return {
+        "enterprise": {"response_hours": 1, "escalation": "page-on-call"},
+        "growth": {"response_hours": 4, "escalation": "queue-lead"},
+        "free": {"response_hours": 48, "escalation": "self-serve"},
+    }.get(customer_tier.lower(), {"response_hours": 24, "escalation": "standard"})
+
+agent = docetl.Agent(tools=[lookup_sla], max_turns=5, max_tool_calls=3)
+rows = (
+    docetl.from_list([{"ticket": "Production API latency is above SLO", "customer_tier": "enterprise"}])
+    .map(
+        prompt="Use lookup_sla to classify this ticket: {{ input.ticket }} / {{ input.customer_tier }}",
+        output={"schema": {"priority": "str", "next_action": "str"}},
+        model="azure/gpt-4o-mini",
+        agent=agent,
+    )
+    .collect()
+)
+```
+
+Key points:
+- Agents are **Python-only**; do not put `agent` configs in YAML and do not export them with `.to_yaml()` / `.to_python()`.
+- The operation `model=` still selects the model. Python tools wrapped with `@docetl.tool` are the most provider-portable path through LiteLLM-compatible models.
+- OpenAI-hosted tools (`WebSearchTool`, hosted `ShellTool`, `docetl.tools.Sandbox.create(...)`) require an OpenAI hosted-tool path. `docetl.tools.Sandbox.create(...)` creates a persistent OpenAI hosted container; `sandbox.bash()` returns a shell tool bound to that container.
+- Specialist subagents can be exposed as manager-agent tools with `specialist.as_tool(name=..., description=...)`.
+- For richer examples and provider caveats, read:
+  - `docs/api-reference/python.md#tool-equipped-mapfilterreduce`
+  - `docs/operators/map.md#tool-equipped-map-agents`
+  - `docs/operators/filter.md#tool-equipped-filter-agents`
+  - `docs/operators/reduce.md#tool-equipped-reduce-agents`
+  - `docs/examples/tool-equipped-research-agents.md`
+  - OpenAI Agents docs: https://developers.openai.com/api/docs/guides/agents
+  - OpenAI tools docs: https://openai.github.io/openai-agents-python/tools/
+  - OpenAI sandbox docs: https://developers.openai.com/api/docs/guides/agents/sandboxes
+  - OpenAI orchestration docs: https://developers.openai.com/api/docs/guides/agents/orchestration
+
 ### Key Configuration
 
 - **default_model**: Use `gpt-5-nano` or `gpt-5-mini` for extraction/map operations

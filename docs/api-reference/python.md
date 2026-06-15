@@ -100,7 +100,7 @@ frame.map(
 | `validate` | `list[str \| callable]` | `None` | Validators: expression strings over `output`, or callables taking the output dict (callables can't be exported to YAML) |
 | `num_retries_on_validate_failure` | `int` | `None` | Retries on validation failure |
 | `sample` | `int` | `None` | Process only N documents |
-| `tools` | `list[dict]` | `None` | Tool definitions for function calling |
+| `agent` | `docetl.Agent` | `None` | Tool-equipped agent using the OpenAI Agents SDK |
 | `drop_keys` | `list[str]` | `None` | Keys to remove from output |
 | `timeout` | `int` | `None` | Timeout per LLM call (seconds) |
 | `max_batch_size` | `int` | `None` | Batch size for batch processing |
@@ -126,6 +126,7 @@ frame.filter(
 | `output` | `dict` | — | Schema with one boolean field |
 | `model` | `str` | `None` | Override default model |
 | `validate` | `list[str \| callable]` | `None` | Validators: expression strings or callables over the output dict |
+| `agent` | `docetl.Agent` | `None` | Tool-equipped agent using the OpenAI Agents SDK |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
 | `cascade` | `dict` | `None` | [Model cascade](../optimization/cascades.md): run a cheap proxy (chat or embedding model) on all items and escalate only uncertain ones, with a statistical guarantee. Also available on `resolve` and `equijoin`. |
 
@@ -160,7 +161,119 @@ frame.reduce(
 | `merge_prompt` | `str` | `None` | Prompt for merging fold results |
 | `pass_through` | `bool` | `None` | Pass through non-reduced keys |
 | `associative` | `bool` | `None` | Enable parallel reduction |
+| `agent` | `docetl.Agent` | `None` | Tool-equipped agent using the OpenAI Agents SDK |
 | `retriever` | `Retriever` | `None` | Retriever for context augmentation |
+
+#### Tool-equipped map/filter/reduce
+
+Use `docetl.Agent` when an operation should call tools over multiple turns
+before returning DocETL's structured output. DocETL adapts Python functions into
+OpenAI Agents SDK tools and routes the operation's LiteLLM model through the
+SDK's LiteLLM integration.
+
+```python
+import docetl
+
+@docetl.tool
+def lookup_sla(customer_tier: str) -> dict[str, str | int]:
+    """Return support entitlements for a customer tier."""
+    return {
+        "enterprise": {"response_hours": 1, "escalation": "page-on-call"},
+        "growth": {"response_hours": 4, "escalation": "queue-lead"},
+        "free": {"response_hours": 48, "escalation": "self-serve"},
+    }.get(customer_tier.lower(), {"response_hours": 24, "escalation": "standard"})
+
+agent = docetl.Agent(tools=[lookup_sla], max_turns=5, max_tool_calls=3)
+
+rows = (
+    docetl.from_list([
+        {
+            "ticket": "Production API latency is above the SLO.",
+            "customer_tier": "enterprise",
+        }
+    ])
+    .map(
+        prompt=(
+            "Use lookup_sla to classify this ticket and explain the next action: "
+            "{{ input.ticket }} / tier={{ input.customer_tier }}"
+        ),
+        output={"schema": {"priority": "str", "next_action": "str"}},
+        model="azure/gpt-4o-mini",
+        agent=agent,
+    )
+    .collect()
+)
+```
+
+The model is still specified on the operation (`model=`) or through
+`docetl.default_model`; use LiteLLM model names such as `azure/gpt-4o-mini`,
+`anthropic/...`, or `together_ai/...`. The selected model/provider must work
+with the OpenAI Agents SDK LiteLLM integration and the requested tools. Plain
+Python function tools execute as trusted Python in your process; OpenAI Agents
+SDK sandbox/native tools may provide isolation where that SDK/backend supports
+it. Agent configs are Python-only and cannot be exported to YAML. See OpenAI's
+[Agents SDK guide](https://developers.openai.com/api/docs/guides/agents) and
+[tools guide](https://openai.github.io/openai-agents-python/tools/) for hosted
+tool behavior.
+
+Agents can also expose specialist agents as tools. Use this when a manager agent
+should keep ownership of the DocETL output while delegating a bounded task:
+
+```python
+specialist = docetl.Agent(
+    instructions="Extract numeric evidence from the supplied text.",
+    max_turns=4,
+)
+
+manager = docetl.Agent(
+    tools=[
+        specialist.as_tool(
+            name="extract_numeric_evidence",
+            description="Extract numeric evidence for the manager agent.",
+        )
+    ],
+    max_turns=6,
+)
+```
+
+The specialist uses the same operation-level LiteLLM model as the manager unless
+you pass an SDK-native tool object with its own model configuration. This follows
+OpenAI's
+[agents-as-tools orchestration pattern](https://developers.openai.com/api/docs/guides/agents/orchestration).
+
+For a persistent shell/sandbox filesystem on OpenAI, create a hosted container
+once and bind shell tools to it:
+
+```python
+sandbox = docetl.tools.Sandbox.create(
+    name="docetl-research",
+    network="disabled",
+    memory_limit="1g",
+)
+bash = sandbox.bash()
+
+agent = docetl.Agent(
+    tools=[bash],
+    max_turns=4,
+    max_tool_calls=6,
+)
+```
+
+Reuse `bash` across a manager and its specialist subagents when they should read
+and write the same hosted filesystem. If you only need an ephemeral shell tool,
+use `docetl.tools.bash(...)`, which uses `container_auto`. Pass durable data
+between DocETL operations through output schemas, not only through hidden
+sandbox files.
+
+`docetl.tools.Sandbox.create(...)` is OpenAI-specific: it calls the OpenAI
+Containers API and returns shell tools using `container_reference`. It is not
+portable to Claude, Together, or other LiteLLM providers. For provider-portable
+tooling, use `@docetl.tool` Python functions, MCP tools, or provider-native SDK
+tools. See OpenAI's
+[sandbox agents guide](https://developers.openai.com/api/docs/guides/agents/sandboxes).
+
+For an end-to-end example, see the
+[Tool-Equipped Agents tutorial](../examples/tool-equipped-research-agents.md).
 
 #### `.resolve()`
 

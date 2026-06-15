@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, create_model
 
-from docetl.agents import Agent, Tool, as_tool, normalize_agent
+from docetl.agents import Agent, AgentTool, Tool, as_tool, normalize_agent
 
 
 class AgentExecutionError(Exception):
@@ -81,7 +81,17 @@ async def _run_openai_agent_async(
             "`openai-agents[litellm]` to use docetl.Agent."
         ) from exc
     tool_call_counter = {"count": 0}
-    tools = _build_sdk_tools(agent, tool_call_counter)
+    tools = _build_sdk_tools(
+        agent=agent,
+        counter=tool_call_counter,
+        model=model,
+        op_type=op_type,
+        system_prompt=system_prompt,
+        litellm_completion_kwargs=litellm_completion_kwargs,
+        openai_agent_cls=OpenAIAgent,
+        model_settings_cls=ModelSettings,
+        litellm_model_cls=LitellmModel,
+    )
     output_type = _create_output_model(output_schema, scratchpad is not None)
     instructions = _build_agent_instructions(system_prompt, agent, output_schema)
     model_settings = _build_model_settings(
@@ -110,14 +120,87 @@ async def _run_openai_agent_async(
     return output, cost
 
 
-def _build_sdk_tools(agent: Agent, counter: dict[str, int]) -> list[Any]:
+def _build_sdk_tools(
+    *,
+    agent: Agent,
+    counter: dict[str, int],
+    model: str,
+    op_type: str,
+    system_prompt: str,
+    litellm_completion_kwargs: dict[str, Any],
+    openai_agent_cls: type[Any],
+    model_settings_cls: type[Any],
+    litellm_model_cls: type[Any],
+) -> list[Any]:
     tools: list[Any] = []
     for tool_item in agent.tools:
+        if isinstance(tool_item, AgentTool):
+            tools.append(
+                _build_agent_tool(
+                    agent_tool=tool_item,
+                    model=model,
+                    op_type=op_type,
+                    system_prompt=system_prompt,
+                    litellm_completion_kwargs=litellm_completion_kwargs,
+                    openai_agent_cls=openai_agent_cls,
+                    model_settings_cls=model_settings_cls,
+                    litellm_model_cls=litellm_model_cls,
+                )
+            )
+            continue
         if isinstance(tool_item, Tool) or callable(tool_item):
             tools.append(_build_function_tool(as_tool(tool_item), agent, counter))
             continue
         tools.append(tool_item)
     return tools
+
+
+def _build_agent_tool(
+    *,
+    agent_tool: AgentTool,
+    model: str,
+    op_type: str,
+    system_prompt: str,
+    litellm_completion_kwargs: dict[str, Any],
+    openai_agent_cls: type[Any],
+    model_settings_cls: type[Any],
+    litellm_model_cls: type[Any],
+) -> Any:
+    subagent = agent_tool.agent
+    subagent_counter = {"count": 0}
+    subagent_tools = _build_sdk_tools(
+        agent=subagent,
+        counter=subagent_counter,
+        model=model,
+        op_type=f"{op_type}_{agent_tool.name}",
+        system_prompt=system_prompt,
+        litellm_completion_kwargs=litellm_completion_kwargs,
+        openai_agent_cls=openai_agent_cls,
+        model_settings_cls=model_settings_cls,
+        litellm_model_cls=litellm_model_cls,
+    )
+    instructions = _build_subagent_instructions(system_prompt, agent_tool)
+    output_type = (
+        _create_output_model(agent_tool.output_schema, False)
+        if agent_tool.output_schema
+        else None
+    )
+    sdk_agent = openai_agent_cls(
+        name=f"docetl_{op_type}_{agent_tool.name}",
+        instructions=instructions,
+        model=litellm_model_cls(model=model),
+        tools=subagent_tools,
+        output_type=output_type,
+        model_settings=_build_model_settings(
+            model_settings_cls, subagent, litellm_completion_kwargs
+        ),
+    )
+    return sdk_agent.as_tool(
+        tool_name=agent_tool.name,
+        tool_description=agent_tool.description,
+        max_turns=agent_tool.max_turns or subagent.max_turns,
+        run_config=_build_run_config(subagent),
+    )
 
 
 def _build_function_tool(tool: Tool, agent: Agent, counter: dict[str, int]) -> Any:
@@ -196,6 +279,28 @@ def _build_agent_instructions(
         "You are running inside a DocETL operation. Use the available tools when "
         "they help answer the user's task. Return only the final structured "
         f"output matching this DocETL schema: {schema_text}."
+        f"{custom}"
+    )
+
+
+def _build_subagent_instructions(system_prompt: str, agent_tool: AgentTool) -> str:
+    custom = (
+        f"\n\nSpecialist instructions:\n{agent_tool.agent.instructions}"
+        if agent_tool.agent.instructions
+        else ""
+    )
+    schema_text = (
+        "\n\nReturn output matching this JSON schema: "
+        + json.dumps(agent_tool.output_schema, sort_keys=True)
+        if agent_tool.output_schema
+        else ""
+    )
+    return (
+        f"{system_prompt}\n\n"
+        "You are a specialist agent invoked as a tool inside a DocETL operation. "
+        "Complete the bounded task from the manager agent and return only the "
+        "useful result for that task."
+        f"{schema_text}"
         f"{custom}"
     )
 

@@ -5,7 +5,7 @@ import pytest
 import docetl
 import docetl.operations.utils.api as api_mod
 from docetl.display import format_query_plan
-from docetl.operations.utils.openai_agents_runner import AgentResult
+from docetl.operations.utils.openai_agents_runner import AgentResult, _build_sdk_tools
 
 
 def test_tool_decorator_builds_json_schema() -> None:
@@ -52,6 +52,31 @@ def test_agent_tools_are_visible_in_query_plan() -> None:
     assert "lookup_city" in plan
 
 
+def test_subagent_tool_is_visible_in_query_plan() -> None:
+    specialist = docetl.Agent(instructions="Summarize company evidence.")
+    manager = docetl.Agent(
+        tools=[
+            specialist.as_tool(
+                name="summarize_evidence",
+                description="Summarize evidence for one company.",
+            )
+        ]
+    )
+    frame = docetl.from_list([{"company": "NVIDIA"}]).map(
+        prompt="Research {{ input.company }}",
+        output={"schema": {"summary": "str"}},
+        agent=manager,
+    )
+    runner = frame._build_runner()
+    _, plan = format_query_plan(
+        runner.last_op_container,
+        runner.op_container_map,
+        default_model=runner.default_model,
+    )
+    assert "agent tools" in plan
+    assert "summarize_evidence" in plan
+
+
 def test_agent_tools_are_visible_in_progress_state() -> None:
     @docetl.tool
     def lookup_city(city: str) -> dict[str, str]:
@@ -66,6 +91,46 @@ def test_agent_tools_are_visible_in_progress_state() -> None:
     runner = frame._build_runner()
     operation = runner.list_pipeline_operations()[0]
     assert operation[-1] == ["lookup_city"]
+
+
+def test_agent_as_tool_builds_sdk_function_tool() -> None:
+    from agents import Agent as OpenAIAgent
+    from agents import ModelSettings
+    from agents.extensions.models.litellm_model import LitellmModel
+
+    @docetl.tool
+    def extract_numbers(text: str) -> list[int]:
+        """Extract numbers from text."""
+        return [int(token) for token in text.split() if token.isdigit()]
+
+    specialist = docetl.Agent(
+        tools=[extract_numbers],
+        max_turns=4,
+        max_tool_calls=3,
+        instructions="Extract numeric evidence.",
+    )
+    manager = docetl.Agent(
+        tools=[
+            specialist.as_tool(
+                name="extract_numeric_evidence",
+                description="Extract numeric evidence from a note.",
+            )
+        ]
+    )
+    tools = _build_sdk_tools(
+        agent=manager,
+        counter={"count": 0},
+        model="gpt-4o-mini",
+        op_type="map",
+        system_prompt="",
+        litellm_completion_kwargs={},
+        openai_agent_cls=OpenAIAgent,
+        model_settings_cls=ModelSettings,
+        litellm_model_cls=LitellmModel,
+    )
+    assert len(tools) == 1
+    assert tools[0].name == "extract_numeric_evidence"
+    assert tools[0].description == "Extract numeric evidence from a note."
 
 
 def test_agentic_map_operation(monkeypatch) -> None:

@@ -52,6 +52,23 @@ class Agent:
     model_settings: dict[str, Any] = field(default_factory=dict)
     run_config: dict[str, Any] = field(default_factory=dict)
 
+    def as_tool(
+        self,
+        *,
+        name: str,
+        description: str,
+        output_schema: JsonSchema | None = None,
+        max_turns: int | None = None,
+    ) -> AgentTool:
+        """Expose this agent as a specialist tool for another agent."""
+        return AgentTool(
+            agent=self,
+            name=name,
+            description=description,
+            output_schema=output_schema,
+            max_turns=max_turns,
+        )
+
     def cache_identity(self) -> dict[str, Any]:
         """Return a stable identity for caching and hashing operation configs."""
         return {
@@ -65,6 +82,28 @@ class Agent:
             "model_settings": self.model_settings,
             "run_config": self.run_config,
             "tools": [_get_tool_identity(tool_item) for tool_item in self.tools],
+        }
+
+
+@dataclass(frozen=True)
+class AgentTool:
+    """A specialist agent exposed as a tool to a manager agent."""
+
+    agent: Agent
+    name: str
+    description: str
+    output_schema: JsonSchema | None = None
+    max_turns: int | None = None
+
+    def cache_identity(self) -> dict[str, Any]:
+        """Return a stable identity for caching and hashing operation configs."""
+        return {
+            "kind": "docetl_agent_tool",
+            "name": self.name,
+            "description": self.description,
+            "output_schema": self.output_schema,
+            "max_turns": self.max_turns,
+            "agent": self.agent.cache_identity(),
         }
 
 
@@ -226,6 +265,8 @@ def _get_tool_identity(tool_item: Any) -> Any:
 
 
 def _get_tool_name(tool_item: Any) -> str:
+    if isinstance(tool_item, AgentTool):
+        return tool_item.name
     if isinstance(tool_item, Tool):
         return tool_item.name
     if callable(tool_item):

@@ -5,9 +5,10 @@ operations need tools over multiple turns. We will build a market-research
 pipeline:
 
 1. A **map agent** researches each company with the OpenAI Agents SDK
-   `WebSearchTool` and writes a compact evidence file.
+   `WebSearchTool`, calls a specialist evidence subagent, and writes a compact
+   evidence file.
 2. A **reduce agent** groups companies by sector, reads those evidence files,
-   and writes a sector brief.
+   calls a specialist editor subagent, and writes a sector brief.
 
 This pattern is useful when the work cannot be done from the input row alone.
 The model has to search for current facts, persist evidence, and then synthesize
@@ -118,24 +119,56 @@ companies = [
     },
 ]
 
+evidence_specialist = docetl.Agent(
+    instructions=(
+        "You are an evidence specialist. Given raw search findings, produce "
+        "compact JSON-ready evidence with source URLs, short factual claims, "
+        "and no hype."
+    ),
+    max_turns=4,
+)
+
+brief_editor = docetl.Agent(
+    instructions=(
+        "You are a memo editor. Tighten the draft into a decision-ready brief "
+        "with concise bullets, cited URLs, and explicit business implications."
+    ),
+    max_turns=4,
+)
+
 map_agent = docetl.Agent(
-    tools=[WebSearchTool(), write_json_file],
+    tools=[
+        WebSearchTool(),
+        evidence_specialist.as_tool(
+            name="extract_evidence",
+            description="Turn raw search findings into compact cited evidence.",
+        ),
+        write_json_file,
+    ],
     max_turns=8,
     max_tool_calls=10,
     instructions=(
         "Use web search for current sources. Prefer primary sources when "
-        "available. Save compact evidence with write_json_file, including "
-        "source URLs and the specific signals you found."
+        "available. Call extract_evidence before write_json_file. Save compact "
+        "evidence with source URLs and the specific signals you found."
     ),
 )
 
 reduce_agent = docetl.Agent(
-    tools=[read_json_file, write_markdown_file],
+    tools=[
+        read_json_file,
+        brief_editor.as_tool(
+            name="edit_sector_brief",
+            description="Edit a sector brief for clarity and decision usefulness.",
+        ),
+        write_markdown_file,
+    ],
     max_turns=8,
     max_tool_calls=12,
     instructions=(
-        "Read every evidence file in the group. Write a concise markdown brief "
-        "with cited URLs and clear implications for a business reader."
+        "Read every evidence file in the group. Draft the brief, call "
+        "edit_sector_brief, then write the final markdown brief with cited URLs "
+        "and clear implications for a business reader."
     ),
 )
 
@@ -147,8 +180,9 @@ rows = (
         Research {{ input.company }} for this question:
         {{ input.question }}
 
-        Use web search to find recent sources, then write_json_file to save
-        compact evidence. Return the path and the most important signals.
+        Use web search to find recent sources, call extract_evidence to condense
+        findings, then write_json_file to save compact evidence. Return the path
+        and the most important signals.
         """,
         output={
             "schema": {
@@ -173,7 +207,8 @@ rows = (
         - {{ item.company }}: {{ item.evidence_file }}
         {% endfor %}
 
-        Then write the markdown brief with write_markdown_file.
+        Draft the sector brief, call edit_sector_brief, then write the markdown
+        brief with write_markdown_file.
         """,
         output={
             "schema": {
@@ -194,14 +229,18 @@ print(json.dumps(rows, indent=2))
 
 ## What the tools do
 
-The map operation's agent has two tools:
+The map operation's manager agent has three tools:
 
 - `WebSearchTool()` finds current sources through the OpenAI Agents SDK.
+- `extract_evidence(...)` is a specialist subagent exposed with
+  `evidence_specialist.as_tool(...)`.
 - `write_json_file(...)` persists the evidence that reduce will consume.
 
-The reduce operation's agent has file tools:
+The reduce operation's manager agent has three tools:
 
 - `read_json_file(...)` loads every evidence file in the sector group.
+- `edit_sector_brief(...)` is a specialist subagent exposed with
+  `brief_editor.as_tool(...)`.
 - `write_markdown_file(...)` writes a human-readable sector brief.
 
 ## Why use tools here?

@@ -201,6 +201,29 @@ Python function tools execute as trusted Python in your process; OpenAI Agents
 SDK sandbox/native tools may provide isolation where that SDK/backend supports
 it. Agent configs are Python-only and cannot be exported to YAML.
 
+Agents can also expose specialist agents as tools. Use this when a manager agent
+should keep ownership of the DocETL output while delegating a bounded task:
+
+```python
+specialist = docetl.Agent(
+    instructions="Extract numeric evidence from the supplied text.",
+    max_turns=4,
+)
+
+manager = docetl.Agent(
+    tools=[
+        specialist.as_tool(
+            name="extract_numeric_evidence",
+            description="Extract numeric evidence for the manager agent.",
+        )
+    ],
+    max_turns=6,
+)
+```
+
+The specialist uses the same operation-level LiteLLM model as the manager unless
+you pass an SDK-native tool object with its own model configuration.
+
 #### `.resolve()`
 
 Deduplicates entities by pairwise LLM comparison.

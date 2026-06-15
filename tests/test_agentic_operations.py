@@ -137,6 +137,7 @@ def test_agent_as_tool_builds_sdk_function_tool() -> None:
     from agents import Agent as OpenAIAgent
     from agents import ModelSettings
     from agents.extensions.models.litellm_model import LitellmModel
+    from agents.models.openai_responses import OpenAIResponsesModel
 
     @docetl.tool
     def extract_numbers(text: str) -> list[int]:
@@ -167,6 +168,8 @@ def test_agent_as_tool_builds_sdk_function_tool() -> None:
         openai_agent_cls=OpenAIAgent,
         model_settings_cls=ModelSettings,
         litellm_model_cls=LitellmModel,
+        openai_responses_model_cls=OpenAIResponsesModel,
+        openai_client=None,
     )
     assert len(tools) == 1
     assert tools[0].name == "extract_numeric_evidence"
@@ -179,6 +182,31 @@ def test_bash_tool_helper_builds_hosted_shell_tool() -> None:
     assert shell_tool.environment["type"] == "container_auto"
     assert shell_tool.environment["network_policy"] == {"type": "disabled"}
     assert shell_tool.environment["memory_limit"] == "1g"
+
+
+def test_hosted_tools_reject_non_openai_model() -> None:
+    from agents import WebSearchTool
+    from agents.extensions.models.litellm_model import LitellmModel
+    from agents.models.openai_responses import OpenAIResponsesModel
+
+    from docetl.operations.utils.openai_agents_runner import _build_sdk_model
+
+    with pytest.raises(AgentExecutionError, match="OpenAI hosted tools require"):
+        _build_sdk_model(
+            agent=docetl.Agent(tools=[WebSearchTool()]),
+            model="anthropic/claude-3-5-sonnet-20241022",
+            litellm_model_cls=LitellmModel,
+            openai_responses_model_cls=OpenAIResponsesModel,
+            openai_client=object(),
+        )
+    with pytest.raises(AgentExecutionError, match="non-empty"):
+        _build_sdk_model(
+            agent=docetl.Agent(tools=[WebSearchTool()]),
+            model="openai/",
+            litellm_model_cls=LitellmModel,
+            openai_responses_model_cls=OpenAIResponsesModel,
+            openai_client=object(),
+        )
 
 
 def test_sandbox_bash_uses_container_reference() -> None:
@@ -226,13 +254,30 @@ def test_sandbox_create_builds_persistent_container(monkeypatch) -> None:
     ]
 
 
+def test_sandbox_create_default_expiration_is_openai_compatible(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class FakeContainers:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(id="cntr_created")
+
+    class FakeOpenAI:
+        def __init__(self):
+            self.containers = FakeContainers()
+
+    import openai
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    docetl.tools.Sandbox.create(name="docetl-test")
+    assert calls[0]["expires_after"] == {"anchor": "last_active_at", "minutes": 20}
+
+
 @pytest.mark.skipif(
     not os.environ.get("OPENAI_API_KEY"),
     reason="needs OPENAI_API_KEY for live OpenAI container creation",
 )
 def test_live_openai_sandbox_create_and_reference() -> None:
-    from openai import OpenAI
-
     sandbox = docetl.tools.Sandbox.create(
         name="docetl-live-test",
         network="disabled",
@@ -247,7 +292,7 @@ def test_live_openai_sandbox_create_and_reference() -> None:
             "container_id": sandbox.container_id,
         }
     finally:
-        OpenAI().containers.delete(sandbox.container_id)
+        sandbox.delete()
 
 
 def test_agentic_map_retries_invalid_schema(monkeypatch) -> None:

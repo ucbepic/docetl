@@ -12,6 +12,18 @@ from pydantic import BaseModel, create_model
 
 from docetl.agents import Agent, AgentTool, Tool, as_tool, normalize_agent
 
+_OPENAI_HOSTED_TOOL_TYPES = frozenset(
+    {
+        "CodeInterpreterTool",
+        "FileSearchTool",
+        "HostedMCPTool",
+        "ImageGenerationTool",
+        "ShellTool",
+        "ToolSearchTool",
+        "WebSearchTool",
+    }
+)
+
 
 class AgentExecutionError(Exception):
     """Raised when an agentic operation cannot complete successfully."""
@@ -75,11 +87,14 @@ async def _run_openai_agent_async(
         from agents import Agent as OpenAIAgent
         from agents import ModelSettings, Runner
         from agents.extensions.models.litellm_model import LitellmModel
+        from agents.models.openai_responses import OpenAIResponsesModel
+        from openai import AsyncOpenAI
     except ImportError as exc:
         raise AgentExecutionError(
             "Agentic operations require the OpenAI Agents SDK. Install "
             "`openai-agents[litellm]` to use docetl.Agent."
         ) from exc
+    openai_client = AsyncOpenAI() if _has_hosted_tool(agent) else None
     tool_call_counter = {"count": 0}
     tools = _build_sdk_tools(
         agent=agent,
@@ -91,16 +106,25 @@ async def _run_openai_agent_async(
         openai_agent_cls=OpenAIAgent,
         model_settings_cls=ModelSettings,
         litellm_model_cls=LitellmModel,
+        openai_responses_model_cls=OpenAIResponsesModel,
+        openai_client=openai_client,
     )
     output_type = _create_output_model(output_schema, scratchpad is not None)
     instructions = _build_agent_instructions(system_prompt, agent, output_schema)
     model_settings = _build_model_settings(
         ModelSettings, agent, litellm_completion_kwargs
     )
+    sdk_model = _build_sdk_model(
+        agent=agent,
+        model=model,
+        litellm_model_cls=LitellmModel,
+        openai_responses_model_cls=OpenAIResponsesModel,
+        openai_client=openai_client,
+    )
     sdk_agent = OpenAIAgent(
         name=f"docetl_{op_type}_agent",
         instructions=instructions,
-        model=LitellmModel(model=model),
+        model=sdk_model,
         tools=tools,
         output_type=output_type,
         model_settings=model_settings,
@@ -131,6 +155,8 @@ def _build_sdk_tools(
     openai_agent_cls: type[Any],
     model_settings_cls: type[Any],
     litellm_model_cls: type[Any],
+    openai_responses_model_cls: type[Any],
+    openai_client: Any | None,
 ) -> list[Any]:
     tools: list[Any] = []
     for tool_item in agent.tools:
@@ -145,6 +171,8 @@ def _build_sdk_tools(
                     openai_agent_cls=openai_agent_cls,
                     model_settings_cls=model_settings_cls,
                     litellm_model_cls=litellm_model_cls,
+                    openai_responses_model_cls=openai_responses_model_cls,
+                    openai_client=openai_client,
                 )
             )
             continue
@@ -165,6 +193,8 @@ def _build_agent_tool(
     openai_agent_cls: type[Any],
     model_settings_cls: type[Any],
     litellm_model_cls: type[Any],
+    openai_responses_model_cls: type[Any],
+    openai_client: Any | None,
 ) -> Any:
     subagent = agent_tool.agent
     subagent_counter = {"count": 0}
@@ -178,6 +208,8 @@ def _build_agent_tool(
         openai_agent_cls=openai_agent_cls,
         model_settings_cls=model_settings_cls,
         litellm_model_cls=litellm_model_cls,
+        openai_responses_model_cls=openai_responses_model_cls,
+        openai_client=openai_client,
     )
     instructions = _build_subagent_instructions(system_prompt, agent_tool)
     output_type = (
@@ -185,10 +217,17 @@ def _build_agent_tool(
         if agent_tool.output_schema
         else None
     )
+    sdk_model = _build_sdk_model(
+        agent=subagent,
+        model=model,
+        litellm_model_cls=litellm_model_cls,
+        openai_responses_model_cls=openai_responses_model_cls,
+        openai_client=openai_client,
+    )
     sdk_agent = openai_agent_cls(
         name=f"docetl_{op_type}_{agent_tool.name}",
         instructions=instructions,
-        model=litellm_model_cls(model=model),
+        model=sdk_model,
         tools=subagent_tools,
         output_type=output_type,
         model_settings=_build_model_settings(
@@ -305,6 +344,62 @@ def _build_subagent_instructions(system_prompt: str, agent_tool: AgentTool) -> s
         f"{schema_text}"
         f"{custom}"
     )
+
+
+def _build_sdk_model(
+    *,
+    agent: Agent,
+    model: str,
+    litellm_model_cls: type[Any],
+    openai_responses_model_cls: type[Any],
+    openai_client: Any | None,
+) -> Any:
+    if _has_direct_hosted_tool(agent):
+        openai_model = _normalize_openai_model_name(model)
+        if openai_client is None:
+            raise AgentExecutionError(
+                "OpenAI hosted tools require an OpenAI client, but none was created."
+            )
+        return openai_responses_model_cls(
+            model=openai_model,
+            openai_client=openai_client,
+        )
+    return litellm_model_cls(model=model)
+
+
+def _has_hosted_tool(agent: Agent) -> bool:
+    for tool_item in agent.tools:
+        if isinstance(tool_item, AgentTool):
+            if _has_hosted_tool(tool_item.agent):
+                return True
+            continue
+        if type(tool_item).__name__ in _OPENAI_HOSTED_TOOL_TYPES:
+            return True
+    return False
+
+
+def _has_direct_hosted_tool(agent: Agent) -> bool:
+    return any(
+        type(tool_item).__name__ in _OPENAI_HOSTED_TOOL_TYPES
+        for tool_item in agent.tools
+    )
+
+
+def _normalize_openai_model_name(model: str) -> str:
+    if model.startswith("openai/"):
+        openai_model = model.split("/", 1)[1]
+        if openai_model:
+            return openai_model
+        raise AgentExecutionError(
+            "OpenAI hosted tools require a non-empty OpenAI model name."
+        )
+    if "/" in model:
+        raise AgentExecutionError(
+            "OpenAI hosted tools require an OpenAI Responses-compatible model. "
+            f"Got LiteLLM model '{model}'. Use a plain OpenAI model name such as "
+            "'gpt-4o-mini', or remove hosted OpenAI tools for non-OpenAI providers."
+        )
+    return model
 
 
 def _build_model_settings(

@@ -24,7 +24,7 @@ class Sandbox:
         allowed_domains: list[str] | None = None,
         memory_limit: MemoryLimit | None = None,
         file_ids: list[str] | None = None,
-        expires_after_minutes: int | None = 60,
+        expires_after_minutes: int | None = 20,
     ) -> Sandbox:
         """Create a hosted container whose filesystem can be reused by tools."""
         try:
@@ -54,6 +54,17 @@ class Sandbox:
     def bash(self, *, name: str = "bash") -> Any:
         """Create a shell tool bound to this sandbox's persistent container."""
         return bash(name=name, container_id=self.container_id)
+
+    def delete(self) -> None:
+        """Delete the hosted container backing this sandbox."""
+        try:
+            from openai import OpenAI
+        except ImportError as exc:
+            raise ImportError(
+                "docetl.tools.Sandbox requires the OpenAI SDK. Install `openai` "
+                "or `openai-agents[litellm]` to delete hosted containers."
+            ) from exc
+        OpenAI().containers.delete(self.container_id)
 
 
 def bash(

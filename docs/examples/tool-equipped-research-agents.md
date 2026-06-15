@@ -34,6 +34,10 @@ export AZURE_API_VERSION="2024-12-01-preview"
 The model stays on each operation. For Azure OpenAI, use the LiteLLM deployment
 name, for example `model="azure/gpt-4o-mini"`.
 
+This example uses `gpt-5.5` because OpenAI hosted shell tools are not supported
+by every OpenAI model (for example, `gpt-4o-mini` currently rejects hosted
+`ShellTool` calls).
+
 !!! tip
 
     `WebSearchTool` and hosted `ShellTool` are
@@ -65,6 +69,7 @@ Save this as `tool_equipped_research_agents.py`.
 ```python
 from __future__ import annotations
 
+from contextlib import suppress
 import json
 
 from agents import WebSearchTool
@@ -108,26 +113,6 @@ companies = [
         "company": "Adyen",
         "sector": "payments",
         "question": "What recent product, partnership, or regulatory signals matter for enterprise payments teams?",
-    },
-    {
-        "company": "Block",
-        "sector": "payments",
-        "question": "What recent product, partnership, or regulatory signals matter for enterprise payments teams?",
-    },
-    {
-        "company": "Datadog",
-        "sector": "observability",
-        "question": "What recent product, platform, or demand signals matter for engineering leaders buying observability tools?",
-    },
-    {
-        "company": "New Relic",
-        "sector": "observability",
-        "question": "What recent product, platform, or demand signals matter for engineering leaders buying observability tools?",
-    },
-    {
-        "company": "Grafana Labs",
-        "sector": "observability",
-        "question": "What recent product, platform, or demand signals matter for engineering leaders buying observability tools?",
     },
     {
         "company": "CrowdStrike",
@@ -201,71 +186,74 @@ reduce_agent = docetl.Agent(
     ),
 )
 
-rows = (
-    docetl.from_list(companies)
-    .map(
-        name="research_company",
-        prompt="""
-        Research {{ input.company }} for this question:
-        {{ input.question }}
+try:
+    rows = (
+        docetl.from_list(companies)
+        .map(
+            name="research_company",
+            prompt="""
+            Research {{ input.company }} for this question:
+            {{ input.question }}
 
-        Find current sources, condense the evidence, and return structured
-        evidence for this company.
-        """,
-        output={
-            "schema": {
-                "company": "str",
-                "sector": "str",
-                "evidence_summary": "str",
-                "signal_score": "int",
-                "risks": "list[str]",
-                "source_urls": "list[str]",
-            }
-        },
-        model="gpt-4o-mini",
-        agent=map_agent,
-        validate=[
-            "0 <= output['signal_score'] <= 100",
-            "len(output['source_urls']) >= 1",
-        ],
+            Find current sources, condense the evidence, and return structured
+            evidence for this company.
+            """,
+            output={
+                "schema": {
+                    "company": "str",
+                    "sector": "str",
+                    "evidence_summary": "str",
+                    "signal_score": "int",
+                    "risks": "list[str]",
+                    "source_urls": "list[str]",
+                }
+            },
+            model="gpt-5.5",
+            agent=map_agent,
+            validate=[
+                "0 <= output['signal_score'] <= 100",
+                "len(output['source_urls']) >= 1",
+            ],
+        )
+        .reduce(
+            name="write_sector_brief",
+            reduce_key="sector",
+            prompt="""
+            You are writing a sector brief for {{ inputs[0].sector }}.
+
+            Company evidence:
+            {% for item in inputs %}
+            - {{ item.company }} (score {{ item.signal_score }}):
+              {{ item.evidence_summary }}
+              risks={{ item.risks }}
+              sources={{ item.source_urls }}
+            {% endfor %}
+
+            Rank the companies, synthesize the shared signals, and return a concise
+            markdown brief.
+            """,
+            output={
+                "schema": {
+                    "sector_summary": "str",
+                    "ranked_companies": "list[str]",
+                    "top_signals": "list[str]",
+                    "brief_markdown": "str",
+                    "source_urls": "list[str]",
+                }
+            },
+            model="gpt-5.5",
+            agent=reduce_agent,
+            validate=[
+                "len(output['ranked_companies']) >= 1",
+                "len(output['source_urls']) >= 1",
+            ],
+        )
+        .collect(max_threads=2)
     )
-    .reduce(
-        name="write_sector_brief",
-        reduce_key="sector",
-        prompt="""
-        You are writing a sector brief for {{ inputs[0].sector }}.
-
-        Company evidence:
-        {% for item in inputs %}
-        - {{ item.company }} (score {{ item.signal_score }}):
-          {{ item.evidence_summary }}
-          risks={{ item.risks }}
-          sources={{ item.source_urls }}
-        {% endfor %}
-
-        Rank the companies, synthesize the shared signals, and return a concise
-        markdown brief.
-        """,
-        output={
-            "schema": {
-                "sector_summary": "str",
-                "ranked_companies": "list[str]",
-                "top_signals": "list[str]",
-                "brief_markdown": "str",
-                "source_urls": "list[str]",
-            }
-        },
-        model="gpt-4o-mini",
-        agent=reduce_agent,
-        validate=[
-            "len(output['ranked_companies']) >= 1",
-            "len(output['source_urls']) >= 1",
-        ],
-    )
-    .collect(max_threads=2)
-)
-
-print(json.dumps(rows, indent=2))
+    print(json.dumps(rows, indent=2))
+finally:
+    with suppress(Exception):
+        sandbox.delete()
 ```
 
 ## What the tools do
@@ -331,33 +319,6 @@ frame = docetl.from_list(companies).filter(
 
 DocETL removes the `keep` field from rows that pass the filter, so downstream
 map/reduce steps see the original row shape.
-
-## How schema enforcement works
-
-For agent-backed operations, DocETL converts the operation's `output.schema` into
-an OpenAI Agents SDK `output_type`. The SDK asks the agent for that typed final
-output. DocETL then runs the normal operation validation path:
-
-- missing output fields fail type validation;
-- values must match the declared DocETL schema types;
-- any `validate=[...]` expressions must pass;
-- failed validation retries according to `num_retries_on_validate_failure`.
-
-The sandbox can contain scratch files, but the accepted DocETL result is the
-validated structured output.
-
-## Tuning tool budgets
-
-Use small budgets first:
-
-```python
-docetl.Agent(tools=[WebSearchTool(), bash], max_turns=4, max_tool_calls=6)
-```
-
-Increase `max_turns` when the agent needs more reasoning steps. Increase
-`max_tool_calls` when each item legitimately requires more sources or sandbox
-actions. The limits are per operation call, so map limits apply per row, filter
-limits apply per row, and reduce limits apply per group.
 
 ## Security notes
 

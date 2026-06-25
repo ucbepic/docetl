@@ -14,7 +14,6 @@ from litellm.utils import ModelResponse
 from pydantic import Field, field_validator, model_validator
 from tqdm import tqdm
 
-from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.code_operations import extract_eval_field_reads
 from docetl.operations.utils import (
@@ -42,9 +41,7 @@ class MapOperation(BaseOperation):
         optimize: bool | None = None
         recursively_optimize: bool | None = None
         sample_size: int | None = None
-        tools: list[dict[str, Any]] | None = (
-            None  # FIXME: Why isn't this using the Tool data class so validation works automatically?
-        )
+        agent: Any | None = None
         validation_rules: list[str | Callable] | None = Field(None, alias="validate")
         num_retries_on_validate_failure: int | None = None
         drop_keys: list[str] | None = None
@@ -95,32 +92,15 @@ class MapOperation(BaseOperation):
                     ) from e
             return v
 
-        @field_validator("tools")
-        def validate_tools(cls, v):
-            if v is not None:
-                for tool in v:
-                    try:
-                        tool_obj = Tool(**tool)
-                    except Exception:
-                        raise TypeError("Tool must be a dictionary")
-
-                    if not (tool_obj.code and tool_obj.function):
-                        raise ValueError(
-                            "Tool is missing required 'code' or 'function' key"
-                        )
-
-                    if not isinstance(tool_obj.function, ToolFunction):
-                        raise TypeError("'function' in tool must be a dictionary")
-
-                    for key in ["name", "description", "parameters"]:
-                        if not getattr(tool_obj.function, key):
-                            raise ValueError(
-                                f"Tool is missing required '{key}' in 'function'"
-                            )
-            return v
-
         @model_validator(mode="after")
         def validate_prompt_and_output_requirements(self):
+            if self.model_extra and "tools" in self.model_extra:
+                raise ValueError(
+                    "The legacy 'tools' map/filter option has been removed. "
+                    "Use agent=docetl.Agent(tools=[...]) in the Python API."
+                )
+            if self.agent is not None and self.gleaning is not None:
+                raise ValueError("Agentic operations cannot be combined with gleaning")
             # If drop_keys is not specified, both prompt and output must be present
             if not self.drop_keys:
                 if not self.prompt or not self.output:
@@ -464,7 +444,6 @@ Reference anchors:"""
                     self.runner.api.parse_llm_response(
                         response,
                         schema=self.config["output"]["schema"],
-                        tools=self.config.get("tools", None),
                         manually_fix_errors=self.manually_fix_errors,
                         use_structured_output=structured_mode,
                     )[0]
@@ -493,7 +472,6 @@ Reference anchors:"""
                 "map",
                 messages,
                 self.config["output"]["schema"],
-                tools=self.config.get("tools", None),
                 scratchpad=None,
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
@@ -512,6 +490,7 @@ Reference anchors:"""
                     "litellm_completion_kwargs", {}
                 ),
                 op_config=self.config,
+                agent_config=self.config.get("agent"),
             )
 
             if llm_result.validated:
@@ -524,7 +503,6 @@ Reference anchors:"""
                     outputs = self.runner.api.parse_llm_response(
                         llm_result.response,
                         schema=self.config["output"]["schema"],
-                        tools=self.config.get("tools", None),
                         manually_fix_errors=self.manually_fix_errors,
                         use_structured_output=structured_mode,
                     )
@@ -752,6 +730,12 @@ class ParallelMapOperation(BaseOperation):
                     raise ValueError("The 'prompts' list cannot be empty")
 
                 for i, prompt_config in enumerate(v):
+                    if "tools" in prompt_config:
+                        raise ValueError(
+                            "The legacy 'tools' prompt option has been removed. "
+                            "Use agent=docetl.Agent(tools=[...]) with map, filter, "
+                            "or reduce in the Python API."
+                        )
                     # Validate required keys exist
                     if "prompt" not in prompt_config:
                         raise ValueError(
@@ -918,14 +902,11 @@ class ParallelMapOperation(BaseOperation):
             if not model:
                 model = self.default_model
 
-            # Start of Selection
-            # If there are tools, we need to pass in the tools
             response = self.runner.api.call_llm(
                 model,
                 "parallel_map",
                 messages,
                 local_output_schema,
-                tools=prompt_config.get("tools", None),
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
                 gleaning_config=prompt_config.get("gleaning", None),
@@ -942,7 +923,6 @@ class ParallelMapOperation(BaseOperation):
             output = self.runner.api.parse_llm_response(
                 response.response,
                 schema=local_output_schema,
-                tools=prompt_config.get("tools", None),
                 manually_fix_errors=self.manually_fix_errors,
                 use_structured_output=structured_mode,
             )[0]

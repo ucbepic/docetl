@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape
 
+from docetl.agents import get_agent_tool_names
+
 if TYPE_CHECKING:
     from docetl.containers import OpContainer
 
@@ -66,6 +68,12 @@ def format_query_plan(
                     f"{guide}  [bright_white]{field}[/bright_white]"
                     f" [dim]:[/dim] {escape(str(field_type))}"
                 )
+
+        agent_tools = get_agent_tool_names(op.config.get("agent"))
+        if agent_tools:
+            lines.append(f"{guide}[dim]agent tools[/dim]")
+            for tool_name in agent_tools:
+                lines.append(f"{guide}  [bright_white]{escape(tool_name)}[/bright_white]")
 
         if op.config.get("cascade"):
             oracle_model = cascade_oracle_model(op.config, default_model)

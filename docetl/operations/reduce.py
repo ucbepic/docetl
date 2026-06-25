@@ -17,6 +17,7 @@ from typing import Any
 import jinja2
 import numpy as np
 from jinja2 import Template
+from litellm.utils import ModelResponse
 from pydantic import Field, field_validator, model_validator
 
 from docetl.operations.base import BaseOperation, Cardinality
@@ -67,6 +68,7 @@ class ReduceOperation(BaseOperation):
         verbose: bool | None = None
         timeout: int | None = None
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
+        agent: Any | None = None
         enable_observability: bool = False
         limit: int | None = Field(None, gt=0)
 
@@ -160,6 +162,8 @@ class ReduceOperation(BaseOperation):
 
         @model_validator(mode="after")
         def validate_complex_requirements(self):
+            if self.agent is not None and self.gleaning is not None:
+                raise ValueError("Agentic operations cannot be combined with gleaning")
             # Check dependencies between merge_prompt and fold_prompt
             if self.merge_prompt and not self.fold_prompt:
                 raise ValueError(
@@ -752,11 +756,15 @@ class ReduceOperation(BaseOperation):
             self.config.get("output", {}).get("mode")
             == OutputMode.STRUCTURED_OUTPUT.value
         )
-        output = self.runner.api.parse_llm_response(
-            response,
-            schema=self.config["output"]["schema"],
-            use_structured_output=structured_mode,
-        )[0]
+        output = (
+            self.runner.api.parse_llm_response(
+                response,
+                schema=self.config["output"]["schema"],
+                use_structured_output=structured_mode,
+            )[0]
+            if isinstance(response, ModelResponse)
+            else response
+        )
         # Enforce type validation against output schema
         is_types_valid, _errors = validate_output_types(
             output,
@@ -767,6 +775,20 @@ class ReduceOperation(BaseOperation):
         if self.runner.api.validate_output(self.config, output, self.console):
             return output, True
         return output, False
+
+    def _parse_reduce_response(self, response: Any) -> dict[str, Any]:
+        if not isinstance(response, ModelResponse):
+            return response
+        structured_mode = (
+            self.config.get("output", {}).get("mode")
+            == OutputMode.STRUCTURED_OUTPUT.value
+        )
+        return self.runner.api.parse_llm_response(
+            response,
+            schema=self.config["output"]["schema"],
+            manually_fix_errors=self.manually_fix_errors,
+            use_structured_output=structured_mode,
+        )[0]
 
     def _increment_fold(
         self,
@@ -829,6 +851,7 @@ class ReduceOperation(BaseOperation):
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
+            agent_config=self.config.get("agent"),
         )
 
         end_time = time.time()
@@ -836,16 +859,7 @@ class ReduceOperation(BaseOperation):
         fold_cost = response.total_cost
 
         if response.validated:
-            structured_mode = (
-                self.config.get("output", {}).get("mode")
-                == OutputMode.STRUCTURED_OUTPUT.value
-            )
-            folded_output = self.runner.api.parse_llm_response(
-                response.response,
-                schema=self.config["output"]["schema"],
-                manually_fix_errors=self.manually_fix_errors,
-                use_structured_output=structured_mode,
-            )[0]
+            folded_output = self._parse_reduce_response(response.response)
 
             folded_output.update(dict(zip(self.config["reduce_key"], key)))
             fold_cost = response.total_cost
@@ -905,6 +919,7 @@ class ReduceOperation(BaseOperation):
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
+            agent_config=self.config.get("agent"),
         )
 
         end_time = time.time()
@@ -912,16 +927,7 @@ class ReduceOperation(BaseOperation):
         merge_cost = response.total_cost
 
         if response.validated:
-            structured_mode = (
-                self.config.get("output", {}).get("mode")
-                == OutputMode.STRUCTURED_OUTPUT.value
-            )
-            merged_output = self.runner.api.parse_llm_response(
-                response.response,
-                schema=self.config["output"]["schema"],
-                manually_fix_errors=self.manually_fix_errors,
-                use_structured_output=structured_mode,
-            )[0]
+            merged_output = self._parse_reduce_response(response.response)
             merged_output.update(dict(zip(self.config["reduce_key"], key)))
             merge_cost = response.total_cost
             return merged_output, merge_prompt, merge_cost
@@ -1034,21 +1040,13 @@ class ReduceOperation(BaseOperation):
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
+            agent_config=self.config.get("agent"),
         )
 
         item_cost += response.total_cost
 
         if response.validated:
-            structured_mode = (
-                self.config.get("output", {}).get("mode")
-                == OutputMode.STRUCTURED_OUTPUT.value
-            )
-            output = self.runner.api.parse_llm_response(
-                response.response,
-                schema=self.config["output"]["schema"],
-                manually_fix_errors=self.manually_fix_errors,
-                use_structured_output=structured_mode,
-            )[0]
+            output = self._parse_reduce_response(response.response)
             output.update(dict(zip(self.config["reduce_key"], key)))
 
             return output, prompt, item_cost

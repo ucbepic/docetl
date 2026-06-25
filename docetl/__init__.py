@@ -1,4 +1,4 @@
-__version__ = "0.2.6"
+__version__ = "0.3.0"
 
 import sys
 import types
@@ -6,8 +6,10 @@ import warnings
 
 import litellm
 
+from docetl import tools
 from docetl.runner import DSLRunner
 from docetl.optimizer import Optimizer
+from docetl.agents import Agent, AgentTool, Tool, as_tool, tool
 from docetl.apis.pd_accessors import SemanticAccessor
 from docetl.moar.optimizer import MOARResult, OptimizedPipeline
 from docetl.utils_evaluation import register_eval
@@ -24,6 +26,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._intern
 __all__ = [
     "DSLRunner",
     "Optimizer",
+    "Agent",
+    "AgentTool",
+    "Tool",
+    "as_tool",
+    "tool",
+    "tools",
     "SemanticAccessor",
     "MOARResult",
     "OptimizedPipeline",

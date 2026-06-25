@@ -87,6 +87,7 @@ flowchart LR
 | `timeout`                 | Timeout for each LLM call in seconds                                                                   | 120                         |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                                                  | 2                           |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
+| `agent` | Python-only `docetl.Agent` config for tool-equipped reduce agents. | None                          |
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
 | `retriever` | Name of a retriever to use for RAG. See [Retrievers](../retrievers.md). | None                          |
 | `save_retriever_output` | If true, saves the retrieved context to `_<operation_name>_retrieved_context` in the output. | False                          |
@@ -97,6 +98,52 @@ Set `limit` to stop after _N_ groups:
 
 - Groups are sorted by size (smallest first) and only the _N_ smallest groups are processed; the rest are never scheduled, so you avoid extra fold/merge calls.
 - If a grouped reduce returns more than one record per group, the final output list is truncated to `limit`.
+
+### Tool-equipped reduce agents
+
+In Python, `reduce` supports `agent=docetl.Agent(...)` when each group needs
+tools before producing the final aggregate. The operation-level `model=` remains
+the model used for the reduce call.
+
+```python
+import docetl
+
+@docetl.tool
+def get_region_target(region: str) -> dict[str, str | int]:
+    """Return sales target context for a region."""
+    return {
+        "na": {"pipeline_target": 2_500_000, "focus": "enterprise expansion"},
+        "emea": {"pipeline_target": 1_800_000, "focus": "regulated industries"},
+        "apac": {"pipeline_target": 1_200_000, "focus": "partner-sourced deals"},
+    }[region.lower()]
+
+agent = docetl.Agent(tools=[get_region_target], max_turns=5, max_tool_calls=3)
+
+frame = frame.reduce(
+    reduce_key="region",
+    prompt=(
+        "Use get_region_target for {{ inputs[0].region }}, then summarize the "
+        "opportunities in this group and compare them with the target: {{ inputs }}"
+    ),
+    output={
+        "schema": {
+            "region_summary": "str",
+            "target_gap": "str",
+            "recommended_actions": "list[str]",
+        }
+    },
+    model="azure/gpt-4o-mini",
+    agent=agent,
+)
+```
+
+Agent configs are Python-only and cannot be exported to YAML. Reduce with
+`agent=` cannot currently be combined with gleaning.
+
+See the [Python API reference](../api-reference/python.md#tool-equipped-mapfilterreduce)
+for the full API and the
+[Tool-Equipped Agents tutorial](../examples/tool-equipped-research-agents.md) for
+a map/reduce example with web search, hosted shell, and specialist subagents.
 
 ## Advanced Features
 

@@ -240,6 +240,12 @@ class DocetlTUI(App):
             body.append_text(line)
             body.append("\n")
             # Lines below the op label: compact stats.
+            if op.agent_tools:
+                tools_line = Text("    ")
+                tools_line.append("tools", style="magenta")
+                tools_line.append(f"  {', '.join(op.agent_tools)}", style="grey70")
+                body.append_text(tools_line)
+                body.append("\n")
             ci = op.cascade_info
             if ci:
                 # Proxy sub-line
@@ -446,6 +452,8 @@ class DocetlTUI(App):
             body.append(f"status:  {op.status}\n", style=_STATUS_STYLE[op.status])
             if op.phase:
                 body.append(f"phase:   {op.phase}\n", style="cyan")
+            if op.agent_tools:
+                body.append(f"tools:   {', '.join(op.agent_tools)}\n", style="magenta")
             prof = get_profile(op.op_type)
             if op.total:
                 body.append(

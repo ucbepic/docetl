@@ -30,6 +30,11 @@ class FilterOperation(MapOperation, CascadeMixin):
         @model_validator(mode="after")
         def validate_cascade_inputs(self):
             if self.cascade is not None:
+                if self.agent is not None:
+                    raise ValueError(
+                        "agent cannot yet be combined with cascade. Remove the "
+                        "cascade block or run the filter without an agent."
+                    )
                 bad = [
                     name
                     for name in ("pdf_url_key", "retriever")

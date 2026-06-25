@@ -6,17 +6,6 @@ from pydantic import BaseModel
 # MapOp = map.MapOperation.schema
 
 
-class ToolFunction(BaseModel):
-    name: str
-    description: str
-    parameters: dict[str, Any]
-
-
-class Tool(BaseModel):
-    code: str
-    function: ToolFunction
-
-
 class ParsingTool(BaseModel):
     """
     Represents a parsing tool used for custom data parsing in the pipeline.

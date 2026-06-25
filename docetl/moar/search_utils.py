@@ -293,12 +293,13 @@ def create_expansion_prompt(
     plan_summary = ""
     if os.environ.get("DOCETL_MOAR_PLAN_SUMMARY"):
         try:
-            from docetl.plan import format_plan, lift
+            from docetl.display import format_query_plan, strip_markup
+            from docetl.plan import lift
 
+            _, rich_text = format_query_plan(lift(node.parsed_yaml))
             plan_summary = (
-                "\n    Logical plan of the current pipeline (output-rooted; each "
-                "node shows [type · cardinality · llm] and schema delta):\n"
-                f"{format_plan(lift(node.parsed_yaml))}\n"
+                "\n    Logical plan of the current pipeline (output-rooted):\n"
+                f"{strip_markup(rich_text)}\n"
             )
         except Exception:
             plan_summary = ""

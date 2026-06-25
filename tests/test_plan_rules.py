@@ -7,7 +7,7 @@ import pytest
 
 from docetl.plan import apply_rules, lift, lower
 from docetl.plan.rewrite import push_below
-from docetl.plan.rules.pushdown import LimitPushdown, SelectionPushdown
+from docetl.plan.rewrite import LimitPushdown, SelectionPushdown
 from docetl.runner import DSLRunner
 
 
@@ -291,7 +291,7 @@ class TestExecutionEquivalence:
         out_off, _ = DSLRunner({**config_off, "plan_rewrites": False}).run()
 
         monkeypatch.setattr(
-            "docetl.plan.rules.pushdown._chain_has_llm", lambda plan, node: True
+            "docetl.plan.rewrite._chain_has_llm", lambda plan, node: True
         )
         config_on = self.base_config(marker_on, head, tmp_path, "on")
         runner = DSLRunner(config_on)
@@ -334,13 +334,16 @@ class TestRuleConfiguration:
             resolve_rules(42)
 
     def test_precheck_skips_lift_when_no_trigger_ops(self, monkeypatch):
-        import docetl.plan.rewrite as rewrite_mod
+        import sys
+
         from docetl.plan import apply_rewrites_to_config
+
+        lift_mod = sys.modules["docetl.plan.lift"]
 
         def boom(config):
             raise AssertionError("lift should not run without trigger ops")
 
-        monkeypatch.setattr(rewrite_mod, "lift", boom)
+        monkeypatch.setattr(lift_mod, "lift", boom)
         config = {
             "datasets": {"d": {"type": "memory", "path": [{"x": 1}]}},
             "operations": [

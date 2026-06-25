@@ -321,7 +321,7 @@ class TestJoinEntryUnknownKeys:
         # Regression: when a rule fired anywhere, lower used to regenerate
         # the join entry as bare {left, right}, dropping unknown keys.
         monkeypatch.setattr(
-            "docetl.plan.rules.pushdown._chain_has_llm", lambda plan, node: True
+            "docetl.plan.rewrite._chain_has_llm", lambda plan, node: True
         )
         from docetl.plan import apply_rewrites_to_config
 

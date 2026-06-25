@@ -883,7 +883,8 @@ class Frame:
         ``plan_rewrites`` setting) and lists what fired as
         ``-- applied <rule>: ...`` header lines.
         """
-        from docetl.plan import apply_rules, configured_rules, format_plan
+        from docetl.display import format_query_plan
+        from docetl.plan import apply_rules, configured_rules
 
         plan = self.plan()
         lines = []
@@ -891,9 +892,12 @@ class Frame:
             rules = configured_rules(self._build_config(checkpoint=False))
             for rewrite in apply_rules(plan, rules=rules):
                 lines.append(f"-- applied {rewrite}")
-        lines.append(format_plan(plan, schemas=schemas))
+        _, plan_text = format_query_plan(plan)
+        lines.append(plan_text)
         text = "\n".join(lines)
-        print(text)
+        from rich import print as rprint
+
+        rprint(text)
         return text
 
     # ── terminal actions ───────────────────────────────────────────

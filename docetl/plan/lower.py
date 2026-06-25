@@ -16,8 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from docetl.plan.nodes import JoinNode
-from docetl.plan.plan import LogicalPlan, StepGroup
+from docetl.plan.ir import JoinNode, LogicalPlan, StepGroup
 
 
 def _step_entries(step: StepGroup) -> tuple[list[Any], str | None]:

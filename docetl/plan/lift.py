@@ -1,8 +1,8 @@
 """Lift a pipeline config dict into a LogicalPlan.
 
-Mirrors the resolution rules of ``docetl.graph_builder``: each step's
-``input`` names an earlier step or a dataset (earlier steps win, same as
-``compute_operation_hashes``); a step whose first ``operations`` entry is
+Mirrors the pipeline's step-resolution rules: each step's ``input``
+names an earlier step or a dataset (earlier steps win); a step whose
+first ``operations`` entry is
 a ``{name: {left, right}}`` dict and that has no ``input`` is
 equijoin-headed, with each side resolved step-or-dataset.
 
@@ -15,8 +15,15 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from docetl.plan.nodes import JoinNode, PlanNode, ScanNode, make_node
-from docetl.plan.plan import LogicalPlan, PlanIssue, StepGroup
+from docetl.plan.ir import (
+    JoinNode,
+    LogicalPlan,
+    PlanIssue,
+    PlanNode,
+    ScanNode,
+    StepGroup,
+    make_node,
+)
 from docetl.utils import op_ref_name
 
 

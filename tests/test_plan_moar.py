@@ -1,7 +1,13 @@
-"""MOAR integration: invalid directive candidates rejected statically
-(before any execution), valid candidates canonicalized by the rewrite
-rules in their saved YAMLs."""
+"""MOAR integration tests.
 
+Structural tests (no LLM calls): invalid directive candidates rejected
+statically (before any execution), valid candidates canonicalized by the
+rewrite rules in their saved YAMLs.
+
+End-to-end tests (real LLM calls): run a full MOAR search loop against
+3 models and verify it produces at least one frontier pipeline."""
+
+import json
 import os
 
 import pytest
@@ -150,3 +156,108 @@ class TestCandidateRespectsPlanRewritesSetting:
         )
         saved = yaml.safe_load(open(child.yaml_file_path))
         assert [s["operations"] for s in saved["pipeline"]["steps"]] == [["m"], ["f"]]
+
+
+# ── End-to-end MOAR test (real LLM calls) ────────────────────────────
+
+
+MOAR_MODELS = ["gpt-4o-mini", "gpt-5-nano", "gpt-5-mini"]
+
+
+@pytest.fixture
+def moar_pipeline(tmp_path):
+    """A tiny pipeline suitable for a real MOAR run."""
+    data = [
+        {"text": "The Eiffel Tower is located in Paris, France."},
+        {"text": "Mount Fuji is the tallest mountain in Japan."},
+        {"text": "The Great Wall of China stretches over 13,000 miles."},
+    ]
+    data_path = tmp_path / "docs.json"
+    data_path.write_text(json.dumps(data))
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "docs": {"type": "file", "path": str(data_path)},
+        },
+        "operations": [
+            {
+                "name": "extract_info",
+                "type": "map",
+                "prompt": (
+                    "Extract the landmark and its location from the text.\n"
+                    "Text: {{ input.text }}"
+                ),
+                "output": {
+                    "schema": {
+                        "landmark": "string",
+                        "location": "string",
+                    }
+                },
+                "optimize": True,
+            },
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "extraction",
+                    "input": "docs",
+                    "operations": ["extract_info"],
+                }
+            ],
+            "output": {"type": "file", "path": str(tmp_path / "output.json")},
+        },
+    }
+    yaml_path = tmp_path / "pipeline.yaml"
+    yaml_path.write_text(yaml.safe_dump(config, sort_keys=False))
+    return str(yaml_path), str(data_path), str(tmp_path)
+
+
+def _eval_landmarks(results_path: str) -> dict:
+    """Score: fraction of results that have non-empty landmark + location."""
+    with open(results_path) as f:
+        results = json.load(f)
+    if not results:
+        return {"score": 0.0}
+    good = sum(
+        1
+        for r in results
+        if r.get("landmark", "").strip() and r.get("location", "").strip()
+    )
+    return {"score": good / len(results)}
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY required for real MOAR test",
+)
+class TestMOAREndToEnd:
+    def test_moar_search_with_three_models(self, moar_pipeline):
+        """Run a full (1-iteration) MOAR search with real LLM calls."""
+        from docetl.moar.optimizer import MOAROptimizer
+
+        yaml_path, data_path, save_dir = moar_pipeline
+
+        optimizer = MOAROptimizer(
+            pipeline=yaml_path,
+            eval_fn=_eval_landmarks,
+            metric_key="score",
+            models=MOAR_MODELS,
+            agent_model="gpt-4o-mini",
+            max_iterations=1,
+            save_dir=os.path.join(save_dir, "moar_output"),
+            dataset_path=data_path,
+            max_concurrent_agents=1,
+        )
+
+        result = optimizer.optimize()
+
+        assert result.iterations >= 1
+        assert len(result.all_plans) >= 1
+        assert result.frontier, "Expected at least one frontier pipeline"
+
+        best = result.best()
+        assert best is not None
+        assert best.accuracy >= 0.0
+        assert best.cost >= 0.0
+        assert os.path.exists(best.yaml_path)

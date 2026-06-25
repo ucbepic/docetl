@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 import litellm
 
 from docetl.console import DOCETL_CONSOLE
-from docetl.plan import InvalidCandidatePlan, prepare_config, validate_config
+from docetl.plan import InvalidCandidatePlan, validate_config
 from docetl.reasoning_optimizer.directives import (
     DIRECTIVE_GROUPS,
     MULTI_INSTANCE_DIRECTIVES,
@@ -1175,18 +1175,23 @@ class MOARSearch:
 
         patch_sample_dataset_path(new_parsed_yaml, self.sample_dataset_path)
 
-        # One lift: reject invalid candidates before paying any execution
-        # cost, then canonicalize with the rewrite rules the candidate's
-        # own plan_rewrites setting selects (inherited from the root
-        # YAML — a user opt-out is honored here exactly as the runner
-        # honors it). Saved candidate YAMLs carry the rewrites, so the
-        # runner's re-application is a fixpoint no-op.
-        new_parsed_yaml, plan_issues, applied_rewrites = prepare_config(new_parsed_yaml)
-        plan_errors = [issue for issue in plan_issues if issue.level == "error"]
+        from docetl.plan import configured_rules, lift, lower, validate
+        from docetl.plan.rewrite import apply_rules, could_fire
+
+        rules = configured_rules(new_parsed_yaml)
+        plan = lift(new_parsed_yaml)
+        plan_issues = validate(plan)
+        plan_errors = [i for i in plan_issues if i.level == "error"]
         if plan_errors:
             raise InvalidCandidatePlan(directive_name, plan_errors)
-        for rewrite in applied_rewrites:
-            self.console.log(f"[dim]Plan rewrite on candidate — {rewrite}[/dim]")
+        if rules and could_fire(new_parsed_yaml, rules):
+            applied_rewrites = apply_rules(plan, rules=rules)
+            if applied_rewrites:
+                new_parsed_yaml = lower(plan)
+                for rewrite in applied_rewrites:
+                    self.console.log(
+                        f"[dim]Plan rewrite on candidate — {rewrite}[/dim]"
+                    )
 
         # Determine the node ID to use for filename
         if custom_id is not None:

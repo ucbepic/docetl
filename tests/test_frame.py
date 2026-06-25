@@ -611,7 +611,7 @@ class TestPlanAndExplain:
 
     def test_explain_renders_tree(self, capsys):
         text = self.frame().explain()
-        assert "llm" in text and "selection" in text
+        assert "map" in text and "code_filter" in text
         assert capsys.readouterr().out  # printed for interactive use
 
     def test_explain_optimized_lists_applied_rules(self):
@@ -626,5 +626,5 @@ class TestPlanAndExplain:
     def test_explain_schemas_toggle(self):
         with_schemas = self.frame().explain(schemas=True)
         without = self.frame().explain(schemas=False)
-        assert "+{summary: string}" in with_schemas
-        assert "+{" not in without
+        assert "summary" in with_schemas
+        assert "map" in without

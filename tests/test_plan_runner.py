@@ -148,7 +148,7 @@ class TestRewrittenPipelines:
         # code-only pipeline; both runs key checkpoints on the rewritten
         # config, so the second run executes nothing.
         monkeypatch.setattr(
-            "docetl.plan.rules.pushdown._chain_has_llm", lambda plan, node: True
+            "docetl.plan.rewrite._chain_has_llm", lambda plan, node: True
         )
         marker = tmp_path / "runs.log"
         inter = tmp_path / "inter"
@@ -226,21 +226,3 @@ class TestGlobalKillSwitch:
             DSLRunner(config)
 
 
-class TestPrepareConfigSingleLift:
-    def test_one_lift_for_validate_and_rewrite(self, tmp_path, monkeypatch):
-        import docetl.plan.prepare as prepare_mod
-        from docetl.plan import prepare_config
-        from docetl.plan.lift import lift as real_lift
-
-        calls = []
-
-        def counting_lift(config):
-            calls.append(1)
-            return real_lift(config)
-
-        monkeypatch.setattr(prepare_mod, "lift", counting_lift)
-        config = rewritable_config(tmp_path)
-        out, issues, applied = prepare_config(config)
-        assert len(calls) == 1
-        assert applied and out is not config
-        assert not [i for i in issues if i.level == "error"]

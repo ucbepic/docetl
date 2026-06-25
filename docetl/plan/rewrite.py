@@ -1,11 +1,10 @@
-"""Equivalence-preserving rewrite engine.
+"""Equivalence-preserving rewrite engine and pushdown rules.
 
 Rules implement ``find`` (locate one applicable site) and ``apply_at``
 (perform the graph surgery); ``apply_rules`` runs them to fixpoint.
 ``apply_rewrites_to_config`` is the config-level entry point with the
 zero-hash-churn guarantee: when no rule fires, the *original config
-object* is returned, so checkpoint hashing and Pipeline state see
-literally nothing new.
+object* is returned.
 """
 
 from __future__ import annotations
@@ -13,10 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
-from docetl.plan.lift import lift
-from docetl.plan.lower import lower
-from docetl.plan.nodes import PlanNode
-from docetl.plan.plan import LogicalPlan
+from docetl.operations.base import Cardinality
+from docetl.plan.ir import JoinNode, LogicalPlan, PlanNode, ScanNode
 
 
 @dataclass(frozen=True)
@@ -31,8 +28,6 @@ class AppliedRewrite:
 @runtime_checkable
 class RewriteRule(Protocol):
     name: str
-    # Op types that must be present in a config for this rule to possibly
-    # fire — lets apply_rewrites_to_config skip the lift entirely.
     trigger_op_types: frozenset[str]
 
     def find(self, plan: LogicalPlan) -> PlanNode | None: ...
@@ -60,32 +55,136 @@ def push_below(plan: LogicalPlan, node: PlanNode, upstream: PlanNode) -> None:
         plan.drop_step(src)
 
 
-def default_rules() -> list[RewriteRule]:
-    # LimitPushdown's exactness assumption (no silent row drops while
-    # hopping LLM ops — see its docstring) is accepted as a default:
-    # the failure mode only occurs in runs already losing rows to the
-    # runtime's silent timeout-drop, so the rewrite adds no new badness.
-    # Disable per pipeline with plan_rewrites: ["selection_pushdown"].
-    from docetl.plan.rules.pushdown import LimitPushdown, SelectionPushdown
+# ── Pushdown rules ────────────────────────────────────────────────────
 
+
+def _transparent_hop(plan: LogicalPlan, node: PlanNode, upstream: PlanNode) -> bool:
+    if isinstance(upstream, (ScanNode, JoinNode)):
+        return False
+    if upstream.cardinality != Cardinality.ONE_TO_ONE:
+        return False
+    if not (upstream.is_row_local and upstream.preserves_order):
+        return False
+    if plan.consumers(upstream) != [node]:
+        return False
+    if plan.references(upstream.name) != 1 or plan.references(node.name) != 1:
+        return False
+    return True
+
+
+def _swappable_upstream(plan: LogicalPlan, node: PlanNode) -> PlanNode | None:
+    if len(node.inputs) != 1:
+        return None
+    upstream = node.inputs[0]
+    return upstream if _transparent_hop(plan, node, upstream) else None
+
+
+def _chain_has_llm(plan: LogicalPlan, start: PlanNode) -> bool:
+    node = start
+    while True:
+        if node.is_llm:
+            return True
+        if len(node.inputs) != 1:
+            return False
+        upstream = node.inputs[0]
+        if not _transparent_hop(plan, node, upstream):
+            return False
+        node = upstream
+
+
+class SelectionPushdown:
+    """Push a filter below a 1:1 op that doesn't produce anything the
+    filter reads."""
+
+    name = "selection_pushdown"
+    trigger_op_types = frozenset({"filter", "code_filter"})
+
+    def find(self, plan: LogicalPlan) -> PlanNode | None:
+        for node in plan.nodes():
+            if node.op_type not in self.trigger_op_types:
+                continue
+            upstream = _swappable_upstream(plan, node)
+            if upstream is None:
+                continue
+            reads = node.fields_read
+            if reads is None:
+                continue
+            upstream_writes = upstream.fields_written
+            if upstream_writes is None or reads & upstream_writes:
+                continue
+            writes = node.fields_written
+            if writes is None:
+                continue
+            if writes:
+                upstream_reads = upstream.fields_read
+                if (
+                    upstream_reads is None
+                    or upstream_reads & writes
+                    or upstream_writes & writes
+                ):
+                    continue
+            if not _chain_has_llm(plan, upstream):
+                continue
+            return node
+        return None
+
+    def apply_at(self, plan: LogicalPlan, node: PlanNode) -> AppliedRewrite:
+        upstream = node.inputs[0]
+        push_below(plan, node, upstream)
+        return AppliedRewrite(
+            self.name,
+            f"pushed {node.name} ({node.op_type}) below {upstream.name} "
+            f"({upstream.op_type}), so {upstream.name} runs only on rows "
+            f"{node.name} keeps",
+        )
+
+
+class LimitPushdown:
+    """Pull a positional head (``sample`` with method "first") below a
+    1:1, row-local, order-preserving op."""
+
+    name = "limit_pushdown"
+    trigger_op_types = frozenset({"sample"})
+
+    def find(self, plan: LogicalPlan) -> PlanNode | None:
+        for node in plan.nodes():
+            if node.op_type != "sample":
+                continue
+            if node.op_config.get("method") != "first" or node.op_config.get(
+                "stratify_key"
+            ):
+                continue
+            upstream = _swappable_upstream(plan, node)
+            if upstream is None:
+                continue
+            if not _chain_has_llm(plan, upstream):
+                continue
+            return node
+        return None
+
+    def apply_at(self, plan: LogicalPlan, node: PlanNode) -> AppliedRewrite:
+        upstream = node.inputs[0]
+        push_below(plan, node, upstream)
+        return AppliedRewrite(
+            self.name,
+            f"pushed {node.name} (first-{node.op_config.get('samples')}) below "
+            f"{upstream.name} ({upstream.op_type}), so {upstream.name} runs "
+            f"only on the rows that survive the head",
+        )
+
+
+# ── Engine ────────────────────────────────────────────────────────────
+
+
+def default_rules() -> list[RewriteRule]:
     return [SelectionPushdown(), LimitPushdown()]
 
 
 def all_rules() -> list[RewriteRule]:
-    """Every shipped rule (the registry ``resolve_rules`` selects from)."""
-    from docetl.plan.rules.pushdown import LimitPushdown, SelectionPushdown
-
     return [SelectionPushdown(), LimitPushdown()]
 
 
 def resolve_rules(spec: Any) -> list[RewriteRule]:
-    """Resolve a ``plan_rewrites`` setting value into rule instances.
-
-    True/None → the default rules; a string or list of strings → exactly
-    those rules by name (opt-in rules included). Unknown names or other
-    spec types raise — a misspelled setting must not silently disable
-    the optimizations the user asked for.
-    """
     if spec is None or spec is True:
         return default_rules()
     if isinstance(spec, str):
@@ -110,8 +209,6 @@ def apply_rules(
     rules: list[RewriteRule] | None = None,
     max_passes: int = 20,
 ) -> list[AppliedRewrite]:
-    """Apply *rules* to fixpoint (bounded by *max_passes* applications),
-    mutating *plan* in place. Returns what fired, in order."""
     if rules is None:
         rules = default_rules()
     applied: list[AppliedRewrite] = []
@@ -129,10 +226,6 @@ def apply_rules(
 
 
 def could_fire(config: dict[str, Any], rules: list[RewriteRule]) -> bool:
-    """Cheap pre-check: a rule can only fire if one of its trigger op
-    types appears in the config. Saves the lift (deepcopies, node
-    construction) on every runner startup for pipelines with no
-    selection-like ops."""
     present = {op.get("type") for op in config.get("operations") or []}
     return any(present & rule.trigger_op_types for rule in rules)
 
@@ -140,9 +233,9 @@ def could_fire(config: dict[str, Any], rules: list[RewriteRule]) -> bool:
 def apply_rewrites_to_config(
     config: dict[str, Any], rules: list[RewriteRule] | None = None
 ) -> tuple[dict[str, Any], list[AppliedRewrite]]:
-    """Rewrite a pipeline config. Identity short-circuit: returns the
-    original object (and ``[]``) when nothing fires or the config has
-    structural problems we won't rewrite through."""
+    from docetl.plan.lift import lift
+    from docetl.plan.lower import lower
+
     if rules is None:
         rules = default_rules()
     if not rules or not could_fire(config, rules):

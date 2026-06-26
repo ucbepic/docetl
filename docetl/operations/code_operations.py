@@ -1,5 +1,4 @@
 import ast
-import functools
 import inspect
 import os
 import textwrap
@@ -70,14 +69,9 @@ def extract_doc_field_reads(code: Any) -> "frozenset[str] | None":
         return _doc_field_reads_str(code)
     if not callable(code):
         return None
-    try:
-        return _doc_field_reads_callable(code)
-    except TypeError:
-        # Unhashable callable (e.g. functools.partial): analyze uncached.
-        return _doc_field_reads_callable.__wrapped__(code)
+    return _doc_field_reads_callable(code)
 
 
-@functools.lru_cache(maxsize=256)
 def _doc_field_reads_str(code: str) -> "frozenset[str] | None":
     try:
         module = ast.parse(code)
@@ -95,7 +89,6 @@ def _doc_field_reads_str(code: str) -> "frozenset[str] | None":
     return _single_param_reads(fn, expected_param=None)
 
 
-@functools.lru_cache(maxsize=256)
 def _doc_field_reads_callable(code: Any) -> "frozenset[str] | None":
     try:
         params = list(inspect.signature(code).parameters.values())

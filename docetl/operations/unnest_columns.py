@@ -1,7 +1,7 @@
 import copy
 from typing import Optional
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils.validation import lookup_field
 
 
@@ -31,6 +31,40 @@ class UnnestColumnsOperation(BaseOperation):
         type: str = "unnest_columns"
         unnest_key: str
         keys: Optional[list[str]] = None
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config):
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_read(cls, config):
+        if not config.get("unnest_key"):
+            return None
+        return frozenset({config["unnest_key"]})
+
+    @classmethod
+    def fields_written(cls, config):
+        if config.get("keys") is None:
+            return None  # expanded columns come from runtime dict keys
+        # unnest_key itself is removed from the output rows
+        return frozenset(config["keys"]) | frozenset({config.get("unnest_key")})
+
+    @classmethod
+    def fields_removed(cls, config):
+        removed = set(super().fields_removed(config))
+        if config.get("unnest_key"):
+            removed.add(config["unnest_key"])
+        return frozenset(removed)
+
+    @classmethod
+    def is_row_local(cls, config):
+        return True
+
+    @classmethod
+    def preserves_order(cls, config):
+        return True
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """

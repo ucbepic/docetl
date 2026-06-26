@@ -13,12 +13,18 @@ from litellm import model_cost
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render, lookup_field
+from docetl.operations.utils import (
+    RichLoopBar,
+    lookup_field,
+    rich_as_completed,
+    strict_render,
+)
 from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.utils import (
     completion_cost,
-    extract_jinja_variables,
+    extract_comparison_field_reads,
+    extract_input_field_reads,
     has_jinja_syntax,
     prompt_user_for_non_jinja_confirmation,
 )
@@ -139,6 +145,19 @@ class ResolveOperation(BaseOperation, CascadeMixin):
                 raise ValueError("'schema' in 'output' configuration cannot be empty")
 
             return self
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Cardinality stays at the conservative MANY_TO_MANY default and
+    # fields_read at None: resolution compares rows against each other,
+    # so nothing here is row-local or order-stable.
+
+    @classmethod
+    def fields_written(cls, config):
+        return frozenset((config.get("output") or {}).get("schema") or {})
+
+    @classmethod
+    def is_llm(cls, config):
+        return True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -347,14 +366,8 @@ class ResolveOperation(BaseOperation, CascadeMixin):
             auto_blocking_keys = blocking_keys if blocking_keys else None
             if not auto_blocking_keys:
                 prompt_template = self.config.get("comparison_prompt", "")
-                prompt_vars = extract_jinja_variables(prompt_template)
-                prompt_vars = [
-                    var
-                    for var in prompt_vars
-                    if var not in ["input", "input1", "input2"]
-                ]
-                auto_blocking_keys = list(
-                    set([var.split(".")[-1] for var in prompt_vars])
+                auto_blocking_keys = (
+                    extract_comparison_field_reads(prompt_template) or []
                 )
             if not auto_blocking_keys:
                 auto_blocking_keys = list(input_data[0].keys())
@@ -444,7 +457,9 @@ class ResolveOperation(BaseOperation, CascadeMixin):
 
                     texts = [
                         " ".join(
-                            filter(None, (_safe_lookup(item, key) for key in blocking_keys))
+                            filter(
+                                None, (_safe_lookup(item, key) for key in blocking_keys)
+                            )
                         )[: model_input_context_length * 3]
                         for item in batch
                     ]
@@ -614,9 +629,7 @@ class ResolveOperation(BaseOperation, CascadeMixin):
             # proxy on all pairs, oracle on a calibrated subset (precision
             # guarantee by default). Merge matched pairs into the union-find,
             # then empty the work list so the per-batch loop below no-ops.
-            pair_items = [
-                (input_data[i], input_data[j]) for (i, j) in blocked_pairs
-            ]
+            pair_items = [(input_data[i], input_data[j]) for (i, j) in blocked_pairs]
             labels, pair_costs = self._cascade_match_pairs(pair_items, blocking_keys)
             for (i, j), is_match in zip(blocked_pairs, labels):
                 if is_match:
@@ -780,17 +793,17 @@ class ResolveOperation(BaseOperation, CascadeMixin):
                     )
                 return [], reduction_cost
             else:
-                # Set the output schema to be the keys found in the compare_prompt
-                compare_prompt_keys = extract_jinja_variables(
-                    self.config["comparison_prompt"]
-                )
-                # Get the set of keys in the compare_prompt
+                # Set the output schema to be the record fields the
+                # compare_prompt reads from input1. The legacy heuristic
+                # kept full dotted paths ("address.city"), which never
+                # match a record key below; the sound extractor yields
+                # the actual top-level field. None (whole-row prompt) →
+                # no mapping, same as finding no keys.
                 compare_prompt_keys = set(
-                    [
-                        k.replace("input1.", "")
-                        for k in compare_prompt_keys
-                        if "input1" in k
-                    ]
+                    extract_input_field_reads(
+                        self.config["comparison_prompt"], var="input1"
+                    )
+                    or []
                 )
 
                 # For each key in the output schema, find the most similar key in the compare_prompt

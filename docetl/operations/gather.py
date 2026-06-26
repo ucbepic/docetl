@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import field_validator
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils.validation import lookup_field
 
 
@@ -48,6 +48,30 @@ class GatherOperation(BaseOperation):
         if config.get("content_key"):
             result[f"{config['content_key']}_rendered"] = "string"
         return result
+
+    # ── plan traits ────────────────────────────────────────────────
+    # Not row-local (each chunk's rendering reads neighboring chunks)
+    # and not order-preserving (output is regrouped by document).
+
+    @classmethod
+    def cardinality(cls, config):
+        return Cardinality.ONE_TO_ONE
+
+    @classmethod
+    def fields_read(cls, config):
+        if not config.get("content_key"):
+            return None
+        fields = {config["content_key"]}
+        for key in ("doc_id_key", "order_key", "doc_header_key"):
+            if config.get(key):
+                fields.add(config[key])
+        return frozenset(fields)
+
+    @classmethod
+    def fields_written(cls, config):
+        if not config.get("content_key"):
+            return None
+        return frozenset({f"{config['content_key']}_rendered"})
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """

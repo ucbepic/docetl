@@ -1,5 +1,7 @@
 """Pull-based execution containers for pipeline operations."""
 
+from __future__ import annotations
+
 import json
 import math
 from typing import TYPE_CHECKING
@@ -14,6 +16,7 @@ from docetl.optimizers import JoinOptimizer, MapOptimizer, ReduceOptimizer
 from docetl.utils import smart_sample
 
 if TYPE_CHECKING:
+    from docetl.plan.ir import LogicalPlan
     from docetl.runner import DSLRunner
 
 SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin", "filter"]
@@ -75,7 +78,10 @@ class OpContainer:
         )
         if self.config["type"] == "equijoin":
             if isinstance(sample_size_needed, dict):
-                sample_size_needed = [sample_size_needed["left"], sample_size_needed["right"]]
+                sample_size_needed = [
+                    sample_size_needed["left"],
+                    sample_size_needed["right"],
+                ]
             else:
                 sample_size_needed = [sample_size_needed, sample_size_needed]
         else:
@@ -156,7 +162,10 @@ class OpContainer:
                 panel_content += f"\n[cyan]{key}:[/cyan] {value}"
 
         self.runner.console.log(
-            Panel.fit(panel_content, title=f"[yellow]Optimizing {self.name} (Type: {self.config['type']})")
+            Panel.fit(
+                panel_content,
+                title=f"[yellow]Optimizing {self.name} (Type: {self.config['type']})",
+            )
         )
 
     def _optimize_map_filter(self, input_data: list) -> list[dict]:
@@ -212,14 +221,17 @@ class OpContainer:
         self.config = op_config
 
         self.runner.op_container_map = {
-            k: v for k, v in self.runner.op_container_map.items()
+            k: v
+            for k, v in self.runner.op_container_map.items()
             if k not in [self.children[0].name, self.children[1].name]
         }
 
         step = self.step_name
         for idx, ds_name in enumerate([new_left_name, new_right_name]):
             self.children[idx].config = {
-                "type": "scan", "name": f"scan_{ds_name}", "dataset_name": ds_name,
+                "type": "scan",
+                "name": f"scan_{ds_name}",
+                "dataset_name": ds_name,
             }
             self.children[idx].name = f"{step}/scan_{ds_name}"
             self.runner.op_container_map[f"{step}/scan_{ds_name}"] = self.children[idx]
@@ -234,7 +246,8 @@ class OpContainer:
 
         for step_name, step_obj, operations in reversed(new_steps):
             boundary = StepBoundary(
-                f"{step_name}/boundary", self.runner,
+                f"{step_name}/boundary",
+                self.runner,
                 {"type": "step_boundary", "name": f"{step_name}/boundary"},
             )
             self.runner.op_container_map[f"{step_name}/boundary"] = boundary
@@ -248,8 +261,13 @@ class OpContainer:
                 insertion_point = container
 
             scan = OpContainer(
-                f"{step_name}/scan_{step_obj['input']}", self.runner,
-                {"type": "scan", "name": f"scan_{step_obj['input']}", "dataset_name": step_obj["input"]},
+                f"{step_name}/scan_{step_obj['input']}",
+                self.runner,
+                {
+                    "type": "scan",
+                    "name": f"scan_{step_obj['input']}",
+                    "dataset_name": step_obj["input"],
+                },
             )
             self.runner.op_container_map[f"{step_name}/scan_{step_obj['input']}"] = scan
             insertion_point.add_child(scan)
@@ -299,9 +317,15 @@ class OpContainer:
         self, is_build: bool = False, sample_size_needed: int = None
     ) -> tuple:
         if self.is_equijoin:
-            assert len(self.children) == 2, "Equijoin should have left and right children"
-            left_data, left_cost, left_logs = self.children[0].next(is_build, sample_size_needed)
-            right_data, right_cost, right_logs = self.children[1].next(is_build, sample_size_needed)
+            assert (
+                len(self.children) == 2
+            ), "Equijoin should have left and right children"
+            left_data, left_cost, left_logs = self.children[0].next(
+                is_build, sample_size_needed
+            )
+            right_data, right_cost, right_logs = self.children[1].next(
+                is_build, sample_size_needed
+            )
             return (
                 {"left_data": left_data, "right_data": right_data},
                 max(len(left_data), len(right_data)),
@@ -320,7 +344,10 @@ class OpContainer:
 
     def _notify_cached(self, data: list[dict]) -> None:
         tracker = getattr(self.runner, "progress_tracker", None)
-        if tracker is not None and self.config.get("type") not in ("scan", "step_boundary"):
+        if tracker is not None and self.config.get("type") not in (
+            "scan",
+            "step_boundary",
+        ):
             tracker.op_start(
                 self.name,
                 self.config.get("type", "?"),
@@ -328,7 +355,9 @@ class OpContainer:
                 len(data),
                 get_agent_tool_names(self.config.get("agent")),
             )
-            tracker.op_done(self.name, cost=0.0, prompt_tokens=0, completion_tokens=0, outputs=data)
+            tracker.op_done(
+                self.name, cost=0.0, prompt_tokens=0, completion_tokens=0, outputs=data
+            )
 
     def _check_caches(
         self, is_build: bool, sample_size_needed: int | None
@@ -336,13 +365,23 @@ class OpContainer:
         if is_build:
             cache_key = self.name
             if cache_key in self.runner.optimizer.sample_cache:
-                cached_data, cached_sample_size = self.runner.optimizer.sample_cache[cache_key]
+                cached_data, cached_sample_size = self.runner.optimizer.sample_cache[
+                    cache_key
+                ]
                 if not sample_size_needed or cached_sample_size >= sample_size_needed:
                     if sample_size_needed:
                         cached_data = smart_sample(cached_data, sample_size_needed)
-                    return cached_data, 0, f"[green]✓[/green] Using cached {self.name} (sample size: {cached_sample_size})\n"
+                    return (
+                        cached_data,
+                        0,
+                        f"[green]✓[/green] Using cached {self.name} (sample size: {cached_sample_size})\n",
+                    )
 
-        if not is_build and not self.config.get("bypass_cache", False) and self.runner.checkpoints:
+        if (
+            not is_build
+            and not self.config.get("bypass_cache", False)
+            and self.runner.checkpoints
+        ):
             cached = self.runner.checkpoints.load(self.step_name, self.op_name)
             if cached is not None:
                 self.runner.console.log(
@@ -376,7 +415,9 @@ class OpContainer:
         with self.runner.console.status(f"Running {self.name}") as status:
             self.runner.status = status
             cost_before = self.runner.total_cost
-            output_data = self.runner._run_operation(self.config, input_data, is_build=is_build)
+            output_data = self.runner._run_operation(
+                self.config, input_data, is_build=is_build
+            )
             op_cost = self.runner.total_cost - cost_before
 
         if track:
@@ -406,7 +447,9 @@ class OpContainer:
         if self.runner.checkpoints:
             self.runner.checkpoints.clear_stale(self.step_name, self.op_name)
 
-        input_data, input_len, cost, curr_logs = self._pull_children(is_build, input_sample_size)
+        input_data, input_len, cost, curr_logs = self._pull_children(
+            is_build, input_sample_size
+        )
 
         if input_data and "sample" in self.config and not is_build:
             input_data = input_data[: self.config["sample"]]
@@ -423,7 +466,10 @@ class OpContainer:
         self.selectivity = len(output_data) / input_len if input_len else 1
 
         if is_build:
-            self.runner.optimizer.sample_cache[self.name] = (output_data, len(output_data))
+            self.runner.optimizer.sample_cache[self.name] = (
+                output_data,
+                len(output_data),
+            )
 
         if sample_size_needed:
             output_data = smart_sample(output_data, sample_size_needed)
@@ -433,7 +479,9 @@ class OpContainer:
             and self.runner.checkpoints
             and self.runner.checkpoints.has_hash(self.step_name, self.op_name)
         ):
-            path = self.runner.checkpoints.save(self.step_name, self.op_name, output_data)
+            path = self.runner.checkpoints.save(
+                self.step_name, self.op_name, output_data
+            )
             self.runner.console.log(
                 f"[green]✓ [italic]Intermediate saved for operation '{self.op_name}' "
                 f"in step '{self.step_name}' at {path}[/italic][/green]"
@@ -444,8 +492,12 @@ class OpContainer:
     def syntax_check(self) -> str:
         op_cls = get_operation(self.config["type"])
         op_cls(
-            self.runner, self.config, self.runner.default_model,
-            self.runner.max_threads, self.runner.console, self.runner.status,
+            self.runner,
+            self.config,
+            self.runner.default_model,
+            self.runner.max_threads,
+            self.runner.console,
+            self.runner.status,
         ).syntax_check()
         return f"[green]✓[/green] Operation '{self.config['name']}' ({self.config['type']})"
 
@@ -459,9 +511,7 @@ class StepBoundary(OpContainer):
             is_build, sample_size_needed
         )
 
-        self.runner.datasets[self.step_name] = DataLoader(
-            self, "memory", output_data
-        )
+        self.runner.datasets[self.step_name] = DataLoader(self, "memory", output_data)
         if not is_build:
             flush_cache(self.runner.console)
             self.runner.console.log(
@@ -476,3 +526,78 @@ class StepBoundary(OpContainer):
 
     def syntax_check(self) -> str:
         return ""
+
+
+# ── Graph construction from plan ──────────────────────────────────────
+
+
+def _make_scan_container(
+    runner: DSLRunner, step_name: str, dataset_name: str
+) -> OpContainer:
+    key = f"{step_name}/scan_{dataset_name}"
+    container = OpContainer(
+        key,
+        runner,
+        {"type": "scan", "dataset_name": dataset_name, "name": f"scan_{dataset_name}"},
+    )
+    runner.op_container_map[key] = container
+    if runner.last_op_container:
+        container.add_child(runner.last_op_container)
+    return container
+
+
+def build_operation_graph(runner: DSLRunner) -> None:
+    """Build the pull-based OpContainer DAG from the runner's logical plan."""
+    from docetl.plan.ir import JoinNode
+
+    plan: LogicalPlan = runner._plan
+    runner.op_container_map = {}
+    runner.last_op_container = None
+    runner._op_map = {op["name"]: op for op in runner._raw_ops_list}
+
+    for step in plan.steps:
+        step_name = step.name
+
+        if step.is_join_headed:
+            join_node = step.nodes[0]
+            assert isinstance(join_node, JoinNode)
+
+            left_scan = _make_scan_container(runner, step_name, join_node.left_ref)
+            right_scan = _make_scan_container(runner, step_name, join_node.right_ref)
+
+            key = f"{step_name}/{join_node.name}"
+            equijoin = OpContainer(
+                key,
+                runner,
+                runner.find_operation(join_node.name),
+                left_name=join_node.left_ref,
+                right_name=join_node.right_ref,
+            )
+            equijoin.add_child(left_scan)
+            equijoin.add_child(right_scan)
+            runner.last_op_container = equijoin
+            runner.op_container_map[key] = equijoin
+
+            remaining = step.nodes[1:]
+        else:
+            input_ref = step.input_ref or "__empty__"
+            runner.last_op_container = _make_scan_container(
+                runner, step_name, input_ref
+            )
+            remaining = step.nodes
+
+        for node in remaining:
+            key = f"{step_name}/{node.name}"
+            container = OpContainer(key, runner, runner.find_operation(node.name))
+            container.add_child(runner.last_op_container)
+            runner.last_op_container = container
+            runner.op_container_map[key] = container
+
+        boundary = StepBoundary(
+            f"{step_name}/boundary",
+            runner,
+            {"type": "step_boundary", "name": f"{step_name}/boundary"},
+        )
+        boundary.add_child(runner.last_op_container)
+        runner.op_container_map[f"{step_name}/boundary"] = boundary
+        runner.last_op_container = boundary

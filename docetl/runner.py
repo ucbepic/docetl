@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import os
 import time
@@ -19,9 +20,9 @@ from rich.panel import Panel
 
 from docetl.agents import get_agent_tool_names
 from docetl.console import get_console
+from docetl.containers import build_operation_graph
 from docetl.dataset import DataLoader, create_parsing_tool_map
 from docetl.display import format_execution_summary, format_query_plan
-from docetl.graph_builder import build_operation_graph, compute_operation_hashes
 from docetl.operations import get_operation
 from docetl.operations.utils import APIWrapper
 from docetl.optimizer import Optimizer
@@ -141,6 +142,17 @@ class DSLRunner:
             datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         )
         self.console = kwargs.pop("console", None) or get_console()
+        for rewrite in self.applied_rewrites:
+            self.console.log(f"[dim]Plan rewrite — {rewrite}[/dim]")
+        if getattr(self, "_pipeline_rederived", False):
+            self.console.log(
+                "[dim]Plan rewrites changed the config, so the passed-in "
+                "Pipeline object was re-derived from it; custom op types "
+                "outside the typed registry lose their class in "
+                "runner.pipeline (execution uses the raw config and is "
+                "unaffected). Set plan_rewrites=False on the Pipeline to "
+                "keep the original object.[/dim]"
+            )
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
 
@@ -165,7 +177,7 @@ class DSLRunner:
         self._setup_parsing_tools()
         self._setup_retrievers()
         build_operation_graph(self)
-        compute_operation_hashes(self)
+        self._compute_hashes()
         self._setup_checkpoints()
 
         self._from_df_accessors = kwargs.get("from_df_accessors", False)
@@ -176,11 +188,38 @@ class DSLRunner:
         from docetl.api import Pipeline as PipelineCls
 
         if isinstance(config, PipelineCls):
-            self.pipeline: PipelineCls = config
-            self.config = config._to_dict()
+            pipeline, cfg = config, config._to_dict()
         else:
-            self.config = config
-            self.pipeline = PipelineCls.from_dict(config)
+            pipeline, cfg = None, config
+
+        # Lift the config into a logical plan once.  Rewrite rules run
+        # against the plan; if any fire the config is re-derived via
+        # lower().  The plan is kept on the runner so build_operation_graph
+        # can walk it instead of re-parsing the raw config dict.
+        self.applied_rewrites = []
+        from docetl.plan import configured_rules, lift, lower
+        from docetl.plan.rewrite import apply_rules, could_fire
+
+        rules = configured_rules(cfg)
+        self._plan = lift(cfg)
+        if (
+            rules
+            and could_fire(cfg, rules)
+            and not any(i.level == "error" for i in self._plan.issues)
+        ):
+            self.applied_rewrites = apply_rules(self._plan, rules=rules)
+            if self.applied_rewrites:
+                cfg = lower(self._plan)
+
+        self.config = cfg
+        self._pipeline_rederived = pipeline is not None and bool(self.applied_rewrites)
+        if pipeline is not None and not self.applied_rewrites:
+            # Keep the caller's typed Pipeline: from_dict degrades op
+            # types missing from its registry, so don't re-derive it
+            # unless the config actually changed.
+            self.pipeline: PipelineCls = pipeline
+        else:
+            self.pipeline = PipelineCls.from_dict(cfg)
         self._raw_ops_list = self.config.get("operations", [])
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
 
@@ -197,7 +236,50 @@ class DSLRunner:
         self._setup_parsing_tools()
         self._setup_retrievers()
         build_operation_graph(self)
-        compute_operation_hashes(self)
+        self._compute_hashes()
+
+    def _compute_hashes(self) -> None:
+        """Compute checkpoint-invalidation hashes for every operation."""
+        self.step_op_hashes.clear()
+        if not self.intermediate_dir:
+            return
+
+        datasets = self.config.get("datasets", {})
+        system_prompt = self.pipeline.other_config.get("system_prompt", {})
+        step_final_hash: dict[str, str] = {}
+
+        def effective(op_cfg: dict) -> dict:
+            if "model" in op_cfg:
+                return op_cfg
+            return {**op_cfg, "model": self.default_model}
+
+        def input_token(name: str | None) -> dict | None:
+            if name is None:
+                return None
+            if name in step_final_hash:
+                return {"step": name, "hash": step_final_hash[name]}
+            return {"dataset": name, "config": datasets.get(name)}
+
+        for step in self.pipeline.steps:
+            digest = hashlib.sha256()
+            for element in ({"system_prompt": system_prompt}, input_token(step.input)):
+                digest.update(json.dumps(element, sort_keys=True, default=str).encode())
+
+            for entry in step.operations:
+                name = op_ref_name(entry)
+                if isinstance(entry, str):
+                    element = effective(self._op_map[name])
+                else:
+                    join_cfg = entry[name]
+                    element = {
+                        "equijoin": effective(self._op_map[name]),
+                        "left": input_token(join_cfg.get("left")),
+                        "right": input_token(join_cfg.get("right")),
+                    }
+                digest.update(json.dumps(element, sort_keys=True, default=str).encode())
+                self.step_op_hashes[step.name][name] = digest.copy().hexdigest()
+
+            step_final_hash[step.name] = digest.hexdigest()
 
     def _setup_api_keys(self) -> None:
         encrypted_llm_api_keys = self.config.get("llm_api_keys", {})
@@ -249,7 +331,7 @@ class DSLRunner:
             # Hashes are skipped when no intermediate_dir is configured at
             # init, so fill them in now that checkpointing is active.
             if not self.step_op_hashes:
-                compute_operation_hashes(self)
+                self._compute_hashes()
             self._checkpoints = CheckpointStore(
                 self.intermediate_dir,
                 self.step_op_hashes,
@@ -329,19 +411,26 @@ class DSLRunner:
         self.console.log("[yellow]Checking operations...[/yellow]")
 
         self.get_output_path()
-        current = self.last_op_container
 
-        try:
-            op_containers = [self.last_op_container] if self.last_op_container else []
-            while op_containers:
-                current = op_containers.pop(0)
-                syntax_result = current.syntax_check()
-                self.console.log(syntax_result, end="")
-                op_containers.extend(current.children)
-        except Exception as e:
-            raise ValueError(
-                f"Syntax check failed for operation '{current.name}': {str(e)}"
-            )
+        for node in self._plan.nodes():
+            op_cls = get_operation(node.op_type)
+            try:
+                op_cls(
+                    self,
+                    node.op_config,
+                    self.default_model,
+                    self.max_threads,
+                    self.console,
+                    self.status,
+                ).syntax_check()
+                self.console.log(
+                    f"[green]✓[/green] Operation '{node.name}' ({node.op_type})",
+                    end="",
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Syntax check failed for operation '{node.name}': {str(e)}"
+                )
 
         self.console.log("[green]✓ All operations passed syntax check[/green]")
 
@@ -375,7 +464,7 @@ class DSLRunner:
         return roles
 
     def print_query_plan(self, show_boundaries=False):
-        if not self.last_op_container:
+        if self._plan.root is None:
             self.console.log("\n[bold]Pipeline Steps:[/bold]")
             self.console.log(
                 Panel("No operations in pipeline", title="Query Plan", width=100)
@@ -384,11 +473,13 @@ class DSLRunner:
             return
 
         step_colors, plan_text = format_query_plan(
-            self.last_op_container,
-            self.op_container_map,
-            show_boundaries,
+            self._plan,
             default_model=self.config.get("default_model", "?"),
         )
+        if self.applied_rewrites:
+            self.console.log("\n[bold]Plan rewrites:[/bold]")
+            for rewrite in self.applied_rewrites:
+                self.console.log(f"  [dim]{rewrite}[/dim]")
         self.console.log("\n[bold]Pipeline Steps:[/bold]")
         for step_name, color in step_colors.items():
             self.console.log(f"[{color}]■[/{color}] {step_name}")
@@ -404,19 +495,19 @@ class DSLRunner:
     def list_pipeline_operations(
         self,
     ) -> list[tuple[str, str, str, str | None, list[str]]]:
-        ops_by_name = self.pipeline.ops_by_name
         ops: list[tuple[str, str, str, str | None, list[str]]] = []
-        for step in self.pipeline.steps:
-            for entry in step.operations:
-                op_name = op_ref_name(entry)
-                typed_op = ops_by_name.get(op_name)
-                op_type = typed_op.type if typed_op else "?"
-                if op_type in ("scan", "step_boundary"):
-                    continue
-                model = getattr(typed_op, "model", None) or self.default_model
-                agent_tools = get_agent_tool_names(getattr(typed_op, "agent", None))
+        for step in self._plan.steps:
+            for node in step.nodes:
+                model = node.op_config.get("model") or self.default_model
+                agent_tools = get_agent_tool_names(node.op_config.get("agent"))
                 ops.append(
-                    (step.name, f"{step.name}/{op_name}", op_type, model, agent_tools)
+                    (
+                        step.name,
+                        f"{step.name}/{node.name}",
+                        node.op_type,
+                        model,
+                        agent_tools,
+                    )
                 )
         return ops
 

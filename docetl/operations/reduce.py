@@ -20,7 +20,7 @@ from jinja2 import Template
 from litellm.utils import ModelResponse
 from pydantic import Field, field_validator, model_validator
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
@@ -181,6 +181,19 @@ class ReduceOperation(BaseOperation):
                 )
 
             return self
+
+    # ── plan traits ────────────────────────────────────────────────
+    # fields_read/fields_written stay at the conservative None default:
+    # reduce prompts render whole grouped rows (``{{ inputs }}``) and
+    # output rows are reshaped wholesale.
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        return Cardinality.MANY_TO_ONE
+
+    @classmethod
+    def is_llm(cls, config: dict[str, Any]) -> bool:
+        return True
 
     def __init__(self, *args, **kwargs):
         """Initialize the ReduceOperation."""

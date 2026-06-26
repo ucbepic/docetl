@@ -9,7 +9,7 @@ from rich.prompt import Confirm
 
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.resolve import ResolveOperation
-from docetl.utils import completion_cost, extract_jinja_variables
+from docetl.utils import completion_cost, extract_comparison_field_reads
 
 
 class JoinOptimizer:
@@ -982,16 +982,7 @@ class JoinOptimizer:
             keys = self.op_config.get("blocking_keys", [])
             if not keys:
                 prompt_template = self.op_config.get("comparison_prompt", "")
-                prompt_vars = extract_jinja_variables(prompt_template)
-                # Get rid of input, input1, input2
-                prompt_vars = [
-                    var
-                    for var in prompt_vars
-                    if var not in ["input", "input1", "input2"]
-                ]
-
-                # strip all things before . in the prompt_vars
-                keys += list(set([var.split(".")[-1] for var in prompt_vars]))
+                keys = list(extract_comparison_field_reads(prompt_template) or [])
             if not keys:
                 self.console.log(
                     "[yellow]Warning: No blocking keys found. Using all keys for blocking.[/yellow]"

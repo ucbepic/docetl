@@ -64,6 +64,7 @@ nav:
   
   - Optimization:
       - Overview: optimization/overview.md
+      - Plan Rewrites: optimization/plan-rewrites.md
       - Model Cascades (BARGAIN): optimization/cascades.md
       - MOAR Optimizer:
           - Introduction: optimization/moar.md

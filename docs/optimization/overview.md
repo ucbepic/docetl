@@ -13,6 +13,11 @@ optimizers for improving them:
   expensive model only sees the hard ones, with a statistical guarantee on
   quality. They run as part of normal execution — there is no separate step.
 
+A third mechanism needs no setup at all: **[plan rewrites](plan-rewrites.md)**
+reorder your pipeline at the start of every run when DocETL can prove the
+output is unchanged — for example, running a filter before an expensive map
+so the map only processes rows the filter keeps. On by default.
+
 **Recommendation:** use MOAR when you can write an evaluation function and
 can wait — it runs the pipeline many times on data samples, so a search takes
 tens of minutes. Use a cascade when one expensive `filter`, `resolve`, or

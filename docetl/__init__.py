@@ -53,6 +53,7 @@ __all__ = [
     "bypass_cache",
     "intermediate_dir",
     "rate_limits",
+    "plan_rewrites",
 ]
 
 _CONFIG_ATTRS = {
@@ -65,6 +66,7 @@ _CONFIG_ATTRS = {
     "intermediate_dir",
     "rate_limits",
     "system_prompt",
+    "plan_rewrites",
 }
 
 

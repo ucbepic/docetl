@@ -29,6 +29,8 @@ from docetl.utils import op_ref_name
 if TYPE_CHECKING:
     import pandas as pd
 
+    from docetl.plan import LogicalPlan
+
 # Top-level pipeline config keys a Frame carries with it (set by from_yaml).
 # These take precedence over the module-level ``docetl.<attr>`` globals.
 _SETTING_KEYS = (
@@ -39,6 +41,7 @@ _SETTING_KEYS = (
     "fallback_embedding_models",
     "parsing_tools",
     "system_prompt",
+    "plan_rewrites",
 )
 
 
@@ -849,22 +852,53 @@ class Frame:
     def schema(self) -> dict[str, str]:
         """Return the output schema of this pipeline.
 
-        Folds each operation's declared schema effect (via the operation
-        class's ``transform_schema``) over the chain, so structural ops
-        like split, unnest, gather, and extract are reflected too. Static
-        and best-effort — nothing is executed, and keys produced by code
-        operations (arbitrary Python) can't be known ahead of time.
+        Delegates to the logical plan's schema propagation (the single
+        implementation of the ``transform_schema`` fold), so structural
+        ops like split, unnest, gather, and extract are reflected, and
+        equijoin frames get a real left+right schema merge instead of a
+        linear fold. Static and best-effort — nothing is executed, and
+        keys produced by code operations (arbitrary Python) can't be
+        known ahead of time.
         """
-        from docetl.operations import get_operation
+        from docetl.plan import lift, output_schema
 
-        result: dict[str, str] = {}
-        for op in self._operations:
-            try:
-                op_cls = get_operation(op["type"])
-            except (KeyError, ValueError):
-                continue
-            result = op_cls.transform_schema(result, op)
-        return result
+        return output_schema(lift(self._build_config(checkpoint=False)))
+
+    def plan(self) -> "LogicalPlan":
+        """Lift this pipeline into its typed logical plan (docetl.plan).
+
+        Built without checkpoint settings so the plan doesn't vary with
+        ``docetl.intermediate_dir``. Purely static — nothing executes.
+        """
+        from docetl.plan import lift
+
+        return lift(self._build_config(checkpoint=False))
+
+    def explain(self, *, schemas: bool = True, optimized: bool = False) -> str:
+        """Render the logical plan as an indented tree and return it
+        (also printed for interactive use).
+
+        With ``optimized=True``, applies the plan rewrite rules first
+        (the same set the runner would use, honoring this frame's
+        ``plan_rewrites`` setting) and lists what fired as
+        ``-- applied <rule>: ...`` header lines.
+        """
+        from docetl.display import format_query_plan
+        from docetl.plan import apply_rules, configured_rules
+
+        plan = self.plan()
+        lines = []
+        if optimized:
+            rules = configured_rules(self._build_config(checkpoint=False))
+            for rewrite in apply_rules(plan, rules=rules):
+                lines.append(f"-- applied {rewrite}")
+        _, plan_text = format_query_plan(plan)
+        lines.append(plan_text)
+        text = "\n".join(lines)
+        from rich import print as rprint
+
+        rprint(text)
+        return text
 
     # ── terminal actions ───────────────────────────────────────────
 

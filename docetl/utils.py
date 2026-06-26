@@ -1,3 +1,4 @@
+import functools
 import json
 import math
 import os
@@ -125,6 +126,139 @@ def extract_jinja_variables(template_string: str) -> list[str]:
     all_variables = variables.union(regex_variables)
     all_variables.discard("input")
     return list(all_variables)
+
+
+def extract_input_field_reads(
+    template_string: Any, var: str = "input"
+) -> "frozenset[str] | None":
+    """The set of *var* fields a Jinja template reads, or None if unknown.
+
+    Sound for plan-rewrite decisions, unlike ``extract_jinja_variables``:
+    every use of *var* must be a static attribute access (``input.x``), a
+    constant subscript (``input["x"]``), or a constant ``.get`` call
+    (``input.get("x")``) for a result to be returned. Any other use —
+    bare ``{{ input }}``, a filter over the whole object, a dynamic
+    subscript, dict-method calls that touch the whole row
+    (``input.items()``, ``input.keys()``, ``input.values()``), aliasing
+    through ``{% set %}`` or a loop — and the template may read the
+    entire row, so this returns None (fail closed). An attribute access
+    that is the callee of a call is a method invocation, never a field
+    read: ``input.get`` resolves to ``dict.get`` at render time, so the
+    read field is the call's argument, not ``"get"``.
+
+    Non-Jinja strings also return None: at runtime the operation appends
+    the whole document to such prompts (``_append_document_to_prompt``).
+    """
+    if not isinstance(template_string, str) or not has_jinja_syntax(template_string):
+        return None
+    return _input_field_reads_cached(template_string, var)
+
+
+@functools.lru_cache(maxsize=512)
+def _input_field_reads_cached(
+    template_string: str, var: str
+) -> "frozenset[str] | None":
+    # Re-parsed per trait lookup per fixpoint pass otherwise; templates are
+    # immutable strings, so caching is free.
+    from jinja2 import nodes
+
+    env = Environment(autoescape=True)
+    try:
+        ast = env.parse(template_string)
+    except Exception:
+        return None
+
+    fields: set[str] = set()
+    # Every Name node for *var* must be consumed by a static field access.
+    consumed: set[int] = set()
+    # Getattr nodes that are really method invocations on *var*; handled
+    # in the Call pre-pass, skipped by the field-access loop below.
+    called: set[int] = set()
+    for node in ast.find_all(nodes.Call):
+        callee = node.node
+        if not (
+            isinstance(callee, nodes.Getattr)
+            and isinstance(callee.node, nodes.Name)
+            and callee.node.name == var
+        ):
+            continue
+        if callee.attr != "get":
+            return None  # items()/keys()/values()/... read the whole row
+        if (
+            not (
+                node.args
+                and isinstance(node.args[0], nodes.Const)
+                and isinstance(node.args[0].value, str)
+            )
+            or node.kwargs
+            or node.dyn_args
+            or node.dyn_kwargs
+        ):
+            return None  # dynamic .get key: unknown field
+        fields.add(node.args[0].value)
+        called.add(id(callee))
+        consumed.add(id(callee.node))
+    for node in ast.find_all((nodes.Getattr, nodes.Getitem)):
+        if id(node) in called:
+            continue
+        target = node.node
+        if not (isinstance(target, nodes.Name) and target.name == var):
+            continue
+        if isinstance(node, nodes.Getattr):
+            fields.add(node.attr)
+        else:
+            arg = node.arg
+            if not (isinstance(arg, nodes.Const) and isinstance(arg.value, str)):
+                return None  # dynamic subscript: unknown field
+            fields.add(arg.value)
+        consumed.add(id(target))
+    for name in ast.find_all(nodes.Name):
+        if name.name == var and id(name) not in consumed:
+            return None  # whole-object use of *var*
+    return frozenset(fields)
+
+
+def extract_template_field_reads(
+    template_string: Any, var: str = "input"
+) -> "frozenset[str] | None":
+    """Like ``extract_input_field_reads`` but treats non-Jinja strings as
+    reading nothing (∅) instead of everything (None).
+
+    Use for auxiliary templates (gleaning prompts, conditions) that are
+    rendered as-is when they contain no Jinja syntax — unlike main prompts,
+    no document is appended to them at runtime.
+    """
+    if not isinstance(template_string, str):
+        return None
+    if not has_jinja_syntax(template_string):
+        return frozenset()
+    return extract_input_field_reads(template_string, var=var)
+
+
+def extract_comparison_field_reads(
+    template_string: Any,
+    record_vars: tuple[str, ...] = ("input", "input1", "input2"),
+) -> "list[str] | None":
+    """Top-level record fields a comparison/resolution prompt reads from
+    its record variables, or None if they can't be soundly enumerated
+    (whole-row use, dynamic keys, non-Jinja template).
+
+    Used to derive blocking keys when none are configured. Replaces a
+    regex+``split('.')[-1]`` heuristic that was copy-pasted at four call
+    sites and had two defects: it missed reads inside ``{% if %}``/
+    ``{% for %}`` blocks, and it mangled nested paths — for
+    ``input1.address.city`` the record's actual field is ``address``,
+    but the heuristic produced ``city``, a key that does not exist, so
+    blocking embedded empty strings for it. Callers treat None/empty as
+    "block on all keys", which is exactly right for whole-row prompts.
+    """
+    fields: set[str] = set()
+    for var in record_vars:
+        reads = extract_input_field_reads(template_string, var=var)
+        if reads is None:
+            return None
+        fields |= reads
+    return sorted(fields)
 
 
 def completion_cost(response: ModelResponse) -> float:

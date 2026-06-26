@@ -115,6 +115,15 @@ class EquijoinOperation(BaseOperation, CascadeMixin):
                 )
             return v
 
+    # ── plan traits ────────────────────────────────────────────────
+    # Two-input join: rewrite rules treat it as an immovable boundary,
+    # so only the cost trait matters. The single-input fields_read/
+    # fields_written contracts don't apply; both stay None.
+
+    @classmethod
+    def is_llm(cls, config):
+        return True
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Check for non-Jinja prompts and prompt user for confirmation

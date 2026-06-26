@@ -6,6 +6,7 @@ from typing import Any
 from litellm.utils import ModelResponse
 from pydantic import model_validator
 
+from docetl.operations.base import Cardinality
 from docetl.operations.map import MapOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.api import OutputMode
@@ -82,6 +83,30 @@ class FilterOperation(MapOperation, CascadeMixin):
         if filter_keys:
             result.pop(filter_keys[0], None)
         return result
+
+    # ── plan traits ────────────────────────────────────────────────
+
+    @classmethod
+    def cardinality(cls, config: dict[str, Any]) -> Cardinality:
+        # Always a subset of the input rows: skip_on_error, limit, and
+        # validate failures only drop more of them.
+        return Cardinality.SELECTION
+
+    # fields_written and is_llm are inherited from MapOperation: the
+    # decision key is in output.schema (overwritten then popped — a write
+    # by the added-overwritten-or-removed definition), and the map body
+    # already covers drop_keys, observability, and retriever-output keys.
+
+    @classmethod
+    def fields_removed(cls, config: dict[str, Any]) -> "frozenset[str]":
+        # The decision key is popped from every kept row.
+        removed = set(super().fields_removed(config))
+        removed.update(
+            k
+            for k in ((config.get("output") or {}).get("schema") or {})
+            if k != "_short_explanation"
+        )
+        return frozenset(removed)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

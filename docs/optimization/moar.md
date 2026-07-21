@@ -20,7 +20,7 @@ When optimizing pipelines, you trade off cost and accuracy. MOAR explores many d
 - **[Understanding Results](moar/results.md)** - What MOAR outputs and how to interpret it
 - **[Examples](moar/examples.md)** - Complete working examples
 - **[Troubleshooting](moar/troubleshooting.md)** - Common issues and solutions
-- **[Extending MOAR](../developer-reference/moar-extensibility.md)** - How to implement and test a rewrite directive
+- **[Adding a Rewrite Directive](../developer-reference/moar-extensibility.md)** - How to implement and test a MOAR rewrite
 
 ## When to Use MOAR
 
@@ -59,12 +59,12 @@ MOAR separates rewrite directives from the search policy. A directive describes
 one pipeline transformation, while the search decides where to try it and the
 evaluation function measures the result. Developers can therefore add a new
 optimization strategy without changing the MCTS implementation. See
-[Extending MOAR with rewrite directives](../developer-reference/moar-extensibility.md)
+[Adding a MOAR rewrite directive](../developer-reference/moar-extensibility.md)
 for the implementation, registration, testing, and observability workflow.
 
 Useful contribution areas include:
 
-- **Novel rewrite directives.** Add a transformation with explicit
+- **New rewrite directives.** Add a transformation with explicit
   applicability rules, a narrow instantiate schema, deterministic validation,
   and benchmarks on more than one workload.
 - **Better directive testing.** Improve deterministic schema and pipeline tests,
@@ -83,4 +83,4 @@ The lightweight policy is especially useful for small pipelines and development
 smoke tests. MCTS remains useful when interactions among several rewrites and a
 larger cost-accuracy frontier justify the additional search calls.
 
-Ready to get started? Head to the [Getting Started guide](moar/getting-started.md).
+See the [Getting Started guide](moar/getting-started.md) to run an optimization.

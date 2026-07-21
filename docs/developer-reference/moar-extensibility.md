@@ -1,26 +1,33 @@
-# Extending MOAR with rewrite directives
+# Adding a MOAR rewrite directive
 
-A rewrite directive teaches MOAR one abstract way to transform a pipeline. The
-directive does not hardcode the rewrite for a particular pipeline. It describes
-when a transformation is useful, defines the structured configuration that the
-rewrite agent must generate, validates that configuration, and applies it to the
-pipeline.
+A rewrite directive defines one kind of pipeline transformation that MOAR can
+consider. The directive describes which operations it applies to, defines the
+structured output that the rewrite agent must produce, validates the agent's
+output, and constructs a new pipeline.
 
-The built-in `chaining` directive is a compact example. It replaces one complex
-operation with a sequence of simpler map operations:
+The built-in `chaining` directive replaces one complex operation with a sequence
+of simpler map operations:
 
 ```text
 Op  =>  Map* -> Op
 ```
 
-The rewrite agent decides what the intermediate tasks and prompts should be.
-DocETL constructs the resulting pipeline, rejects invalid candidates, and MOAR
-measures whether the candidate improves the cost and accuracy frontier.
+The directive implementation defines the permitted transformation. For each
+target operation, the rewrite agent generates the intermediate tasks and
+prompts. DocETL validates the resulting pipeline before MOAR executes and scores
+it.
 
 This guide follows the implementation in
 [`docetl/reasoning_optimizer/directives/chaining.py`](https://github.com/ucbepic/docetl/blob/main/docetl/reasoning_optimizer/directives/chaining.py).
 
-## Directive lifecycle
+!!! note "Who provides each part?"
+    - **Pipeline author:** the original pipeline and evaluation function.
+    - **Directive contributor:** the instantiate schema, validation rules,
+      application code, registration, and tests.
+    - **Rewrite agent:** one task-specific instance of the directive during a
+      MOAR search.
+
+## How MOAR uses a directive
 
 MOAR uses a directive in five stages:
 
@@ -32,91 +39,101 @@ MOAR uses a directive in five stages:
    complete candidate pipeline before executing it.
 5. MOAR runs the candidate and evaluates its accuracy and cost.
 
-Keep the boundary between stages explicit. The schema describes what the agent
-may propose; `apply()` is deterministic pipeline construction.
+The schema limits what the rewrite agent may propose. `apply()` performs the
+pipeline transformation without another model call.
 
-## Example: decompose a complex extraction
+## Running example: split a medical extraction
 
-Suppose a map operation must identify newly diagnosed conditions and associate
-treatments with them in one call:
+Suppose a pipeline contains a map operation that must identify newly diagnosed
+conditions and associate treatments with them in one call.
 
-```yaml
-- name: extract_new_treatments
-  type: map
-  prompt: |
-    From this discharge summary, extract every treatment
-    prescribed specifically for a newly diagnosed condition.
+!!! example "Example input: the pipeline author's operation"
+    The pipeline author writes the original operation. The directive receives
+    the operation as input during optimization.
 
-    {{ input.summary }}
-  output:
-    schema:
-      treatments: list[str]
-```
+    ```yaml
+    - name: extract_new_treatments
+      type: map
+      prompt: |
+        From this discharge summary, extract every treatment
+        prescribed specifically for a newly diagnosed condition.
+
+        {{ input.summary }}
+      output:
+        schema:
+          treatments: list[str]
+    ```
 
 The operation combines two dependent decisions:
 
 1. Which conditions are newly diagnosed?
 2. Which treatments were prescribed for those conditions?
 
-Chaining can ask the agent to produce a decomposition such as:
+The chaining directive can replace the operation with two dependent maps:
 
 ![Before and after the chaining rewrite](../assets/moar-chaining-rewrite.svg)
 
 Both plans accept `summary` and produce `treatments`. The rewritten plan makes
 `new_conditions` an explicit intermediate result that the second map can use.
 
-The developer implements the general strategy. The rewrite agent supplies the
-task-specific steps.
+The directive contributor does not hardcode the two medical tasks. The rewrite
+agent generates them from the target operation during optimization.
 
 ## 1. Define the instantiate schema
 
 Add the Pydantic models that describe the agent's output to
-`docetl/reasoning_optimizer/instantiate_schemas.py`:
+`docetl/reasoning_optimizer/instantiate_schemas.py`.
 
-```python
-class MapOpConfig(BaseModel):
-    name: str
-    prompt: str
-    output_keys: list[str]
+!!! abstract "Contributor code: the instantiate schema"
+    The directive contributor writes these classes. They define the fields that
+    the rewrite agent must return.
+
+    ```python
+    class MapOpConfig(BaseModel):
+        name: str
+        prompt: str
+        output_keys: list[str]
 
 
-class ChainingInstantiateSchema(BaseModel):
-    new_ops: list[MapOpConfig]
-```
+    class ChainingInstantiateSchema(BaseModel):
+        new_ops: list[MapOpConfig]
+    ```
 
-For the medical operation, a valid agent response can be represented as:
+!!! example "Runtime example: output from the rewrite agent"
+    The following object is an example of agent output for the medical operation
+    above. A pipeline author does not write this object.
 
-```python
-ChainingInstantiateSchema(
-    new_ops=[
-        MapOpConfig(
-            name="identify_new_conditions",
-            prompt="""
-            Read this discharge summary:
+    ```python
+    ChainingInstantiateSchema(
+        new_ops=[
+            MapOpConfig(
+                name="identify_new_conditions",
+                prompt="""
+                Read this discharge summary:
 
-            {{ input.summary }}
+                {{ input.summary }}
 
-            List only conditions explicitly described as newly diagnosed.
-            """,
-            output_keys=["new_conditions"],
-        ),
-        MapOpConfig(
-            name="extract_treatments",
-            prompt="""
-            Read this discharge summary:
+                List only conditions explicitly described as newly diagnosed.
+                """,
+                output_keys=["new_conditions"],
+            ),
+            MapOpConfig(
+                name="extract_treatments",
+                prompt="""
+                Read this discharge summary:
 
-            {{ input.summary }}
+                {{ input.summary }}
 
-            Newly diagnosed conditions:
-            {{ input.new_conditions }}
+                Newly diagnosed conditions:
+                {{ input.new_conditions }}
 
-            List the treatments prescribed for each new condition.
-            """,
-            output_keys=["treatments"],
-        ),
-    ]
-)
-```
+                List the treatments prescribed for each new condition.
+                """,
+                output_keys=["treatments"],
+            ),
+        ]
+    )
+    ```
 
 Use narrow fields with descriptions that a model can follow. Do not ask the
 agent to emit an entire pipeline when the directive needs only two prompts and
@@ -146,7 +163,7 @@ structured output enabled. Return the validation error to the agent and retry a
 small, bounded number of times. `MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS` is the
 shared limit used by the built-in directives.
 
-## 3. Describe the abstract strategy
+## 3. Describe when the directive applies
 
 Create a subclass of `Directive` under
 `docetl/reasoning_optimizer/directives/`. The four descriptive fields are part
@@ -179,7 +196,7 @@ The base class also requires an `example` and may include `test_cases`. The
 example becomes part of the rewrite agent's context, so use a complete example
 that preserves inputs, outputs, and prompt instructions.
 
-## 4. Instantiate the directive
+## 4. Generate and validate a rewrite instance
 
 Implement `to_string_for_instantiate()` and `llm_instantiate()` to obtain the
 typed configuration:
@@ -404,7 +421,3 @@ compete successfully with the rest of the registry.
 | Apply | Replace one operation with the generated sequence |
 | Deterministic tests | Schema, operation shape, and static plan validity |
 | Empirical tests | Selection rate, execution success, accuracy, and cost |
-
-The central interface is small: a developer specifies an abstract strategy and
-its invariants, an agent adapts the strategy to a particular pipeline, and MOAR
-tests the resulting candidate against the user's evaluation function.

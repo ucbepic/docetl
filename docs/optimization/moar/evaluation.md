@@ -2,6 +2,9 @@
 
 How to write evaluation functions for MOAR optimization.
 
+!!! tip "No ground truth? Use an LLM judge"
+    If you can't write a label function for your task, skip `eval_fn` entirely and pass `judge_model` instead — see [LLM-as-Judge Evaluation](#llm-as-judge-evaluation) below.
+
 ## How Evaluation Functions Work
 
 Your evaluation function reads the pipeline output and computes metrics. MOAR uses one specific metric from your returned dictionary (specified by `metric_key`) to optimize for accuracy.
@@ -186,4 +189,42 @@ result = pipeline.optimize(
     ```
 
 This helps catch errors early and ensures your function works correctly.
+
+## LLM-as-Judge Evaluation
+
+When your task has no ground truth labels, designate a judge LLM instead of writing an evaluation function. This is the same agent-guided plan evaluation introduced in the [original DocETL paper](https://arxiv.org/abs/2410.12189), adapted to MOAR's search loop:
+
+1. **Criteria synthesis** — The rewrite agent model reads your pipeline (operation prompts, output schemas, sample inputs) and writes task-specific validation criteria. You can also supply your own with `judge_criteria`.
+2. **1–5 rating** — After a candidate plan runs on the sample data, the judge model rates its outputs against the criteria on a 1–5 scale, per sample document.
+3. **Ranked insertion** — The new plan is slotted into a leaderboard of all previously evaluated plans. The rating routes it to a neighborhood of similarly rated plans; judge comparisons (batched, best-first ranking calls over the candidate and its neighbors) decide its exact position.
+
+The plan's "accuracy" is a score in (0, 1) derived from its leaderboard position, so the MCTS rewards are **ranking-based**. Two invariants hold across MOAR iterations:
+
+- The relative order of previously evaluated plans never changes — a new plan's outputs can only be *inserted* into the current ranking, never reshuffle it.
+- Scores are immutable once assigned, keeping rewards stationary for the search.
+
+### Python API
+
+```python
+result = pipeline.optimize(
+    judge_model="gpt-4.1-mini",          # instead of eval_fn/metric_key
+    # judge_criteria="...",              # optional; auto-generated if omitted
+)
+```
+
+### YAML / CLI
+
+```yaml
+optimizer_config:
+  judge_model: gpt-4.1-mini
+  # judge_criteria: |
+  #   The output should list every landmark mentioned in the document...
+```
+
+### Notes
+
+- Criteria generation runs on the **rewrite agent model** (`agent_model`); rating and comparison calls run on the **judge model**, which can be a cheaper model.
+- Long outputs are handled with batching and token-budgeted truncation: comparisons are made per sample document where outputs align 1:1 with inputs, in one batched ranking call per document (reusing the `rank` operator's batch machinery). If a whole neighborhood doesn't fit the judge's context window, placement falls back to one-vs-one comparisons, and individual outputs are truncated as a last resort.
+- The full audit trail — criteria, ratings, every comparison, and the leaderboard — is written to `ranking.json` in `save_dir`.
+- Judge LLM costs are counted in `result.total_search_cost`.
 

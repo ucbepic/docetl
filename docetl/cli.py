@@ -27,9 +27,11 @@ def build(
     """
     Optimize a pipeline using MOAR (Multi-Objective Agentic Rewrites).
 
-    Requires an optimizer_config section in the YAML with at least:
+    Requires an optimizer_config section in the YAML with either:
       - evaluation_file: path to a Python file with a @docetl.register_eval function
-      - metric_key: key to extract from evaluation results
+        and metric_key: key to extract from evaluation results, or
+      - judge_model: an LLM judge that rates and ranks plan outputs
+        (optionally judge_criteria; auto-generated from the pipeline if omitted)
 
     Models are auto-detected from API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY,
     GEMINI_API_KEY, AZURE_API_KEY) unless available_models is set explicitly.
@@ -52,10 +54,12 @@ def build(
     optimizer_config = config.get("optimizer_config", {})
     if not optimizer_config:
         example_yaml = """optimizer_config:
-  evaluation_file: evaluate.py
+  evaluation_file: evaluate.py    # or use judge_model instead (see below)
   metric_key: score
   save_dir: ./moar_results       # optional, defaults to temp dir
   max_iterations: 20              # optional, defaults to 20
+  # judge_model: gpt-4.1          # LLM judge instead of evaluation_file
+  # judge_criteria: "..."         # optional, auto-generated if omitted
   # available_models:             # optional, auto-detected from API keys
   #   - gpt-4.1
   #   - anthropic/claude-sonnet-4-6"""
@@ -70,14 +74,33 @@ def build(
         console.print(error_panel)
         raise typer.Exit(1)
 
+    judge_cfg = optimizer_config.get("judge") or {}
+    judge_model = optimizer_config.get("judge_model") or judge_cfg.get("model")
+    judge_criteria = optimizer_config.get("judge_criteria") or judge_cfg.get(
+        "criteria"
+    )
+
+    if judge_model and optimizer_config.get("evaluation_file"):
+        console.print(
+            Panel(
+                "[bold red]Error:[/bold red] optimizer_config has both "
+                "judge_model and evaluation_file — pick one way to score plans.",
+                title="[bold red]Conflicting optimizer_config[/bold red]",
+                border_style="red",
+            )
+        )
+        raise typer.Exit(1)
+
     required_fields = {
         "evaluation_file": "Path to evaluation function file",
         "metric_key": "Key to extract from evaluation results",
     }
 
-    missing_fields = [
-        field for field in required_fields if not optimizer_config.get(field)
-    ]
+    missing_fields = (
+        []
+        if judge_model
+        else [field for field in required_fields if not optimizer_config.get(field)]
+    )
     if missing_fields:
         fields_table = Table(
             show_header=True, header_style="bold cyan", box=None, padding=(0, 2)
@@ -119,15 +142,19 @@ def build(
                 _, ds_cfg = next(iter(ds.items()))
                 dataset_path = ds_cfg.get("path", "")
 
-        eval_fn = load_custom_evaluate_func(
-            optimizer_config["evaluation_file"],
-            dataset_path or "",
-        )
+        eval_fn = None
+        if not judge_model:
+            eval_fn = load_custom_evaluate_func(
+                optimizer_config["evaluation_file"],
+                dataset_path or "",
+            )
 
         opt = MOAROptimizer(
             pipeline=str(yaml_file),
             eval_fn=eval_fn,
-            metric_key=optimizer_config["metric_key"],
+            metric_key=optimizer_config.get("metric_key"),
+            judge_model=judge_model,
+            judge_criteria=judge_criteria,
             models=optimizer_config.get("available_models"),
             agent_model=optimizer_config.get("rewrite_agent_model")
             or optimizer_config.get("model"),

@@ -43,7 +43,7 @@ class MOARSearch:
         sample_input,
         dataset_name: str,
         available_models: List[str],
-        evaluate_func: Callable,
+        evaluate_func: Optional[Callable] = None,
         exploration_constant: float = 1.414,
         max_iterations: int = 20,
         model="gpt-5",
@@ -52,6 +52,8 @@ class MOARSearch:
         sample_dataset_path: Optional[str] = None,
         max_threads: int | None = None,
         max_concurrent_agents: int = 3,
+        judge=None,
+        judge_bucket_capacity: int = 8,
     ):
         """
         Initialize the MOARSearch algorithm.
@@ -66,9 +68,19 @@ class MOARSearch:
             max_iterations: Maximum number of MOARSearch iterations
             model: Model to use for agent LLM calls
             output_dir: Directory to save new pipeline files (None means same dir as original)
-            evaluate_func: Evaluation function (results_file_path: str) -> dict
+            evaluate_func: Evaluation function (results_file_path: str) -> dict.
+                Optional when *judge* is provided.
             custom_metric_key: Key to extract from evaluation results dict for accuracy metric
+            judge: Optional ``PlanJudge`` for LLM-as-judge evaluation. When
+                set, plans are scored by ranked judge comparisons instead of
+                *evaluate_func*.
+            judge_bucket_capacity: Max plans per leaderboard bucket before it
+                splits (judge mode only).
         """
+        if evaluate_func is None and judge is None:
+            raise ValueError(
+                "MOARSearch requires either evaluate_func or judge."
+            )
 
         self.console = DOCETL_CONSOLE
         self.root = Node(root_yaml_path, c=exploration_constant, console=self.console)
@@ -125,10 +137,14 @@ class MOARSearch:
 
         # Set up evaluation function and dataset metrics
         self.evaluate_func = evaluate_func
+        self.judge = judge
+        self.plan_ranking = None
 
         # Use predefined metric key for known datasets if custom_metric_key not provided
         if custom_metric_key is not None:
             self.primary_metric_key = custom_metric_key
+        elif judge is not None:
+            self.primary_metric_key = "judge_score"
         else:
             self.dataset_metrics = {
                 "cuad": "avg_f1",
@@ -172,6 +188,21 @@ class MOARSearch:
 
         # Track total cost for all completion calls during search
         self.total_search_cost = 0.0
+
+        # Judge mode: synthesize criteria (rewrite agent model) and set up
+        # the insertion-only leaderboard before any plan is simulated.
+        if self.judge is not None:
+            from docetl.moar.ranking import RankedPlans
+
+            self.judge.set_sample_input(sample_input)
+            criteria_cost = self.judge.ensure_criteria(self.root.parsed_yaml)
+            self.total_search_cost += criteria_cost
+            self.plan_ranking = RankedPlans(
+                self.judge,
+                bucket_capacity=judge_bucket_capacity,
+                output_dir=self.output_dir,
+                console=self.console,
+            )
 
         self.model_stats = {}
         self.frontier_models = []
@@ -228,6 +259,7 @@ class MOARSearch:
 
         for child in children_to_remove:
             self.pareto_frontier.delete_plan(child)
+            self._judge_remove(child)
             child.delete()
 
         # Process remaining frontier children (only those on the frontier)
@@ -282,6 +314,27 @@ class MOARSearch:
             return float("-inf")
 
         result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
+
+        if self.plan_ranking is not None:
+            try:
+                with open(result_file_path, "r") as f:
+                    output_rows = json.load(f)
+                score, judge_cost = self.plan_ranking.insert(node, output_rows)
+                with self.tree_lock:
+                    self.console.log(
+                        f"[green]💰 Adding judge evaluation cost:[/green] "
+                        f"${judge_cost:.4f} (total before: ${self.total_search_cost:.4f})"
+                    )
+                    self.total_search_cost += judge_cost
+                return score
+            except Exception as e:
+                self.console.log(
+                    f"[yellow]⚠️ Judge evaluation failed for node {node.get_id()}: {e}[/yellow]"
+                )
+                node._log_inf_occurrence(
+                    "judge_evaluation_failure", str(e), node.yaml_file_path
+                )
+                return float("-inf")
 
         try:
             results = self.evaluate_func(result_file_path)
@@ -520,6 +573,7 @@ class MOARSearch:
                 # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
                 for candidate in children:
                     if candidate != best_candidate:
+                        self._judge_remove(candidate)
                         candidate.delete(selected_node_final_id=new_id)
 
                 # Frontier mutation and backprop touch shared state —
@@ -534,6 +588,7 @@ class MOARSearch:
                     "[yellow]No successful candidates found, deleting all multi-instance candidates[/yellow]"
                 )
                 for candidate in children:
+                    self._judge_remove(candidate)
                     candidate.delete(selected_node_final_id=None)
 
         else:
@@ -1027,6 +1082,11 @@ class MOARSearch:
             node, accuracy
         )
         return affected_nodes, is_frontier_updated
+
+    def _judge_remove(self, node: Node) -> None:
+        """Drop a discarded plan from the judge leaderboard (judge mode only)."""
+        if self.plan_ranking is not None:
+            self.plan_ranking.remove(node)
 
     def increment_visits_up_tree(self, node: Node):
         """

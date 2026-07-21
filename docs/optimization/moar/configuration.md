@@ -4,7 +4,7 @@ Complete reference for all MOAR configuration options, covering both the Python 
 
 ## Python API Parameters
 
-Call `frame.optimize()` to run MOAR optimization. Only `eval_fn` and `metric_key` are required:
+Call `frame.optimize()` to run MOAR optimization. Score plans either with a label function (`eval_fn` + `metric_key`) or with an LLM judge (`judge_model`) — exactly one of the two:
 
 ```python
 def my_eval(results_path):
@@ -14,8 +14,10 @@ def my_eval(results_path):
     return {"score": sum(1 for r in results if r.get("correct"))}
 
 optimized = frame.optimize(
-    eval_fn=my_eval,                 # Required — a callable
-    metric_key="score",              # Required — key in eval_fn's return dict
+    eval_fn=my_eval,                 # A callable (or use judge_model instead)
+    metric_key="score",              # Key in eval_fn's return dict
+    judge_model=None,                # LLM judge instead of eval_fn
+    judge_criteria=None,             # Optional criteria for the judge
     models=None,                     # Auto-detected from API keys
     agent_model=None,                # Auto-selected best available
     max_iterations=20,               # Search budget
@@ -27,12 +29,14 @@ optimized = frame.optimize(
 )
 ```
 
-### Required Parameters
+### Plan Scoring (choose one)
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `eval_fn` | `Callable` | A function that scores pipeline output. 1-arg: `(results_path) -> dict`. 2-arg: `(dataset_path, results_path) -> dict` (dataset path is curried automatically). Also accepts a file path string for CLI compatibility. |
-| `metric_key` | `str` | Key in evaluation results dictionary to use as accuracy metric |
+| `eval_fn` | `Callable` | A function that scores pipeline output. 1-arg: `(results_path) -> dict`. 2-arg: `(dataset_path, results_path) -> dict` (dataset path is curried automatically). Also accepts a file path string for CLI compatibility. Requires `metric_key`. |
+| `metric_key` | `str` | Key in evaluation results dictionary to use as accuracy metric (required with `eval_fn`) |
+| `judge_model` | `str` | LLM judge used instead of `eval_fn` when there's no ground truth. Rates each plan's outputs 1–5 and ranks it against previously evaluated plans; accuracy becomes the plan's position-derived score in (0, 1). See [LLM-as-Judge Evaluation](evaluation.md#llm-as-judge-evaluation). |
+| `judge_criteria` | `str` | Optional validation criteria for the judge. Auto-generated from the pipeline by the rewrite agent model if omitted. |
 
 ### Optional Parameters
 
@@ -49,14 +53,16 @@ optimized = frame.optimize(
 
 ## YAML Configuration
 
-In YAML, add an `optimizer_config` section. Only `evaluation_file` and `metric_key` are required:
+In YAML, add an `optimizer_config` section with either `evaluation_file` + `metric_key` or `judge_model`:
 
-### Required Fields
+### Plan Scoring (choose one)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `evaluation_file` | `str` | Path to Python file containing `@register_eval` decorated function |
-| `metric_key` | `str` | Key in evaluation results dictionary to use as accuracy metric |
+| `evaluation_file` | `str` | Path to Python file containing `@register_eval` decorated function. Requires `metric_key`. |
+| `metric_key` | `str` | Key in evaluation results dictionary to use as accuracy metric (required with `evaluation_file`) |
+| `judge_model` | `str` | LLM judge used instead of `evaluation_file` (also accepted nested as `judge: {model: ..., criteria: ...}`) |
+| `judge_criteria` | `str` | Optional validation criteria for the judge; auto-generated if omitted |
 
 ### Optional Fields
 

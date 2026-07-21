@@ -136,24 +136,37 @@ class MOARResult:
         )
 
 
-def run_moar(pipeline, *, eval_fn, metric_key, **kwargs) -> "MOARResult":
+def run_moar(pipeline, *, eval_fn=None, metric_key=None, **kwargs) -> "MOARResult":
     """Validate the required MOAR arguments and run the search.
 
     Single entry point shared by ``Pipeline.optimize(method="moar")`` and
     ``Frame.optimize()``. *pipeline* is anything ``MOAROptimizer`` accepts
     (a ``Pipeline``, a YAML path, or a config dict).
+
+    Plans are scored either by a label function (*eval_fn* + *metric_key*)
+    or by an LLM judge (*judge_model* in **kwargs) — exactly one of the two.
     """
-    if eval_fn is None:
-        raise ValueError(
-            "eval_fn is required for MOAR optimization. "
-            "Pass a callable, e.g.: "
-            "eval_fn=lambda results_path: {'score': compute_score(results_path)}"
-        )
-    if metric_key is None:
-        raise ValueError(
-            "metric_key is required for MOAR optimization. "
-            "This is the key in your eval function's return dict to optimize."
-        )
+    judge_model = kwargs.get("judge_model")
+    if judge_model:
+        if eval_fn is not None:
+            raise ValueError(
+                "Pass either eval_fn or judge_model for MOAR optimization, "
+                "not both."
+            )
+    else:
+        if eval_fn is None:
+            raise ValueError(
+                "MOAR optimization needs a way to score plans. Either pass "
+                "eval_fn (a callable, e.g. eval_fn=lambda results_path: "
+                "{'score': compute_score(results_path)}) with metric_key, "
+                "or pass judge_model to use an LLM judge instead of a "
+                "label function."
+            )
+        if metric_key is None:
+            raise ValueError(
+                "metric_key is required for MOAR optimization with eval_fn. "
+                "This is the key in your eval function's return dict to optimize."
+            )
     return MOAROptimizer(
         pipeline=pipeline, eval_fn=eval_fn, metric_key=metric_key, **kwargs
     ).optimize()
@@ -176,6 +189,16 @@ class MOAROptimizer:
             dataset path is curried automatically). Also accepts a file
             path to a ``@register_eval``-decorated function (for CLI use).
         metric_key: Key to extract from the eval function's return dict.
+        judge_model: Model for LLM-as-judge evaluation. Mutually exclusive
+            with *eval_fn* — when set, each plan's outputs are rated 1-5
+            against validation criteria and ranked against previously
+            evaluated plans via judge comparisons; the plan's accuracy is
+            its position-derived score in (0, 1).
+        judge_criteria: Optional validation criteria for the judge. If
+            omitted, criteria are synthesized from the pipeline by the
+            rewrite agent model.
+        judge_bucket_capacity: Max plans per leaderboard bucket before it
+            splits (judge mode only, default 8).
         models: List of model names to search over. If ``None``, auto-detects
             from environment API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY,
             GEMINI_API_KEY, AZURE_API_KEY).
@@ -221,8 +244,8 @@ class MOAROptimizer:
     def __init__(
         self,
         pipeline: Union["Pipeline", str, Path, Dict[str, Any]],
-        eval_fn: Union[Callable[[str], Dict[str, Any]], str, Path],
-        metric_key: str,
+        eval_fn: Union[Callable[[str], Dict[str, Any]], str, Path, None] = None,
+        metric_key: Optional[str] = None,
         models: Optional[List[str]] = None,
         agent_model: Optional[str] = None,
         max_iterations: int = 20,
@@ -232,11 +255,29 @@ class MOAROptimizer:
         dataset_name: Optional[str] = None,
         max_threads: int | None = None,
         max_concurrent_agents: int = 3,
+        judge_model: Optional[str] = None,
+        judge_criteria: Optional[str] = None,
+        judge_bucket_capacity: int = 8,
     ):
+        if judge_model:
+            if eval_fn is not None:
+                raise ValueError(
+                    "Pass either eval_fn or judge_model, not both."
+                )
+        elif eval_fn is None:
+            raise ValueError(
+                "MOAROptimizer requires eval_fn (with metric_key) or judge_model."
+            )
+        elif metric_key is None:
+            raise ValueError("metric_key is required when using eval_fn.")
+
         self.pipeline_path = self._resolve_pipeline(pipeline, save_dir)
-        self.metric_key = metric_key
+        self.metric_key = metric_key or "judge_score"
         self.max_iterations = max_iterations
         self.exploration_weight = exploration_weight
+        self.judge_model = judge_model
+        self.judge_criteria = judge_criteria
+        self.judge_bucket_capacity = judge_bucket_capacity
 
         # Auto-detect models if not provided
         if models is not None:
@@ -256,8 +297,12 @@ class MOAROptimizer:
             self._save_dir = Path(self._temp_dir)
         self._save_dir.mkdir(parents=True, exist_ok=True)
 
-        # Resolve eval function
-        self._eval_fn = self._resolve_eval_fn(eval_fn, dataset_path)
+        # Resolve eval function (judge mode has none)
+        self._eval_fn = (
+            self._resolve_eval_fn(eval_fn, dataset_path)
+            if eval_fn is not None
+            else None
+        )
 
         # Resolve dataset info
         self._dataset_path, self._dataset_name = self._resolve_dataset(
@@ -420,6 +465,21 @@ class MOAROptimizer:
         DOCETL_CONSOLE.log(f"[dim]Agent model: {self.agent_model}[/dim]")
         DOCETL_CONSOLE.log(f"[dim]Save dir: {self._save_dir}[/dim]")
 
+        judge = None
+        if self.judge_model:
+            from docetl.moar.judge import PlanJudge
+
+            DOCETL_CONSOLE.log(
+                f"[dim]Judge model: {self.judge_model} "
+                f"(criteria {'provided' if self.judge_criteria else 'auto-generated'})[/dim]"
+            )
+            judge = PlanJudge(
+                judge_model=self.judge_model,
+                agent_model=self.agent_model,
+                criteria=self.judge_criteria,
+                max_threads=self._max_threads or 8,
+            )
+
         start_time = datetime.now()
 
         moar = MOARSearch(
@@ -437,6 +497,8 @@ class MOAROptimizer:
             sample_dataset_path=self._dataset_path,
             max_threads=self._max_threads,
             max_concurrent_agents=self._max_concurrent_agents,
+            judge=judge,
+            judge_bucket_capacity=self.judge_bucket_capacity,
         )
 
         moar.search()
@@ -499,6 +561,7 @@ class MOAROptimizer:
             "optimizer": "moar",
             "input_pipeline": self.pipeline_path,
             "agent_model": self.agent_model,
+            "judge_model": self.judge_model,
             "models": self.models,
             "max_iterations": self.max_iterations,
             "exploration_weight": self.exploration_weight,

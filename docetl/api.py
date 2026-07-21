@@ -192,6 +192,8 @@ class Pipeline:
         # MOAR parameters
         eval_fn: Any = None,
         metric_key: str | None = None,
+        judge_model: str | None = None,
+        judge_criteria: str | None = None,
         models: list[str] | None = None,
         agent_model: str | None = None,
         max_iterations: int = 20,
@@ -207,6 +209,8 @@ class Pipeline:
             return self._optimize_moar(
                 eval_fn=eval_fn,
                 metric_key=metric_key,
+                judge_model=judge_model,
+                judge_criteria=judge_criteria,
                 models=models,
                 agent_model=agent_model,
                 max_iterations=max_iterations,

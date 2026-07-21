@@ -24,8 +24,10 @@ AVAILABLE_MODELS = [
 from .MOARSearch import MOARSearch  # noqa: E402
 from .Node import Node  # noqa: E402
 from .ParetoFrontier import ParetoFrontier  # noqa: E402
+from .judge import PlanJudge  # noqa: E402
 from .models import detect_available_models, default_agent_model  # noqa: E402
 from .optimizer import MOAROptimizer, MOARResult, OptimizedPipeline  # noqa: E402
+from .ranking import RankedPlans  # noqa: E402
 
 __all__ = [
     "MOARSearch",
@@ -35,6 +37,8 @@ __all__ = [
     "MOAROptimizer",
     "MOARResult",
     "OptimizedPipeline",
+    "PlanJudge",
+    "RankedPlans",
     "detect_available_models",
     "default_agent_model",
 ]

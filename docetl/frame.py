@@ -1123,6 +1123,8 @@ class Frame:
         *,
         eval_fn: Any = None,
         metric_key: str | None = None,
+        judge_model: str | None = None,
+        judge_criteria: str | None = None,
         models: list[str] | None = None,
         agent_model: str | None = None,
         max_iterations: int = 20,
@@ -1139,6 +1141,10 @@ class Frame:
         Pareto frontier is returned as a new Frame you can ``.collect()``
         or ``.write_json()`` as usual.
 
+        Plans are scored either by a label function (``eval_fn`` +
+        ``metric_key``) or, when no ground truth is available, by an LLM
+        judge (``judge_model``, optionally ``judge_criteria``).
+
         Access the full search results (Pareto frontier, costs, all plans)
         via ``frame.search_results`` after optimization.
         """
@@ -1148,6 +1154,8 @@ class Frame:
             self._build_config(),
             eval_fn=eval_fn,
             metric_key=metric_key,
+            judge_model=judge_model,
+            judge_criteria=judge_criteria,
             models=models,
             agent_model=agent_model or _config.agent_model,
             max_iterations=max_iterations,

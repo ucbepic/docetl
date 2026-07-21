@@ -1,53 +1,57 @@
 # Adding a MOAR rewrite directive
 
-A rewrite directive defines one kind of pipeline transformation that MOAR can
-consider. The directive describes which operations it applies to, defines the
-structured output that the rewrite agent must produce, validates the agent's
-output, and constructs a new pipeline.
+A rewrite directive lets MOAR test a new kind of pipeline change. The directive
+contributor writes code for the following tasks:
 
-The built-in `chaining` directive replaces one complex operation with a sequence
-of simpler map operations:
+- Tell the search agent when it can use the directive.
+- Define the output that the rewrite agent must return.
+- Reject invalid agent output.
+- Build the changed pipeline.
+
+The `chaining` directive included with DocETL is one example. MOAR can use it to
+replace one complex operation with a sequence of simpler map operations.
 
 ```text
 Op  =>  Map* -> Op
 ```
 
-The directive implementation defines the permitted transformation. For each
-target operation, the rewrite agent generates the intermediate tasks and
-prompts. DocETL validates the resulting pipeline before MOAR executes and scores
-it.
+The contributor defines which pipeline changes are valid. During a search, the
+rewrite agent writes the intermediate tasks and prompts for one target
+operation. DocETL checks the changed pipeline before MOAR runs and scores it.
 
-This guide follows the implementation in
+The code examples follow the implementation in
 [`docetl/reasoning_optimizer/directives/chaining.py`](https://github.com/ucbepic/docetl/blob/main/docetl/reasoning_optimizer/directives/chaining.py).
 
 !!! note "Who provides each part?"
-    - **Pipeline author:** the original pipeline and evaluation function.
-    - **Directive contributor:** the instantiate schema, validation rules,
-      application code, registration, and tests.
-    - **Rewrite agent:** one task-specific instance of the directive during a
-      MOAR search.
+    - **The pipeline author** provides the original pipeline and evaluation
+      function.
+    - **The directive contributor** writes the instantiate schema, validation
+      rules, application code, registration, and tests.
+    - **The rewrite agent** creates one instance of the directive for a target
+      operation while MOAR runs.
 
 ## How MOAR uses a directive
 
-MOAR uses a directive in five stages:
+MOAR uses the same process for every directive.
 
 1. The search agent reads `name`, `formal_description`, `nl_description`, and
    `when_to_use`, then selects a directive and one or more target operations.
-2. The directive asks the rewrite agent for a typed instantiate schema.
-3. The schema and directive code validate the proposed configuration.
+2. The directive asks the rewrite agent for an object that matches the
+   instantiate schema.
+3. The contributor's validation code checks the proposed configuration.
 4. `apply()` returns a new operation list, and DocETL statically validates the
    complete candidate pipeline before executing it.
 5. MOAR runs the candidate and evaluates its accuracy and cost.
 
-The schema limits what the rewrite agent may propose. `apply()` performs the
-pipeline transformation without another model call.
+The schema limits what the rewrite agent may return. The `apply()` method builds
+the changed pipeline without another model call.
 
-## Running example: split a medical extraction
+## Medical extraction example
 
 Suppose a pipeline contains a map operation that must identify newly diagnosed
 conditions and associate treatments with them in one call.
 
-!!! example "Example input: the pipeline author's operation"
+!!! example "Example input, the pipeline author's operation"
     The pipeline author writes the original operation. The directive receives
     the operation as input during optimization.
 
@@ -69,24 +73,24 @@ The operation combines two dependent decisions:
 1. Which conditions are newly diagnosed?
 2. Which treatments were prescribed for those conditions?
 
-The chaining directive can replace the operation with two dependent maps:
+MOAR can apply chaining to replace the operation with two dependent maps.
 
 ![Before and after the chaining rewrite](../assets/moar-chaining-rewrite.svg)
 
-Both plans accept `summary` and produce `treatments`. The rewritten plan makes
-`new_conditions` an explicit intermediate result that the second map can use.
+Both plans accept `summary` and produce `treatments`. In the changed plan,
+`new_conditions` is an intermediate result for the second map.
 
-The directive contributor does not hardcode the two medical tasks. The rewrite
-agent generates them from the target operation during optimization.
+The contributor writes rules for any chaining rewrite. While MOAR runs, the
+rewrite agent chooses the medical tasks for the target operation.
 
 ## 1. Define the instantiate schema
 
-Add the Pydantic models that describe the agent's output to
-`docetl/reasoning_optimizer/instantiate_schemas.py`.
+An instantiate schema is a Pydantic model for the rewrite agent's output. Add
+the schema to `docetl/reasoning_optimizer/instantiate_schemas.py`.
 
-!!! abstract "Contributor code: the instantiate schema"
-    The directive contributor writes these classes. They define the fields that
-    the rewrite agent must return.
+!!! abstract "Contributor code, the instantiate schema"
+    The directive contributor writes the following classes. The classes define
+    the fields that the rewrite agent must return.
 
     ```python
     class MapOpConfig(BaseModel):
@@ -99,9 +103,9 @@ Add the Pydantic models that describe the agent's output to
         new_ops: list[MapOpConfig]
     ```
 
-!!! example "Runtime example: output from the rewrite agent"
-    The following object is an example of agent output for the medical operation
-    above. A pipeline author does not write this object.
+!!! example "Runtime example, output from the rewrite agent"
+    At runtime, the rewrite agent may return the following object for the
+    medical operation. A pipeline author does not write the object.
 
     ```python
     ChainingInstantiateSchema(
@@ -135,39 +139,39 @@ Add the Pydantic models that describe the agent's output to
     )
     ```
 
-Use narrow fields with descriptions that a model can follow. Do not ask the
-agent to emit an entire pipeline when the directive needs only two prompts and
-their output keys.
+Use narrow fields and describe them clearly. If a directive needs only two
+prompts and their output keys, do not ask the agent to return an entire
+pipeline.
 
 ## 2. Validate the agent's proposal
 
-Validation should enforce the semantic invariants of the rewrite before any
-candidate is executed. Chaining currently checks three conditions:
+Validate every requirement before MOAR runs a candidate. For chaining, reject
+the agent's proposal unless all of the following statements are true:
 
 - Every generated map prompt contains an `{{ input.<key> }}` reference.
 - Every input key used by the original operation appears in at least one new
   prompt.
 - The last map declares exactly the original operation's output keys.
 
-For the example, `summary` is a required original input and `treatments` is the
-required final output. A chain ending at `new_conditions` is therefore invalid.
+In the medical example, `summary` is a required input and `treatments` is the
+required final output. A chain that ends at `new_conditions` is invalid.
 
-`{{ input.new_conditions }}` is valid in a later map because the earlier map
-produces `new_conditions`. The complete candidate is also passed through
-DocETL's static plan validation after `apply()`. If a new directive has stricter
-dependency rules, validate them in its instantiate schema rather than relying
-only on execution to expose an error.
+The later map may use `{{ input.new_conditions }}` because the earlier map
+produces `new_conditions`. After `apply()` runs, DocETL also checks the complete
+pipeline without running it. If a directive has stricter rules for dependencies,
+check the rules in its instantiate schema. MOAR can then reject an error before
+execution.
 
-The agent can generate malformed or incomplete configurations even with
-structured output enabled. Return the validation error to the agent and retry a
-small, bounded number of times. `MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS` is the
-shared limit used by the built-in directives.
+The agent can return an invalid or incomplete configuration even when you use
+structured output. Return the validation error to the agent, and limit the
+number of retries. The directives included with DocETL use
+`MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS` as their shared limit.
 
-## 3. Describe when the directive applies
+## 3. Describe when MOAR should use the directive
 
 Create a subclass of `Directive` under
-`docetl/reasoning_optimizer/directives/`. The four descriptive fields are part
-of the search interface, not only documentation:
+`docetl/reasoning_optimizer/directives/`. The search agent reads the four
+descriptive fields when it chooses a directive.
 
 ```python
 class ChainingDirective(Directive):
@@ -188,18 +192,20 @@ class ChainingDirective(Directive):
     instantiate_schema_type: Type[BaseModel] = ChainingInstantiateSchema
 ```
 
-Write `when_to_use` so the search agent can decide among competing directives.
-State the observable property of a suitable target, such as dependent reasoning
-steps, rather than claiming that the directive always improves accuracy.
+Write `when_to_use` so the search agent can choose among the available
+directives. Describe a property that the search agent can find in a target
+operation. For example, chaining applies when an operation contains dependent
+reasoning steps. Do not claim that every use of the directive improves
+accuracy.
 
 The base class also requires an `example` and may include `test_cases`. The
-example becomes part of the rewrite agent's context, so use a complete example
-that preserves inputs, outputs, and prompt instructions.
+rewrite agent receives the example in its prompt. Use a complete example that
+preserves the input fields, output fields, and prompt instructions.
 
 ## 4. Generate and validate a rewrite instance
 
-Implement `to_string_for_instantiate()` and `llm_instantiate()` to obtain the
-typed configuration:
+Use `to_string_for_instantiate()` and `llm_instantiate()` to ask the rewrite
+agent for a configuration that matches the schema.
 
 ```python
 response = completion(
@@ -217,10 +223,11 @@ ChainingInstantiateSchema.validate_chain(
 )
 ```
 
-`llm_instantiate()` should return the schema, updated message history, and the
-LLM call cost. MOAR includes the call cost in the total search cost.
+Return the schema, updated message history, and model call cost from
+`llm_instantiate()`. MOAR adds the rewrite agent call cost to the total search
+cost.
 
-Implement `instantiate()` as the orchestration boundary:
+Use `instantiate()` to complete the following work in order:
 
 1. Check the number and types of target operations.
 2. Read the target's required input and output keys.
@@ -228,15 +235,15 @@ Implement `instantiate()` as the orchestration boundary:
 4. Call the deterministic `apply()` method.
 5. Return `(new_ops, message_history, call_cost)`.
 
-MOAR passes additional keyword arguments to every directive, including the
-optimization goal, dataset, allowed models, and input path. Accept `**kwargs`
-when a directive does not use all of them.
+MOAR provides every directive with additional values such as the optimization
+goal and dataset. It also provides the allowed models and input path. Accept
+`**kwargs` when the directive does not use every value.
 
 ## 5. Apply the rewrite
 
-`apply()` should not call a model. It should copy the operation list, construct
-the replacement operations from the validated schema, and return the new list.
-The essential chaining implementation is:
+Do not call a model from `apply()`. Copy the operation list and build the
+replacement operations from the validated schema. Then return the new list.
+The main part of the chaining implementation follows.
 
 ```python
 def apply(self, global_default_model, ops_list, target_op, rewrite):
@@ -271,13 +278,13 @@ def apply(self, global_default_model, ops_list, target_op, rewrite):
     return new_ops_list
 ```
 
-The last map reuses the original output block so the rewritten pipeline
-preserves the public output contract, including its field types.
+The last map uses the original output block. The changed pipeline therefore has
+the same final output fields and field types as the original pipeline.
 
 ## 6. Register the directive
 
-Export and instantiate the directive in
-`docetl/reasoning_optimizer/directives/__init__.py`:
+Import the directive and add an instance to
+`docetl/reasoning_optimizer/directives/__init__.py`.
 
 ```python
 from .my_directive import MyDirective
@@ -288,30 +295,33 @@ ALL_DIRECTIVES = [
 ]
 ```
 
-Adding an instance to `ALL_DIRECTIVES` makes the directive available to the
-accuracy search and adds it to `DIRECTIVE_REGISTRY`. Also update `__all__`.
+After you add the instance to `ALL_DIRECTIVES`, the accuracy search can use the
+directive. The code also adds the directive to `DIRECTIVE_REGISTRY`. Update
+`__all__` as well.
 
-Some directives require additional registration:
+Register the directive in another list only when one of the following
+conditions applies:
 
 | Registry | Add the directive when |
 | --- | --- |
-| `ALL_COST_DIRECTIVES` | Its description should be offered during cost optimization. |
+| `ALL_COST_DIRECTIVES` | The search agent should consider it during cost optimization. |
 | `MULTI_INSTANCE_DIRECTIVES` | MOAR should ask for two distinct instantiations per selection. |
-| `DIRECTIVE_GROUPS` | A poor result should suppress a family of equivalent rewrites for the same operation. |
+| `DIRECTIVE_GROUPS` | After a poor result, MOAR should skip equivalent rewrites for the same operation. |
 
-Only add a directive to the cost list when its expected effect on cost is
-clear. A rewrite that merely adds model calls is normally an accuracy directive.
+Only add a directive to the cost list when you can explain how it may reduce
+cost. A rewrite that only adds model calls normally belongs in the accuracy
+search.
 
 ## Test the directive
 
-Use separate test layers so a model-dependent test is not mistaken for a
-deterministic correctness test.
+Test code that does not call a model separately from tests that call a model.
 
 ### Schema tests
 
-Test valid and invalid configurations directly. Include missing original input
-keys, missing final outputs, empty chains, duplicate operation names, and
-references to unavailable intermediate keys when the directive forbids them.
+Test valid and invalid configurations directly. At minimum, test a missing
+original input and a missing final output. Also test an empty chain and
+duplicate operation names. If the directive limits intermediate fields, test a
+reference to a field that no earlier operation produced.
 
 ```python
 def test_chaining_rejects_wrong_final_output():
@@ -333,23 +343,24 @@ def test_chaining_rejects_wrong_final_output():
         )
 ```
 
-### Deterministic apply tests
+### Tests for `apply()`
 
-Construct the schema by hand, call `apply()`, and assert the full operation
-shape. Verify operation order, names, models, intermediate schemas, and exact
-preservation of the final output schema. Add the test to
+Construct the schema by hand and call `apply()`. Check the operation order,
+names, models, and intermediate schemas. Also check that the final output schema
+matches the original schema. Add the test to
 `tests/reasoning_optimizer/test_directive_apply.py`.
 
 ```bash
 uv run pytest tests/reasoning_optimizer/test_directive_apply.py -k chaining
 ```
 
-### Pipeline validation and multi-step tests
+### Tests for complete pipelines and several rewrites
 
-A locally plausible operation list can still break step references or later
-rewrites. Add a test to `tests/test_moar_multistep.py` that applies the rewrite,
-updates the pipeline, runs static plan validation, and, where relevant, applies
-a second directive to an inserted operation.
+An operation list can pass a test for `apply()` and still contain a broken input
+reference. A later rewrite can also fail on an operation that the first rewrite
+added. In `tests/test_moar_multistep.py`, add a test that updates the complete
+pipeline and runs plan validation. When relevant, apply a second directive to
+an operation that the first directive added.
 
 ```bash
 uv run pytest tests/test_moar_multistep.py -k chaining
@@ -357,9 +368,9 @@ uv run pytest tests/test_moar_multistep.py -k chaining
 
 ### Live agent tests
 
-`Directive.run_tests()` calls a live model to instantiate the directive and a
-second live model call to judge the result. Use it as an integration check, not
-as the only correctness test:
+`Directive.run_tests()` calls one model to create the rewrite and another model
+to judge it. Use the command as an integration test, but keep the deterministic
+tests described above.
 
 ```bash
 uv run python -m tests.reasoning_optimizer.test_runner \
@@ -367,47 +378,47 @@ uv run python -m tests.reasoning_optimizer.test_runner \
   --model gpt-4.1
 ```
 
-The command requires credentials for the selected model and may vary between
-runs. Record the model, prompt version, fixture, and repeated-run pass rate when
-comparing directive changes.
+The command requires credentials for the selected model. Model output may vary
+between runs, so record the model, prompt version, test data, and pass rate over
+repeated runs.
 
 ## Confirm that MOAR uses the directive
 
-Registration, selection, successful construction, and measured improvement are
-different claims. Check each one explicitly:
+Check each stage separately because registration does not prove that MOAR
+selected the directive, built a valid pipeline, or improved the score.
 
 | Claim | Check |
 | --- | --- |
 | Registered | Print the names in `ALL_DIRECTIVES` or `DIRECTIVE_REGISTRY`. |
-| Offered to search | Find the directive in the action statistics in `moar_tree_log.txt`. |
-| Selected | Look for `Directive: <name>, Target ops: [...]` in the console, or a nonzero use count in the tree log. |
-| Constructed | Open the generated `<pipeline-name>_<node-id>.yaml` and inspect the rewritten operations. |
-| Helpful | Compare the candidate's evaluation metric and cost with its parent; check whether it reaches the Pareto frontier. |
+| Available to search | Find the directive in the action counts in `moar_tree_log.txt`. |
+| Selected | Look for `Directive: <name>, Target ops: [...]` in the console or a nonzero use count in the tree log. |
+| Pipeline built | Open the generated `<pipeline-name>_<node-id>.yaml` and inspect the changed operations. |
+| Helpful | Compare its score and cost with its parent, and check whether MOAR keeps it among the best plans. |
 
-Confirm registration without making an LLM call:
+Confirm registration without making an LLM call.
 
 ```bash
 uv run python -c \
   "from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES; print([d.name for d in ALL_DIRECTIVES])"
 ```
 
-Then run a small MOAR experiment with an explicit `save_dir`. The search log is
-written to `<save_dir>/moar_tree_log.txt`:
+Then run a small MOAR experiment with an explicit `save_dir`. MOAR writes the
+search log to `<save_dir>/moar_tree_log.txt`.
 
 ```bash
 rg -n "my_directive|Action: my_directive" results/moar_tree_log.txt
 ```
 
-A zero use count means the directive was available but was not selected. A
-nonzero count means it was selected, but not necessarily that candidate
-construction or execution succeeded. Inspect the console output and generated
-YAML as well.
+A zero use count means that the directive was available but MOAR did not select
+it. A nonzero count means that MOAR selected the directive. The count does not
+prove that MOAR built or ran the candidate, so also inspect the console output
+and generated YAML.
 
 For a deterministic MOAR integration test, construct `MOARSearch` with
-`available_actions={MyDirective()}` and a fixed evaluation fixture. Restricting
-the action set prevents the search agent from choosing a different directive.
-Keep an unrestricted benchmark too, because a good directive description must
-compete successfully with the rest of the registry.
+`available_actions={MyDirective()}` and a fixed test evaluation. The limited
+action set prevents the search agent from choosing another directive. Also keep
+a benchmark that includes every directive, because the search agent must
+recognize when the new directive applies.
 
 ## Implementation checklist
 
@@ -419,5 +430,5 @@ compete successfully with the rest of the registry.
 | Instantiate schema | A list of map names, prompts, and output keys |
 | Validation | Preserve original inputs and final output contract |
 | Apply | Replace one operation with the generated sequence |
-| Deterministic tests | Schema, operation shape, and static plan validity |
-| Empirical tests | Selection rate, execution success, accuracy, and cost |
+| Tests without model calls | Schema, operation shape, and static plan validity |
+| Tests with models and data | Selection rate, execution success, accuracy, and cost |

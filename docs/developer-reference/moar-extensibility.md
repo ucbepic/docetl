@@ -60,23 +60,7 @@ The operation combines two dependent decisions:
 
 Chaining can ask the agent to produce a decomposition such as:
 
-```mermaid
-flowchart TB
-    subgraph before["Before: one complex map"]
-        direction LR
-        S1["summary"] --> O["extract_new_treatments<br/>Identify new diagnoses and<br/>associate their treatments"]
-        O --> T1["treatments"]
-    end
-
-    subgraph after["After: chaining rewrite"]
-        direction LR
-        S2["summary"] --> C["identify_new_conditions"]
-        C --> N["new_conditions"]
-        S2 --> E["extract_treatments"]
-        N --> E
-        E --> T2["treatments"]
-    end
-```
+![Before and after the chaining rewrite](../assets/moar-chaining-rewrite.svg)
 
 Both plans accept `summary` and produce `treatments`. The rewritten plan makes
 `new_conditions` an explicit intermediate result that the second map can use.

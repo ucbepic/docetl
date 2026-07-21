@@ -6,6 +6,12 @@ The MOAR (Multi-Objective Agentic Rewrites) optimizer explores different ways to
 
 When optimizing pipelines, you trade off cost and accuracy. MOAR explores many different pipeline configurations (like changing models, adding validation steps, combining operations, etc.) and evaluates each one to find the best trade-offs. It returns a frontier of plans that balance cost and accuracy, giving you multiple optimized options to choose from based on your budget and accuracy requirements.
 
+!!! info "MOAR paper (VLDB 2026)"
+    Lindsey Linxi Wei, Shreya Shankar, Sepanta Zeighami, Yeounoh Chung,
+    Fatma Ozcan, and Aditya G. Parameswaran.
+    “[Multi-Objective Agentic Rewrites for Unstructured Data Processing](https://arxiv.org/abs/2512.02289).”
+    *Proceedings of the VLDB Endowment*, 2026.
+
 ## Quick Navigation
 
 - **[Getting Started](moar/getting-started.md)** - Step-by-step guide to run your first MOAR optimization

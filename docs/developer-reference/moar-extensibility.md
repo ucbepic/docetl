@@ -1,12 +1,9 @@
 # Adding a MOAR rewrite directive
 
-A rewrite directive lets MOAR test a new kind of pipeline change. The directive
-contributor writes code for the following tasks:
-
-- Tell the search agent when it can use the directive.
-- Define the output that the rewrite agent must return.
-- Reject invalid agent output.
-- Build the changed pipeline.
+This guide describes how to add a rewrite directive to MOAR. A rewrite directive
+lets MOAR test a new kind of pipeline change. Follow steps 1 to 6 to implement
+and register the directive. Then test the directive and confirm that MOAR uses
+it during a search.
 
 The `chaining` directive included with DocETL is one example. MOAR can use it to
 replace one complex operation with a sequence of simpler map operations.
@@ -15,20 +12,12 @@ replace one complex operation with a sequence of simpler map operations.
 Op  =>  Map* -> Op
 ```
 
-The contributor defines which pipeline changes are valid. During a search, the
-rewrite agent writes the intermediate tasks and prompts for one target
-operation. DocETL checks the changed pipeline before MOAR runs and scores it.
+You define which pipeline changes are valid. During a search, the rewrite agent
+writes the intermediate tasks and prompts for one target operation. DocETL
+checks the changed pipeline before MOAR runs and scores it.
 
 The code examples follow the implementation in
 [`docetl/reasoning_optimizer/directives/chaining.py`](https://github.com/ucbepic/docetl/blob/main/docetl/reasoning_optimizer/directives/chaining.py).
-
-!!! note "Who provides each part?"
-    - **The pipeline author** provides the original pipeline and evaluation
-      function.
-    - **The directive contributor** writes the instantiate schema, validation
-      rules, application code, registration, and tests.
-    - **The rewrite agent** creates one instance of the directive for a target
-      operation while MOAR runs.
 
 ## How MOAR uses a directive
 
@@ -38,7 +27,7 @@ MOAR uses the same process for every directive.
    `when_to_use`, then selects a directive and one or more target operations.
 2. The directive asks the rewrite agent for an object that matches the
    instantiate schema.
-3. The contributor's validation code checks the proposed configuration.
+3. Your validation code checks the proposed configuration.
 4. `apply()` returns a new operation list, and DocETL statically validates the
    complete candidate pipeline before executing it.
 5. MOAR runs the candidate and evaluates its accuracy and cost.
@@ -80,17 +69,21 @@ MOAR can apply chaining to replace the operation with two dependent maps.
 Both plans accept `summary` and produce `treatments`. In the changed plan,
 `new_conditions` is an intermediate result for the second map.
 
-The contributor writes rules for any chaining rewrite. While MOAR runs, the
-rewrite agent chooses the medical tasks for the target operation.
+You write rules for any chaining rewrite. While MOAR runs, the rewrite agent
+chooses the medical tasks for the target operation.
+
+You will use the medical example in each step, so you can compare the general
+instructions with the chaining code.
 
 ## 1. Define the instantiate schema
 
-An instantiate schema is a Pydantic model for the rewrite agent's output. Add
-the schema to `docetl/reasoning_optimizer/instantiate_schemas.py`.
+In this step, you define the Pydantic model for the rewrite agent's output.
+DocETL calls the model an instantiate schema. Add the schema to
+`docetl/reasoning_optimizer/instantiate_schemas.py`.
 
-!!! abstract "Contributor code, the instantiate schema"
-    The directive contributor writes the following classes. The classes define
-    the fields that the rewrite agent must return.
+!!! abstract "Your code, the instantiate schema"
+    You write the following classes to define the fields that the rewrite agent
+    must return.
 
     ```python
     class MapOpConfig(BaseModel):
@@ -145,8 +138,9 @@ pipeline.
 
 ## 2. Validate the agent's proposal
 
-Validate every requirement before MOAR runs a candidate. For chaining, reject
-the agent's proposal unless all of the following statements are true:
+In this step, you reject agent output that cannot produce a valid pipeline. For
+chaining, reject the agent's proposal unless all of the following statements
+are true:
 
 - Every generated map prompt contains an `{{ input.<key> }}` reference.
 - Every input key used by the original operation appears in at least one new
@@ -169,7 +163,8 @@ number of retries. The directives included with DocETL use
 
 ## 3. Describe when MOAR should use the directive
 
-Create a subclass of `Directive` under
+In this step, you describe the directive so the search agent knows when to
+choose it. Create a subclass of `Directive` under
 `docetl/reasoning_optimizer/directives/`. The search agent reads the four
 descriptive fields when it chooses a directive.
 
@@ -204,8 +199,9 @@ preserves the input fields, output fields, and prompt instructions.
 
 ## 4. Generate and validate a rewrite instance
 
-Use `to_string_for_instantiate()` and `llm_instantiate()` to ask the rewrite
-agent for a configuration that matches the schema.
+In this step, you ask the rewrite agent for a configuration and check the
+configuration against the schema. Use `to_string_for_instantiate()` and
+`llm_instantiate()` for the model call.
 
 ```python
 response = completion(
@@ -241,9 +237,10 @@ goal and dataset. It also provides the allowed models and input path. Accept
 
 ## 5. Apply the rewrite
 
+In this step, you build the changed pipeline from the validated configuration.
 Do not call a model from `apply()`. Copy the operation list and build the
-replacement operations from the validated schema. Then return the new list.
-The main part of the chaining implementation follows.
+replacement operations, then return the new list. The main part of the chaining
+implementation follows.
 
 ```python
 def apply(self, global_default_model, ops_list, target_op, rewrite):
@@ -283,8 +280,8 @@ the same final output fields and field types as the original pipeline.
 
 ## 6. Register the directive
 
-Import the directive and add an instance to
-`docetl/reasoning_optimizer/directives/__init__.py`.
+In this step, you make the directive available to MOAR. Import the directive and
+add an instance to `docetl/reasoning_optimizer/directives/__init__.py`.
 
 ```python
 from .my_directive import MyDirective

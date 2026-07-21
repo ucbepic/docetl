@@ -90,6 +90,7 @@ nav:
     - PDF Analysis (NTSB Airplane Crashes): examples/pdf-analysis-gemini.md
   
   - Developer Reference:
+      - Extending MOAR: developer-reference/moar-extensibility.md
       - Technical Guides:
           - Custom Data Parsing: examples/custom-parsing.md
           - Rate Limiting Implementation: examples/rate-limiting.md

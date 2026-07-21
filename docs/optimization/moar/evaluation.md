@@ -207,7 +207,7 @@ The plan's "accuracy" is a score in (0, 1) derived from its leaderboard position
 
 ```python
 result = pipeline.optimize(
-    judge_model="gpt-4.1-mini",          # instead of eval_fn/metric_key
+    judge_model="gpt-4.1-nano",          # instead of eval_fn/metric_key
     # judge_criteria="...",              # optional; auto-generated if omitted
 )
 ```
@@ -216,15 +216,23 @@ result = pipeline.optimize(
 
 ```yaml
 optimizer_config:
-  judge_model: gpt-4.1-mini
+  judge_model: gpt-4.1-nano
   # judge_criteria: |
   #   The output should list every landmark mentioned in the document...
 ```
 
+### Choosing a judge model
+
+`gpt-4.1-nano` is a good default: it is cheap, its 1M-token context window keeps truncation rare and lets each batched call cover a large neighborhood of plans, and the load-bearing judgments in this design are *relative* (which plan's output is better) — the easiest kind for small models. The 1–5 ratings only route a plan toward similarly rated plans; comparisons decide its final position. If your task requires fine-grained quality discrimination — subtle faithfulness or completeness differences — step up to `gpt-4.1-mini` or `gpt-4.1`: because the ranking is insertion-only, early judge mistakes are never revisited.
+
+### Bucket capacity
+
+The leaderboard is organized into buckets, and a bucket's capacity is exactly the number of already-ranked plans one batched judge call covers alongside the new candidate. By default capacity is **derived per insert** from the judge model's context window and the observed token sizes of ranked outputs (90th percentile, with a utilization buffer), clamped to [2, 16]; per-call context is capped at 120k tokens even for long-context judges, since very large ranking prompts get slow, expensive, and position-biased. Buckets merge and split structurally as capacity changes — no LLM calls, no reordering. Pass `judge_bucket_capacity` to pin it (e.g., for reproducibility).
+
 ### Notes
 
 - Criteria generation runs on the **rewrite agent model** (`agent_model`); rating and comparison calls run on the **judge model**, which can be a cheaper model.
-- Long outputs are handled with batching and token-budgeted truncation: comparisons are made per sample document where outputs align 1:1 with inputs, in one batched ranking call per document (reusing the `rank` operator's batch machinery). If a whole neighborhood doesn't fit the judge's context window, placement falls back to one-vs-one comparisons, and individual outputs are truncated as a last resort.
-- The full audit trail — criteria, ratings, every comparison, and the leaderboard — is written to `ranking.json` in `save_dir`.
+- Long outputs are handled with batching and token-budgeted truncation: comparisons are made per sample document where outputs align 1:1 with inputs, in one batched ranking call per document (reusing the `rank` operator's batch machinery). If a bucket exceeds the derived capacity, placement falls back to one-vs-one comparisons, and individual outputs are truncated as a last resort.
+- The full audit trail — criteria, ratings, every comparison, capacity, and the leaderboard — is written to `ranking.json` in `save_dir`.
 - Judge LLM costs are counted in `result.total_search_cost`.
 

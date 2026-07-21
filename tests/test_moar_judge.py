@@ -183,17 +183,21 @@ class TestPlacementModes:
         assert modes[0] == "first"
         assert all(m == "window" for m in modes[1:])
 
-    def test_binary_fallback_when_outputs_exceed_context(
+    def test_binary_fallback_when_capacity_shrinks_below_bucket(
         self, monkeypatch, tmp_path
     ):
-        judge = scripted_judge(monkeypatch, max_unit_tokens=10**6)
+        judge = scripted_judge(monkeypatch)
         ranked = RankedPlans(judge, output_dir=str(tmp_path))
+        capacities = iter([16, 16, 16, 16, 2])
+        monkeypatch.setattr(
+            ranked, "_effective_capacity", lambda units: next(capacities)
+        )
         qualities = [0.2, 0.8, 0.5, 0.9, 0.1]
         for i, q in enumerate(qualities):
             ranked.insert(FakeNode(i), quality_rows(q))
 
-        modes = [h["placement_mode"] for h in ranked.history]
-        assert all(m == "binary" for m in modes[1:])
+        # Last insert hit a 4-plan bucket with capacity 2: pairwise fallback.
+        assert ranked.history[-1]["placement_mode"] == "binary"
         final_ids = [e.node_id for e in ranked.ordered_entries()]
         expected = [
             i
@@ -202,6 +206,15 @@ class TestPlacementModes:
             )
         ]
         assert final_ids == expected
+        assert all(len(b) <= 2 for b in ranked.buckets)
+
+    def test_static_budget_fallback_without_max_batch(self, monkeypatch):
+        judge = scripted_judge(monkeypatch, max_unit_tokens=10**6)
+        new = judge.build_units(quality_rows(0.9))
+        members = [judge.build_units(quality_rows(q)) for q in (0.8, 0.5)]
+        placement = judge.place(new, members, seq=1)
+        assert placement.mode == "binary"
+        assert placement.slot == 0
 
     def test_non_aligned_outputs_judged_on_digest(self, monkeypatch, tmp_path):
         judge = scripted_judge(monkeypatch)
@@ -211,6 +224,90 @@ class TestPlacementModes:
         ranked.insert(FakeNode("high"), quality_rows(0.9, num_rows=1))
         assert [e.node_id for e in ranked.ordered_entries()] == ["high", "low"]
         assert all(not e.units.aligned for e in ranked.ordered_entries())
+
+
+class TestDynamicBucketCapacity:
+    def test_capacity_shrinks_with_bigger_outputs(self, monkeypatch):
+        from docetl.moar.judge import (
+            MAX_BUCKET_CAPACITY,
+            MIN_BUCKET_CAPACITY,
+        )
+
+        judge = scripted_judge(monkeypatch)
+        monkeypatch.setattr(judge, "_context_budget", lambda: 10_000)
+
+        tiny = [judge.build_units(quality_rows(0.5))] * 3
+        assert judge.derive_bucket_capacity(tiny, per_doc=True) == MAX_BUCKET_CAPACITY
+
+        big_rows = [
+            {"text": SAMPLE_DOCS[i]["text"], "answer": f"quality=0.5 " + "waffle " * 900}
+            for i in range(len(SAMPLE_DOCS))
+        ]
+        big = [judge.build_units(big_rows)] * 3
+        capacity = judge.derive_bucket_capacity(big, per_doc=True)
+        assert MIN_BUCKET_CAPACITY <= capacity < MAX_BUCKET_CAPACITY
+
+        monkeypatch.setattr(judge, "_context_budget", lambda: 2_000)
+        assert judge.derive_bucket_capacity(big, per_doc=True) == MIN_BUCKET_CAPACITY
+
+    def test_capacity_uses_p90_not_max(self, monkeypatch):
+        judge = scripted_judge(monkeypatch)
+        monkeypatch.setattr(judge, "_context_budget", lambda: 20_000)
+
+        small = [judge.build_units(quality_rows(0.5))] * 20
+        one_bloated = small + [
+            judge.build_units(
+                [
+                    {"text": d["text"], "answer": "quality=0.5 " + "blah " * 1200}
+                    for d in SAMPLE_DOCS
+                ]
+            )
+        ]
+        # The single outlier sits above p90 of the 63 doc units, so it
+        # must not drag capacity down to the outlier's size.
+        assert judge.derive_bucket_capacity(
+            one_bloated, per_doc=True
+        ) == judge.derive_bucket_capacity(small, per_doc=True)
+
+    def test_dynamic_mode_rebalances_buckets(self, monkeypatch, tmp_path):
+        judge = scripted_judge(monkeypatch)
+        ranked = RankedPlans(judge, output_dir=str(tmp_path))
+
+        capacities = iter([2] * 6 + [5] * 10)
+        monkeypatch.setattr(
+            ranked, "_effective_capacity", lambda units: next(capacities)
+        )
+
+        rng = random.Random(3)
+        qualities = rng.sample(range(100), 12)
+        for i, q in enumerate(qualities):
+            before = [e.node_id for e in ranked.ordered_entries()]
+            ranked.insert(FakeNode(i), quality_rows(q / 100.0))
+            after = [e.node_id for e in ranked.ordered_entries()]
+            assert [nid for nid in after if nid != i] == before
+            assert all(len(b) <= ranked.bucket_capacity for b in ranked.buckets)
+
+        # Capacity grew from 2 to 5 mid-run: the merge pass must have
+        # consolidated the fragmented 2-plan buckets.
+        assert ranked.bucket_capacity == 5
+        assert all(len(b) <= 5 for b in ranked.buckets)
+        assert len(ranked.buckets) <= 4  # 12 plans, capacity 5, merged
+        final_ids = [e.node_id for e in ranked.ordered_entries()]
+        expected = [
+            i
+            for i, _ in sorted(
+                enumerate(qualities), key=lambda t: t[1], reverse=True
+            )
+        ]
+        assert final_ids == expected
+
+    def test_pinned_capacity_stays_static(self, monkeypatch, tmp_path):
+        judge = scripted_judge(monkeypatch)
+        ranked = RankedPlans(judge, bucket_capacity=3, output_dir=str(tmp_path))
+        for i in range(9):
+            ranked.insert(FakeNode(i), quality_rows((i + 1) / 10.0))
+        assert ranked.bucket_capacity == 3
+        assert all(len(b) <= 3 for b in ranked.buckets)
 
 
 class TestPairwiseTies:
@@ -383,7 +480,7 @@ class TestMOARJudgeEndToEnd:
 
         optimizer = MOAROptimizer(
             pipeline=yaml_path,
-            judge_model="gpt-4o-mini",
+            judge_model="gpt-4.1-nano",
             models=["gpt-4o-mini", "gpt-4.1-nano"],
             agent_model="gpt-4o-mini",
             max_iterations=1,
@@ -406,7 +503,7 @@ class TestMOARJudgeEndToEnd:
             payload = json.load(f)
 
         assert payload["criteria"], "Criteria should have been auto-generated"
-        assert payload["judge_model"] == "gpt-4o-mini"
+        assert payload["judge_model"] == "gpt-4.1-nano"
         leaderboard = payload["leaderboard"]
         assert leaderboard
         scores = [e["score"] for e in leaderboard]
@@ -418,3 +515,4 @@ class TestMOARJudgeEndToEnd:
                 i for i in record["order_after"] if i != record["node_id"]
             ]
             assert without_new == record["order_before"]
+            assert 2 <= record["capacity"] <= 16

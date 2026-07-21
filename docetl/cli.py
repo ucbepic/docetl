@@ -58,7 +58,7 @@ def build(
   metric_key: score
   save_dir: ./moar_results       # optional, defaults to temp dir
   max_iterations: 20              # optional, defaults to 20
-  # judge_model: gpt-4.1          # LLM judge instead of evaluation_file
+  # judge_model: gpt-4.1-nano     # LLM judge instead of evaluation_file
   # judge_criteria: "..."         # optional, auto-generated if omitted
   # available_models:             # optional, auto-detected from API keys
   #   - gpt-4.1

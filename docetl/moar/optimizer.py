@@ -197,8 +197,10 @@ class MOAROptimizer:
         judge_criteria: Optional validation criteria for the judge. If
             omitted, criteria are synthesized from the pipeline by the
             rewrite agent model.
-        judge_bucket_capacity: Max plans per leaderboard bucket before it
-            splits (judge mode only, default 8).
+        judge_bucket_capacity: Pin the max plans per leaderboard bucket
+            (judge mode only). Default None derives it per insert from the
+            judge model's context window and the observed token sizes of
+            plan outputs, with a utilization buffer.
         models: List of model names to search over. If ``None``, auto-detects
             from environment API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY,
             GEMINI_API_KEY, AZURE_API_KEY).
@@ -257,7 +259,7 @@ class MOAROptimizer:
         max_concurrent_agents: int = 3,
         judge_model: Optional[str] = None,
         judge_criteria: Optional[str] = None,
-        judge_bucket_capacity: int = 8,
+        judge_bucket_capacity: Optional[int] = None,
     ):
         if judge_model:
             if eval_fn is not None:

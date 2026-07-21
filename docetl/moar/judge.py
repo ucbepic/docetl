@@ -29,6 +29,15 @@ DEFAULT_CONTEXT_TOKENS = 128_000
 MAX_CONTEXT_TOKENS = 120_000
 CONTEXT_MARGIN_TOKENS = 4_000
 
+# Dynamic bucket capacity: how many already-ranked plans a batched
+# placement call may cover, derived from the judge's context window and
+# the observed token sizes of plan outputs.
+CAPACITY_UTILIZATION = 0.8
+PROMPT_OVERHEAD_TOKENS = 600
+MIN_BUCKET_CAPACITY = 2
+MAX_BUCKET_CAPACITY = 16
+MIN_UNIT_TOKEN_ESTIMATE = 100
+
 
 class CriteriaResponseFormat(BaseModel):
     criteria: str
@@ -71,15 +80,23 @@ class PlacementResult:
     details: List[Dict[str, Any]] = field(default_factory=list)
 
 
-def _truncate_to_tokens(text: str, max_tokens: int, model: str) -> str:
-    if max_tokens <= 0:
-        return ""
+def _encoder_for(model: str):
     import tiktoken
 
     try:
-        encoder = tiktoken.encoding_for_model(model.split("/")[-1])
+        return tiktoken.encoding_for_model(model.split("/")[-1])
     except Exception:
-        encoder = tiktoken.encoding_for_model("gpt-4o")
+        return tiktoken.encoding_for_model("gpt-4o")
+
+
+def _count_tokens(text: str, model: str) -> int:
+    return len(_encoder_for(model).encode(text))
+
+
+def _truncate_to_tokens(text: str, max_tokens: int, model: str) -> str:
+    if max_tokens <= 0:
+        return ""
+    encoder = _encoder_for(model)
     tokens = encoder.encode(text)
     if len(tokens) <= max_tokens:
         return text
@@ -325,26 +342,82 @@ Provide an integer rating from 1 to 5 and a brief reason."""
 
     # ── placement within a bucket ──────────────────────────────────
 
+    def derive_bucket_capacity(
+        self, units_sample: List[PlanUnits], per_doc: bool
+    ) -> int:
+        """Bucket capacity from the judge's context window and observed
+        output sizes, with a utilization buffer.
+
+        Capacity is the number of already-ranked plans one batched
+        placement call can cover alongside the new candidate:
+        ``(context * utilization - criteria - input context - overhead)
+        / p90(unit tokens) - 1``, clamped to
+        [MIN_BUCKET_CAPACITY, MAX_BUCKET_CAPACITY]. Using the 90th
+        percentile of observed sizes keeps one bloated plan from pinning
+        capacity down permanently (outliers get truncated in-call).
+        """
+        sizes: List[int] = []
+        for units in units_sample:
+            if per_doc and units.aligned:
+                sizes.extend(
+                    _count_tokens(u, self.judge_model) for u in units.doc_units
+                )
+            else:
+                sizes.append(_count_tokens(units.digest, self.judge_model))
+        if not sizes:
+            return MAX_BUCKET_CAPACITY
+
+        sizes.sort()
+        p90 = sizes[int(0.9 * (len(sizes) - 1))]
+        est_unit = max(p90, MIN_UNIT_TOKEN_ESTIMATE)
+
+        criteria_tokens = _count_tokens(self.criteria or "", self.judge_model)
+        if per_doc:
+            input_tokens = max(
+                (_count_tokens(e, self.judge_model) for e in self._input_excerpts),
+                default=0,
+            )
+        else:
+            input_tokens = _count_tokens(
+                self._digest_input_context, self.judge_model
+            )
+
+        usable = (
+            self._context_budget() * CAPACITY_UTILIZATION
+            - criteria_tokens
+            - input_tokens
+            - PROMPT_OVERHEAD_TOKENS
+        )
+        capacity = int(usable // est_unit) - 1
+        return min(max(capacity, MIN_BUCKET_CAPACITY), MAX_BUCKET_CAPACITY)
+
     def place(
         self,
         new_units: PlanUnits,
         member_units: List[PlanUnits],
         seq: int,
+        max_batch: Optional[int] = None,
     ) -> PlacementResult:
         """Slot a new plan among a bucket's members (best-to-worst order).
 
         Uses one batched ranking call per sample document covering the
-        whole bucket when everything fits in the judge's context window;
-        otherwise binary insertion with two-candidate calls. Existing
-        members' relative order is never used as an output — only the new
-        plan's position relative to them is read off.
+        whole bucket when everything fits in the judge's context window
+        (bucket size within *max_batch* when given, else a static budget
+        estimate); otherwise binary insertion with two-candidate calls.
+        Existing members' relative order is never used as an output —
+        only the new plan's position relative to them is read off.
         """
         if not member_units:
             return PlacementResult(slot=0, mode="default")
 
         per_doc = new_units.aligned and all(m.aligned for m in member_units)
 
-        if self._window_fits(new_units, member_units, per_doc):
+        if max_batch is not None:
+            batched_ok = len(member_units) <= max_batch
+        else:
+            batched_ok = self._window_fits(new_units, member_units, per_doc)
+
+        if batched_ok:
             votes, details = self._window_votes(new_units, member_units, per_doc, seq)
             if votes is not None:
                 return PlacementResult(

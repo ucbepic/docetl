@@ -7,6 +7,12 @@ is routed to a bucket by its 1-5 rating, placed within the bucket by
 judge comparisons, and assigned an immutable surrogate score in (0, 1)
 strictly between its neighbors' scores.
 
+Bucket capacity is, operationally, the number of already-ranked plans
+one batched judge call may cover — by default it is derived per insert
+from the judge model's context window and the observed token sizes of
+plan outputs (see ``PlanJudge.derive_bucket_capacity``), and buckets
+merge/split structurally as it changes.
+
 Two invariants hold across MOAR iterations:
 
 1. The relative order of previously ranked plans never changes — a new
@@ -53,12 +59,19 @@ class RankedPlans:
     def __init__(
         self,
         judge: PlanJudge,
-        bucket_capacity: int = 8,
+        bucket_capacity: Optional[int] = None,
         output_dir: Optional[str] = None,
         console=None,
     ):
+        """*bucket_capacity* pins the capacity when given; ``None`` (the
+        default) derives it per insert from the judge's context window and
+        the observed token sizes of ranked outputs — buckets merge when
+        capacity grows and split when it shrinks, both structurally."""
+        from docetl.moar.judge import MAX_BUCKET_CAPACITY
+
         self.judge = judge
-        self.bucket_capacity = max(2, bucket_capacity)
+        self._static_capacity = max(2, bucket_capacity) if bucket_capacity else None
+        self.bucket_capacity = self._static_capacity or MAX_BUCKET_CAPACITY
         self.output_dir = output_dir
         self.console = console if console is not None else DOCETL_CONSOLE
 
@@ -85,7 +98,11 @@ class RankedPlans:
             units = self.judge.build_units(output_rows)
             rating = self.judge.rate(units)
 
-            bucket_idx, slot, placement_mode = self._locate(units, rating.mean, seq)
+            capacity = self._effective_capacity(units)
+            self.bucket_capacity = capacity
+            bucket_idx, slot, placement_mode = self._locate(
+                units, rating.mean, seq, capacity
+            )
             score = self._assign_score(bucket_idx, slot, rating.mean)
 
             entry = RankedEntry(
@@ -99,7 +116,7 @@ class RankedPlans:
                 self.buckets.append([entry])
             else:
                 self.buckets[bucket_idx].insert(slot, entry)
-                self._maybe_split(bucket_idx)
+                self._enforce_capacity(capacity)
 
             cost = self.judge.total_cost - cost_before
             self._record(entry, placement_mode, order_before, cost)
@@ -136,8 +153,17 @@ class RankedPlans:
 
     # ── placement ──────────────────────────────────────────────────
 
+    def _effective_capacity(self, new_units: PlanUnits) -> int:
+        """Static capacity when pinned, else derived from the judge's
+        context window and all observed output sizes (new plan included)."""
+        if self._static_capacity is not None:
+            return self._static_capacity
+        all_units = [e.units for e in self.ordered_entries()] + [new_units]
+        per_doc = all(u.aligned for u in all_units)
+        return self.judge.derive_bucket_capacity(all_units, per_doc)
+
     def _locate(
-        self, units: PlanUnits, rating: float, seq: int
+        self, units: PlanUnits, rating: float, seq: int, capacity: int
     ) -> Tuple[int, int, str]:
         """Route by rating, place by comparisons, slide across bucket
         boundaries when the placement lands on an edge."""
@@ -149,7 +175,9 @@ class RankedPlans:
 
         for _ in range(len(self.buckets) + 1):
             members = self.buckets[bucket_idx]
-            placement = self.judge.place(units, [e.units for e in members], seq)
+            placement = self.judge.place(
+                units, [e.units for e in members], seq, max_batch=capacity
+            )
             slot = placement.slot
 
             if slot == 0 and bucket_idx > 0 and not moved_down:
@@ -199,12 +227,35 @@ class RankedPlans:
         margin = interval * SCORE_MARGIN_FRACTION
         return min(max(rating_norm, lower + margin), upper - margin)
 
-    def _maybe_split(self, bucket_idx: int) -> None:
-        bucket = self.buckets[bucket_idx]
-        if len(bucket) <= self.bucket_capacity:
-            return
-        mid = (len(bucket) + 1) // 2
-        self.buckets[bucket_idx : bucket_idx + 1] = [bucket[:mid], bucket[mid:]]
+    def _enforce_capacity(self, capacity: int) -> None:
+        """Rebalance buckets to the current capacity.
+
+        Merges adjacent buckets that fit together (dynamic mode only, so a
+        capacity that grew doesn't leave the leaderboard fragmented) and
+        splits any over-capacity bucket into balanced consecutive chunks.
+        Both operations preserve the concatenated order — no LLM calls,
+        no score changes.
+        """
+        if self._static_capacity is None:
+            merged: List[List[RankedEntry]] = []
+            for bucket in self.buckets:
+                if merged and len(merged[-1]) + len(bucket) <= capacity:
+                    merged[-1] = merged[-1] + bucket
+                else:
+                    merged.append(list(bucket))
+            self.buckets = merged
+
+        rebalanced: List[List[RankedEntry]] = []
+        for bucket in self.buckets:
+            if len(bucket) <= capacity:
+                rebalanced.append(bucket)
+            else:
+                n_parts = -(-len(bucket) // capacity)
+                size = -(-len(bucket) // n_parts)
+                rebalanced.extend(
+                    bucket[i : i + size] for i in range(0, len(bucket), size)
+                )
+        self.buckets = rebalanced
 
     # ── bookkeeping ────────────────────────────────────────────────
 
@@ -246,6 +297,7 @@ class RankedPlans:
                 "rating_details": entry.rating_details,
                 "score": entry.score,
                 "placement_mode": placement_mode,
+                "capacity": self.bucket_capacity,
                 "position": self._global_index_of(entry),
                 "order_before": order_before,
                 "order_after": self._order_ids(),

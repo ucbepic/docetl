@@ -53,7 +53,7 @@ class MOARSearch:
         max_threads: int | None = None,
         max_concurrent_agents: int = 3,
         judge=None,
-        judge_bucket_capacity: int = 8,
+        judge_bucket_capacity: Optional[int] = None,
     ):
         """
         Initialize the MOARSearch algorithm.
@@ -74,8 +74,9 @@ class MOARSearch:
             judge: Optional ``PlanJudge`` for LLM-as-judge evaluation. When
                 set, plans are scored by ranked judge comparisons instead of
                 *evaluate_func*.
-            judge_bucket_capacity: Max plans per leaderboard bucket before it
-                splits (judge mode only).
+            judge_bucket_capacity: Pin the max plans per leaderboard bucket
+                (judge mode only). Default None derives it per insert from
+                the judge model's context window and observed output sizes.
         """
         if evaluate_func is None and judge is None:
             raise ValueError(

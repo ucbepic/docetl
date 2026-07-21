@@ -35,8 +35,9 @@ optimized = frame.optimize(
 |-----------|------|-------------|
 | `eval_fn` | `Callable` | A function that scores pipeline output. 1-arg: `(results_path) -> dict`. 2-arg: `(dataset_path, results_path) -> dict` (dataset path is curried automatically). Also accepts a file path string for CLI compatibility. Requires `metric_key`. |
 | `metric_key` | `str` | Key in evaluation results dictionary to use as accuracy metric (required with `eval_fn`) |
-| `judge_model` | `str` | LLM judge used instead of `eval_fn` when there's no ground truth. Rates each plan's outputs 1–5 and ranks it against previously evaluated plans; accuracy becomes the plan's position-derived score in (0, 1). See [LLM-as-Judge Evaluation](evaluation.md#llm-as-judge-evaluation). |
+| `judge_model` | `str` | LLM judge used instead of `eval_fn` when there's no ground truth (`gpt-4.1-nano` is a good default). Rates each plan's outputs 1–5 and ranks it against previously evaluated plans; accuracy becomes the plan's position-derived score in (0, 1). See [LLM-as-Judge Evaluation](evaluation.md#llm-as-judge-evaluation). |
 | `judge_criteria` | `str` | Optional validation criteria for the judge. Auto-generated from the pipeline by the rewrite agent model if omitted. |
+| `judge_bucket_capacity` | `int` | Optional pin for leaderboard bucket size (plans per batched judge call). Default: derived per insert from the judge's context window and observed output sizes. |
 
 ### Optional Parameters
 

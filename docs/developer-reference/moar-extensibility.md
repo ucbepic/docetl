@@ -60,10 +60,26 @@ The operation combines two dependent decisions:
 
 Chaining can ask the agent to produce a decomposition such as:
 
-```text
-summary -> identify_new_conditions -> new_conditions
-summary + new_conditions -> extract_treatments -> treatments
+```mermaid
+flowchart TB
+    subgraph before["Before: one complex map"]
+        direction LR
+        S1["summary"] --> O["extract_new_treatments<br/>Identify new diagnoses and<br/>associate their treatments"]
+        O --> T1["treatments"]
+    end
+
+    subgraph after["After: chaining rewrite"]
+        direction LR
+        S2["summary"] --> C["identify_new_conditions"]
+        C --> N["new_conditions"]
+        S2 --> E["extract_treatments"]
+        N --> E
+        E --> T2["treatments"]
+    end
 ```
+
+Both plans accept `summary` and produce `treatments`. The rewritten plan makes
+`new_conditions` an explicit intermediate result that the second map can use.
 
 The developer implements the general strategy. The rewrite agent supplies the
 task-specific steps.

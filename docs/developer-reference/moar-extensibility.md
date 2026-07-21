@@ -1,16 +1,17 @@
 # Adding a MOAR rewrite directive
 
-This guide describes how to add a rewrite directive to MOAR. A rewrite directive
-lets MOAR test a new kind of pipeline change. Follow steps 1 to 6 to implement
-and register the directive. Then test the directive and confirm that MOAR uses
-it during a search.
+This guide describes how to add your own rewrite directive to MOAR. It uses the
+existing `chaining` directive as an illustrative example. Steps 1 to 6 show the
+code you need to implement and register for any directive. The testing sections
+show how to confirm that MOAR can use your directive during a search.
 
 ## The chaining directive
 
-DocETL includes a rewrite directive named `chaining`. A chaining rewrite
-replaces one complex operation with a sequence of simpler map operations. Each
-new map handles one part of the original task, and a later map can use output
-from an earlier map.
+The `chaining` directive is already part of DocETL, so you do not need to add
+it. We walk through its existing implementation so you can see how to structure
+a directive of your own. A chaining rewrite replaces one complex operation with
+a sequence of simpler map operations. Each new map handles one part of the
+original task, and a later map can use output from an earlier map.
 
 ```text
 Op  =>  Map* -> Op
@@ -21,9 +22,10 @@ The code examples follow the implementation in
 
 ## Example application
 
-To illustrate the chaining directive, suppose a medical pipeline contains a map
-operation that must identify newly diagnosed conditions and associate
-treatments with them in one call.
+The medical pipeline below is an example input for chaining, not part of the
+directive implementation. Suppose the pipeline contains a map operation that
+must identify newly diagnosed conditions and associate treatments with them in
+one call.
 
 !!! example "Example input, the pipeline author's operation"
     The pipeline author writes the original operation. The directive receives
@@ -70,9 +72,10 @@ MOAR uses the same process for every directive.
 The schema limits what the rewrite agent may return. The `apply()` method builds
 the changed pipeline without another model call.
 
-The next six sections go through each step needed to define the chaining
-directive. You will use the medical application in each step, so you can compare
-the general instructions with the chaining code.
+The next six sections walk through each part of the existing chaining
+implementation. Use the same sequence when you define a directive of your own.
+The medical application appears in each step so you can see how the directive
+handles a specific operation.
 
 ## 1. Define the instantiate schema
 

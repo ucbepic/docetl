@@ -5,40 +5,25 @@ lets MOAR test a new kind of pipeline change. Follow steps 1 to 6 to implement
 and register the directive. Then test the directive and confirm that MOAR uses
 it during a search.
 
-The `chaining` directive included with DocETL is one example. MOAR can use it to
-replace one complex operation with a sequence of simpler map operations.
+## The chaining directive
+
+DocETL includes a rewrite directive named `chaining`. A chaining rewrite
+replaces one complex operation with a sequence of simpler map operations. Each
+new map handles one part of the original task, and a later map can use output
+from an earlier map.
 
 ```text
 Op  =>  Map* -> Op
 ```
 
-You define which pipeline changes are valid. During a search, the rewrite agent
-writes the intermediate tasks and prompts for one target operation. DocETL
-checks the changed pipeline before MOAR runs and scores it.
-
 The code examples follow the implementation in
 [`docetl/reasoning_optimizer/directives/chaining.py`](https://github.com/ucbepic/docetl/blob/main/docetl/reasoning_optimizer/directives/chaining.py).
 
-## How MOAR uses a directive
+## Example application
 
-MOAR uses the same process for every directive.
-
-1. The search agent reads `name`, `formal_description`, `nl_description`, and
-   `when_to_use`, then selects a directive and one or more target operations.
-2. The directive asks the rewrite agent for an object that matches the
-   instantiate schema.
-3. Your validation code checks the proposed configuration.
-4. `apply()` returns a new operation list, and DocETL statically validates the
-   complete candidate pipeline before executing it.
-5. MOAR runs the candidate and evaluates its accuracy and cost.
-
-The schema limits what the rewrite agent may return. The `apply()` method builds
-the changed pipeline without another model call.
-
-## Medical extraction example
-
-Suppose a pipeline contains a map operation that must identify newly diagnosed
-conditions and associate treatments with them in one call.
+To illustrate the chaining directive, suppose a medical pipeline contains a map
+operation that must identify newly diagnosed conditions and associate
+treatments with them in one call.
 
 !!! example "Example input, the pipeline author's operation"
     The pipeline author writes the original operation. The directive receives
@@ -69,11 +54,25 @@ MOAR can apply chaining to replace the operation with two dependent maps.
 Both plans accept `summary` and produce `treatments`. In the changed plan,
 `new_conditions` is an intermediate result for the second map.
 
-You write rules for any chaining rewrite. While MOAR runs, the rewrite agent
-chooses the medical tasks for the target operation.
+## How MOAR uses a directive
 
-You will use the medical example in each step, so you can compare the general
-instructions with the chaining code.
+MOAR uses the same process for every directive.
+
+1. The search agent reads `name`, `formal_description`, `nl_description`, and
+   `when_to_use`, then selects a directive and one or more target operations.
+2. The directive asks the rewrite agent for an object that matches the
+   instantiate schema.
+3. Your validation code checks the proposed configuration.
+4. `apply()` returns a new operation list, and DocETL statically validates the
+   complete candidate pipeline before executing it.
+5. MOAR runs the candidate and evaluates its accuracy and cost.
+
+The schema limits what the rewrite agent may return. The `apply()` method builds
+the changed pipeline without another model call.
+
+The next six sections go through each step needed to define the chaining
+directive. You will use the medical application in each step, so you can compare
+the general instructions with the chaining code.
 
 ## 1. Define the instantiate schema
 

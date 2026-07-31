@@ -14,6 +14,10 @@ from litellm.utils import ModelResponse
 from pydantic import Field, field_validator, model_validator
 from tqdm import tqdm
 
+from docetl.execution import (
+    BatchExecutionError,
+    SUPPORTED_LITELLM_BATCH_PROVIDERS,
+)
 from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.code_operations import extract_eval_field_reads
 from docetl.operations.utils import (
@@ -57,6 +61,7 @@ class MapOperation(BaseOperation):
         # Calibration parameters
         calibrate: bool = False
         num_calibration_docs: int = Field(10, gt=0)
+        execution: dict[str, Any] | None = None
 
         @field_validator("batch_prompt")
         def validate_batch_prompt(cls, v):
@@ -111,6 +116,43 @@ class MapOperation(BaseOperation):
                 if self.output and not self.output.get("schema"):
                     raise ValueError("Missing 'schema' in 'output' configuration")
 
+            return self
+
+        @model_validator(mode="after")
+        def validate_materialized_batch_execution(self):
+            if self.execution is None:
+                return self
+            if self.execution.get("mode") != "batch":
+                raise ValueError("execution.mode must be 'batch'")
+            backend = self.execution.get("backend", "litellm")
+            if backend not in {"litellm", "vllm"}:
+                raise ValueError("execution.backend must be 'litellm' or 'vllm'")
+            if (
+                backend == "litellm"
+                and self.execution.get("provider", "openai")
+                not in SUPPORTED_LITELLM_BATCH_PROVIDERS
+            ):
+                raise ValueError(
+                    "LiteLLM batch execution currently supports provider values "
+                    "openai, azure, vertex_ai, bedrock, and hosted_vllm"
+                )
+            incompatible = [
+                name
+                for name, value in (
+                    ("agent", self.agent),
+                    ("gleaning", self.gleaning),
+                    ("validate", self.validation_rules),
+                    ("calibrate", self.calibrate),
+                    ("batch_prompt", self.batch_prompt),
+                    ("pdf_url_key", self.pdf_url_key),
+                )
+                if value
+            ]
+            if incompatible:
+                raise ValueError(
+                    "batch execution cannot yet be combined with "
+                    + ", ".join(incompatible)
+                )
             return self
 
     def __init__(
@@ -279,7 +321,7 @@ Sample inputs and their outputs:
             for i, (input_doc, output_doc) in enumerate(
                 zip(calibration_sample, calibration_results)
             ):
-                calibration_prompt += f"\n--- Example {i+1} ---\n"
+                calibration_prompt += f"\n--- Example {i + 1} ---\n"
                 calibration_prompt += f"Input: {input_doc}\n"
                 calibration_prompt += f"Output: {output_doc}\n"
 
@@ -332,6 +374,93 @@ Reference anchors:"""
         finally:
             # Restore original calibration setting
             self.config["calibrate"] = original_calibrate
+
+    def _execute_materialized_batch(
+        self, input_data: list[dict]
+    ) -> tuple[list[dict], float]:
+        """Materialize independent row calls and execute them as one batch."""
+        if not self._limit_applies_to_inputs() and self.config.get("limit"):
+            raise ValueError(
+                "batch execution cannot be combined with a filter limit because "
+                "the passing rows are not known until after the batch completes"
+            )
+        if self.config.get("cascade"):
+            raise ValueError("batch execution cannot yet be combined with cascade")
+
+        prepared: list[tuple[dict, str, str]] = []
+        calls: list[dict[str, Any]] = []
+        model = self.config.get("model", self.default_model)
+        for item in input_data:
+            retrieval_context = self._maybe_build_retrieval_context({"input": item})
+            rendered = strict_render(
+                self.config["prompt"],
+                {"input": item, "retrieval_context": retrieval_context},
+            )
+            prompt = (
+                f"Here is some extra context:\n{retrieval_context}\n\n{rendered}"
+                if retrieval_context
+                and "retrieval_context" not in self.config["prompt"]
+                else rendered
+            )
+            prepared.append((item, prompt, retrieval_context))
+            calls.append(
+                {
+                    "model": model,
+                    # Preserve the existing MapOperation call contract; Filter
+                    # inherits this path and currently uses the map system prompt.
+                    "op_type": "map",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "output_schema": self.config["output"]["schema"],
+                    "bypass_cache": self.config.get("bypass_cache", self.bypass_cache),
+                    "litellm_completion_kwargs": self.config.get(
+                        "litellm_completion_kwargs", {}
+                    ),
+                    "op_config": self.config,
+                }
+            )
+
+        llm_results = self.runner.api.call_llm_materialized_batch(
+            calls, self.config["execution"]
+        )
+        structured_mode = (
+            self.config.get("output", {}).get("mode")
+            == OutputMode.STRUCTURED_OUTPUT.value
+        )
+        results: list[dict] = []
+        total_cost = 0.0
+        for (item, prompt, retrieval_context), llm_result in zip(prepared, llm_results):
+            total_cost += llm_result.total_cost
+            if not llm_result.validated or llm_result.response is None:
+                if self.config.get("skip_on_error", False):
+                    self.console.log(
+                        f"[bold red]Batch request failed in {self.config['name']}; "
+                        "skipping item[/bold red]"
+                    )
+                    continue
+                raise BatchExecutionError(
+                    f"Batch request failed in operation {self.config['name']!r}"
+                )
+            outputs = self.runner.api.parse_llm_response(
+                llm_result.response,
+                schema=self.config["output"]["schema"],
+                manually_fix_errors=self.manually_fix_errors,
+                use_structured_output=structured_mode,
+            )
+            for parsed in outputs:
+                output = {**item, **parsed}
+                if self.config.get("enable_observability", False):
+                    output[f"_observability_{self.config['name']}"] = {"prompt": prompt}
+                if self.config.get("save_retriever_output", False):
+                    output[f"_{self.config['name']}_retrieved_context"] = (
+                        retrieval_context if retrieval_context else ""
+                    )
+                for key in self.config.get("drop_keys", []):
+                    output.pop(key, None)
+                handled, _ = self._handle_result(output)
+                if handled is not None:
+                    results.append(handled)
+
+        return results, total_cost
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
@@ -393,13 +522,21 @@ Reference anchors:"""
                     f"[bold yellow]Extra context on how to improve consistency failed to generate for map ({self.config['name']}); continuing with prompt as is.[/bold yellow]"
                 )
 
+        if self.config.get("execution", {}).get("mode") == "batch":
+            if self.status:
+                self.status.stop()
+            try:
+                return self._execute_materialized_batch(input_data)
+            finally:
+                if self.status:
+                    self.status.start()
+
         if self.status:
             self.status.stop()
 
         def _process_map_item(
             item: dict, initial_result: dict | None = None
         ) -> tuple[dict | None, float]:
-
             # Build retrieval context (if configured)
             retrieval_context = self._maybe_build_retrieval_context({"input": item})
             ctx = {"input": item, "retrieval_context": retrieval_context}

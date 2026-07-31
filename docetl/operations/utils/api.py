@@ -16,6 +16,7 @@ from litellm import (
     ServiceUnavailableError,
     completion,
     embedding,
+    get_llm_provider,
 )
 from litellm.types.utils import ChatCompletionMessageToolCall, Function
 from rich import print as rprint
@@ -23,6 +24,12 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
 
+from docetl.execution import (
+    BatchRequest,
+    SUPPORTED_LITELLM_BATCH_PROVIDERS,
+    execute_batch,
+    partition_batch_requests,
+)
 from docetl.utils import completion_cost
 
 from .cache import cache, cache_key, freezeargs
@@ -151,9 +158,9 @@ class APIWrapper(object):
             prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
             self.runner.total_token_usage[model]["prompt_tokens"] += prompt_tokens
-            self.runner.total_token_usage[model][
-                "completion_tokens"
-            ] += completion_tokens
+            self.runner.total_token_usage[model]["completion_tokens"] += (
+                completion_tokens
+            )
 
             # Track cached/cache-creation tokens if available
             cached = 0
@@ -268,6 +275,265 @@ class APIWrapper(object):
             litellm_completion_kwargs=litellm_completion_kwargs,
             op_config=op_config,
         )
+
+    def _prepare_materialized_completion(
+        self,
+        model: str,
+        op_type: str,
+        messages: list[dict[str, Any]],
+        output_schema: dict[str, str],
+        litellm_completion_kwargs: dict[str, Any],
+        op_config: dict[str, Any],
+        execution_config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build one OpenAI-compatible request without executing it.
+
+        Deferred backends deliberately support the non-agentic, row-local call
+        shape first.  Validation, gleaning, and agent loops need more than one
+        dependent round and are rejected by ``MapOperation`` before this point.
+        """
+        props = {key: convert_val(value) for key, value in output_schema.items()}
+        output_mode = op_config.get("output", {}).get("mode", OutputMode.TOOLS.value)
+        use_structured_output = output_mode == OutputMode.STRUCTURED_OUTPUT.value
+        use_tools = not (
+            len(props) == 1
+            and next(iter(props.values())).get("type") == "string"
+            and ("sagemaker" in model or is_deepseek_r1(model))
+        )
+
+        persona = self.runner.config.get("system_prompt", {}).get(
+            "persona", "a helpful assistant"
+        )
+        dataset_description = self.runner.config.get("system_prompt", {}).get(
+            "dataset_description", "a collection of unstructured documents"
+        )
+        base_prompt = (
+            f"You are a {persona}, helping the user make sense of their data. "
+            f"The dataset description is: {dataset_description}. You will be "
+            f"performing a {op_type} operation (one input:one output). You will "
+            "perform the specified task on the provided data, as precisely and "
+            "exhaustively (i.e., high recall) as possible."
+        )
+
+        body: dict[str, Any] = dict(litellm_completion_kwargs)
+        # These configure a LiteLLM client, not an endpoint request body.
+        for client_key in (
+            "api_base",
+            "base_url",
+            "api_key",
+            "custom_llm_provider",
+            "allowed_openai_params",
+        ):
+            body.pop(client_key, None)
+        if "n" in op_config.get("output", {}):
+            body["n"] = op_config["output"]["n"]
+        if "gpt-5" in model:
+            body.pop("temperature", None)
+
+        if execution_config.get("backend", "litellm") == "litellm":
+            normalized_model, provider, _, _ = get_llm_provider(model)
+            configured_provider = execution_config.get("provider", "openai")
+            if provider != configured_provider:
+                raise ValueError(
+                    f"Batch backend provider {configured_provider!r} cannot execute "
+                    f"model {model!r} (LiteLLM provider {provider!r})"
+                )
+            body["model"] = normalized_model
+        else:
+            body["model"] = execution_config.get("model", model)
+
+        system_prompt = base_prompt
+        if use_structured_output:
+            system_prompt += (
+                " Respond with a JSON object that follows the required schema."
+            )
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "structured_output",
+                    "schema": {
+                        "type": "object",
+                        "properties": props,
+                        "required": list(props),
+                        "additionalProperties": False,
+                    },
+                    "strict": True,
+                },
+            }
+        elif use_tools:
+            system_prompt += (
+                " The result should be a structured output that you will send "
+                "back to the user, with the `send_output` function. Do not "
+                "influence your answers too much based on the `send_output` "
+                "function parameter names; just use them to send the result "
+                "back to the user."
+            )
+            parameters: dict[str, Any] = {
+                "type": "object",
+                "properties": props,
+                "required": list(props),
+            }
+            if "gemini" not in model and "claude" not in model:
+                parameters["additionalProperties"] = False
+            tool: dict[str, Any] = {
+                "type": "function",
+                "function": {
+                    "name": "send_output",
+                    "description": "Send output back to the user",
+                    "parameters": parameters,
+                },
+            }
+            if "claude" not in model:
+                tool["additionalProperties"] = False
+                tool["strict"] = True
+            body["tools"] = [tool]
+            body["tool_choice"] = {
+                "type": "function",
+                "function": {"name": "send_output"},
+            }
+        else:
+            system_prompt = base_prompt
+
+        body["messages"] = truncate_messages(
+            [{"role": "system", "content": system_prompt}] + messages,
+            model,
+        )
+        return body
+
+    def call_llm_materialized_batch(
+        self,
+        calls: list[dict[str, Any]],
+        execution_config: dict[str, Any],
+    ) -> list[LLMResult]:
+        """Execute independent LLM calls as one durable backend batch."""
+        execution_config = dict(execution_config)
+        if (
+            execution_config.get("backend", "litellm") == "litellm"
+            and "provider" not in execution_config
+            and calls
+        ):
+            providers = {get_llm_provider(call["model"])[1] for call in calls}
+            if len(providers) != 1:
+                raise ValueError(
+                    "A provider batch requires models from exactly one LiteLLM provider"
+                )
+            execution_config["provider"] = providers.pop()
+        if (
+            execution_config.get("backend", "litellm") == "litellm"
+            and execution_config.get("provider", "openai")
+            not in SUPPORTED_LITELLM_BATCH_PROVIDERS
+        ):
+            raise ValueError(
+                "LiteLLM batch execution currently supports provider values "
+                "openai, azure, vertex_ai, bedrock, and hosted_vllm"
+            )
+        results: list[LLMResult | None] = [None] * len(calls)
+        pending_requests: list[BatchRequest] = []
+        pending: list[tuple[int, str, str]] = []
+
+        with cache as c:
+            for index, call in enumerate(calls):
+                key = cache_key(
+                    call["model"],
+                    call["op_type"],
+                    call["messages"],
+                    call["output_schema"],
+                    None,
+                    self.runner.config.get("system_prompt", {}),
+                    call["op_config"],
+                )
+                cached = c.get(key)
+                if cached is not None and not call.get("bypass_cache", False):
+                    results[index] = LLMResult(
+                        response=cached, total_cost=0.0, validated=True
+                    )
+                    continue
+                custom_id = f"request-{index}"
+                body = self._prepare_materialized_completion(
+                    call["model"],
+                    call["op_type"],
+                    call["messages"],
+                    call["output_schema"],
+                    call.get("litellm_completion_kwargs", {}),
+                    call["op_config"],
+                    execution_config,
+                )
+                pending_requests.append(BatchRequest(custom_id=custom_id, body=body))
+                pending.append((index, key, call["model"]))
+
+        if pending_requests:
+            default_batch_size = (
+                50_000
+                if execution_config.get("backend", "litellm") == "litellm"
+                else len(pending_requests)
+            )
+            max_batch_requests = int(
+                execution_config.get("max_batch_requests", default_batch_size)
+            )
+            max_batch_bytes = execution_config.get(
+                "max_batch_bytes",
+                200_000_000
+                if execution_config.get("backend", "litellm") == "litellm"
+                else None,
+            )
+            batch_results = []
+            chunks = partition_batch_requests(
+                pending_requests,
+                max_requests=max_batch_requests,
+                max_bytes=(
+                    int(max_batch_bytes) if max_batch_bytes is not None else None
+                ),
+            )
+            for chunk in chunks:
+                batch_results.extend(
+                    execute_batch(
+                        chunk,
+                        execution_config,
+                    )
+                )
+            multiplier = float(
+                execution_config.get(
+                    "cost_multiplier",
+                    (
+                        0.5
+                        if execution_config.get("provider", "openai") == "openai"
+                        else 1.0
+                    )
+                    if execution_config.get("backend", "litellm") == "litellm"
+                    else 0.0,
+                )
+            )
+            with cache as c:
+                for (index, key, model), batch_result in zip(pending, batch_results):
+                    if (
+                        batch_result.error is not None
+                        or batch_result.body is None
+                        or (
+                            batch_result.status_code is not None
+                            and not 200 <= batch_result.status_code < 300
+                        )
+                    ):
+                        results[index] = LLMResult(
+                            response=None, total_cost=0.0, validated=False
+                        )
+                        continue
+                    response = ModelResponse(**batch_result.body)
+                    estimated_cost = completion_cost(response) * multiplier
+                    setattr(response, "_completion_cost", estimated_cost)
+                    self._track_token_usage(model, response)
+                    c.set(key, response)
+                    results[index] = LLMResult(
+                        response=response,
+                        total_cost=estimated_cost,
+                        validated=True,
+                    )
+
+        return [
+            result
+            if result is not None
+            else LLMResult(response=None, total_cost=0.0, validated=False)
+            for result in results
+        ]
 
     def _cached_call_llm(
         self,
@@ -636,7 +902,10 @@ class APIWrapper(object):
             raise ValueError(
                 f"Invalid output mode '{output_mode_str}'. Must be 'tools' or 'structured_output'."
             )
-        if agent_config is not None and output_mode_str == OutputMode.STRUCTURED_OUTPUT.value:
+        if (
+            agent_config is not None
+            and output_mode_str == OutputMode.STRUCTURED_OUTPUT.value
+        ):
             raise ValueError(
                 "agent cannot be combined with output.mode='structured_output'; "
                 "agentic operations use the OpenAI Agents SDK final output schema."

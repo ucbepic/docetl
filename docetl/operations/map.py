@@ -4,6 +4,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 
 import asyncio
 import base64
+import copy
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
@@ -233,7 +234,9 @@ class MapOperation(BaseOperation):
     def _handle_result(self, result: dict[str, Any]) -> tuple[dict | None, bool]:
         return result, True
 
-    def _generate_calibration_context(self, input_data: list[dict]) -> str:
+    def _generate_calibration_context(
+        self, input_data: list[dict], operation_config: dict[str, Any]
+    ) -> str:
         """
         Generate calibration context by running the operation on a sample of documents
         and using an LLM to suggest prompt improvements for consistency.
@@ -243,47 +246,46 @@ class MapOperation(BaseOperation):
         """
         import random
 
-        # Set seed for reproducibility
-        random.seed(42)
+        # Use a local generator so concurrent calibrations do not share RNG state.
+        rng = random.Random(42)
 
         # Sample documents for calibration
         num_calibration_docs = min(
-            self.config.get("num_calibration_docs", 10), len(input_data)
+            operation_config.get("num_calibration_docs", 10), len(input_data)
         )
         if num_calibration_docs == len(input_data):
             calibration_sample = input_data
         else:
-            calibration_sample = random.sample(input_data, num_calibration_docs)
+            calibration_sample = rng.sample(input_data, num_calibration_docs)
 
         self.console.log(
             f"[bold blue]Running calibration on {num_calibration_docs} documents...[/bold blue]"
         )
 
-        # Temporarily disable calibration to avoid infinite recursion
-        original_calibrate = self.config.get("calibrate", False)
-        self.config["calibrate"] = False
+        # Run the map operation on the calibration sample without recursively
+        # calibrating it. Keep the override local to this execution.
+        calibration_config = {**operation_config, "calibrate": False}
+        calibration_operation = copy.copy(self)
+        calibration_operation.config = calibration_config
+        calibration_results, _ = calibration_operation.execute(calibration_sample)
 
-        try:
-            # Run the map operation on the calibration sample
-            calibration_results, _ = self.execute(calibration_sample)
-
-            # Prepare the calibration analysis prompt
-            calibration_prompt = f"""
+        # Prepare the calibration analysis prompt
+        calibration_prompt = f"""
 The following prompt was applied to sample documents to generate these input-output pairs:
 
-"{self.config["prompt"]}"
+"{operation_config["prompt"]}"
 
 Sample inputs and their outputs:
 """
 
-            for i, (input_doc, output_doc) in enumerate(
-                zip(calibration_sample, calibration_results)
-            ):
-                calibration_prompt += f"\n--- Example {i+1} ---\n"
-                calibration_prompt += f"Input: {input_doc}\n"
-                calibration_prompt += f"Output: {output_doc}\n"
+        for i, (input_doc, output_doc) in enumerate(
+            zip(calibration_sample, calibration_results)
+        ):
+            calibration_prompt += f"\n--- Example {i + 1} ---\n"
+            calibration_prompt += f"Input: {input_doc}\n"
+            calibration_prompt += f"Output: {output_doc}\n"
 
-            calibration_prompt += """
+        calibration_prompt += """
 Based on these examples, provide reference anchors that will be appended to the prompt to help maintain consistency when processing all documents.
 
 DO NOT provide generic advice. Instead, use specific examples from above as calibration points.
@@ -296,42 +298,35 @@ Format as concrete reference points:
 
 Reference anchors:"""
 
-            # Call LLM to get calibration suggestions
-            messages = [{"role": "user", "content": calibration_prompt}]
-            # Use a copy of the user-provided completion kwargs so we don't mutate the original
-            # and avoid hard-coding temperature to a value that may not be supported by certain models.
-            completion_kwargs = dict(self.config.get("litellm_completion_kwargs", {}))
-            # If the user did not explicitly specify a temperature, let the model default handle it
-            # to prevent incompatibility errors with providers that don't support 0.0.
-            # If a temperature is already provided, respect the user's choice.
+        # Call LLM to get calibration suggestions
+        messages = [{"role": "user", "content": calibration_prompt}]
+        # Use a copy of the user-provided completion kwargs so we don't mutate the original
+        # and avoid hard-coding temperature to a value that may not be supported by certain models.
+        completion_kwargs = dict(operation_config.get("litellm_completion_kwargs", {}))
+        # If the user did not explicitly specify a temperature, let the model default handle it
+        # to prevent incompatibility errors with providers that don't support 0.0.
+        # If a temperature is already provided, respect the user's choice.
 
-            llm_result = self.runner.api.call_llm(
-                self.config.get("model", self.default_model),
-                "calibration",
-                messages,
-                {"calibration_context": "string"},
-                timeout_seconds=self.config.get("timeout", 120),
-                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
-                litellm_completion_kwargs=completion_kwargs,
-                op_config=self.config,
-            )
+        llm_result = self.runner.api.call_llm(
+            operation_config.get("model", self.default_model),
+            "calibration",
+            messages,
+            {"calibration_context": "string"},
+            timeout_seconds=operation_config.get("timeout", 120),
+            max_retries_per_timeout=operation_config.get("max_retries_per_timeout", 2),
+            bypass_cache=operation_config.get("bypass_cache", self.bypass_cache),
+            litellm_completion_kwargs=completion_kwargs,
+            op_config=operation_config,
+        )
 
-            # Parse the response
-            if hasattr(llm_result, "response"):
-                calibration_context = self.runner.api.parse_llm_response(
-                    llm_result.response,
-                    schema={"calibration_context": "string"},
-                    manually_fix_errors=self.manually_fix_errors,
-                )[0].get("calibration_context", "")
-            else:
-                calibration_context = ""
-
-            return calibration_context
-
-        finally:
-            # Restore original calibration setting
-            self.config["calibrate"] = original_calibrate
+        # Parse the response
+        if hasattr(llm_result, "response"):
+            return self.runner.api.parse_llm_response(
+                llm_result.response,
+                schema={"calibration_context": "string"},
+                manually_fix_errors=self.manually_fix_errors,
+            )[0].get("calibration_context", "")
+        return ""
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
@@ -353,10 +348,15 @@ Reference anchors:"""
 
         The method uses parallel processing to improve performance.
         """
-        limit_value = self.config.get("limit")
+        return self._execute(input_data, dict(self.config))
+
+    def _execute(
+        self, input_data: list[dict], operation_config: dict[str, Any]
+    ) -> tuple[list[dict], float]:
+        limit_value = operation_config.get("limit")
 
         # Check if there's no prompt and only drop_keys
-        if "prompt" not in self.config and "drop_keys" in self.config:
+        if "prompt" not in operation_config and "drop_keys" in operation_config:
             data_to_process = input_data
             if limit_value is not None and self._limit_applies_to_inputs():
                 data_to_process = input_data[:limit_value]
@@ -364,7 +364,9 @@ Reference anchors:"""
             dropped_results = []
             for item in data_to_process:
                 new_item = {
-                    k: v for k, v in item.items() if k not in self.config["drop_keys"]
+                    k: v
+                    for k, v in item.items()
+                    if k not in operation_config["drop_keys"]
                 }
                 dropped_results.append(new_item)
                 if limit_value is not None and len(dropped_results) >= limit_value:
@@ -376,21 +378,23 @@ Reference anchors:"""
 
         # Generate calibration context if enabled
         calibration_context = ""
-        if self.config.get("calibrate", False) and "prompt" in self.config:
-            calibration_context = self._generate_calibration_context(input_data)
+        if operation_config.get("calibrate", False) and "prompt" in operation_config:
+            calibration_context = self._generate_calibration_context(
+                input_data, operation_config
+            )
             if calibration_context:
-                # Store original prompt for potential restoration
-                self._original_prompt = self.config["prompt"]
-                # Augment the prompt with calibration context
-                self.config["prompt"] = (
-                    f"{self.config['prompt']}\n\n{calibration_context}"
-                )
+                operation_config = {
+                    **operation_config,
+                    "prompt": (
+                        f"{operation_config['prompt']}\n\n{calibration_context}"
+                    ),
+                }
                 self.console.log(
-                    f"[bold green]New map ({self.config['name']}) prompt augmented with context on how to improve consistency:[/bold green] {self.config['prompt']}"
+                    f"[bold green]New map ({operation_config['name']}) prompt augmented with context on how to improve consistency:[/bold green] {operation_config['prompt']}"
                 )
             else:
                 self.console.log(
-                    f"[bold yellow]Extra context on how to improve consistency failed to generate for map ({self.config['name']}); continuing with prompt as is.[/bold yellow]"
+                    f"[bold yellow]Extra context on how to improve consistency failed to generate for map ({operation_config['name']}); continuing with prompt as is.[/bold yellow]"
                 )
 
         if self.status:
@@ -403,22 +407,22 @@ Reference anchors:"""
             # Build retrieval context (if configured)
             retrieval_context = self._maybe_build_retrieval_context({"input": item})
             ctx = {"input": item, "retrieval_context": retrieval_context}
-            rendered = strict_render(self.config["prompt"], ctx)
+            rendered = strict_render(operation_config["prompt"], ctx)
             # If template didn't use retrieval_context, prepend a standard header
             prompt = (
                 f"Here is some extra context:\n{retrieval_context}\n\n{rendered}"
                 if retrieval_context
-                and "retrieval_context" not in self.config["prompt"]
+                and "retrieval_context" not in operation_config["prompt"]
                 else rendered
             )
             messages = [{"role": "user", "content": prompt}]
-            if self.config.get("pdf_url_key", None):
+            if operation_config.get("pdf_url_key", None):
                 # Append the pdf to the prompt
                 try:
-                    pdf_url = lookup_field(item, self.config["pdf_url_key"])
+                    pdf_url = lookup_field(item, operation_config["pdf_url_key"])
                 except Exception:
                     raise ValueError(
-                        f"PDF URL key '{self.config['pdf_url_key']}' not found in input data"
+                        f"PDF URL key '{operation_config['pdf_url_key']}' not found in input data"
                     )
 
                 # Download content
@@ -437,13 +441,13 @@ Reference anchors:"""
 
             def validation_fn(response: dict[str, Any] | ModelResponse):
                 structured_mode = (
-                    self.config.get("output", {}).get("mode")
+                    operation_config.get("output", {}).get("mode")
                     == OutputMode.STRUCTURED_OUTPUT.value
                 )
                 output = (
                     self.runner.api.parse_llm_response(
                         response,
-                        schema=self.config["output"]["schema"],
+                        schema=operation_config["output"]["schema"],
                         manually_fix_errors=self.manually_fix_errors,
                         use_structured_output=structured_mode,
                     )[0]
@@ -453,56 +457,60 @@ Reference anchors:"""
                 # Type-check output values against schema declarations
                 is_types_valid, _errors = validate_output_types(
                     output,
-                    self.config["output"]["schema"],
+                    operation_config["output"]["schema"],
                 )
                 if not is_types_valid:
                     return output, False
 
                 for key, value in item.items():
-                    if key not in self.config["output"]["schema"]:
+                    if key not in operation_config["output"]["schema"]:
                         output[key] = value
-                if self.runner.api.validate_output(self.config, output, self.console):
+                if self.runner.api.validate_output(
+                    operation_config, output, self.console
+                ):
                     return output, True
                 return output, False
 
             if self.runner.is_cancelled:
                 raise asyncio.CancelledError("Operation was cancelled")
             llm_result = self.runner.api.call_llm(
-                self.config.get("model", self.default_model),
+                operation_config.get("model", self.default_model),
                 "map",
                 messages,
-                self.config["output"]["schema"],
+                operation_config["output"]["schema"],
                 scratchpad=None,
-                timeout_seconds=self.config.get("timeout", 120),
-                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                timeout_seconds=operation_config.get("timeout", 120),
+                max_retries_per_timeout=operation_config.get(
+                    "max_retries_per_timeout", 2
+                ),
                 validation_config=(
                     {
                         "num_retries": self.num_retries_on_validate_failure,
-                        "val_rule": self.config.get("validate", []),
+                        "val_rule": operation_config.get("validate", []),
                         "validation_fn": validation_fn,
                     }
                 ),
-                gleaning_config=self.config.get("gleaning", None),
-                verbose=self.config.get("verbose", False),
-                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
+                gleaning_config=operation_config.get("gleaning", None),
+                verbose=operation_config.get("verbose", False),
+                bypass_cache=operation_config.get("bypass_cache", self.bypass_cache),
                 initial_result=initial_result,
-                litellm_completion_kwargs=self.config.get(
+                litellm_completion_kwargs=operation_config.get(
                     "litellm_completion_kwargs", {}
                 ),
-                op_config=self.config,
-                agent_config=self.config.get("agent"),
+                op_config=operation_config,
+                agent_config=operation_config.get("agent"),
             )
 
             if llm_result.validated:
                 # Parse the response
                 if isinstance(llm_result.response, ModelResponse):
                     structured_mode = (
-                        self.config.get("output", {}).get("mode")
+                        operation_config.get("output", {}).get("mode")
                         == OutputMode.STRUCTURED_OUTPUT.value
                     )
                     outputs = self.runner.api.parse_llm_response(
                         llm_result.response,
-                        schema=self.config["output"]["schema"],
+                        schema=operation_config["output"]["schema"],
                         manually_fix_errors=self.manually_fix_errors,
                         use_structured_output=structured_mode,
                     )
@@ -511,15 +519,15 @@ Reference anchors:"""
 
                 # Augment the output with the original item
                 outputs = [{**item, **output} for output in outputs]
-                if self.config.get("enable_observability", False):
+                if operation_config.get("enable_observability", False):
                     for output in outputs:
-                        output[f"_observability_{self.config['name']}"] = {
+                        output[f"_observability_{operation_config['name']}"] = {
                             "prompt": prompt
                         }
                 # Add retrieved context if save_retriever_output is enabled
-                if self.config.get("save_retriever_output", False):
+                if operation_config.get("save_retriever_output", False):
                     for output in outputs:
-                        output[f"_{self.config['name']}_retrieved_context"] = (
+                        output[f"_{operation_config['name']}_retrieved_context"] = (
                             retrieval_context if retrieval_context else ""
                         )
                 return outputs, llm_result.total_cost
@@ -529,28 +537,30 @@ Reference anchors:"""
         # If there's a batch prompt, let's use that
         def _process_map_batch(items: list[dict]) -> tuple[list[dict], float]:
             total_cost = 0
-            if len(items) > 1 and self.config.get("batch_prompt", None):
+            if len(items) > 1 and operation_config.get("batch_prompt", None):
                 # Raise error if pdf_url_key is set
-                if self.config.get("pdf_url_key", None):
+                if operation_config.get("pdf_url_key", None):
                     raise ValueError("Batch prompts do not support PDF URLs")
 
                 batch_prompt = strict_render(
-                    self.config["batch_prompt"], {"inputs": items}
+                    operation_config["batch_prompt"], {"inputs": items}
                 )
 
                 # Issue the batch call
                 llm_result = self.runner.api.call_llm_batch(
-                    self.config.get("model", self.default_model),
+                    operation_config.get("model", self.default_model),
                     "batch map",
                     [{"role": "user", "content": batch_prompt}],
-                    self.config["output"]["schema"],
-                    verbose=self.config.get("verbose", False),
-                    timeout_seconds=self.config.get("timeout", 120),
-                    max_retries_per_timeout=self.config.get(
+                    operation_config["output"]["schema"],
+                    verbose=operation_config.get("verbose", False),
+                    timeout_seconds=operation_config.get("timeout", 120),
+                    max_retries_per_timeout=operation_config.get(
                         "max_retries_per_timeout", 2
                     ),
-                    bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
-                    litellm_completion_kwargs=self.config.get(
+                    bypass_cache=operation_config.get(
+                        "bypass_cache", self.bypass_cache
+                    ),
+                    litellm_completion_kwargs=operation_config.get(
                         "litellm_completion_kwargs", {}
                     ),
                 )
@@ -558,12 +568,12 @@ Reference anchors:"""
 
                 # Parse the LLM response
                 structured_mode = (
-                    self.config.get("output", {}).get("mode")
+                    operation_config.get("output", {}).get("mode")
                     == OutputMode.STRUCTURED_OUTPUT.value
                 )
                 parsed_output = self.runner.api.parse_llm_response(
                     llm_result.response,
-                    self.config["output"]["schema"],
+                    operation_config["output"]["schema"],
                     use_structured_output=structured_mode,
                 )[0].get("results", [])
                 items_and_outputs = [
@@ -592,9 +602,9 @@ Reference anchors:"""
                                 all_results.extend(results)
                             total_cost += item_cost
                         except Exception as e:
-                            if self.config.get("skip_on_error", False):
+                            if operation_config.get("skip_on_error", False):
                                 self.console.log(
-                                    f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}"
+                                    f"[bold red]Error in map operation {operation_config['name']}, skipping item:[/bold red] {e}"
                                 )
                                 continue
                             else:
@@ -608,9 +618,9 @@ Reference anchors:"""
                         all_results.extend(results)
                     total_cost += item_cost
                 except Exception as e:
-                    if self.config.get("skip_on_error", False):
+                    if operation_config.get("skip_on_error", False):
                         self.console.log(
-                            f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}"
+                            f"[bold red]Error in map operation {operation_config['name']}, skipping item:[/bold red] {e}"
                         )
                     else:
                         raise e
@@ -635,7 +645,7 @@ Reference anchors:"""
         results: list[dict] = []
         total_cost = 0.0
         limit_reached = False
-        op_name = self.config["name"]
+        op_name = operation_config["name"]
 
         if limit_value is not None and not self._limit_applies_to_inputs():
             self.console.log(
@@ -668,17 +678,17 @@ Reference anchors:"""
 
                         batch_done: list[dict] = []
                         if result_list:
-                            if "drop_keys" in self.config:
+                            if "drop_keys" in operation_config:
                                 result_list = [
                                     {
                                         k: v
                                         for k, v in result.items()
-                                        if k not in self.config["drop_keys"]
+                                        if k not in operation_config["drop_keys"]
                                     }
                                     for result in result_list
                                 ]
 
-                            if self.config.get("flush_partial_results", False):
+                            if operation_config.get("flush_partial_results", False):
                                 self.runner._flush_partial_results(
                                     op_name, chunk_ordinals[relative_idx], result_list
                                 )

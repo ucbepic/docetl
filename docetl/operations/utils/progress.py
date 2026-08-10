@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Iterable
 from concurrent.futures import as_completed
 
@@ -42,6 +43,28 @@ class RichLoopBar:
 
         return active_tracker()
 
+    def _tqdm_file(self):
+        """Stream for tqdm updates.
+
+        Prefer stderr so the bar does not interleave with Rich console logs on
+        stdout. Fall back to the console's file when stderr is unavailable
+        (e.g. some captured-output test harnesses).
+        """
+        return getattr(sys, "stderr", None) or self.console.file
+
+    def _make_tqdm(self, iterable: Iterable | None = None) -> tqdm:
+        kwargs = {
+            "total": self.total,
+            "desc": self.description,
+            "leave": self.leave,
+            "file": self._tqdm_file(),
+            "dynamic_ncols": True,
+            "mininterval": 0.2,
+        }
+        if iterable is not None:
+            return tqdm(iterable, **kwargs)
+        return tqdm(**kwargs)
+
     def __iter__(self) -> Iterable:
         tracker = self._active_tracker()
         if tracker is not None:
@@ -51,12 +74,7 @@ class RichLoopBar:
             self.tqdm = None
             yield from self.iterable
             return
-        self.tqdm = tqdm(
-            self.iterable,
-            total=self.total,
-            desc=self.description,
-            file=self.console.file,
-        )
+        self.tqdm = self._make_tqdm(self.iterable)
         for item in self.tqdm:
             yield item
 
@@ -66,12 +84,7 @@ class RichLoopBar:
             tracker.set_phase(self.total)
             self.tqdm = None
             return self
-        self.tqdm = tqdm(
-            total=self.total,
-            desc=self.description,
-            leave=self.leave,
-            file=self.console.file,
-        )
+        self.tqdm = self._make_tqdm()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:

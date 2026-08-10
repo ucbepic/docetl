@@ -412,11 +412,18 @@ class OpContainer:
                 get_agent_tool_names(self.config.get("agent")),
             )
 
+        # Instantiate outside the status spinner so interactive prompts
+        # (e.g. non-Jinja confirmation) are not overwritten by spinner frames,
+        # which also corrupts the subsequent tqdm progress bar.
+        operation_instance = self.runner._make_operation(self.config)
         with self.runner.console.status(f"Running {self.name}") as status:
             self.runner.status = status
             cost_before = self.runner.total_cost
             output_data = self.runner._run_operation(
-                self.config, input_data, is_build=is_build
+                self.config,
+                input_data,
+                is_build=is_build,
+                operation_instance=operation_instance,
             )
             op_cost = self.runner.total_cost - cost_before
 

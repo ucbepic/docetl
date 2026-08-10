@@ -23,10 +23,10 @@ from docetl.operations.utils.blocking import RuntimeBlockingOptimizer
 from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.utils import (
     completion_cost,
+    ensure_non_jinja_prompt_confirmed,
     extract_comparison_field_reads,
     extract_input_field_reads,
     has_jinja_syntax,
-    prompt_user_for_non_jinja_confirmation,
 )
 
 
@@ -161,35 +161,23 @@ class ResolveOperation(BaseOperation, CascadeMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Check for non-Jinja prompts and prompt user for confirmation
-        if "comparison_prompt" in self.config and not has_jinja_syntax(
-            self.config["comparison_prompt"]
-        ):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["comparison_prompt"],
-                self.config["name"],
-                "comparison_prompt",
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your comparison_prompt."
-                )
-            # Mark that we need to append document statement
-            # Note: comparison_prompt uses input1 and input2, so we'll handle it specially in strict_render
-            self.config["_append_document_to_comparison_prompt"] = True
-        if "resolution_prompt" in self.config and not has_jinja_syntax(
-            self.config["resolution_prompt"]
-        ):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["resolution_prompt"],
-                self.config["name"],
-                "resolution_prompt",
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your resolution_prompt."
-                )
-            # Mark that we need to append document statement (resolution uses inputs)
-            self.config["_append_document_to_resolution_prompt"] = True
-            self.config["_is_reduce_operation"] = True
+        # comparison_prompt uses input1/input2; resolution uses inputs —
+        # strict_render appends the matching document statement.
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "comparison_prompt",
+            "_append_document_to_comparison_prompt",
+            console=self.console,
+            status=self.status,
+        )
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "resolution_prompt",
+            "_append_document_to_resolution_prompt",
+            console=self.console,
+            status=self.status,
+            extra_flags={"_is_reduce_operation": True},
+        )
 
     def compare_pair(
         self,

@@ -23,8 +23,8 @@ from docetl.operations.utils.cascade_runner import CascadeConfig, CascadeMixin
 from docetl.operations.utils.progress import RichLoopBar
 from docetl.utils import (
     completion_cost,
+    ensure_non_jinja_prompt_confirmed,
     has_jinja_syntax,
-    prompt_user_for_non_jinja_confirmation,
 )
 
 # Global variables to store shared data
@@ -126,21 +126,14 @@ class EquijoinOperation(BaseOperation, CascadeMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Check for non-Jinja prompts and prompt user for confirmation
-        if "comparison_prompt" in self.config and not has_jinja_syntax(
-            self.config["comparison_prompt"]
-        ):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["comparison_prompt"],
-                self.config["name"],
-                "comparison_prompt",
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your comparison_prompt."
-                )
-            # Mark that we need to append document statement
-            # Note: equijoin uses left and right, so we'll handle it in strict_render
-            self.config["_append_document_to_comparison_prompt"] = True
+        # Note: equijoin uses left and right; strict_render appends both.
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "comparison_prompt",
+            "_append_document_to_comparison_prompt",
+            console=self.console,
+            status=self.status,
+        )
 
     def compare_pair(
         self,

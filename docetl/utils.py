@@ -77,11 +77,25 @@ def has_jinja_syntax(template_string: str) -> bool:
 
 
 def prompt_user_for_non_jinja_confirmation(
-    prompt_text: str, operation_name: str, prompt_field: str = "prompt"
+    prompt_text: str,
+    operation_name: str,
+    prompt_field: str = "prompt",
+    *,
+    console: Any | None = None,
+    status: Any | None = None,
 ) -> bool:
     from docetl.console import DOCETL_CONSOLE
 
-    console = DOCETL_CONSOLE
+    console = console or DOCETL_CONSOLE
+    # Confirm.ask and Rich Status both write to the terminal with carriage
+    # returns. Stop any active status first so the prompt is readable and so
+    # a later tqdm progress bar is not corrupted by spinner frames.
+    if status is not None:
+        try:
+            status.stop()
+        except Exception:
+            pass
+
     console.print(
         f"\n[bold yellow]⚠ Warning:[/bold yellow] The '{prompt_field}' in operation '{operation_name}' "
         f"does not appear to be a Jinja2 template (no {{}} or {{% %}} syntax found)."
@@ -115,6 +129,45 @@ def prompt_user_for_non_jinja_confirmation(
             "[dim]Non-interactive mode: proceeding with document insertion[/dim]"
         )
         return True
+
+
+def ensure_non_jinja_prompt_confirmed(
+    config: dict[str, Any],
+    prompt_field: str,
+    flag_key: str,
+    *,
+    console: Any | None = None,
+    status: Any | None = None,
+    extra_flags: dict[str, Any] | None = None,
+) -> None:
+    """Confirm once that a non-Jinja prompt may have documents appended.
+
+    Idempotent across operation instantiations that share ``config``: the first
+    call prompts (or auto-accepts in non-interactive mode) and sets
+    ``flag_key``; later calls see the flag and return without printing again.
+    Raises ``ValueError`` if the user declines.
+    """
+    prompt_text = config.get(prompt_field)
+    if not isinstance(prompt_text, str) or has_jinja_syntax(prompt_text):
+        return
+    if config.get(flag_key):
+        return
+
+    op_name = config.get("name", "<unnamed>")
+    if not prompt_user_for_non_jinja_confirmation(
+        prompt_text,
+        op_name,
+        prompt_field,
+        console=console,
+        status=status,
+    ):
+        raise ValueError(
+            f"Operation '{op_name}' cancelled by user. Please add Jinja2 "
+            f"template syntax to your {prompt_field}."
+        )
+    config[flag_key] = True
+    if extra_flags:
+        config.update(extra_flags)
 
 
 def extract_jinja_variables(template_string: str) -> list[str]:

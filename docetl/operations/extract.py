@@ -11,7 +11,7 @@ from pydantic import Field, field_validator
 
 from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils import RichLoopBar, lookup_field, strict_render
-from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
+from docetl.utils import ensure_non_jinja_prompt_confirmed, has_jinja_syntax
 
 
 class ExtractOperation(BaseOperation):
@@ -111,16 +111,13 @@ class ExtractOperation(BaseOperation):
             self.extraction_key_suffix = f"_extracted_{self.config['name']}"
         else:
             self.extraction_key_suffix = self.config["extraction_key_suffix"]
-        # Check for non-Jinja prompts and prompt user for confirmation
-        if "prompt" in self.config and not has_jinja_syntax(self.config["prompt"]):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["prompt"], self.config["name"], "prompt"
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your prompt."
-                )
-            # Mark that we need to append document statement
-            self.config["_append_document_to_prompt"] = True
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "prompt",
+            "_append_document_to_prompt",
+            console=self.console,
+            status=self.status,
+        )
 
     def _reformat_text_with_line_numbers(self, text: str, line_width: int = 80) -> str:
         """

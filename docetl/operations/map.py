@@ -26,10 +26,10 @@ from docetl.operations.utils import (
 from docetl.operations.utils.api import OutputMode
 from docetl.progress.tracker import active_tracker
 from docetl.utils import (
+    ensure_non_jinja_prompt_confirmed,
     extract_input_field_reads,
     extract_template_field_reads,
     has_jinja_syntax,
-    prompt_user_for_non_jinja_confirmation,
 )
 
 
@@ -124,27 +124,20 @@ class MapOperation(BaseOperation):
             "max_batch_size", kwargs.get("max_batch_size", None)
         )
         self.clustering_method = "random"
-        # Check for non-Jinja prompts and prompt user for confirmation
-        if "prompt" in self.config and not has_jinja_syntax(self.config["prompt"]):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["prompt"], self.config["name"], "prompt"
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your prompt."
-                )
-            # Mark that we need to append document statement
-            self.config["_append_document_to_prompt"] = True
-        if "batch_prompt" in self.config and not has_jinja_syntax(
-            self.config["batch_prompt"]
-        ):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["batch_prompt"], self.config["name"], "batch_prompt"
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your batch_prompt."
-                )
-            # Mark that we need to append document statement
-            self.config["_append_document_to_batch_prompt"] = True
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "prompt",
+            "_append_document_to_prompt",
+            console=self.console,
+            status=self.status,
+        )
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "batch_prompt",
+            "_append_document_to_batch_prompt",
+            console=self.console,
+            status=self.status,
+        )
 
     # ── plan traits ────────────────────────────────────────────────
 

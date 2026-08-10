@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from jinja2 import Template
 
-from docetl.utils import has_jinja_syntax, prompt_user_for_non_jinja_confirmation
+from docetl.utils import ensure_non_jinja_prompt_confirmed, has_jinja_syntax
 
 from .base import BaseOperation, Cardinality
 from .clustering_utils import get_embeddings_for_clustering
@@ -48,19 +48,14 @@ class ClusterOperation(BaseOperation):
         self.max_batch_size: int = self.config.get(
             "max_batch_size", kwargs.get("max_batch_size", float("inf"))
         )
-        # Check for non-Jinja prompts and prompt user for confirmation
-        if "summary_prompt" in self.config and not has_jinja_syntax(
-            self.config["summary_prompt"]
-        ):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["summary_prompt"], self.config["name"], "summary_prompt"
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your summary_prompt."
-                )
-            # Mark that we need to append document statement (cluster uses inputs)
-            self.config["_append_document_to_prompt"] = True
-            self.config["_is_reduce_operation"] = True
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "summary_prompt",
+            "_append_document_to_prompt",
+            console=self.console,
+            status=self.status,
+            extra_flags={"_is_reduce_operation": True},
+        )
 
     def syntax_check(self) -> None:
         """

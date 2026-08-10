@@ -414,10 +414,19 @@ class DSLRunner:
 
         for node in self._plan.nodes():
             op_cls = get_operation(node.op_type)
+            # Prefer the live op config used at execution time. Plan lift()
+            # deep-copies configs into node.op_config, so confirming a
+            # non-Jinja prompt against that copy would not stick — the user
+            # would be prompted again when _run_operation instantiates the
+            # op with find_operation()'s config.
+            try:
+                op_config = self.find_operation(node.name)
+            except ValueError:
+                op_config = node.op_config
             try:
                 op_cls(
                     self,
-                    node.op_config,
+                    op_config,
                     self.default_model,
                     self.max_threads,
                     self.console,
@@ -680,15 +689,15 @@ class DSLRunner:
 
         return builder.clean_optimized_config(), self.total_cost
 
-    def _run_operation(
-        self,
-        op_config: dict[str, Any],
-        input_data: list[dict[str, Any]] | dict[str, Any],
-        return_instance: bool = False,
-        is_build: bool = False,
-    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation]:
+    def _make_operation(self, op_config: dict[str, Any]) -> "BaseOperation":
+        """Construct an operation instance without executing it.
+
+        Kept separate from :meth:`_run_operation` so callers can instantiate
+        (and handle any interactive prompts) before starting a Rich status
+        spinner that would otherwise fight the terminal UI.
+        """
         operation_class = get_operation(op_config["type"])
-        operation_instance = operation_class(
+        return operation_class(
             runner=self,
             config=op_config,
             default_model=self.default_model,
@@ -696,6 +705,21 @@ class DSLRunner:
             console=self.console,
             status=self.status,
         )
+
+    def _run_operation(
+        self,
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]] | dict[str, Any],
+        return_instance: bool = False,
+        is_build: bool = False,
+        operation_instance: "BaseOperation | None" = None,
+    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation]:
+        if operation_instance is None:
+            operation_instance = self._make_operation(op_config)
+        else:
+            # Keep the instance's status pointer in sync with the runner's
+            # current spinner (set after instantiation in _execute_and_track).
+            operation_instance.status = self.status
         if op_config["type"] == "equijoin":
             output_data, cost = operation_instance.execute(
                 input_data["left_data"], input_data["right_data"]

@@ -36,8 +36,8 @@ from docetl.operations.utils import (
 from docetl.operations.utils.api import OutputMode
 from docetl.utils import (
     completion_cost,
+    ensure_non_jinja_prompt_confirmed,
     has_jinja_syntax,
-    prompt_user_for_non_jinja_confirmation,
 )
 
 
@@ -210,39 +210,30 @@ class ReduceOperation(BaseOperation):
         )
         self.intermediates = {}
         self.lineage_keys = self.config.get("output", {}).get("lineage", [])
-        # Check for non-Jinja prompts and prompt user for confirmation
-        if "prompt" in self.config and not has_jinja_syntax(self.config["prompt"]):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["prompt"], self.config["name"], "prompt"
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your prompt."
-                )
-            # Mark that we need to append document statement (for reduce, use inputs)
-            self.config["_append_document_to_prompt"] = True
-            self.config["_is_reduce_operation"] = True
-        if "fold_prompt" in self.config and not has_jinja_syntax(
-            self.config["fold_prompt"]
-        ):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["fold_prompt"], self.config["name"], "fold_prompt"
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your fold_prompt."
-                )
-            self.config["_append_document_to_fold_prompt"] = True
-            self.config["_is_reduce_operation"] = True
-        if "merge_prompt" in self.config and not has_jinja_syntax(
-            self.config["merge_prompt"]
-        ):
-            if not prompt_user_for_non_jinja_confirmation(
-                self.config["merge_prompt"], self.config["name"], "merge_prompt"
-            ):
-                raise ValueError(
-                    f"Operation '{self.config['name']}' cancelled by user. Please add Jinja2 template syntax to your merge_prompt."
-                )
-            self.config["_append_document_to_merge_prompt"] = True
-            self.config["_is_reduce_operation"] = True
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "prompt",
+            "_append_document_to_prompt",
+            console=self.console,
+            status=self.status,
+            extra_flags={"_is_reduce_operation": True},
+        )
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "fold_prompt",
+            "_append_document_to_fold_prompt",
+            console=self.console,
+            status=self.status,
+            extra_flags={"_is_reduce_operation": True},
+        )
+        ensure_non_jinja_prompt_confirmed(
+            self.config,
+            "merge_prompt",
+            "_append_document_to_merge_prompt",
+            console=self.console,
+            status=self.status,
+            extra_flags={"_is_reduce_operation": True},
+        )
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """

@@ -109,7 +109,8 @@ def xlsx_to_string(
     Args:
         filename (str): Path to the xlsx file.
         orientation (str): Either "row" or "col" for cell arrangement.
-        col_order (list[str] | None): List of column names to specify the order.
+        col_order (list[str] | None): Column names to include, in this order.
+            Names that are not in the header row are skipped.
         doc_per_sheet (bool): If True, return a list of strings, one per sheet.
 
     Returns:
@@ -120,24 +121,26 @@ def xlsx_to_string(
     wb = openpyxl.load_workbook(filename)
 
     def process_sheet(sheet):
+        header_row = [cell.value for cell in sheet[1]]
+        # (0-based column index, header) pairs in output order
         if col_order:
-            headers = [
-                col for col in col_order if col in sheet.iter_cols(1, sheet.max_column)
+            columns = [
+                (header_row.index(col), col) for col in col_order if col in header_row
             ]
         else:
-            headers = [cell.value for cell in sheet[1]]
+            columns = list(enumerate(header_row))
 
         result = []
         if orientation == "col":
-            for col_idx, header in enumerate(headers, start=1):
-                column = sheet.cell(1, col_idx).column_letter
+            for col_idx, header in columns:
+                column = sheet.cell(1, col_idx + 1).column_letter
                 column_values = [cell.value for cell in sheet[column][1:]]
                 result.append(f"{header}: " + "\n".join(map(str, column_values)))
                 result.append("")  # Empty line between columns
         else:  # row
             for row in sheet.iter_rows(min_row=2, values_only=True):
                 row_dict = {
-                    header: value for header, value in zip(headers, row) if header
+                    header: row[col_idx] for col_idx, header in columns if header
                 }
                 result.append(
                     " | ".join(

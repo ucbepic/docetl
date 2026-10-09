@@ -101,6 +101,30 @@ def test_xlsx_to_string_row_orientation(temp_xlsx_file):
     assert "Name: Bob | Age: 25 | City: London" in result[0]
 
 
+def test_xlsx_to_string_col_order_row_orientation(temp_xlsx_file):
+    result = parsing_tools.xlsx_to_string.__wrapped__(
+        temp_xlsx_file, orientation="row", col_order=["City", "Name"]
+    )
+
+    assert result == ["City: New York | Name: Alice\nCity: London | Name: Bob"]
+
+
+def test_xlsx_to_string_col_order_col_orientation(temp_xlsx_file):
+    result = parsing_tools.xlsx_to_string.__wrapped__(
+        temp_xlsx_file, col_order=["City", "Name"]
+    )
+
+    assert result == ["City: New York\nLondon\n\nName: Alice\nBob\n"]
+
+
+def test_xlsx_to_string_col_order_skips_unknown_columns(temp_xlsx_file):
+    result = parsing_tools.xlsx_to_string.__wrapped__(
+        temp_xlsx_file, orientation="row", col_order=["Country", "Age"]
+    )
+
+    assert result == ["Age: 30\nAge: 25"]
+
+
 def test_xlsx_to_string_doc_per_sheet(temp_xlsx_file):
     result = parsing_tools.xlsx_to_string.__wrapped__(
         temp_xlsx_file, doc_per_sheet=True

@@ -130,6 +130,70 @@ def test_docx_to_string(temp_docx_file):
     assert "It has multiple paragraphs." in result[0]
 
 
+def test_docx_to_string_keeps_tables_in_order(tmp_path):
+    from docx import Document
+
+    doc = Document()
+    doc.add_paragraph("Pricing overview.")
+    table = doc.add_table(rows=3, cols=2)
+    table.cell(0, 0).text = "Plan"
+    table.cell(0, 1).text = "Price"
+    table.cell(1, 0).text = "Pro"
+    table.cell(1, 1).text = "$20"
+    table.cell(2, 0).merge(table.cell(2, 1)).text = "Prices exclude VAT."
+    doc.add_paragraph("Contact sales for volume discounts.")
+    path = tmp_path / "table.docx"
+    doc.save(path)
+
+    result = parsing_tools.docx_to_string.__wrapped__(str(path))
+
+    assert result == [
+        "Pricing overview.\n"
+        "Plan | Price\n"
+        "Pro | $20\n"
+        "Prices exclude VAT.\n"
+        "Contact sales for volume discounts."
+    ]
+
+
+def test_docx_to_string_keeps_nested_tables(tmp_path):
+    from docx import Document
+
+    doc = Document()
+    table = doc.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = "Regions"
+    inner = table.cell(0, 1).add_table(rows=1, cols=2)
+    inner.cell(0, 0).text = "EU"
+    inner.cell(0, 1).text = "US"
+    path = tmp_path / "nested.docx"
+    doc.save(path)
+
+    result = parsing_tools.docx_to_string.__wrapped__(str(path))
+
+    assert result[0].startswith("Regions | ")
+    assert "EU | US" in result[0]
+
+
+def test_docx_to_string_reads_row_with_unresolvable_vertical_merge(tmp_path):
+    from docx import Document
+    from docx.oxml import OxmlElement
+
+    doc = Document()
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "Plan"
+    table.cell(1, 0).text = "Pro"
+    # Continue a vertical merge from a grid column the row above does not have.
+    first_row = table.rows[0]._tr
+    first_row.remove(first_row.tc_lst[1])
+    table.rows[1]._tr.tc_lst[1].get_or_add_tcPr().append(OxmlElement("w:vMerge"))
+    path = tmp_path / "malformed.docx"
+    doc.save(path)
+
+    result = parsing_tools.docx_to_string.__wrapped__(str(path))
+
+    assert result == ["Plan\nPro | "]
+
+
 def test_pptx_to_string(temp_pptx_file):
     result = parsing_tools.pptx_to_string.__wrapped__(temp_pptx_file)
 
@@ -152,6 +216,40 @@ def test_pptx_to_string_doc_per_slide(temp_pptx_file):
     assert "This is the first slide" in result[0]
     assert "Second Slide" in result[1]
     assert "This is the second slide" in result[1]
+
+
+def test_pptx_to_string_keeps_tables_and_grouped_shapes(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    slide.shapes.title.text = "Pricing"
+    table = slide.shapes.add_table(
+        3, 2, Inches(1), Inches(2), Inches(4), Inches(1.5)
+    ).table
+    table.cell(0, 0).text = "Plan"
+    table.cell(0, 1).text = "Price"
+    table.cell(1, 0).text = "Pro"
+    table.cell(1, 1).text = "$20"
+    table.cell(2, 0).merge(table.cell(2, 1))
+    table.cell(2, 0).text = "Prices exclude VAT."
+    group = slide.shapes.add_group_shape()
+    group.shapes.add_textbox(
+        Inches(1), Inches(4), Inches(4), Inches(1)
+    ).text_frame.text = "Contact sales for volume discounts."
+    path = tmp_path / "table.pptx"
+    prs.save(path)
+
+    result = parsing_tools.pptx_to_string.__wrapped__(str(path), doc_per_slide=True)
+
+    assert result == [
+        "Pricing\n"
+        "Plan | Price\n"
+        "Pro | $20\n"
+        "Prices exclude VAT.\n"
+        "Contact sales for volume discounts."
+    ]
 
 
 @pytest.fixture

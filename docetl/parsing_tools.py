@@ -168,10 +168,41 @@ def txt_to_string(filename: str) -> list[str]:
         return [file.read()]
 
 
+def _docx_container_text(container) -> str:
+    """Text of the paragraphs and tables in a document or table cell, in order."""
+    from docx.table import Table, _Cell
+
+    lines = []
+    for block in container.iter_inner_content():
+        if isinstance(block, Table):
+            for row in block.rows:
+                try:
+                    cells = row.cells
+                except ValueError:
+                    # python-docx cannot resolve a vertical merge that has no
+                    # cell above it; read the cells stored in this row instead.
+                    cells = [_Cell(tc, block) for tc in row._tr.tc_lst]
+                # A merged cell repeats once for every grid column it spans.
+                unique_cells = [
+                    cell
+                    for i, cell in enumerate(cells)
+                    if i == 0 or cell is not cells[i - 1]
+                ]
+                lines.append(
+                    " | ".join(_docx_container_text(cell) for cell in unique_cells)
+                )
+        else:
+            lines.append(block.text)
+    return "\n".join(lines)
+
+
 @with_input_output_key
 def docx_to_string(filename: str) -> list[str]:
     """
     Extract text from a Word document.
+
+    Paragraphs and tables are kept in document order. Each table row
+    becomes one line, with its cells separated by " | ".
 
     Args:
         filename (str): Path to the docx file.
@@ -182,13 +213,36 @@ def docx_to_string(filename: str) -> list[str]:
     from docx import Document
 
     doc = Document(filename)
-    return ["\n".join([paragraph.text for paragraph in doc.paragraphs])]
+    return [_docx_container_text(doc)]
+
+
+def _pptx_shape_texts(shapes) -> list[str]:
+    """Text of each shape in order, including grouped shapes and tables."""
+    from pptx.shapes.group import GroupShape
+
+    texts = []
+    for shape in shapes:
+        if isinstance(shape, GroupShape):
+            texts.extend(_pptx_shape_texts(shape.shapes))
+        elif shape.has_table:
+            texts.append(
+                "\n".join(
+                    " | ".join(cell.text for cell in row.cells if not cell.is_spanned)
+                    for row in shape.table.rows
+                )
+            )
+        elif hasattr(shape, "text"):
+            texts.append(shape.text)
+    return texts
 
 
 @with_input_output_key
 def pptx_to_string(filename: str, doc_per_slide: bool = False) -> list[str]:
     """
     Extract text from a PowerPoint presentation.
+
+    Text inside grouped shapes and tables is included. Each table row
+    becomes one line, with its cells separated by " | ".
 
     Args:
         filename (str): Path to the pptx file.
@@ -207,10 +261,7 @@ def pptx_to_string(filename: str, doc_per_slide: bool = False) -> list[str]:
     result = []
 
     for slide in prs.slides:
-        slide_content = []
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                slide_content.append(shape.text)
+        slide_content = _pptx_shape_texts(slide.shapes)
 
         if doc_per_slide:
             result.append("\n".join(slide_content))

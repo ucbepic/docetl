@@ -6,6 +6,7 @@ import math
 import os
 import re
 import time
+import uuid
 from enum import Enum
 from typing import Any
 
@@ -286,6 +287,7 @@ class APIWrapper(object):
         litellm_completion_kwargs: dict[str, Any] = {},
         op_config: dict[str, Any] = {},
         agent_config: Any | None = None,
+        parallel_session_id: str | None = None,
     ) -> LLMResult:
         """
         Cached version of the call_llm function.
@@ -353,6 +355,7 @@ class APIWrapper(object):
                         op_config=op_config,
                         use_structured_output=use_structured_output,
                         agent_config=agent_config,
+                        parallel_session_id=parallel_session_id,
                     )
                     if isinstance(response, ModelResponse):
                         total_cost += completion_cost(response)
@@ -508,6 +511,7 @@ class APIWrapper(object):
                             op_config=op_config,
                             use_structured_output=use_structured_output,
                             agent_config=agent_config,
+                            parallel_session_id=parallel_session_id,
                         )
                         parsed_output = self.parse_llm_response(
                             response, output_schema, tools, False, use_structured_output
@@ -568,6 +572,7 @@ class APIWrapper(object):
                             op_config=op_config,
                             use_structured_output=use_structured_output,
                             agent_config=agent_config,
+                            parallel_session_id=parallel_session_id,
                         )
                         if isinstance(response, ModelResponse):
                             total_cost += completion_cost(response)
@@ -636,7 +641,10 @@ class APIWrapper(object):
             raise ValueError(
                 f"Invalid output mode '{output_mode_str}'. Must be 'tools' or 'structured_output'."
             )
-        if agent_config is not None and output_mode_str == OutputMode.STRUCTURED_OUTPUT.value:
+        if (
+            agent_config is not None
+            and output_mode_str == OutputMode.STRUCTURED_OUTPUT.value
+        ):
             raise ValueError(
                 "agent cannot be combined with output.mode='structured_output'; "
                 "agentic operations use the OpenAI Agents SDK final output schema."
@@ -656,6 +664,9 @@ class APIWrapper(object):
             op_config,
         )
 
+        # Own research identity outside validation and timeout/connection retries.
+        # Pass it explicitly because timeout() executes work in another thread.
+        parallel_session_id = str(uuid.uuid4()) if agent_config is not None else None
         max_retries = max_retries_per_timeout
         attempt = 0
         rate_limited_attempt = 0
@@ -677,6 +688,7 @@ class APIWrapper(object):
                     litellm_completion_kwargs=litellm_completion_kwargs,
                     op_config=op_config,
                     agent_config=agent_config,
+                    parallel_session_id=parallel_session_id,
                 )
                 # Log input and output if verbose
                 if verbose:
@@ -745,6 +757,7 @@ class APIWrapper(object):
         op_config: dict[str, Any] = {},
         use_structured_output: bool = False,
         agent_config: Any | None = None,
+        parallel_session_id: str | None = None,
     ) -> Any:
         """
         Make an LLM call with caching.
@@ -948,6 +961,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 messages=messages,
                 output_schema=output_schema,
                 agent_config=agent_config,
+                parallel_session_id=parallel_session_id,
                 system_prompt=system_prompt,
                 scratchpad=scratchpad,
                 litellm_completion_kwargs=extra_litellm_kwargs,

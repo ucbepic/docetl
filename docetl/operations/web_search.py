@@ -1,6 +1,7 @@
 import base64
 import copy
 import re
+import uuid
 from typing import Literal, Optional
 from urllib.parse import quote_plus, unquote
 
@@ -9,7 +10,31 @@ from jinja2 import Environment, StrictUndefined
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils.playwright import stealth_browser_sync
 
-SUPPORTED_ENGINES = Literal["brave", "bing", "google", "duckduckgo"]
+SUPPORTED_ENGINES = Literal["brave", "bing", "google", "duckduckgo", "parallel"]
+
+
+def _search_parallel(query: str, max_results: int) -> list[dict]:
+    from docetl.operations.utils.openai_agents_runner import _run_async_safely
+    from docetl.operations.utils.parallel_search import ParallelSearchClient
+
+    # Each row's standalone query is a new research run. No ID is cached on the
+    # operation, which may be reused by concurrent pipeline executions.
+    client = ParallelSearchClient(session_id=str(uuid.uuid4()))
+
+    async def search():
+        payload = await client.search(query, [query])
+        results = [
+            {
+                "title": hit.get("title") or "",
+                "description": "\n".join(hit.get("excerpts") or []),
+                "url": hit["url"],
+            }
+            for hit in payload["results"][:max_results]
+        ]
+        return results, 0.0
+
+    results, _ = _run_async_safely(search())
+    return results
 
 
 def _search_brave(query: str, max_results: int) -> list[dict]:
@@ -146,11 +171,12 @@ class WebSearchOperation(BaseOperation):
     Performs a web search for each document using a Jinja2 query template
     and stores a list of result dicts (title, description, url) in an output field.
 
-    Uses Playwright (headless browser) — no API keys required.
+    Uses Playwright by default; the optional Parallel engine uses Search MCP.
+    Neither path requires an API key.
 
     Example config:
         type: web_search
-        search_engine: brave           # brave | bing | google | duckduckgo
+        search_engine: brave           # brave | bing | google | duckduckgo | parallel
         query_template: "{{ input.topic }} recent news"
         output_field: search_results   # field to store list of results
         max_results: 10                # max number of results per document (optional)
@@ -187,6 +213,8 @@ class WebSearchOperation(BaseOperation):
                     results = _search_google(query, max_results)
                 elif engine == "duckduckgo":
                     results = _search_duckduckgo(query, max_results)
+                elif engine == "parallel":
+                    results = _search_parallel(query, max_results)
                 else:
                     results = []
             except Exception as e:

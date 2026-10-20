@@ -5,13 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import uuid
 from collections.abc import Awaitable
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, create_model
 
 from docetl.agents import Agent, AgentTool, Tool, as_tool, normalize_agent
+from docetl.tools import ParallelSearch
 
+_T = TypeVar("_T")
 _OPENAI_HOSTED_TOOL_TYPES = frozenset(
     {
         "CodeInterpreterTool",
@@ -96,6 +99,7 @@ async def _run_openai_agent_async(
         ) from exc
     openai_client = AsyncOpenAI() if _has_hosted_tool(agent) else None
     tool_call_counter = {"count": 0}
+    parallel_requests: set[asyncio.Task[Any]] = set()
     tools = _build_sdk_tools(
         agent=agent,
         counter=tool_call_counter,
@@ -108,6 +112,7 @@ async def _run_openai_agent_async(
         litellm_model_cls=LitellmModel,
         openai_responses_model_cls=OpenAIResponsesModel,
         openai_client=openai_client,
+        parallel_requests=parallel_requests,
     )
     output_type = _create_output_model(output_schema, scratchpad is not None)
     instructions = _build_agent_instructions(system_prompt, agent, output_schema)
@@ -129,12 +134,20 @@ async def _run_openai_agent_async(
         output_type=output_type,
         model_settings=model_settings,
     )
-    result = await Runner.run(
-        sdk_agent,
-        prompt,
-        max_turns=agent.max_turns,
-        run_config=_build_run_config(agent),
-    )
+    try:
+        result = await Runner.run(
+            sdk_agent,
+            prompt,
+            max_turns=agent.max_turns,
+            run_config=_build_run_config(agent),
+        )
+    finally:
+        # The SDK may finish/cancel the run before all tool tasks settle.
+        # Close requests owned by this run, including specialist requests.
+        pending = list(parallel_requests)
+        for request in pending:
+            request.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
     if tool_call_counter["count"] > agent.max_tool_calls:
         raise AgentExecutionError(
             f"Agent exceeded max_tool_calls={agent.max_tool_calls}."
@@ -157,9 +170,25 @@ def _build_sdk_tools(
     litellm_model_cls: type[Any],
     openai_responses_model_cls: type[Any],
     openai_client: Any | None,
+    parallel_session_id: str | None = None,
+    parallel_requests: set[asyncio.Task[Any]] | None = None,
 ) -> list[Any]:
+    # One research session per operation run, shared with its specialist agents.
+    parallel_session_id = parallel_session_id or str(uuid.uuid4())
     tools: list[Any] = []
     for tool_item in agent.tools:
+        if isinstance(tool_item, ParallelSearch):
+            from docetl.operations.utils.parallel_search import ParallelSearchClient
+
+            client = ParallelSearchClient(
+                session_id=parallel_session_id,
+                timeout=tool_item.timeout,
+                pending_requests=parallel_requests,
+            )
+            tools.extend(
+                _build_function_tool(tool, agent, counter) for tool in client.tools()
+            )
+            continue
         if isinstance(tool_item, AgentTool):
             tools.append(
                 _build_agent_tool(
@@ -173,6 +202,8 @@ def _build_sdk_tools(
                     litellm_model_cls=litellm_model_cls,
                     openai_responses_model_cls=openai_responses_model_cls,
                     openai_client=openai_client,
+                    parallel_session_id=parallel_session_id,
+                    parallel_requests=parallel_requests,
                 )
             )
             continue
@@ -195,6 +226,8 @@ def _build_agent_tool(
     litellm_model_cls: type[Any],
     openai_responses_model_cls: type[Any],
     openai_client: Any | None,
+    parallel_session_id: str | None = None,
+    parallel_requests: set[asyncio.Task[Any]] | None = None,
 ) -> Any:
     subagent = agent_tool.agent
     subagent_counter = {"count": 0}
@@ -210,6 +243,8 @@ def _build_agent_tool(
         litellm_model_cls=litellm_model_cls,
         openai_responses_model_cls=openai_responses_model_cls,
         openai_client=openai_client,
+        parallel_session_id=parallel_session_id,
+        parallel_requests=parallel_requests,
     )
     instructions = _build_subagent_instructions(system_prompt, agent_tool)
     output_type = (
@@ -507,14 +542,12 @@ def _json_safe(value: Any) -> Any:
         return json.loads(json.dumps(value, default=str))
 
 
-def _run_async_safely(
-    coro: Awaitable[tuple[dict[str, Any], float]],
-) -> tuple[dict[str, Any], float]:
+def _run_async_safely(coro: Awaitable[_T]) -> _T:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
-    result: list[tuple[dict[str, Any], float] | BaseException] = []
+    result: list[_T | BaseException] = []
 
     def run_in_thread() -> None:
         try:

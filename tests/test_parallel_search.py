@@ -476,3 +476,73 @@ def test_parallel_failure_never_falls_back_to_browser(mcp_transport, monkeypatch
         {"title": "ERROR", "description": "quota reached", "url": ""}
     ]
     assert len(tool_calls(requests)) == 1
+
+
+class RestartableSearchModel(ScriptedSearchModel):
+    def __init__(self, invalid_first=False):
+        super().__init__()
+        self.runs = 0
+        self.invalid_first = invalid_first
+
+    async def get_response(self, *args, **kwargs):
+        inputs = args[1] if len(args) > 1 else kwargs["input"]
+        if isinstance(inputs, str) or not any(
+            item.get("type") == "function_call_output" for item in inputs
+        ):
+            self.runs += 1
+            self.turn = 0
+        response = await super().get_response(*args, **kwargs)
+        if self.invalid_first and self.runs == 1 and self.turn == 4:
+            response.output[0].content[0].text = json.dumps(
+                {"answer": "invalid first answer"}
+            )
+        return response
+
+
+@pytest.mark.parametrize("retry_kind", ["validation", "timeout"])
+def test_frame_retries_preserve_research_session(
+    mcp_transport, monkeypatch, retry_kind
+):
+    requests, _ = mcp_transport
+    model = RestartableSearchModel(invalid_first=retry_kind == "validation")
+    if retry_kind == "timeout":
+        import docetl.operations.utils.api as api_module
+
+        calls = []
+
+        def simulated_timeout_after_first_result(seconds):
+            def decorate(function):
+                def invoke(*args, **kwargs):
+                    result = function(*args, **kwargs)
+                    calls.append(result)
+                    if len(calls) == 1:
+                        raise TimeoutError(
+                            "simulated outer timeout after completed tools"
+                        )
+                    return result
+
+                return invoke
+
+            return decorate
+
+        monkeypatch.setattr(api_module, "timeout", simulated_timeout_after_first_result)
+    rows = (
+        docetl.from_list([{"company": "DocETL"}])
+        .map(
+            prompt="Research {{ input.company }} and return its URL.",
+            output={"schema": {"answer": "str"}},
+            model="test/scripted",
+            agent=docetl.Agent(
+                tools=[docetl.tools.parallel_search()],
+                run_config={"model": model, "tracing_disabled": True},
+            ),
+            validate=["output['answer'] == 'https://docetl.org/'"],
+            num_retries_on_validate_failure=1,
+        )
+        .collect(max_threads=1)
+    )
+    assert rows[0]["answer"] == "https://docetl.org/"
+    assert model.runs == 2
+    calls = tool_calls(requests)
+    assert len(calls) == 6
+    assert len({call["arguments"]["session_id"] for call in calls}) == 1

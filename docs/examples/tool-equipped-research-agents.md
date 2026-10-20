@@ -92,10 +92,11 @@ it always connects anonymously. Your selected model still needs its usual
 credentials. Only enable these tools when sending research queries and URLs
 to Parallel is appropriate for your data.
 
-Each operation's agent run shares one opaque research session across search,
-fetch, follow-up calls, and specialist agents. Reusing the helper configuration
-across rows or concurrent runs creates independent sessions. Tool failures
-follow `Agent.continue_on_tool_error`, and calls count toward
+Each row's agent invocation shares one opaque research session across search,
+fetch, follow-up calls, specialist agents, and DocETL validation or transport
+retries. Reusing the helper configuration across rows or concurrent runs creates
+independent sessions. Request errors follow `Agent.continue_on_tool_error`; tool
+timeouts use the existing SDK error-result behavior. Calls count toward
 `Agent.max_tool_calls`. `timeout` bounds each MCP request, including discovery.
 The helper opens a connection only when called. Existing tool lists, hosted
 tools and model choices are preserved; `Agent(tools=[])` exposes no tools.

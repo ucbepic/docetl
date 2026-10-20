@@ -53,6 +53,7 @@ def run_openai_agent(
     system_prompt: str,
     scratchpad: str | None = None,
     litellm_completion_kwargs: dict[str, Any] | None = None,
+    parallel_session_id: str | None = None,
 ) -> AgentResult:
     """Run an OpenAI Agents SDK agent backed by a LiteLLM model."""
     agent = normalize_agent(agent_config)
@@ -69,6 +70,7 @@ def run_openai_agent(
         system_prompt=system_prompt,
         scratchpad=scratchpad,
         litellm_completion_kwargs=litellm_completion_kwargs or {},
+        parallel_session_id=parallel_session_id,
     )
     output, cost = _run_async_safely(coro)
     return AgentResult(output, cost)
@@ -85,6 +87,7 @@ async def _run_openai_agent_async(
     system_prompt: str,
     scratchpad: str | None,
     litellm_completion_kwargs: dict[str, Any],
+    parallel_session_id: str | None = None,
 ) -> tuple[dict[str, Any], float]:
     try:
         from agents import Agent as OpenAIAgent
@@ -113,6 +116,7 @@ async def _run_openai_agent_async(
         openai_responses_model_cls=OpenAIResponsesModel,
         openai_client=openai_client,
         parallel_requests=parallel_requests,
+        parallel_session_id=parallel_session_id,
     )
     output_type = _create_output_model(output_schema, scratchpad is not None)
     instructions = _build_agent_instructions(system_prompt, agent, output_schema)

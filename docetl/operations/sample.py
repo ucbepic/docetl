@@ -360,19 +360,21 @@ class SampleOperation(BaseOperation):
 
         # Calculate proportional samples per group
         output_data = []
+        samples_taken = {}
         for group_key, group_items in groups.items():
             group_proportion = len(group_items) / len(input_data)
             group_samples = int(n_samples * group_proportion)
             if group_samples > 0:
                 output_data.extend(group_items[:group_samples])
+            samples_taken[group_key] = group_samples
 
-        # If we're short due to rounding, add more from largest group
-        while len(output_data) < n_samples and len(output_data) < len(input_data):
-            largest_group = max(groups.values(), key=len)
-            for item in largest_group:
-                if item not in output_data:
-                    output_data.append(item)
-                    break
+        # Fill rounded-down quotas from the largest groups with rows left.
+        for group_key in sorted(groups, key=lambda key: len(groups[key]), reverse=True):
+            remaining = n_samples - len(output_data)
+            if remaining <= 0:
+                break
+            start = samples_taken[group_key]
+            output_data.extend(groups[group_key][start : start + remaining])
 
         return output_data[:n_samples], 0.0
 

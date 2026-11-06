@@ -976,12 +976,12 @@ wheels = [
 ]
 
 [[package]]
-name = "diskcache"
-version = "5.6.3"
+name = "diskcache-community"
+version = "5.8.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/3f/21/1c1ffc1a039ddcc459db43cc108658f32c57d271d7289a2794e401d0fdb6/diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc", size = 67916, upload-time = "2023-08-31T06:12:00.316Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/24/f13078777c4213070adb7b7039341811e6b0c83e9ff61b5e90ee8c2dd26c/diskcache_community-5.8.3.tar.gz", hash = "sha256:17fcfe01714deb554e62fcb745dcae58f80e04bec101107537208590466738b7", size = 132595, upload-time = "2026-11-03T18:04:15.384Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/27/4570e78fc0bf5ea0ca45eb1de3818a23787af9b390c0b0a0033a1b8236f9/diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19", size = 45550, upload-time = "2023-08-31T06:11:58.822Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/3c/2d6b49739a064e213188acd2121d67a4a30e0ec77da5e0c51cc90d6dbe91/diskcache_community-5.8.3-py3-none-any.whl", hash = "sha256:e84f351a7431939aebc256da243d017cb59c7bcf0aab83e4905c4dd848e48390", size = 79955, upload-time = "2026-11-03T18:04:14.124Z" },
 ]
 
 [[package]]
@@ -1019,7 +1019,7 @@ dependencies = [
     { name = "asteval" },
     { name = "bargain" },
     { name = "boto3" },
-    { name = "diskcache" },
+    { name = "diskcache-community" },
     { name = "frozendict" },
     { name = "google-auth" },
     { name = "jsonschema" },
@@ -1107,7 +1107,7 @@ requires-dist = [
     { name = "bargain", specifier = ">=0.1.3" },
     { name = "beautifulsoup4", marker = "extra == 'server'", specifier = ">=4.12.0" },
     { name = "boto3", specifier = ">=1.37.27" },
-    { name = "diskcache", specifier = ">=5.6.3" },
+    { name = "diskcache-community", specifier = ">=5.8.3" },
     { name = "docling", marker = "extra == 'server'", specifier = ">=2.5.2" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115.4" },
     { name = "frozendict", specifier = ">=2.4.4" },

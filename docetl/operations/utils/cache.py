@@ -5,7 +5,7 @@ import os
 import shutil
 from typing import Any
 
-from diskcache import Cache
+from diskcache_community import Cache, SafeDisk
 from dotenv import load_dotenv
 from frozendict import frozendict
 from rich.console import Console
@@ -19,7 +19,16 @@ DOCETL_HOME_DIR = (
 )
 CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "general")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm")
-cache = Cache(LLM_CACHE_DIR)
+cache = Cache(
+    LLM_CACHE_DIR,
+    disk=SafeDisk.with_types(
+        modules=(
+            "litellm.types",
+            "docetl.operations.utils.cascade",
+            "docetl.operations.utils.openai_agents_runner",
+        )
+    ).with_options(on_error="miss"),
+)
 cache.close()
 
 

@@ -3,10 +3,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from math import isfinite
+from typing import Any, ClassVar, Literal
 
 NetworkMode = Literal["disabled", "allowlist"]
 MemoryLimit = Literal["1g", "4g", "16g", "64g"]
+
+
+@dataclass(frozen=True)
+class ParallelSearch:
+    """Anonymous Parallel search and fetch tools, bound to each agent run."""
+
+    timeout: float = 30.0
+    name: ClassVar[str] = "parallel_search"
+
+    def __post_init__(self) -> None:
+        if not isfinite(self.timeout) or self.timeout <= 0:
+            raise ValueError("Parallel search timeout must be positive and finite")
+
+    def cache_identity(self) -> dict[str, Any]:
+        return {"kind": "parallel_search_mcp", "timeout": self.timeout}
+
+
+def parallel_search(*, timeout: float = 30.0) -> ParallelSearch:
+    """Enable keyless web search and page fetching for a DocETL agent.
+
+    The agent receives ``parallel_search`` and ``parallel_fetch`` function tools.
+    No connection is opened until a tool is called. Each agent run gets its own
+    research session, even when this configuration is reused across rows.
+    """
+    return ParallelSearch(timeout=timeout)
 
 
 @dataclass(frozen=True)

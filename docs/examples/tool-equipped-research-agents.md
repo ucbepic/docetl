@@ -62,6 +62,63 @@ are not provider-portable:
 - For Claude, Together, or other LiteLLM providers, prefer Python tools
   decorated with `@docetl.tool`, MCP tools, or that provider's SDK-native tools.
 
+## Keyless search with Parallel
+
+For research with any LiteLLM model that supports function calling, add
+`docetl.tools.parallel_search()` to an agent's tools. It supplies
+`parallel_search` and `parallel_fetch` through
+[Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp),
+with no Parallel account, API key, browser installation, or extra dependencies:
+
+```python
+import docetl
+
+rows = (
+    docetl.from_list([{"company": "Databricks"}])
+    .map(
+        prompt="Research {{ input.company }}. Search for its official website, "
+        "fetch a relevant page, and summarize its products with source URLs.",
+        output={"schema": {"summary": "str", "sources": "list[str]"}},
+        model="gpt-4o-mini",
+        agent=docetl.Agent(tools=[docetl.tools.parallel_search(timeout=30)]),
+    )
+    .collect()
+)
+```
+
+Search uses Fast mode. The anonymous service is intended for exploration and
+light use and has rate limits. The helper does not read `PARALLEL_API_KEY`;
+it always connects anonymously. Your selected model still needs its usual
+credentials. Only enable these tools when sending research queries and URLs
+to Parallel is appropriate for your data.
+
+Each row's agent invocation shares one opaque research session across search,
+fetch, follow-up calls, specialist agents, and DocETL validation or transport
+retries. Reusing the helper configuration across rows or concurrent runs creates
+independent sessions. Request errors follow `Agent.continue_on_tool_error`; tool
+timeouts use the existing SDK error-result behavior. Calls count toward
+`Agent.max_tool_calls`. `timeout` bounds each MCP request, including discovery.
+The helper opens a connection only when called. Existing tool lists, hosted
+tools and model choices are preserved; `Agent(tools=[])` exposes no tools.
+
+For a YAML `web_search` operation, select the same service with
+`search_engine: parallel`:
+
+```yaml
+operations:
+  - name: find_sources
+    type: web_search
+    search_engine: parallel
+    query_template: "{{ input.company }} official website"
+    output_field: search_results
+    max_results: 5
+```
+
+The result keeps the existing `title`, `description`, and `url` fields;
+`description` contains joined page excerpts. `max_results` truncates returned
+results locally. Each row's query is a standalone research session. Other
+engines and the default `brave` browser engine retain their behavior.
+
 ## Full script
 
 Save this as `tool_equipped_research_agents.py`.

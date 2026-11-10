@@ -119,6 +119,42 @@ The result keeps the existing `title`, `description`, and `url` fields;
 results locally. Each row's query is a standalone research session. Other
 engines and the default `brave` browser engine retain their behavior.
 
+## Search with SpecStream
+
+For research backed by an API key, add `docetl.tools.specstream_search()` to an
+agent's tools. It supplies `specstream_search` and `specstream_fetch` through
+the [SpecStream](https://specstream.ai) Search API and Extract API. Each search
+result carries its source URL, title, snippet and publish date when known. Set
+`SPECSTREAM_API_KEY` before the run:
+
+```bash
+export SPECSTREAM_API_KEY=your-key
+```
+
+```python
+agent = docetl.Agent(tools=[docetl.tools.specstream_search(timeout=30)])
+```
+
+The key is read when a tool is called, so a missing key surfaces as a tool
+error that follows `Agent.continue_on_tool_error`. Calls count toward
+`Agent.max_tool_calls`, and `timeout` bounds each HTTP request.
+
+For a YAML `web_search` operation, select it with `search_engine: specstream`:
+
+```yaml
+operations:
+  - name: find_sources
+    type: web_search
+    search_engine: specstream
+    query_template: "{{ input.company }} official website"
+    output_field: search_results
+    max_results: 5
+```
+
+The result keeps the existing `title`, `description`, and `url` fields;
+`description` holds the result snippet. `max_results` is sent as the number of
+results to return, up to 100.
+
 ## Full script
 
 Save this as `tool_equipped_research_agents.py`.

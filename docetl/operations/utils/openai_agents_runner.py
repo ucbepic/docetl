@@ -12,7 +12,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, create_model
 
 from docetl.agents import Agent, AgentTool, Tool, as_tool, normalize_agent
-from docetl.tools import ParallelSearch
+from docetl.tools import ParallelSearch, SpecStreamSearch
 
 _T = TypeVar("_T")
 _OPENAI_HOSTED_TOOL_TYPES = frozenset(
@@ -189,6 +189,14 @@ def _build_sdk_tools(
                 timeout=tool_item.timeout,
                 pending_requests=parallel_requests,
             )
+            tools.extend(
+                _build_function_tool(tool, agent, counter) for tool in client.tools()
+            )
+            continue
+        if isinstance(tool_item, SpecStreamSearch):
+            from docetl.operations.utils.specstream_search import SpecStreamSearchClient
+
+            client = SpecStreamSearchClient(timeout=tool_item.timeout)
             tools.extend(
                 _build_function_tool(tool, agent, counter) for tool in client.tools()
             )

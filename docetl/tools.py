@@ -36,6 +36,30 @@ def parallel_search(*, timeout: float = 30.0) -> ParallelSearch:
 
 
 @dataclass(frozen=True)
+class SpecStreamSearch:
+    """SpecStream search and page reading tools, keyed by SPECSTREAM_API_KEY."""
+
+    timeout: float = 30.0
+    name: ClassVar[str] = "specstream_search"
+
+    def __post_init__(self) -> None:
+        if not isfinite(self.timeout) or self.timeout <= 0:
+            raise ValueError("SpecStream search timeout must be positive and finite")
+
+    def cache_identity(self) -> dict[str, Any]:
+        return {"kind": "specstream_search", "timeout": self.timeout}
+
+
+def specstream_search(*, timeout: float = 30.0) -> SpecStreamSearch:
+    """Enable web search and page reading through SpecStream for a DocETL agent.
+
+    The agent receives ``specstream_search`` and ``specstream_fetch`` function
+    tools. The API key is read from ``SPECSTREAM_API_KEY`` when a tool is called.
+    """
+    return SpecStreamSearch(timeout=timeout)
+
+
+@dataclass(frozen=True)
 class Sandbox:
     """A persistent OpenAI hosted container for agent shell tools."""
 

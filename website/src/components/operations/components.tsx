@@ -2244,6 +2244,8 @@ export const WebSearchOperationComponent: React.FC<OperationComponentProps> = ({
               <SelectItem value="bing">Bing</SelectItem>
               <SelectItem value="google">Google</SelectItem>
               <SelectItem value="duckduckgo">DuckDuckGo</SelectItem>
+              <SelectItem value="parallel">Parallel</SelectItem>
+              <SelectItem value="keenable">Keenable</SelectItem>
             </SelectContent>
           </Select>
         </div>

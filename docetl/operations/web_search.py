@@ -1,5 +1,7 @@
 import base64
 import copy
+import json
+import os
 import re
 import uuid
 from typing import Literal, Optional
@@ -10,7 +12,95 @@ from jinja2 import Environment, StrictUndefined
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils.playwright import stealth_browser_sync
 
-SUPPORTED_ENGINES = Literal["brave", "bing", "google", "duckduckgo", "parallel"]
+SUPPORTED_ENGINES = Literal[
+    "brave", "bing", "google", "duckduckgo", "parallel", "keenable"
+]
+
+KEENABLE_MCP_URL = "https://api.keenable.ai/mcp-public"
+KEENABLE_MCP_PROTOCOL_VERSION = "2025-03-26"
+
+
+def _keenable_rpc(client, method: str, params: dict, request_id: int) -> dict:
+    response = client.post(
+        KEENABLE_MCP_URL,
+        json={"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
+    )
+    response.raise_for_status()
+    body = response.text
+    if response.headers.get("content-type", "").startswith("text/event-stream"):
+        # Streamable HTTP may answer a single request as one SSE message.
+        data = [
+            line[5:].strip() for line in body.splitlines() if line.startswith("data:")
+        ]
+        body = data[-1] if data else ""
+    message = json.loads(body)
+    if "error" in message:
+        raise RuntimeError(f"Keenable MCP error: {message['error']}")
+    return message["result"]
+
+
+def _search_keenable(query: str, max_results: int, timeout: float = 30.0) -> list[dict]:
+    """Search with Keenable's public MCP server. No API key is required.
+
+    Set ``KEENABLE_API_KEY`` to send it as ``X-API-Key`` for higher rate limits.
+    """
+    import httpx
+
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": KEENABLE_MCP_PROTOCOL_VERSION,
+    }
+    api_key = os.environ.get("KEENABLE_API_KEY")
+    if api_key:
+        headers["X-API-Key"] = api_key
+    with httpx.Client(timeout=timeout, headers=headers) as client:
+        init = client.post(
+            KEENABLE_MCP_URL,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": KEENABLE_MCP_PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "docetl", "version": "1"},
+                },
+            },
+        )
+        init.raise_for_status()
+        session_id = init.headers.get("mcp-session-id")
+        if session_id:
+            client.headers["Mcp-Session-Id"] = session_id
+        result = _keenable_rpc(
+            client,
+            "tools/call",
+            {
+                "name": "search_web_pages",
+                "arguments": {
+                    "query": query,
+                    "max_results": max(1, min(int(max_results), 50)),
+                    "output_format": "json",
+                },
+            },
+            2,
+        )
+    text = "".join(
+        part.get("text", "")
+        for part in result.get("content", [])
+        if part.get("type") == "text"
+    )
+    if result.get("isError"):
+        raise RuntimeError(f"Keenable search failed: {text}")
+    payload = json.loads(text) if text else {}
+    return [
+        {
+            "title": hit.get("title") or "",
+            "description": hit.get("snippet") or hit.get("description") or "",
+            "url": hit["url"],
+        }
+        for hit in payload.get("results", [])[:max_results]
+        if hit.get("url")
+    ]
 
 
 def _search_parallel(query: str, max_results: int) -> list[dict]:
@@ -118,15 +208,13 @@ def _search_google(query: str, max_results: int) -> list[dict]:
                     "el => { let p = el; while(p && p.tagName !== 'A') p = p.parentElement;"
                     " return p ? p.href : ''; }"
                 )
-                snippet = h3.evaluate(
-                    """el => {
+                snippet = h3.evaluate("""el => {
                         let block = el;
                         while (block && !block.dataset.hveid) block = block.parentElement;
                         if (!block) return '';
                         let div = block.querySelector('div[style]');
                         return div ? div.textContent.trim() : '';
-                    }"""
-                )
+                    }""")
                 if (
                     title
                     and href
@@ -171,12 +259,12 @@ class WebSearchOperation(BaseOperation):
     Performs a web search for each document using a Jinja2 query template
     and stores a list of result dicts (title, description, url) in an output field.
 
-    Uses Playwright by default; the optional Parallel engine uses Search MCP.
-    Neither path requires an API key.
+    Uses Playwright by default; the optional Parallel and Keenable engines use
+    hosted search MCP servers. None of these paths requires an API key.
 
     Example config:
         type: web_search
-        search_engine: brave           # brave | bing | google | duckduckgo | parallel
+        search_engine: brave           # brave | bing | google | duckduckgo | parallel | keenable
         query_template: "{{ input.topic }} recent news"
         output_field: search_results   # field to store list of results
         max_results: 10                # max number of results per document (optional)
@@ -215,6 +303,8 @@ class WebSearchOperation(BaseOperation):
                     results = _search_duckduckgo(query, max_results)
                 elif engine == "parallel":
                     results = _search_parallel(query, max_results)
+                elif engine == "keenable":
+                    results = _search_keenable(query, max_results)
                 else:
                     results = []
             except Exception as e:

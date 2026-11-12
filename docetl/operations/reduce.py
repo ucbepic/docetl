@@ -570,7 +570,11 @@ class ReduceOperation(BaseOperation):
                     current_output = fold_results[i] if i < len(fold_results) else None
                     fold_futures.append(
                         executor.submit(
-                            self._increment_fold, key, batch, current_output
+                            self._increment_fold,
+                            key,
+                            batch,
+                            current_output,
+                            retrieval_context=retrieval_context,
                         )
                     )
 
@@ -603,7 +607,9 @@ class ReduceOperation(BaseOperation):
                     for i in range(0, len(fold_results), merge_batch_size):
                         batch = fold_results[i : i + merge_batch_size]
                         merge_futures.append(
-                            executor.submit(self._merge_results, key, batch)
+                            executor.submit(
+                                self._merge_results, key, batch, retrieval_context
+                            )
                         )
 
                     new_results = []
@@ -644,7 +650,9 @@ class ReduceOperation(BaseOperation):
                 for i in range(0, len(fold_results), merge_batch_size):
                     batch = fold_results[i : i + merge_batch_size]
                     merge_futures.append(
-                        executor.submit(self._merge_results, key, batch)
+                        executor.submit(
+                            self._merge_results, key, batch, retrieval_context
+                        )
                     )
 
                 new_results = []
@@ -711,7 +719,7 @@ class ReduceOperation(BaseOperation):
             batch = group_list[i : i + fold_batch_size]
 
             folded_output, prompt, fold_cost = self._increment_fold(
-                key, batch, current_output, scratchpad
+                key, batch, current_output, scratchpad, retrieval_context
             )
             total_cost += fold_cost
             prompts.append(prompt)

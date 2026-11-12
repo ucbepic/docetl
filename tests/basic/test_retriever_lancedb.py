@@ -359,3 +359,100 @@ def test_frame_api_retriever_fts(tmp_path):
     res = r.retrieve({"input": {"q": "alpha"}})
     assert res.docs
     assert "alpha" in res.rendered_context
+
+
+@pytest.mark.parametrize(
+    "fold, merge, expected_calls",
+    [
+        pytest.param(False, False, 1, id="single-call"),
+        pytest.param(True, False, 3, id="incremental-fold"),
+        pytest.param(True, True, 6, id="fold-and-merge"),
+    ],
+)
+@pytest.mark.parametrize("prompt_uses_context", [True, False])
+def test_reduce_passes_retrieval_context_to_every_llm_call(
+    tmp_path, monkeypatch, fold, merge, expected_calls, prompt_uses_context
+):
+    """Fold and merge calls get the group's retrieval context, as the single call does."""
+    from docetl.operations.utils.api import APIWrapper
+    from docetl.operations.utils.llm import LLMResult
+
+    fact = "KBFACT-7731"
+    prompts: list[str] = []
+
+    def record_call_llm(self, model, op_type, messages, output_schema, *args, **kwargs):
+        prompts.append("\n".join(m["content"] for m in messages))
+        return LLMResult(response={"summary": "s"}, total_cost=0.0, validated=True)
+
+    monkeypatch.setattr(APIWrapper, "call_llm", record_call_llm)
+
+    context = " Context: {{ retrieval_context }}" if prompt_uses_context else ""
+    reduce_op = {
+        "name": "summarize",
+        "type": "reduce",
+        "reduce_key": "product",
+        "retriever": "kb_r",
+        "prompt": "Summarize {% for i in inputs %}{{ i.review }} {% endfor %}."
+        + context,
+        "output": {"schema": {"summary": "string"}},
+    }
+    if fold:
+        reduce_op["fold_prompt"] = (
+            "Fold {{ output.summary }} with "
+            "{% for i in inputs %}{{ i.review }} {% endfor %}." + context
+        )
+        reduce_op["fold_batch_size"] = 2
+    if merge:
+        reduce_op["merge_prompt"] = (
+            "Merge {% for o in outputs %}{{ o.summary }} {% endfor %}." + context
+        )
+        reduce_op["merge_batch_size"] = 2
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "kb": {
+                "type": "memory",
+                "path": [
+                    {"id": 1, "text": f"alpha product note {fact}"},
+                    {"id": 2, "text": "beta unrelated note"},
+                ],
+            },
+            "reviews": {
+                "type": "memory",
+                "path": [
+                    {"id": i, "product": "alpha", "review": f"review {i}"}
+                    for i in range(6)
+                ],
+            },
+        },
+        "retrievers": {
+            "kb_r": {
+                "type": "lancedb",
+                "dataset": "kb",
+                "index_dir": str(tmp_path / "idx_reduce"),
+                "build_index": "always",
+                "index_types": ["fts"],
+                "fts": {
+                    "index_phrase": "{{ input.text }}",
+                    "query_phrase": "{{ reduce_key.product }}",
+                },
+                "query": {"top_k": 1, "mode": "fts"},
+            }
+        },
+        "operations": [reduce_op],
+        "pipeline": {
+            "steps": [
+                {"name": "step1", "input": "reviews", "operations": ["summarize"]}
+            ],
+            "output": {"path": str(tmp_path / "out_reduce.json")},
+        },
+    }
+
+    runner = DSLRunner(config, max_threads=1)
+    runner.load()
+    runner.last_op_container.next()
+
+    assert len(prompts) == expected_calls
+    missing = [i for i, prompt in enumerate(prompts) if fact not in prompt]
+    assert not missing, f"LLM calls {missing} of {len(prompts)} lack the retrieval context"

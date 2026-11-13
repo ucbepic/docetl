@@ -1,5 +1,6 @@
 from typing import Any
 
+from jinja2.exceptions import UndefinedError
 from pydantic import field_validator
 
 from docetl.operations.base import BaseOperation, Cardinality
@@ -122,9 +123,13 @@ class GatherOperation(BaseOperation):
         for chunks in grouped_chunks.values():
             # Sort chunks by their order within the document
             chunks.sort(key=lambda x: x[order_key])
+            hierarchy = {}
 
             # Process each chunk with its peripheral context and headers
             for i, chunk in enumerate(chunks):
+                hierarchy, header_context = self._advance_header_hierarchy(
+                    hierarchy, chunk, doc_header_key
+                )
                 rendered_chunk = self.render_chunk_with_context(
                     chunks,
                     i,
@@ -134,6 +139,7 @@ class GatherOperation(BaseOperation):
                     main_chunk_start,
                     main_chunk_end,
                     doc_header_key,
+                    header_context=header_context,
                 )
 
                 result = chunk.copy()
@@ -152,6 +158,7 @@ class GatherOperation(BaseOperation):
         main_chunk_start: str,
         main_chunk_end: str,
         doc_header_key: str,
+        header_context: str | None = None,
     ) -> str:
         """
         Render a chunk with its peripheral context and headers.
@@ -165,14 +172,21 @@ class GatherOperation(BaseOperation):
             main_chunk_start (str): String to mark the start of the main chunk.
             main_chunk_end (str): String to mark the end of the main chunk.
             doc_header_key (str): The key for the headers in the current chunk.
+            header_context (str, optional): Precomputed inherited headers for this chunk.
 
         Returns:
             str: Renderted chunk with context and headers.
         """
 
-        # If there are no peripheral chunks, return the main chunk
+        if header_context is None:
+            header_context = self.render_hierarchy_headers(
+                chunks[current_index], chunks[: current_index + 1], doc_header_key
+            )
+
+        # Header context is independent of whether neighboring text is requested.
         if not peripheral_config:
-            return chunks[current_index][content_key]
+            content = chunks[current_index][content_key]
+            return f"{header_context}\n{content}" if header_context else content
 
         combined_parts = ["--- Previous Context ---"]
 
@@ -188,10 +202,8 @@ class GatherOperation(BaseOperation):
 
         # Process main chunk
         main_chunk = chunks[current_index]
-        if headers := self.render_hierarchy_headers(
-            main_chunk, chunks[: current_index + 1], doc_header_key
-        ):
-            combined_parts.append(headers)
+        if header_context:
+            combined_parts.append(header_context)
         combined_parts.extend(
             (
                 f"{main_chunk_start}",
@@ -307,57 +319,53 @@ class GatherOperation(BaseOperation):
         Returns:
             str: Renderted headers in the current chunk's hierarchy.
         """
-        current_hierarchy = {}
-
-        if doc_header_key is None:
-            return ""
-
-        # Find the largest/highest level in the current chunk
-        current_chunk_headers = (
-            lookup_field(current_chunk, doc_header_key) if doc_header_key else []
-        )
-
-        # If there are no headers in the current chunk, return an empty string
-        if not current_chunk_headers:
-            return ""
-
-        highest_level = float("inf")  # Initialize with positive infinity
-        for header_info in current_chunk_headers:
-            try:
-                level = header_info.get("level")
-                if level is not None and level < highest_level:
-                    highest_level = level
-            except Exception as e:
-                self.runner.console.log(f"[red]Error processing header: {e}[/red]")
-                self.runner.console.log(f"[red]Header: {header_info}[/red]")
-                return ""
-
-        # If no headers found in the current chunk, set highest_level to None
-        if highest_level == float("inf"):
-            highest_level = None
-
-        for chunk in chunks:
-            for header_info in (
-                lookup_field(chunk, doc_header_key) if doc_header_key else []
-            ):
-                try:
-                    header = header_info["header"]
-                    level = header_info["level"]
-                    if header and level:
-                        current_hierarchy[level] = header
-                    # Clear lower levels when a higher level header is found
-                    for lower_level in range(level + 1, len(current_hierarchy) + 1):
-                        if lower_level in current_hierarchy:
-                            current_hierarchy[lower_level] = None
-                except Exception as e:
-                    self.runner.console.log(f"[red]Error processing header: {e}[/red]")
-                    self.runner.console.log(f"[red]Header: {header_info}[/red]")
-                    return ""
-
-        rendered_headers = [
-            f"{'#' * level} {header}"
-            for level, header in sorted(current_hierarchy.items())
-            if header is not None and (highest_level is None or level < highest_level)
+        hierarchy = {}
+        prefix = chunks[:-1] if chunks and chunks[-1] is current_chunk else chunks
+        for chunk in prefix:
+            hierarchy, _ = self._advance_header_hierarchy(
+                hierarchy, chunk, doc_header_key
+            )
+        return self._advance_header_hierarchy(hierarchy, current_chunk, doc_header_key)[
+            1
         ]
-        rendered_headers = " > ".join(rendered_headers)
-        return f"_Current Section:_ {rendered_headers}" if rendered_headers else ""
+
+    def _advance_header_hierarchy(
+        self, hierarchy: dict[int, str], chunk: dict, doc_header_key: str | None
+    ) -> tuple[dict[int, str], str]:
+        """Render inherited ancestors, then atomically apply this chunk's headings."""
+        if not doc_header_key:
+            return hierarchy, ""
+        try:
+            headings = []
+            headers = lookup_field(chunk, doc_header_key)
+            if headers is None:
+                headers = []
+            if not isinstance(headers, (list, tuple)):
+                raise TypeError("Headers must be a list of heading entries")
+            for entry in headers:
+                level, title = entry["level"], entry["header"]
+                if not isinstance(level, int) or isinstance(level, bool) or level < 1:
+                    raise ValueError("Header levels must be positive integers")
+                if not isinstance(title, str):
+                    raise TypeError("Header text must be a string")
+                if title:
+                    headings.append((level, title))
+
+            highest_level = min((level for level, _ in headings), default=None)
+            ancestors = " > ".join(
+                f"{'#' * level} {title}"
+                for level, title in sorted(hierarchy.items())
+                if highest_level is None or level < highest_level
+            )
+            updated = dict(hierarchy)
+            for level, title in headings:
+                updated = {
+                    depth: name for depth, name in updated.items() if depth < level
+                }
+                updated[level] = title
+            context = f"_Current Section:_ {ancestors}" if ancestors else ""
+            return updated, context
+        except (KeyError, TypeError, ValueError, UndefinedError) as error:
+            self.console.log(f"[red]Error processing headers: {error}[/red]")
+            # A malformed heading can change the section; do not inherit stale ancestry.
+            return {}, ""

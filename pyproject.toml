@@ -71,6 +71,9 @@ retrieval = [
 tui = [
   "textual>=8.2.7",
 ]
+quail = [
+  "pyarrow>=15.0.0",
+]
 
 [project.scripts]
 docetl = "docetl.cli:app"

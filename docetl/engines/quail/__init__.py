@@ -1,4 +1,4 @@
-"""Quail execution engine: run DocETL filter and map operations on Quail Server.
+"""Quail execution engine: run DocETL filter, map, and reduce operations on Quail Server.
 
 Quail (https://github.com/fsdatalab/quail) is a SQL engine with AI functions
 that runs local models on GPUs. This package compiles a run of consecutive

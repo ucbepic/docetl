@@ -1,17 +1,23 @@
-"""MOAR on MEDEC with hosted Gemini models and open models on Quail Server.
+"""MOAR with hosted Gemini models and open models on Quail Server.
 
 MOAR searches pipeline rewrites for the best cost and accuracy trade-off. Here
 its candidate models are Gemini models (through LiteLLM) and open models that
 Quail Server runs (``quail/<model>``, priced by GPU time). After the search,
-each pipeline on the Pareto frontier runs on a held-out MEDEC test set.
+each pipeline on the Pareto frontier runs on held-out test data.
+
+Workloads: ``medec`` (clinical error detection) and ``cuad`` (contract clause
+extraction), scored with experiments/reasoning/evaluation. The MOAR paper's
+pipelines and data (``--pipeline``, ``--train``, ``--test``, and CUAD's
+``--ground-truth`` CSV) are linked from experiments/reasoning/RUNMOAR.md.
 
 Local run, with Quail Servers already running:
 
-    python experiments/quail_moar/run_medec.py --work-dir out \\
-        --quail qwen3-4b-fp8=grpc://gpu-host:50051 \\
-        --hosted gemini/gemini-2.5-flash-lite gemini/gemini-2.5-flash
+    python experiments/quail_moar/run_quail_moar.py --workload cuad --work-dir out \\
+        --pipeline cuad.yaml --train cuad_train.json --test cuad_test.json \\
+        --ground-truth CUAD-master_clauses.csv \\
+        --quail qwen3-4b-fp8=grpc://gpu-host:50051 --reasoning-effort high
 
-On Modal, ``modal_medec.py`` starts one quail-server per GPU and calls ``run``.
+On Modal, ``modal_quail_moar.py`` starts one quail-server per GPU and runs this.
 """
 
 from __future__ import annotations
@@ -51,9 +57,22 @@ def use_reasoning_effort(effort: str | None, prefix: str = "gemini/gemini-4") ->
 
 
 from experiments.quail_moar.medec_data import build as build_data  # noqa: E402
-from experiments.reasoning.evaluation.medec import evaluate_results  # noqa: E402
+METRICS = {"medec": "combined_score", "cuad": "avg_f1"}
 
-METRIC = "combined_score"
+
+def evaluator(workload: str, data: str, ground_truth: str | None):
+    """Return results_file -> scores for ``workload`` on input ``data``."""
+    if workload == "medec":
+        from experiments.reasoning.evaluation.medec import evaluate_results
+
+        return lambda results: evaluate_results("docetl_moar", results)
+    if workload == "cuad":
+        from experiments.reasoning.evaluation.cuad import evaluate_results
+
+        if not ground_truth:
+            raise ValueError("cuad needs --ground-truth (CUAD-master_clauses.csv)")
+        return lambda results: evaluate_results("docetl_moar", results, ground_truth, data)
+    raise ValueError(f"unknown workload {workload!r}; use {sorted(METRICS)}")
 # Modal's H100 price per hour (https://modal.com/pricing), used to price GPU time.
 H100_PER_HOUR = 3.95
 
@@ -97,11 +116,7 @@ def build_pipeline(path: Path, data: str, output: str, default_model: str, quail
     return path
 
 
-def evaluate(results_file: str) -> dict:
-    return evaluate_results("docetl_moar", results_file)
-
-
-def run_pipeline(yaml_path: str, data: str, output: str) -> tuple[float, dict]:
+def run_pipeline(yaml_path: str, data: str, output: str, evaluate) -> tuple[float, dict]:
     """Run one pipeline YAML on ``data``; return (cost, evaluation)."""
     from docetl.runner import DSLRunner
 
@@ -125,6 +140,8 @@ def run(
     pipeline: str | None = None,
     train: str | None = None,
     test: str | None = None,
+    workload: str = "medec",
+    ground_truth: str | None = None,
 ) -> dict:
     """Run the MOAR search and the held-out test; write and return a summary."""
     from docetl.moar.MOARSearch import MOARSearch
@@ -132,7 +149,10 @@ def run(
 
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
+    metric = METRICS[workload]
     if not (train and test):
+        if workload != "medec":
+            raise ValueError(f"{workload} needs --pipeline, --train, and --test")
         train, test = build_data(str(work / "data"), n_train=n_train, n_test=n_test)
     available = [*hosted_models, *(f"quail/{name}" for name in quail_models)]
     if pipeline:
@@ -143,8 +163,8 @@ def run(
             dataset["path"] = train
         config["default_model"] = available[0]
         config["quail_models"] = quail_models
-        config["pipeline"]["output"]["path"] = str(work / "medec_root.json")
-        root = work / "medec.yaml"
+        config["pipeline"]["output"]["path"] = str(work / f"{workload}_root.json")
+        root = work / f"{workload}.yaml"
         root.write_text(yaml.safe_dump(config, sort_keys=False))
     else:
         root = build_pipeline(
@@ -157,13 +177,13 @@ def run(
         root_yaml_path=str(root),
         available_actions=set(ALL_DIRECTIVES),
         sample_input=json.loads(Path(train).read_text())[:5],
-        dataset_name="medec",
+        dataset_name=workload,
         available_models=available,
-        evaluate_func=evaluate,
+        evaluate_func=evaluator(workload, train, ground_truth),
         max_iterations=iterations,
         model=agent_model,
         output_dir=str(work / "moar"),
-        custom_metric_key=METRIC,
+        custom_metric_key=metric,
         sample_dataset_path=train,
     )
     moar.search()
@@ -183,13 +203,15 @@ def run(
         try:
             out = str(work / "test" / (Path(plan.yaml_file_path).stem + ".json"))
             Path(out).parent.mkdir(parents=True, exist_ok=True)
-            cost, scores = run_pipeline(plan.yaml_file_path, test, out)
-            entry.update(test_cost=cost, test_accuracy=scores[METRIC], test_scores=scores)
+            cost, scores = run_pipeline(plan.yaml_file_path, test, out, evaluator(workload, test, ground_truth))
+            entry.update(test_cost=cost, test_accuracy=scores[metric], test_scores=scores)
         except Exception as error:  # noqa: BLE001 - record and keep going
             entry["test_error"] = f"{type(error).__name__}: {error}"
         frontier.append(entry)
 
     summary = {
+        "workload": workload,
+        "metric": metric,
         "agent_model": agent_model,
         "available_models": available,
         "quail_models": quail_models,
@@ -211,6 +233,8 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--work-dir", required=True)
+    parser.add_argument("--workload", default="medec", choices=sorted(METRICS))
+    parser.add_argument("--ground-truth", help="cuad: CUAD-master_clauses.csv")
     parser.add_argument("--quail", nargs="*", default=[], help="model=endpoint, e.g. qwen3-4b-fp8=grpc://host:50051")
     parser.add_argument("--hosted", nargs="*", default=["gemini/gemini-4-hydrogen", "gemini/gemini-4-argon"])
     parser.add_argument("--agent", default="gemini/gemini-4-carbon")
@@ -229,7 +253,8 @@ def main() -> None:
         name, endpoint = item.split("=", 1)
         quail_models[name] = {"endpoint": endpoint, "gpu_cost_per_hour": args.gpu_cost_per_hour}
     summary = run(args.work_dir, quail_models, args.hosted, args.agent, args.iterations,
-                  args.n_train, args.n_test, args.pipeline, args.train, args.test)
+                  args.n_train, args.n_test, args.pipeline, args.train, args.test,
+                  args.workload, args.ground_truth)
     print(json.dumps(summary, indent=2, default=str))
 
 

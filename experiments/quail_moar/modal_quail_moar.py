@@ -1,19 +1,19 @@
-"""Run the Quail MOAR experiment on MEDEC on Modal.
+"""Run the Quail MOAR experiment (MEDEC or CUAD) on Modal.
 
 One container gets one H100 per open model. It starts a quail-server per GPU,
-then runs ``run_medec.py`` with Gemini (the ``docetl-gemini`` Modal secret,
+then runs ``run_quail_moar.py`` with Gemini (the ``docetl-gemini`` Modal secret,
 holding GEMINI_API_KEY) as MOAR's agent and as the hosted models. Results go
 to the ``docetl-quail-moar`` Modal volume.
 
 Run it from a Quail checkout (https://github.com/fsdatalab/quail), whose
 ``quail.deploy.images`` builds the GPU image. ``--pipeline``, ``--train``, and
-``--test`` are local files (such as the MOAR paper's medec.yaml and data),
-uploaded to the volume first:
+``--test`` (and CUAD's ``--ground-truth``) are local files, such as the MOAR
+paper's pipelines and data, uploaded to the volume first:
 
     cd /path/to/quail
-    DOCETL_REPO=/path/to/docetl modal run /path/to/docetl/experiments/quail_moar/modal_medec.py \\
-        --pipeline medec.yaml --train medec_train.json --test medec_test.json \\
-        --models qwen3-4b-fp8 --iterations 10
+    DOCETL_REPO=/path/to/docetl modal run /path/to/docetl/experiments/quail_moar/modal_quail_moar.py \\
+        --workload cuad --pipeline cuad.yaml --train cuad_train.json --test cuad_test.json \\
+        --ground-truth CUAD-master_clauses.csv --models qwen3-4b-fp8 --iterations 10
 """
 
 import json
@@ -75,12 +75,12 @@ def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:
              "/results": results},
 )
 def experiment(models: list[str], hosted: list[str], agent: str, iterations: int,
-               name: str, inputs: dict, reasoning_effort: str) -> str:
+               name: str, inputs: dict, reasoning_effort: str, workload: str) -> str:
     servers, endpoints = _serve(models)
     work = f"/results/{name}"
     try:
-        args = ["/opt/dvenv/bin/python", "/opt/docetl/experiments/quail_moar/run_medec.py",
-                "--work-dir", work, "--agent", agent, "--iterations", str(iterations),
+        args = ["/opt/dvenv/bin/python", "/opt/docetl/experiments/quail_moar/run_quail_moar.py",
+                "--workload", workload, "--work-dir", work, "--agent", agent, "--iterations", str(iterations),
                 "--hosted", *hosted, "--gpu-cost-per-hour", str(H100_PER_HOUR),
                 "--quail", *(f"{m}={e}" for m, e in endpoints.items())]
         for flag, path in inputs.items():
@@ -91,7 +91,7 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
         results.commit()
         summary = os.path.join(work, "summary.json")
         if done.returncode != 0 or not os.path.exists(summary):
-            return f"run_medec exited with {done.returncode}; see the logs and {work}"
+            return f"run_quail_moar exited with {done.returncode}; see the logs and {work}"
         return open(summary).read()
     finally:
         for server in servers:
@@ -102,13 +102,14 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
 def main(models: str = "qwen3-4b-fp8",
          hosted: str = "gemini/gemini-4-hydrogen,gemini/gemini-4-argon",
          agent: str = "gemini/gemini-4-carbon", iterations: int = 10,
-         pipeline: str = "", train: str = "", test: str = "",
-         reasoning_effort: str = "high", name: str = ""):
+         pipeline: str = "", train: str = "", test: str = "", ground_truth: str = "",
+         reasoning_effort: str = "high", name: str = "", workload: str = "medec"):
     chosen = [m for m in models.split(",") if m]
-    name = name or f"medec-{time.strftime('%Y%m%d-%H%M%S')}"
+    name = name or f"{workload}-{time.strftime('%Y%m%d-%H%M%S')}"
     inputs = {}
     with results.batch_upload(force=True) as upload:
-        for flag, path in (("pipeline", pipeline), ("train", train), ("test", test)):
+        for flag, path in (("pipeline", pipeline), ("train", train), ("test", test),
+                           ("ground-truth", ground_truth)):
             if path:
                 remote = f"{name}/inputs/{os.path.basename(path)}"
                 upload.put_file(path, f"/{remote}")
@@ -116,7 +117,7 @@ def main(models: str = "qwen3-4b-fp8",
     print(f"experiment {name}: {len(chosen)} H100s for {chosen}; inputs {inputs}")
     run = experiment.with_options(gpu=f"H100:{len(chosen)}") if len(chosen) > 1 else experiment
     out = run.remote(chosen, [h for h in hosted.split(",") if h], agent, iterations,
-                     name, inputs, reasoning_effort)
+                     name, inputs, reasoning_effort, workload)
     try:
         print(json.dumps(json.loads(out), indent=2))
     except json.JSONDecodeError:

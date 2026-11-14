@@ -557,3 +557,11 @@ def test_quail_model_names_fail_when_an_operation_has_no_quail_form(tmp_path):
         _group_quail_runs(runner, [SimpleNamespace(name="gleaned")])
     with pytest.raises(ValueError, match="needs a Quail Server"):
         engine_for({"model": "quail/unknown"}, runner.config)
+
+
+def test_json_outputs_get_room_for_their_answer():
+    op = {**MAP, "output": {"schema": {"clauses": "list[{clause_type: string, text_span: string}]"}}}
+    sql = compile_run([op], "docs").sql
+    assert ", 4096) AS `clauses`" in sql
+    op["litellm_completion_kwargs"] = {"max_tokens": 900}
+    assert ", 900) AS `clauses`" in compile_run([op], "docs").sql

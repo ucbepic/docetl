@@ -28,6 +28,9 @@ from docetl.engines.quail.prompts import (
 )
 
 ID_COLUMN = "_docetl_id"
+# Lists and objects come back as JSON text; Quail's AI.MAP default of 256
+# tokens cuts them off, and a cut-off answer does not parse.
+DEFAULT_JSON_MAX_TOKENS = 4096
 SUPPORTED_TYPES = ("filter", "map", "reduce")
 DEFAULT_MAX_GROUP_TOKENS = 24_000
 
@@ -284,7 +287,8 @@ def _ai_columns(
             expr = f"TRY_CAST(AI.MAP({document}, {_lit(text)}{token_arg}) AS DOUBLE)"
         elif kind == "json":
             text = instruction + ask + f" Answer with JSON only, of type {type_str}."
-            expr = f"AI.MAP({document}, {_lit(text)}{token_arg})"
+            json_tokens = f", {int(max_tokens or DEFAULT_JSON_MAX_TOKENS)}"
+            expr = f"AI.MAP({document}, {_lit(text)}{json_tokens})"
         else:
             expr = f"AI.MAP({document}, {_lit(instruction + ask)}{token_arg})"
         built.append((key, expr, OutputColumn(key, kind)))

@@ -258,6 +258,186 @@ def check_eligible(op_config: dict) -> None:
         raise QuailUnsupported(f"operation {name!r}: {error}") from error
 
 
+SQL_TYPES = ("split", "gather")
+WHITESPACE = "CONCAT(' ', CHR(9), CHR(10), CHR(11), CHR(12), CHR(13))"
+
+
+def check_sql_eligible(op_config: dict) -> None:
+    """Raise QuailUnsupported unless ``op_config`` is a split or gather that
+    compiles to plain SQL with DocETL's exact output.
+
+    - ``split`` with ``method: delimiter``. (``token_count`` needs a tokenizer
+      in SQL, so it runs in DocETL.)
+    - ``gather`` whose peripheral sections use only ``count`` (head, tail,
+      middle), without ``doc_header_key`` or per-section ``content_key``.
+    """
+    name = op_config.get("name", "?")
+    kind = op_config.get("type")
+    if kind == "split":
+        if op_config.get("method") != "delimiter":
+            raise QuailUnsupported(f"split {name!r}: only method delimiter compiles to SQL")
+        kwargs = op_config.get("method_kwargs") or {}
+        if not isinstance(kwargs.get("delimiter"), str) or not kwargs["delimiter"]:
+            raise QuailUnsupported(f"split {name!r} needs a delimiter")
+        if int(kwargs.get("num_splits_to_group", 1)) < 1:
+            raise QuailUnsupported(f"split {name!r}: num_splits_to_group must be at least 1")
+        names = [op_config.get("split_key", ""), f"{op_config.get('split_key')}_chunk",
+                 f"{name}_id", f"{name}_chunk_num"]
+    elif kind == "gather":
+        if op_config.get("doc_header_key"):
+            raise QuailUnsupported(f"gather {name!r}: doc_header_key does not compile to SQL")
+        peripheral = op_config.get("peripheral_chunks") or {}
+        for side, sections in peripheral.items():
+            if side not in ("previous", "next") or not isinstance(sections, dict):
+                raise QuailUnsupported(f"gather {name!r}: unknown peripheral side {side!r}")
+            for section, settings in sections.items():
+                if section not in ("head", "tail", "middle") or set(settings or {}) - {"count"}:
+                    raise QuailUnsupported(
+                        f"gather {name!r}: only head, tail, and middle counts compile to SQL"
+                    )
+        names = [op_config.get(k, "") for k in ("content_key", "doc_id_key", "order_key")]
+        names.append(f"{op_config.get('content_key')}_rendered")
+    else:
+        raise QuailUnsupported(f"operation {name!r} of type {kind!r} has no SQL form")
+    for column in names:
+        if not COLUMN_NAME.match(str(column)):
+            raise QuailUnsupported(f"operation {name!r}: {column!r} is not a plain column name")
+
+
+def _sql_reads(op: dict) -> list[str]:
+    if op["type"] == "split":
+        return [op["split_key"]]
+    return [op["content_key"], op["doc_id_key"], op["order_key"]]
+
+
+def _sql_writes(op: dict) -> dict[str, str]:
+    if op["type"] == "split":
+        return {
+            f"{op['split_key']}_chunk": "string",
+            f"{op['name']}_id": "string",
+            f"{op['name']}_chunk_num": "integer",
+        }
+    return {f"{op['content_key']}_rendered": "string"}
+
+
+def _split_ctes(op: dict, prev: str, index: int, columns: list[str], id_in: str, id_out: str) -> list[str]:
+    """CTEs for a delimiter split, matching SplitOperation.
+
+    The split pieces are numbered, whitespace-only pieces dropped, and every
+    num_splits_to_group pieces joined with the delimiter and stripped. Each
+    chunk row's id, in ``id_out``, is <parent id>.<chunk number, zero-padded>,
+    so ids stay unique and keep row order. ``id_out`` is a new column: Quail
+    carries the uploaded table's ``_docetl_id`` through the query to track
+    documents, so the split must not redefine it.
+    """
+    key, name = op["split_key"], op["name"]
+    delimiter = _lit(op["method_kwargs"]["delimiter"])
+    group = int(op["method_kwargs"].get("num_splits_to_group", 1))
+    carried = [c for c in columns if c not in (id_in, ID_COLUMN)]
+    p, n, f, r = (f"c{index}_{x}" for x in ("p", "n", "f", "r"))
+    # "/" divides as decimals in this dialect: group numbers come from floor
+    # over doubles, cast back to integers, computed as a column so GROUP BY
+    # groups on it.
+    g = f"c{index}_g"
+    chunk = f"{g}.`__chunk`"
+    piece = f"array_element({n}.`__parts`, {n}.`__i`)"
+    keep = ", ".join(f"MIN(c{index}_g.`{c}`) AS `{c}`" for c in carried)
+    return [
+        f"{p} AS (SELECT {prev}.*, string_to_array({_col(prev, key)}, {delimiter}) AS `__parts` FROM {prev})",
+        f"{n} AS (SELECT {p}.*, UNNEST(generate_series(CAST(1 AS BIGINT), "
+        f"CAST(array_length({p}.`__parts`) AS BIGINT))) AS `__i` FROM {p})",
+        f"{f} AS (SELECT {n}.`{id_in}` AS `{id_in}`, "
+        + "".join(f"{n}.`{c}` AS `{c}`, " for c in carried)
+        + f"{n}.`__i` AS `__i`, {piece} AS `__piece` FROM {n} "
+        f"WHERE btrim({piece}, {WHITESPACE}) <> '')",
+        f"{r} AS (SELECT {f}.*, CAST(ROW_NUMBER() OVER (PARTITION BY {f}.`{id_in}` "
+        f"ORDER BY {f}.`__i`) AS BIGINT) AS `__k` FROM {f})",
+        f"{g} AS (SELECT {r}.*, CAST(floor(CAST({r}.`__k` - 1 AS DOUBLE) / {group}) AS BIGINT) + 1 "
+        f"AS `__chunk` FROM {r})",
+        # Group into internal names first; the planner refuses an output
+        # column named like a grouped column.
+        f"c{index}_s AS (SELECT {g}.`{id_in}` AS `__parent`, {chunk} AS `__chunkno`, "
+        + (keep + ", " if keep else "")
+        + f"btrim(STRING_AGG({g}.`__piece`, {delimiter} ORDER BY {g}.`__k`), {WHITESPACE}) "
+        f"AS `__text` FROM {g} GROUP BY {g}.`{id_in}`, {chunk})",
+        f"c{index} AS (SELECT CONCAT(c{index}_s.`__parent`, '.', "
+        f"lpad(CAST(c{index}_s.`__chunkno` AS VARCHAR), 6, '0')) AS `{id_out}`, "
+        + "".join(f"c{index}_s.`{c}` AS `{c}`, " for c in carried)
+        + f"c{index}_s.`__text` AS `{key}_chunk`, c{index}_s.`__parent` AS `{name}_id`, "
+        f"c{index}_s.`__chunkno` AS `{name}_chunk_num` FROM c{index}_s)",
+    ]
+
+
+def _gather_side(lab: str, cum: str, start: str, end: str, settings: dict) -> str:
+    """The text of one peripheral side, as GatherOperation renders it.
+
+    ``start``/``end`` bound the side's chunks (1-based positions in the
+    document, inclusive); head is the first ``head`` of them, tail the last
+    ``tail``, and the rest is shown (middle) or replaced by a skipped-chars
+    note.
+    """
+    head = int((settings.get("head") or {}).get("count", 0))
+    tail = int((settings.get("tail") or {}).get("count", 0))
+    total = f"({end} - {start} + 1)"
+    if "middle" in settings:
+        return f"array_to_string(array_slice({lab}, {start}, {end}), CHR(10))"
+
+    def cum_at(pos: str) -> str:
+        return f"(CASE WHEN {pos} <= 0 THEN 0 ELSE array_element({cum}, {pos}) END)"
+
+    head_end = f"({start} - 1 + LEAST({head}, {total}))"
+    tail_start = f"({start} + GREATEST({head}, {total} - {tail}))"
+    skip_end = f"({end} - {tail})"
+    skip_start = f"({start} + {head})"
+    head_text = f"array_to_string(array_slice({lab}, {start}, {head_end}), CHR(10))"
+    tail_text = f"array_to_string(array_slice({lab}, {tail_start}, {end}), CHR(10))"
+    skipped = f"({cum_at(skip_end)} - {cum_at(f'({skip_start} - 1)')})"
+    skip_text = (
+        f"CASE WHEN {total} - {tail} > {head} THEN CONCAT('[... ', CAST({skipped} AS VARCHAR), "
+        f"' characters skipped ...]') END"
+    )
+    return (
+        f"concat_ws(CHR(10), NULLIF({head_text}, ''), {skip_text}, NULLIF({tail_text}, ''))"
+    )
+
+
+def _gather_ctes(op: dict, prev: str, index: int) -> list[str]:
+    """CTEs for a gather, matching GatherOperation's rendering."""
+    content, doc, order = op["content_key"], op["doc_id_key"], op["order_key"]
+    peripheral = op.get("peripheral_chunks") or {}
+    out = f"{content}_rendered"
+    if not peripheral:
+        return [f"c{index} AS (SELECT {prev}.*, {_col(prev, content)} AS `{out}` FROM {prev})"]
+    w, a = f"c{index}_w", f"c{index}_a"
+    part = f"PARTITION BY {_col(prev, doc)} ORDER BY TRY_CAST({_col(prev, order)} AS DOUBLE), {_col(prev, order)}"
+    label = (
+        f"CONCAT('[Chunk ', CAST({_col(prev, order)} AS VARCHAR), ']', CHR(10), {_col(prev, content)})"
+    )
+    start = op.get("main_chunk_start", "--- Begin Main Chunk ---")
+    end = op.get("main_chunk_end", "--- End Main Chunk ---")
+    previous = _gather_side(f"{a}.`__lab`", f"{a}.`__cums`", "1", f"({a}.`__pos` - 1)",
+                            peripheral.get("previous") or {})
+    following = _gather_side(f"{a}.`__lab`", f"{a}.`__cums`", f"({a}.`__pos` + 1)",
+                             f"{a}.`__n`", peripheral.get("next") or {})
+    rendered = (
+        f"concat_ws(CHR(10), '--- Previous Context ---', NULLIF({previous}, ''), "
+        f"CONCAT('--- End Previous Context ---', CHR(10)), {_lit(start)}, {a}.`{content}`, "
+        f"{_lit(end)}, CONCAT(CHR(10), '--- Next Context ---'), NULLIF({following}, ''), "
+        f"'--- End Next Context ---')"
+    )
+    return [
+        f"{w} AS (SELECT {prev}.*, CAST(ROW_NUMBER() OVER ({part}) AS BIGINT) AS `__pos`, "
+        f"CAST(COUNT(*) OVER (PARTITION BY {_col(prev, doc)}) AS BIGINT) AS `__n`, "
+        f"CAST(SUM(char_length({_col(prev, content)})) OVER ({part} ROWS BETWEEN UNBOUNDED PRECEDING "
+        f"AND CURRENT ROW) AS BIGINT) AS `__cum`, {label} AS `__label` FROM {prev})",
+        f"{a} AS (SELECT {w}.*, ARRAY_AGG({w}.`__label`) OVER (PARTITION BY {w}.`{doc}` ORDER BY "
+        f"{w}.`__pos` ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS `__lab`, "
+        f"ARRAY_AGG({w}.`__cum`) OVER (PARTITION BY {w}.`{doc}` ORDER BY {w}.`__pos` "
+        f"ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS `__cums` FROM {w})",
+        f"c{index} AS (SELECT {a}.*, {rendered} AS `{out}` FROM {a})",
+    ]
+
+
 def _instruction(text: str) -> str:
     """An AI.MAP instruction: AI.MAP refuses braces, so none get through."""
     return text.replace("{", "(").replace("}", ")")
@@ -305,6 +485,7 @@ class CompiledRun:
     dropped: list[str] = field(default_factory=list)
     grouped: bool = False
     group_reads: tuple[list[str], list[str]] | None = None
+    id_column: str = ID_COLUMN
 
 
 def _ai_columns(
@@ -356,24 +537,33 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
             each of the run's input fields.
     """
     for op in ops:
-        check_eligible(op)
+        if op.get("type") in SQL_TYPES:
+            check_sql_eligible(op)
+        else:
+            check_eligible(op)
 
     # Fields the run reads before any operation in it writes them come from
     # the uploaded table.
     written: set[str] = set()
     input_fields: list[str] = []
     for op in ops:
-        if op["type"] == "reduce":
+        if op["type"] in SQL_TYPES:
+            reads = _sql_reads(op)
+        elif op["type"] == "reduce":
             reads = [*reduce_keys(op), *parse_reduce_prompt(op["prompt"]).fields]
         else:
             reads = list(parse_prompt(op["prompt"]).fields)
         for f in reads:
             if f not in written and f not in input_fields:
                 input_fields.append(f)
+        if op["type"] in SQL_TYPES:
+            written.update(_sql_writes(op))
+            continue
         written.update(op["output"]["schema"].keys())
         if op["type"] == "reduce":
             written.update(reduce_keys(op))
 
+    id_col = ID_COLUMN  # the current row id; a split moves it to a new column
     columns = [ID_COLUMN, *input_fields]
     ctes = [f"c0 AS (SELECT * FROM `{table}`)"]
     outputs: dict[str, OutputColumn] = {}
@@ -383,6 +573,23 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
 
     for index, op in enumerate(ops, start=1):
         prev = f"c{index - 1}"
+        if op["type"] in SQL_TYPES:
+            if op["type"] == "split":
+                if id_col not in columns:
+                    raise QuailUnsupported(f"split {op['name']!r} after a reduce in the run")
+                new_id = f"__docetl_row_{index}"
+                ctes.extend(_split_ctes(op, prev, index, columns, id_col, new_id))
+                columns = [new_id, *[c for c in columns if c not in (id_col, ID_COLUMN)]]
+                id_col = new_id
+            else:
+                ctes.extend(_gather_ctes(op, prev, index))
+            for name, kind in _sql_writes(op).items():
+                if name not in columns:
+                    columns.append(name)
+                outputs[name] = OutputColumn(name, kind)
+                if name in dropped:
+                    dropped.remove(name)
+            continue
         schema = op["output"]["schema"]
         if op["type"] == "filter":
             prompt = parse_prompt(op["prompt"])
@@ -426,7 +633,7 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
                 for kind, value in prompt.item
             ]
             item = pieces[0] if len(pieces) == 1 else "CONCAT(" + ", ".join(pieces) + ")"
-            order = f" ORDER BY {_col(prev, ID_COLUMN)}" if ID_COLUMN in columns else ""
+            order = f" ORDER BY {_col(prev, id_col)}" if id_col in columns else ""
             document = f"STRING_AGG({item}, {NEWLINE}{order})"
             built = _ai_columns(
                 schema, prompt.template, [document], document, prompt.instruction(), _max_tokens(op)
@@ -437,21 +644,21 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
             parts.append(f"COUNT(*) AS `{count}`")
             group_by = (" GROUP BY " + ", ".join(_col(prev, k) for k in keys)) if keys else ""
             new = [name for name, _, _ in built]
-            if op.get("pass_through") and ID_COLUMN in columns:
+            if op.get("pass_through") and id_col in columns:
                 # pass_through keeps the fields of each group's first row:
                 # group, keep the first row's id, then join that row back.
                 # The result keeps its id, so it maps onto that input row.
-                parts.append(f"MIN({_col(prev, ID_COLUMN)}) AS `__docetl_first`")
+                parts.append(f"MIN({_col(prev, id_col)}) AS `__docetl_first`")
                 ctes.append(f"c{index}_g AS (SELECT {', '.join(parts)} FROM {prev}{group_by})")
-                rest = [c for c in columns if c not in keys and c not in new and c != ID_COLUMN]
-                select = [f"g.`__docetl_first` AS `{ID_COLUMN}`"]
+                rest = [c for c in columns if c not in keys and c not in new and c != id_col]
+                select = [f"g.`__docetl_first` AS `{id_col}`"]
                 select += [f"g.`{c}` AS `{c}`" for c in [*keys, *new, count]]
                 select += [f"f.`{c}` AS `{c}`" for c in rest]
                 ctes.append(
                     f"c{index} AS (SELECT {', '.join(select)} FROM c{index}_g g "
-                    f"JOIN {prev} f ON f.`{ID_COLUMN}` = g.`__docetl_first`)"
+                    f"JOIN {prev} f ON f.`{id_col}` = g.`__docetl_first`)"
                 )
-                columns = [ID_COLUMN, *[k for k in keys if k not in new], *new, count, *rest]
+                columns = [id_col, *[k for k in keys if k not in new], *new, count, *rest]
                 outputs = {
                     name: out for name, out in outputs.items() if name in rest or name in keys
                 }
@@ -468,7 +675,7 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
                 outputs[name] = out
             outputs[count] = OutputColumn(count, "integer")
         for key in op.get("drop_keys") or []:
-            if key in columns and key != ID_COLUMN:
+            if key in columns and key != id_col:
                 columns.remove(key)
             outputs.pop(key, None)
             dropped.append(key)
@@ -476,7 +683,7 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
     last = f"c{len(ops)}"
     select = ", ".join(f"{_col(last, c)} AS `{c}`" for c in columns)
     sql = "WITH " + ",\n".join(ctes) + f"\nSELECT {select} FROM {last}"
-    return CompiledRun(sql, input_fields, outputs, dropped, grouped, group_reads)
+    return CompiledRun(sql, input_fields, outputs, dropped, grouped, group_reads, id_col)
 
 
 def convert(value: Any, out: OutputColumn) -> Any:

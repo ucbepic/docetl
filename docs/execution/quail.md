@@ -34,8 +34,12 @@ DocETL talks to the server over Arrow Flight with `pyarrow`, so DocETL needs no 
 | --- | --- |
 | `filter` with one `bool` output | `WHERE AI.IF(PROMPT(...))` |
 | `map`, one AI function per output item | `bool`: `AI.IF`; `enum[...]`: `AI.CLASSIFY`; `int`, `float`: `AI.MAP` with `TRY_CAST`; `string`: `AI.MAP`; `list[...]`, objects: `AI.MAP` with a JSON instruction |
-| `reduce` | `GROUP BY reduce_key`, with the same AI functions over `STRING_AGG` of the group's items, in row order |
+| `reduce` | `GROUP BY reduce_key`, with the same AI functions over `STRING_AGG` of the group's items, in row order; `pass_through` keeps each group's first row |
+| `split` with `method: delimiter` | Plain SQL (`string_to_array`, numbered pieces, `STRING_AGG`), when a Quail operation is next to it |
+| `gather` with head, tail, or middle counts | Plain SQL (window functions over each document's chunks), when a Quail operation is next to it |
 | `equijoin`, `resolve`, everything else | LiteLLM |
+
+A chunking pipeline (split, gather, map, reduce) can therefore run as one Quail query. A `token_count` split needs a tokenizer in SQL, so it runs in DocETL, and the gather, map, and reduce after it still form one query. Split and gather produce the same rows as DocETL's own operations; `tests/test_quail_engine.py` checks every chunk and rendered context string against them.
 
 A filter and a map become one query:
 
@@ -76,7 +80,7 @@ docetl quail-rewrite pipeline.yaml --model gpt-4.1 -o pipeline.quail.yaml
 
 ## Fallback
 
-An operation runs on LiteLLM when it has no Quail form: another operation type, gleaning, validation, agents, tools, PDFs, `batch_prompt`, calibration, a retriever, a cascade, a filter `limit`, a reduce with `fold_prompt`, `merge_prompt`, `value_sampling`, or `pass_through`, or a prompt outside the Quail form. With `fallback: litellm` (the default), DocETL logs one line and runs the operation on LiteLLM. With `fallback: strict`, the pipeline fails before it runs. An operation can set `engine: litellm` to opt out of a pipeline-level Quail engine.
+An operation runs on LiteLLM when it has no Quail form: another operation type, gleaning, validation, agents, tools, PDFs, `batch_prompt`, calibration, a retriever, a cascade, a filter `limit`, a reduce with `fold_prompt`, `merge_prompt`, or `value_sampling`, or a prompt outside the Quail form. Operations that call no model (split, gather, code operations) run as usual whatever the model; a split or gather that compiles to SQL joins the Quail query next to it. With `fallback: litellm` (the default), DocETL logs one line and runs the operation on LiteLLM. With `fallback: strict`, the pipeline fails before it runs. An operation can set `engine: litellm` to opt out of a pipeline-level Quail engine.
 
 A reduce group larger than `max_group_tokens` (about 4 characters per token) does not fit in the model's context. DocETL checks group sizes before the query when the reduce reads uploaded fields; with `fallback: litellm` it runs that run of operations on LiteLLM, where reduce can fold and merge, and with `fallback: strict` it fails.
 

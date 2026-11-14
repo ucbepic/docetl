@@ -168,8 +168,9 @@ class QuailOperation(BaseOperation):
         count = result.num_rows
         if not compiled.grouped:
             output = []
-            for i, row_id in enumerate(rows[ID_COLUMN]):
-                row = dict(input_data[int(row_id)])
+            for i, row_id in enumerate(rows[compiled.id_column]):
+                # A split's chunk rows carry <parent id>.<chunk number>.
+                row = dict(input_data[int(row_id.split(".", 1)[0])])
                 for name in compiled.dropped:
                     row.pop(name, None)
                 for name, out in compiled.outputs.items():

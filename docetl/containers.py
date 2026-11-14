@@ -566,21 +566,32 @@ def _make_scan_container(
 def _group_quail_runs(runner: DSLRunner, nodes: list) -> list:
     """Group consecutive Quail-engine operations; leave the rest as single nodes.
 
-    Returns a list whose items are either a plan node (runs on LiteLLM) or a
+    Returns a list whose items are either a plan node (runs as usual) or a
     ``(nodes, engine)`` tuple (one fused Quail query). An operation that asks for the
     Quail engine but has no Quail form runs on LiteLLM with
     ``fallback: litellm``, and fails here with ``fallback: strict``.
+
+    A split or gather that compiles to SQL joins the Quail run around it, so
+    a chunking pipeline (split, gather, map, reduce) can be one query; with
+    no Quail operation next to it, it runs in DocETL as usual.
     """
     from docetl.engines.quail import QuailUnsupported, check_eligible, engine_for
+    from docetl.engines.quail.compile import SQL_TYPES, check_sql_eligible
 
     groups: list = []
     run: list = []
     run_engine: dict = {}
+    # SQL-compilable operations waiting to see whether a Quail operation follows.
+    pending: list = []
 
     def close_run() -> None:
         if run:
             groups.append((list(run), dict(run_engine)))
             run.clear()
+
+    def flush_pending() -> None:
+        groups.extend(pending)
+        pending.clear()
 
     for node in nodes:
         op = runner.find_operation(node.name)
@@ -590,9 +601,26 @@ def _group_quail_runs(runner: DSLRunner, nodes: list) -> list:
             is_llm = get_operation(op.get("type", "")).is_llm(op)
         except KeyError:
             is_llm = False
-        engine = engine_for(op, runner.config) if is_llm else None
+        if not is_llm:
+            sql_ok = op.get("type") in SQL_TYPES
+            if sql_ok:
+                try:
+                    check_sql_eligible(op)
+                except QuailUnsupported:
+                    sql_ok = False
+            if sql_ok and run:
+                run.append(node)
+            elif sql_ok:
+                pending.append(node)
+            else:
+                close_run()
+                flush_pending()
+                groups.append(node)
+            continue
+        engine = engine_for(op, runner.config)
         if engine is None:
             close_run()
+            flush_pending()
             groups.append(node)
             continue
         try:
@@ -602,14 +630,18 @@ def _group_quail_runs(runner: DSLRunner, nodes: list) -> list:
                 raise ValueError(f"Quail engine (strict): {error}") from error
             runner.console.log(f"[yellow]Quail engine: {error}; running on LiteLLM.[/yellow]")
             close_run()
+            flush_pending()
             groups.append(node)
             continue
         if run and run_engine != engine:
             close_run()
+        run.extend(pending)
+        pending.clear()
         run_engine.clear()
         run_engine.update(engine)
         run.append(node)
     close_run()
+    flush_pending()
     return groups
 
 

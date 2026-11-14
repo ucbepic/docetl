@@ -640,3 +640,135 @@ def test_real_quail_server_reduce_passes_through_the_first_row(tmp_path, quail_s
     for row in output:
         assert {"tag", "verdict", "summary", "_counts_prereduce_per_movie"} <= set(row)
         assert row["_counts_prereduce_per_movie"] == 3
+
+
+def _run_python_ops(tmp_path, ops, rows):
+    """Run non-LLM operations with DocETL itself; return the output rows."""
+    from docetl.runner import DSLRunner
+
+    source = tmp_path / "py_in.json"
+    source.write_text(json.dumps(rows))
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {"docs": {"type": "file", "path": str(source)}},
+        "operations": ops,
+        "pipeline": {
+            "steps": [{"name": "s", "input": "docs", "operations": [op["name"] for op in ops]}],
+            "output": {"type": "file", "path": str(tmp_path / "py_out.json")},
+        },
+    }
+    DSLRunner(config, max_threads=2).load_run_save()
+    return json.loads((tmp_path / "py_out.json").read_text())
+
+
+def _run_sql_ops(endpoint, ops, rows, fields):
+    """Run split/gather as compiled SQL on Quail Server; return rows by column."""
+    from docetl.engines.quail.client import QuailClient
+
+    table = pa.table({
+        "_docetl_id": [f"{i:010d}" for i in range(len(rows))],
+        **{f: [r[f] for r in rows] for f in fields},
+    })
+    name = "t" + str(abs(hash(json.dumps(rows) + json.dumps(ops))))
+    with QuailClient(endpoint) as client:
+        client.upload(name, table, "_docetl_id")
+        result = client.run(compile_run(ops, name).sql).to_pydict()
+    return {k.split(".", 1)[-1]: v for k, v in result.items()}
+
+
+SPLIT = {"name": "chunker", "type": "split", "split_key": "body", "method": "delimiter",
+         "method_kwargs": {"delimiter": "\n\n", "num_splits_to_group": 1}}
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_split_and_gather_in_sql_match_docetl_exactly(tmp_path, quail_server):
+    import random
+
+    rng = random.Random(7)
+    words = ["alpha", "beta", "gamma", "delta", "it's", "naïve", "x"]
+    rows = []
+    for i in range(6):
+        pieces = []
+        for _ in range(rng.randint(1, 9)):
+            pieces.append(rng.choice(["", "   ", " ".join(rng.choices(words, k=rng.randint(1, 6)))]))
+        rows.append({"id": i, "body": "\n\n".join(pieces) or "solo"})
+
+    sections = [{}, {"tail": {"count": 1}}, {"head": {"count": 1}, "tail": {"count": 2}},
+                {"head": {"count": 2}}, {"middle": {}}, {"head": {"count": 1}, "middle": {}}]
+    cases = [(group, prev, nxt) for group in (1, 2, 3) for prev in sections[:4] for nxt in sections[::2]]
+    cases += [(1, {"tail": {"count": 1}}, {"middle": {}}), (2, {"middle": {}}, {})]
+    for group, prev, nxt in cases:
+        split = {**SPLIT, "method_kwargs": {"delimiter": "\n\n", "num_splits_to_group": group}}
+        peripheral = {k: v for k, v in (("previous", prev), ("next", nxt)) if v}
+        gather = {"name": "gatherer", "type": "gather", "content_key": "body_chunk",
+                  "doc_id_key": "chunker_id", "order_key": "chunker_chunk_num",
+                  "peripheral_chunks": peripheral}
+        expected = _run_python_ops(tmp_path, [split, gather], rows)
+        got = _run_sql_ops(quail_server, [split, gather], rows, ["body"])
+        want = sorted((r["id"], r["chunker_chunk_num"], r["body_chunk"], r["body_chunk_rendered"])
+                      for r in expected)
+        row_ids = next(v for k, v in got.items() if k.startswith("__docetl_row"))
+        parents = [int(i.split(".")[0]) for i in row_ids]
+        have = sorted(zip(parents, got["chunker_chunk_num"], got["body_chunk"], got["body_chunk_rendered"]))
+        assert have == want, (group, prev, nxt)
+
+
+def test_split_and_gather_join_the_quail_run_next_to_them():
+    from docetl.containers import _group_quail_runs
+
+    gather = {"name": "gatherer", "type": "gather", "content_key": "body_chunk",
+              "doc_id_key": "chunker_id", "order_key": "chunker_chunk_num",
+              "peripheral_chunks": {"previous": {"tail": {"count": 1}}}}
+    chunk_map = {**MAP, "name": "label", "prompt": "Label: {{ input.body_chunk_rendered }}"}
+    ops = {
+        "chunker": SPLIT,
+        "token_split": {**SPLIT, "name": "token_split", "method": "token_count",
+                        "method_kwargs": {"num_tokens": 100}},
+        "gatherer": gather,
+        "label": chunk_map,
+        "hosted": {**chunk_map, "name": "hosted", "model": "gemini/gemini-4-argon"},
+    }
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+
+    def shape(names):
+        groups = _group_quail_runs(runner, [SimpleNamespace(name=n) for n in names])
+        return [[n.name for n in g[0]] if isinstance(g, tuple) else g.name for g in groups]
+
+    # A delimiter split and a gather join the Quail run: one query.
+    assert shape(["chunker", "gatherer", "label"]) == [["chunker", "gatherer", "label"]]
+    # A token-count split runs in DocETL; the gather still joins the run.
+    assert shape(["token_split", "gatherer", "label"]) == ["token_split", ["gatherer", "label"]]
+    # With no Quail operation after them, split and gather run in DocETL.
+    assert shape(["chunker", "gatherer", "hosted"]) == ["chunker", "gatherer", "hosted"]
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_whole_chunking_pipeline_as_one_query(tmp_path, quail_server):
+    # The shape of MOAR's chunking rewrite: split, gather, per-chunk map, and
+    # a pass_through reduce per document, fused into one Quail query.
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "name": f"contract {i}", "body": "\n\n".join(f"clause {i}.{j}" for j in range(4))}
+            for i in range(3)]
+    gather = {"name": "gatherer", "type": "gather", "content_key": "body_chunk",
+              "doc_id_key": "chunker_id", "order_key": "chunker_chunk_num",
+              "peripheral_chunks": {"previous": {"tail": {"count": 1}}}}
+    chunk_map = {"name": "label", "type": "map", "prompt": "Label: {{ input.body_chunk_rendered }}",
+                 "output": {"schema": {"label": "string"}}}
+    merge = {"name": "merge", "type": "reduce", "reduce_key": "chunker_id", "pass_through": True,
+             "prompt": "Combine.{% for c in inputs %}\n- {{ c.label }}{% endfor %}",
+             "output": {"schema": {"summary": "string"}}}
+    config = _pipeline(tmp_path, quail_server, [SPLIT, gather, chunk_map, merge], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    output = sorted(json.loads((tmp_path / "out.json").read_text()), key=lambda r: r["id"])
+    # One row per contract, carrying the contract's fields and its first chunk's.
+    assert [(r["id"], r["name"], r["chunker_chunk_num"]) for r in output] == [
+        (0, "contract 0", 1), (1, "contract 1", 1), (2, "contract 2", 1)]
+    for row in output:
+        assert row["_counts_prereduce_merge"] == 4
+        assert row["body_chunk"] == f"clause {row['id']}.0"
+        assert "summary" in row

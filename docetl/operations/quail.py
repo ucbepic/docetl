@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 import uuid
 from collections import defaultdict
 from typing import Any
@@ -154,9 +155,13 @@ class QuailOperation(BaseOperation):
         self.console.log(
             f"[cyan]Quail[/cyan] running {names} on {len(input_data)} rows at {engine['endpoint']}"
         )
+        started = time.monotonic()
         with QuailClient(engine["endpoint"]) as client:
             client.upload(table_name, table, ID_COLUMN)
             result = client.run(compiled.sql, query_id=query_id)
+        # Quail Server's time, priced at engine.gpu_cost_per_hour, so cost
+        # comparisons with hosted models are fair. Saved rows cost ~nothing.
+        cost = (time.monotonic() - started) / 3600 * engine.get("gpu_cost_per_hour", 0.0)
 
         # Quail returns column names qualified by their table alias.
         rows = {name.split(".", 1)[-1]: values for name, values in result.to_pydict().items()}
@@ -170,7 +175,7 @@ class QuailOperation(BaseOperation):
                 for name, out in compiled.outputs.items():
                     row[name] = convert(rows[name][i], out)
                 output.append(row)
-            return output, 0.0
+            return output, cost
 
         # Group rows: restore each uploaded key's original value and type.
         originals: dict[str, dict[str | None, Any]] = defaultdict(dict)
@@ -188,4 +193,4 @@ class QuailOperation(BaseOperation):
                 else:
                     row[name] = convert(value, out)
             output.append(row)
-        return output, 0.0
+        return output, cost

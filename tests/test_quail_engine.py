@@ -133,6 +133,7 @@ def test_engine_for_resolves_pipeline_and_operation_settings():
         "endpoint": "grpc://h:1",
         "fallback": "litellm",
         "max_group_tokens": 24_000,
+        "gpu_cost_per_hour": 0.0,
     }
     assert engine_for({"engine": "litellm"}, pipeline) is None
     assert engine_for({}, {}) is None
@@ -521,3 +522,38 @@ def test_bypass_cache_asks_quail_server_for_a_fresh_run(tmp_path, fake_server):
     DSLRunner(config, max_threads=2).load_run_save()
     DSLRunner(config, max_threads=2).load_run_save()
     assert server.queries[0]["id"] != server.queries[1]["id"]
+
+
+def test_quail_model_names_route_operations_and_price_gpu_time(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [FILTER, MAP], rows)
+    del config["engine"]
+    config["default_model"] = "quail/qwen3-4b-fp8"
+    # A huge price, so the fake server's milliseconds show up as cost.
+    config["quail_models"] = {"qwen3-4b-fp8": {"endpoint": endpoint, "gpu_cost_per_hour": 3.6e6}}
+    cost = DSLRunner(config, max_threads=2).load_run_save()
+    assert len(server.queries) == 1
+    assert cost > 0
+    assert len(json.loads((tmp_path / "out.json").read_text())) == 2
+
+
+def test_quail_model_names_fail_when_an_operation_has_no_quail_form(tmp_path):
+    from docetl.containers import _group_quail_runs
+
+    ops = {"gleaned": {**MAP, "name": "gleaned", "gleaning": {"num_rounds": 1}}, "hosted": {**MAP, "name": "hosted", "model": "gemini/gemini-2.5-flash"}}
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+    # An operation with its own hosted model runs on LiteLLM.
+    (group,) = _group_quail_runs(runner, [SimpleNamespace(name="hosted")])
+    assert group.name == "hosted"
+    # A quail/ model cannot run on LiteLLM, so an ineligible operation fails.
+    with pytest.raises(ValueError, match="strict.*gleaning"):
+        _group_quail_runs(runner, [SimpleNamespace(name="gleaned")])
+    with pytest.raises(ValueError, match="needs a Quail Server"):
+        engine_for({"model": "quail/unknown"}, runner.config)

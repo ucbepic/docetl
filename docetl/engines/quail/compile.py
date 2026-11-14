@@ -57,13 +57,44 @@ class QuailUnsupported(ValueError):
     """An operation the Quail engine cannot run."""
 
 
+QUAIL_MODEL_PREFIX = "quail/"
+
+
 def engine_for(op_config: dict, pipeline_config: dict) -> dict | None:
     """Return the Quail engine settings for one operation, or None for LiteLLM.
 
-    ``engine`` on the pipeline applies to every operation; ``engine`` on an
-    operation overrides it: ``litellm`` opts out, ``quail`` opts in with the
-    pipeline's settings, and a dict sets its own.
+    Two ways pick the Quail engine:
+
+    - A model name ``quail/<model>`` (the operation's ``model``, else the
+      pipeline's ``default_model``) runs the operation on the Quail Server
+      that ``quail_models.<model>.endpoint`` names. Such an operation cannot
+      run on LiteLLM, so it fails when it has no Quail form. Optimizers such
+      as MOAR pick these names like any other model.
+    - ``engine`` on the pipeline applies to every operation; ``engine`` on an
+      operation overrides it: ``litellm`` opts out, ``quail`` opts in with
+      the pipeline's settings, and a dict sets its own.
+
+    ``gpu_cost_per_hour`` (on ``engine`` or a ``quail_models`` entry) prices
+    Quail Server's time, so cost comparisons with hosted models are fair.
     """
+    model = op_config.get("model") or pipeline_config.get("default_model") or ""
+    if isinstance(model, str) and model.startswith(QUAIL_MODEL_PREFIX):
+        name = model[len(QUAIL_MODEL_PREFIX):]
+        served = (pipeline_config.get("quail_models") or {}).get(name)
+        if not served or not served.get("endpoint"):
+            raise ValueError(
+                f"Model {model!r} needs a Quail Server: set quail_models: "
+                f"{{{name}: {{endpoint: grpc://host:50051}}}} in the pipeline"
+            )
+        return {
+            "type": "quail",
+            "endpoint": served["endpoint"],
+            "fallback": "strict",
+            "max_group_tokens": int(served.get("max_group_tokens", DEFAULT_MAX_GROUP_TOKENS)),
+            "gpu_cost_per_hour": float(served.get("gpu_cost_per_hour", 0.0)),
+            "model": name,
+        }
+
     pipeline = pipeline_config.get("engine")
     if isinstance(pipeline, str):
         pipeline = {"type": pipeline}
@@ -94,6 +125,7 @@ def engine_for(op_config: dict, pipeline_config: dict) -> dict | None:
         "endpoint": chosen["endpoint"],
         "fallback": fallback,
         "max_group_tokens": int(chosen.get("max_group_tokens", DEFAULT_MAX_GROUP_TOKENS)),
+        "gpu_cost_per_hour": float(chosen.get("gpu_cost_per_hour", 0.0)),
     }
 
 

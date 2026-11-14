@@ -52,6 +52,16 @@ class OpContainer:
     def name(self) -> str:
         return self._name
 
+    @property
+    def checkpoint_name(self) -> str:
+        """The operation name intermediate checkpoints are saved under.
+
+        A fused Quail run saves under its last operation's name: the runner's
+        per-operation hashes chain through a step, so that hash covers every
+        operation in the run.
+        """
+        return self.kwargs.get("checkpoint_name") or self.op_name
+
     @name.setter
     def name(self, value: str):
         self._name = value
@@ -382,11 +392,11 @@ class OpContainer:
             and not self.config.get("bypass_cache", False)
             and self.runner.checkpoints
         ):
-            cached = self.runner.checkpoints.load(self.step_name, self.op_name)
+            cached = self.runner.checkpoints.load(self.step_name, self.checkpoint_name)
             if cached is not None:
                 self.runner.console.log(
                     f"[green]✓[/green] [italic]Loaded checkpoint for operation "
-                    f"'{self.op_name}' in step '{self.step_name}'[/italic]"
+                    f"'{self.checkpoint_name}' in step '{self.step_name}'[/italic]"
                 )
                 self._notify_cached(cached)
                 return cached, 0, f"[green]✓[/green] Using cached {self.name}\n"
@@ -452,7 +462,7 @@ class OpContainer:
             input_sample_size = sample_size_needed
 
         if self.runner.checkpoints:
-            self.runner.checkpoints.clear_stale(self.step_name, self.op_name)
+            self.runner.checkpoints.clear_stale(self.step_name, self.checkpoint_name)
 
         input_data, input_len, cost, curr_logs = self._pull_children(
             is_build, input_sample_size
@@ -484,13 +494,13 @@ class OpContainer:
         if (
             not is_build
             and self.runner.checkpoints
-            and self.runner.checkpoints.has_hash(self.step_name, self.op_name)
+            and self.runner.checkpoints.has_hash(self.step_name, self.checkpoint_name)
         ):
             path = self.runner.checkpoints.save(
-                self.step_name, self.op_name, output_data
+                self.step_name, self.checkpoint_name, output_data
             )
             self.runner.console.log(
-                f"[green]✓ [italic]Intermediate saved for operation '{self.op_name}' "
+                f"[green]✓ [italic]Intermediate saved for operation '{self.checkpoint_name}' "
                 f"in step '{self.step_name}' at {path}[/italic][/green]"
             )
 
@@ -648,10 +658,14 @@ def build_operation_graph(runner: DSLRunner) -> None:
                     "engine": engine,
                     "ops": [runner.find_operation(n.name) for n in group],
                 }
+                if any(op.get("bypass_cache") for op in config["ops"]):
+                    config["bypass_cache"] = True
+                checkpoint_name = names[-1]
             else:
                 key = f"{step_name}/{group.name}"
                 config = runner.find_operation(group.name)
-            container = OpContainer(key, runner, config)
+                checkpoint_name = None
+            container = OpContainer(key, runner, config, checkpoint_name=checkpoint_name)
             container.add_child(runner.last_op_container)
             runner.last_op_container = container
             runner.op_container_map[key] = container

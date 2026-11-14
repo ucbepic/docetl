@@ -80,11 +80,16 @@ An operation runs on LiteLLM when it has no Quail form: another operation type, 
 
 A reduce group larger than `max_group_tokens` (about 4 characters per token) does not fit in the model's context. DocETL checks group sizes before the query when the reduce reads uploaded fields; with `fallback: litellm` it runs that run of operations on LiteLLM, where reduce can fold and merge, and with `fallback: strict` it fails.
 
+## Caching
+
+- **Quail Server's saved rows.** The query id is a hash of the SQL and the uploaded data. Quail Server runs one id once and keeps its rows in its `--data` folder, so a rerun reads the saved rows instead of using GPU time. `bypass_cache: true`, on the pipeline or on any operation in a run, sends a fresh id, so the server runs the query again.
+- **Intermediate checkpoints.** With `intermediate_dir` set, a fused run saves its rows under its last operation's name. The runner's operation hashes chain through a step, so the checkpoint is reused only while every operation in the run, and every operation before it, is unchanged.
+- **LLM call cache.** Quail runs make no LiteLLM calls, so DocETL's LLM cache does not hold them, and `docetl clear-cache` does not clear Quail Server's saved rows; delete the server's `--data` folder for that.
+
 ## Notes
 
 - The Quail engine ignores an operation's `model`: Quail Server runs the model it started with.
 - `max_tokens` for `AI.MAP` comes from the operation's `litellm_completion_kwargs.max_tokens`, or Quail's default of 256.
 - At startup, DocETL asks the server to plan each compiled query (`explain`) against an empty table, so a query Quail cannot plan fails before any GPU time.
-- The query id is a hash of the SQL and the uploaded data. Quail Server runs one id once and keeps its rows, so a rerun reads the saved rows instead of using GPU time.
 - Quail operations report a cost of $0.00, because the GPU runs outside DocETL.
 - `tests/quail_e2e/modal_e2e.py` runs the engine end to end against Qwen3 4B on a Modal H100.

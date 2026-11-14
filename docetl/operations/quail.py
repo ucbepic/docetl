@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections import defaultdict
 from typing import Any
 
@@ -144,13 +145,18 @@ class QuailOperation(BaseOperation):
         key = digest.hexdigest()[:24]
         table_name = f"docetl_{key}"
         compiled = compile_run(ops, table_name)
+        # The same query id reads Quail Server's saved rows; bypass_cache asks
+        # for a fresh run with a new id (the uploaded table stays the same).
+        query_id = f"docetl-{key}"
+        if self.bypass_cache or self.config.get("bypass_cache"):
+            query_id += f"-{uuid.uuid4().hex[:12]}"
 
         self.console.log(
             f"[cyan]Quail[/cyan] running {names} on {len(input_data)} rows at {engine['endpoint']}"
         )
         with QuailClient(engine["endpoint"]) as client:
             client.upload(table_name, table, ID_COLUMN)
-            result = client.run(compiled.sql, query_id=f"docetl-{key}")
+            result = client.run(compiled.sql, query_id=query_id)
 
         # Quail returns column names qualified by their table alias.
         rows = {name.split(".", 1)[-1]: values for name, values in result.to_pydict().items()}

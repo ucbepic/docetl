@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import threading
@@ -241,6 +242,7 @@ class FakeQuailServer(flight.FlightServerBase):
         self.tables: dict[str, pa.Table] = {}
         self.queries: list[dict] = []
         self.explained: list[str] = []
+        self.sql_by_id: dict[str, str] = {}
 
     def do_put(self, context, descriptor, reader, writer):
         name = descriptor.path[0].decode()
@@ -255,13 +257,16 @@ class FakeQuailServer(flight.FlightServerBase):
             return [flight.Result(b"plan")]
         if action.type == "submit":
             self.queries.append(body)
+            self.sql_by_id[body.get("id", "q")] = body["sql"]
             status = {"id": body.get("id", "q"), "state": "succeeded", "revision": 1}
         else:
             status = {"id": body["id"], "state": "succeeded", "revision": 1}
         return [flight.Result(json.dumps(status).encode())]
 
     def do_get(self, context, ticket):
-        (table,) = [t for name, t in self.tables.items() if not name.startswith("docetl_check_")]
+        query_id = json.loads(ticket.ticket.decode())["query_id"]
+        name = re.search(r"FROM `([^`]+)`", self.sql_by_id[query_id]).group(1)
+        table = self.tables[name]
         kept = [i for i in table.column("_docetl_id").to_pylist() if int(i) % 2 == 0]
         return flight.RecordBatchStream(
             pa.table(
@@ -469,3 +474,50 @@ def test_quail_form_directive_retries_until_the_parser_accepts(monkeypatch):
     assert cost == pytest.approx(0.002)
     # the retry carried the parser's error back to the model
     assert "a filter" in seen[1]
+
+
+def test_fused_run_checkpoints_under_its_last_operation(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [FILTER, MAP], rows)
+    config["pipeline"]["output"]["intermediate_dir"] = str(tmp_path / "intermediates")
+    DSLRunner(config, max_threads=2).load_run_save()
+    first = json.loads((tmp_path / "out.json").read_text())
+
+    # The run saves its rows under its last operation's name and step hash.
+    saved = json.loads((tmp_path / "intermediates" / "s" / "label.json").read_text())
+    assert saved == first
+    assert len(server.queries) == 1
+
+    # A rerun loads the checkpoint and sends no query.
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert json.loads((tmp_path / "out.json").read_text()) == first
+    assert len(server.queries) == 1
+
+    # Changing an operation in the run changes the hash, so the run reruns.
+    changed = {**MAP, "prompt": "Label this review: {{ input.body }}"}
+    config["operations"] = [FILTER, changed]
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert len(server.queries) == 2
+
+
+def test_bypass_cache_asks_quail_server_for_a_fresh_run(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = {**_pipeline(tmp_path, endpoint, [FILTER, MAP], rows), "bypass_cache": True}
+    DSLRunner(config, max_threads=2).load_run_save()
+    DSLRunner(config, max_threads=2).load_run_save()
+    ids = [query["id"] for query in server.queries]
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert all(i.startswith(ids[0][: len("docetl-") + 24]) for i in ids)
+
+    # An operation-level bypass_cache does the same.
+    server.queries.clear()
+    config = _pipeline(tmp_path, endpoint, [FILTER, {**MAP, "bypass_cache": True}], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert server.queries[0]["id"] != server.queries[1]["id"]

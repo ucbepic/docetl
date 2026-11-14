@@ -3,7 +3,7 @@ import os
 import re
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def extract_for_variable(template_content):
@@ -620,9 +620,13 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         ...,
         description="Jinja prompt template for the new map operation that processes chunks. Must reference {{ input.<split_key>_chunk_rendered }} to access the gathered chunk content.",
     )
-    reduce_prompt: str = Field(
-        ...,
-        description="Jinja prompt template for the reduce operation that aggregates chunk results. Must use {% for input in inputs %} to iterate over chunk results and produce the same output as the original map operation.",
+    reduce_prompt: Optional[str] = Field(
+        None,
+        description="Jinja prompt template for the reduce operation that aggregates chunk results. Must use {% for input in inputs %} to iterate over chunk results and produce the same output as the original map operation. Give this or merge_code.",
+    )
+    merge_code: Optional[str] = Field(
+        None,
+        description="Instead of reduce_prompt: Python code defining transform(items) that merges one document's chunk results (a list of dicts, in chunk order, each with the original operation's output fields) into one dict with the same output fields. It runs as a code_reduce, with no LLM call.",
     )
     gather_config: PeripheralChunksConfig = Field(
         default_factory=lambda: PeripheralChunksConfig(
@@ -689,13 +693,31 @@ class DocumentChunkingInstantiateSchema(BaseModel):
 
     @field_validator("reduce_prompt")
     @classmethod
-    def check_reduce_prompt_has_iteration(cls, v: str) -> str:
+    def check_reduce_prompt_has_iteration(cls, v: Optional[str]) -> Optional[str]:
         # Check that it contains iteration pattern for reduce
-        if "for input in inputs" not in v and "for item in inputs" not in v:
+        if v is not None and "for input in inputs" not in v and "for item in inputs" not in v:
             raise ValueError(
                 "The reduce_prompt must iterate over inputs using '{% for input in inputs %}' or '{% for item in inputs %}'"
             )
         return v
+
+    @field_validator("merge_code")
+    @classmethod
+    def check_merge_code(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            if "def transform(" not in v:
+                raise ValueError("merge_code must define transform(items)")
+            try:
+                compile(v, "<merge_code>", "exec")
+            except SyntaxError as error:
+                raise ValueError(f"merge_code does not compile: {error}") from error
+        return v
+
+    @model_validator(mode="after")
+    def check_one_merge(self):
+        if (self.reduce_prompt is None) == (self.merge_code is None):
+            raise ValueError("Give exactly one of reduce_prompt and merge_code")
+        return self
 
     @field_validator("gather_config")
     @classmethod

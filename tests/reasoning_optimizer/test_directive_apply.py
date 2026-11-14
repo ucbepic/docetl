@@ -465,6 +465,22 @@ def test_doc_chunking_apply():
     result = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_document", rewrite_no_sample)
     assert isinstance(result, list)
     assert len(result) == 4  # Should be split -> gather -> map -> reduce
+
+    # Merge code instead of an LLM reduce: a code_reduce per document
+    rewrite_code = DocumentChunkingInstantiateSchema(
+        chunk_size=1000,
+        split_key="document",
+        sub_prompt="Analyze this document chunk: {{ input.document_chunk_rendered }}",
+        merge_code="def transform(items):\n    return {'analysis': ' '.join(i['analysis'] for i in items)}",
+    )
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_document", rewrite_code)
+    assert result[-1]["type"] == "code_reduce" and result[-1]["pass_through"]
+    import pytest
+    with pytest.raises(ValueError):
+        DocumentChunkingInstantiateSchema(
+            chunk_size=1000, split_key="document",
+            sub_prompt="Analyze: {{ input.document_chunk_rendered }}",
+        )
     
     # Test with sampling
     rewrite_with_sample = DocumentChunkingInstantiateSchema(

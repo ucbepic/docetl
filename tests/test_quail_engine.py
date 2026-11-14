@@ -114,10 +114,13 @@ def test_compile_run_groups_a_reduce_after_a_filter():
         "AI.CLASSIFY(PROMPT('Summarize the reviews of one movie.{0} Answer only the field verdict.', "
         "STRING_AGG(CONCAT('\\n- ', c1.`body`), '\\n' ORDER BY c1.`_docetl_id`)), ['good', 'bad']) AS `verdict`, "
         "AI.MAP(STRING_AGG(CONCAT('\\n- ', c1.`body`), '\\n' ORDER BY c1.`_docetl_id`), "
-        "'Summarize the reviews of one movie.[inputs] Answer only the field summary.') AS `summary` "
-        "FROM c1 GROUP BY c1.`movie`)"
+        "'Summarize the reviews of one movie.[inputs] Answer only the field summary.') AS `summary`, "
+        "COUNT(*) AS `_counts_prereduce_per_movie` FROM c1 GROUP BY c1.`movie`)"
     ) in compiled.sql
-    assert compiled.sql.endswith("SELECT c2.`movie` AS `movie`, c2.`verdict` AS `verdict`, c2.`summary` AS `summary` FROM c2")
+    assert compiled.sql.endswith(
+        "SELECT c2.`movie` AS `movie`, c2.`verdict` AS `verdict`, c2.`summary` AS `summary`, "
+        "c2.`_counts_prereduce_per_movie` AS `_counts_prereduce_per_movie` FROM c2"
+    )
 
 
 def test_compile_run_reduces_everything_into_one_group():
@@ -416,7 +419,8 @@ def test_real_quail_server_runs_a_fused_filter_map_and_reduce(tmp_path, quail_se
     # One row per movie, with the integer key restored.
     assert sorted(row["movie"] for row in output) == [0, 1]
     for row in output:
-        assert set(row) == {"movie", "verdict", "summary"}
+        assert set(row) == {"movie", "verdict", "summary", "_counts_prereduce_per_movie"}
+        assert row["_counts_prereduce_per_movie"] == 4
         assert row["verdict"] in ("good", "bad")
         assert isinstance(row["summary"], str)
 
@@ -615,3 +619,24 @@ def test_non_llm_operations_run_as_usual_under_a_quail_default_model():
     groups = _group_quail_runs(runner, [SimpleNamespace(name="split"), SimpleNamespace(name="label")])
     assert groups[0].name == "split"
     assert [n.name for n in groups[1][0]] == ["label"]
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_reduce_passes_through_the_first_row(tmp_path, quail_server):
+    # MOAR's chunking rewrites end in a pass_through reduce; it keeps each
+    # group's first row's fields, including ones the run computed before it.
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "movie": i % 2, "title": f"title {i}", "body": f"review {i}"} for i in range(6)]
+    tag = {"name": "tag", "type": "map", "prompt": "Tag the review: {{ input.body }}",
+           "output": {"schema": {"tag": "string"}}}
+    reduce = {**REDUCE, "pass_through": True,
+              "prompt": "Summarize.{% for r in inputs %}\n- {{ r.body }}{% endfor %}"}
+    DSLRunner(_pipeline(tmp_path, quail_server, [tag, reduce], rows), max_threads=2).load_run_save()
+    output = sorted(json.loads((tmp_path / "out.json").read_text()), key=lambda r: r["movie"])
+    # One row per movie, carrying its first review's fields.
+    assert [(r["movie"], r["id"], r["title"], r["body"]) for r in output] == [
+        (0, 0, "title 0", "review 0"), (1, 1, "title 1", "review 1")]
+    for row in output:
+        assert {"tag", "verdict", "summary", "_counts_prereduce_per_movie"} <= set(row)
+        assert row["_counts_prereduce_per_movie"] == 3

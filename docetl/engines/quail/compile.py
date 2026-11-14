@@ -52,7 +52,6 @@ UNSUPPORTED_SETTINGS = (
     "fold_prompt",
     "merge_prompt",
     "value_sampling",
-    "pass_through",
 )
 
 
@@ -432,16 +431,42 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
             built = _ai_columns(
                 schema, prompt.template, [document], document, prompt.instruction(), _max_tokens(op)
             )
+            count = f"_counts_prereduce_{op['name']}"
             parts = [f"{_col(prev, k)} AS `{k}`" for k in keys]
             parts += [f"{expr} AS `{name}`" for name, expr, _ in built]
+            parts.append(f"COUNT(*) AS `{count}`")
             group_by = (" GROUP BY " + ", ".join(_col(prev, k) for k in keys)) if keys else ""
-            ctes.append(f"c{index} AS (SELECT {', '.join(parts)} FROM {prev}{group_by})")
             new = [name for name, _, _ in built]
-            columns = [k for k in keys if k not in new] + new
-            outputs = {k: outputs.get(k, OutputColumn(k, "key")) for k in keys if k not in new}
+            if op.get("pass_through") and ID_COLUMN in columns:
+                # pass_through keeps the fields of each group's first row:
+                # group, keep the first row's id, then join that row back.
+                # The result keeps its id, so it maps onto that input row.
+                parts.append(f"MIN({_col(prev, ID_COLUMN)}) AS `__docetl_first`")
+                ctes.append(f"c{index}_g AS (SELECT {', '.join(parts)} FROM {prev}{group_by})")
+                rest = [c for c in columns if c not in keys and c not in new and c != ID_COLUMN]
+                select = [f"g.`__docetl_first` AS `{ID_COLUMN}`"]
+                select += [f"g.`{c}` AS `{c}`" for c in [*keys, *new, count]]
+                select += [f"f.`{c}` AS `{c}`" for c in rest]
+                ctes.append(
+                    f"c{index} AS (SELECT {', '.join(select)} FROM c{index}_g g "
+                    f"JOIN {prev} f ON f.`{ID_COLUMN}` = g.`__docetl_first`)"
+                )
+                columns = [ID_COLUMN, *[k for k in keys if k not in new], *new, count, *rest]
+                outputs = {
+                    name: out for name, out in outputs.items() if name in rest or name in keys
+                }
+            else:
+                if op.get("pass_through"):
+                    raise QuailUnsupported(
+                        f"reduce {op['name']!r} sets pass_through after another reduce in the run"
+                    )
+                ctes.append(f"c{index} AS (SELECT {', '.join(parts)} FROM {prev}{group_by})")
+                columns = [k for k in keys if k not in new] + new + [count]
+                outputs = {k: outputs.get(k, OutputColumn(k, "key")) for k in keys if k not in new}
+                grouped = True
             for name, _, out in built:
                 outputs[name] = out
-            grouped = True
+            outputs[count] = OutputColumn(count, "integer")
         for key in op.get("drop_keys") or []:
             if key in columns and key != ID_COLUMN:
                 columns.remove(key)

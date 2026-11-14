@@ -1,16 +1,19 @@
 """Run the Quail MOAR experiment on MEDEC on Modal.
 
 One container gets one H100 per open model. It starts a quail-server per GPU,
-then runs ``run_medec.run`` with Gemini (the ``docetl-gemini`` Modal secret,
+then runs ``run_medec.py`` with Gemini (the ``docetl-gemini`` Modal secret,
 holding GEMINI_API_KEY) as MOAR's agent and as the hosted models. Results go
 to the ``docetl-quail-moar`` Modal volume.
 
 Run it from a Quail checkout (https://github.com/fsdatalab/quail), whose
-``quail.deploy.images`` builds the GPU image:
+``quail.deploy.images`` builds the GPU image. ``--pipeline``, ``--train``, and
+``--test`` are local files (such as the MOAR paper's medec.yaml and data),
+uploaded to the volume first:
 
     cd /path/to/quail
     DOCETL_REPO=/path/to/docetl modal run /path/to/docetl/experiments/quail_moar/modal_medec.py \\
-        --models qwen3-4b-fp8,qwen3.5-4b-fp8,lfm2-2.6b-bf16 --iterations 10
+        --pipeline medec.yaml --train medec_train.json --test medec_test.json \\
+        --models qwen3-4b-fp8 --iterations 10
 """
 
 import json
@@ -30,7 +33,6 @@ BRANCH = os.environ.get("DOCETL_BRANCH", "claude/nifty-meitner-afmb36")
 IGNORE = [".venv", ".git", "website", "node_modules", "docs", "**/__pycache__",
           "experiments/reasoning/data", "experiments/reasoning/outputs", "site"]
 H100_PER_HOUR = 3.95
-MAX_GPUS = 8
 
 app = modal.App("docetl-quail-moar")
 hf_cache = modal.Volume.from_name("quail-hf-cache", create_if_missing=True)
@@ -54,9 +56,9 @@ def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:
             ["python", "-m", "quail.remote.server", "--model", model, "--device", "h100-sxm",
              "--listen", f"127.0.0.1:{port}", "--data", f"/tmp/quail-{model}"],
             env={**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu)}))
-        endpoints[model] = {"endpoint": f"grpc://127.0.0.1:{port}", "gpu_cost_per_hour": H100_PER_HOUR}
-    for model, served in endpoints.items():
-        port = int(served["endpoint"].rsplit(":", 1)[1])
+        endpoints[model] = f"grpc://127.0.0.1:{port}"
+    for endpoint in endpoints.values():
+        port = int(endpoint.rsplit(":", 1)[1])
         for _ in range(600):
             try:
                 socket.create_connection(("127.0.0.1", port), timeout=1).close()
@@ -66,15 +68,25 @@ def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:
     return servers, endpoints
 
 
-def _experiment(models, hosted, agent, iterations, n_train, n_test, name) -> str:
+@app.function(
+    image=image, gpu="H100", timeout=6 * 3600, memory=65_536,
+    secrets=[modal.Secret.from_name("docetl-gemini")],
+    volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/kernels": kernel_cache,
+             "/results": results},
+)
+def experiment(models: list[str], hosted: list[str], agent: str, iterations: int,
+               name: str, inputs: dict, reasoning_effort: str) -> str:
     servers, endpoints = _serve(models)
     work = f"/results/{name}"
     try:
         args = ["/opt/dvenv/bin/python", "/opt/docetl/experiments/quail_moar/run_medec.py",
                 "--work-dir", work, "--agent", agent, "--iterations", str(iterations),
-                "--n-train", str(n_train), "--n-test", str(n_test), "--hosted", *hosted,
-                "--gpu-cost-per-hour", str(H100_PER_HOUR),
-                "--quail", *(f"{m}={e['endpoint']}" for m, e in endpoints.items())]
+                "--hosted", *hosted, "--gpu-cost-per-hour", str(H100_PER_HOUR),
+                "--quail", *(f"{m}={e}" for m, e in endpoints.items())]
+        for flag, path in inputs.items():
+            args += [f"--{flag}", f"/results/{path}"]
+        if reasoning_effort:
+            args += ["--reasoning-effort", reasoning_effort]
         done = subprocess.run(args, env={**os.environ, "PYTHONPATH": "/opt/docetl"})
         results.commit()
         summary = os.path.join(work, "summary.json")
@@ -86,29 +98,25 @@ def _experiment(models, hosted, agent, iterations, n_train, n_test, name) -> str
             server.terminate()
 
 
-def _function(gpus: int):
-    return app.function(
-        image=image, gpu=f"H100:{gpus}", timeout=6 * 3600, memory=65_536 * gpus,
-        secrets=[modal.Secret.from_name("docetl-gemini")],
-        volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/kernels": kernel_cache,
-                 "/results": results},
-        name=f"experiment_{gpus}gpu", serialized=True,
-    )(_experiment)
-
-
-EXPERIMENTS = {gpus: _function(gpus) for gpus in range(1, MAX_GPUS + 1)}
-
-
 @app.local_entrypoint()
-def main(models: str = "qwen3-4b-fp8,qwen3.5-4b-fp8,lfm2-2.6b-bf16",
-         hosted: str = "gemini/gemini-2.5-flash-lite,gemini/gemini-2.5-flash",
-         agent: str = "gemini/gemini-2.5-pro", iterations: int = 10,
-         n_train: int = 100, n_test: int = 200, name: str = ""):
+def main(models: str = "qwen3-4b-fp8",
+         hosted: str = "gemini/gemini-4-hydrogen,gemini/gemini-4-argon",
+         agent: str = "gemini/gemini-4-argon", iterations: int = 10,
+         pipeline: str = "", train: str = "", test: str = "",
+         reasoning_effort: str = "high", name: str = ""):
     chosen = [m for m in models.split(",") if m]
     name = name or f"medec-{time.strftime('%Y%m%d-%H%M%S')}"
-    print(f"experiment {name}: {len(chosen)} H100s for {chosen}")
-    out = EXPERIMENTS[len(chosen)].remote(
-        chosen, [h for h in hosted.split(",") if h], agent, iterations, n_train, n_test, name)
+    inputs = {}
+    with results.batch_upload(force=True) as upload:
+        for flag, path in (("pipeline", pipeline), ("train", train), ("test", test)):
+            if path:
+                remote = f"{name}/inputs/{os.path.basename(path)}"
+                upload.put_file(path, f"/{remote}")
+                inputs[flag] = remote
+    print(f"experiment {name}: {len(chosen)} H100s for {chosen}; inputs {inputs}")
+    run = experiment.with_options(gpu=f"H100:{len(chosen)}") if len(chosen) > 1 else experiment
+    out = run.remote(chosen, [h for h in hosted.split(",") if h], agent, iterations,
+                     name, inputs, reasoning_effort)
     try:
         print(json.dumps(json.loads(out), indent=2))
     except json.JSONDecodeError:

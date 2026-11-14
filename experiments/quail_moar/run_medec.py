@@ -27,6 +27,29 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
+def use_reasoning_effort(effort: str | None, prefix: str = "gemini/gemini-4") -> None:
+    """Send ``reasoning_effort`` on every LiteLLM call to models under ``prefix``.
+
+    Installed before DocETL is imported, so MOAR's agent, its directives, and
+    every pipeline operation (including ones MOAR adds) get the same effort.
+    """
+    if not effort:
+        return
+    import litellm
+
+    def wrap(fn):
+        def call(*args, **kwargs):
+            model = kwargs.get("model", args[0] if args else "")
+            if isinstance(model, str) and model.startswith(prefix):
+                kwargs.setdefault("reasoning_effort", effort)
+            return fn(*args, **kwargs)
+
+        return call
+
+    litellm.completion = wrap(litellm.completion)
+    litellm.acompletion = wrap(litellm.acompletion)
+
+
 from experiments.quail_moar.medec_data import build as build_data  # noqa: E402
 from experiments.reasoning.evaluation.medec import evaluate_results  # noqa: E402
 
@@ -95,10 +118,13 @@ def run(
     work_dir: str,
     quail_models: dict,
     hosted_models: list[str],
-    agent_model: str = "gemini/gemini-2.5-pro",
+    agent_model: str = "gemini/gemini-4-argon",
     iterations: int = 10,
     n_train: int = 100,
     n_test: int = 200,
+    pipeline: str | None = None,
+    train: str | None = None,
+    test: str | None = None,
 ) -> dict:
     """Run the MOAR search and the held-out test; write and return a summary."""
     from docetl.moar.MOARSearch import MOARSearch
@@ -106,11 +132,24 @@ def run(
 
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
-    train, test = build_data(str(work / "data"), n_train=n_train, n_test=n_test)
+    if not (train and test):
+        train, test = build_data(str(work / "data"), n_train=n_train, n_test=n_test)
     available = [*hosted_models, *(f"quail/{name}" for name in quail_models)]
-    root = build_pipeline(
-        work / "medec.yaml", train, str(work / "medec_root.json"), available[0], quail_models
-    )
+    if pipeline:
+        # A given pipeline (such as the MOAR paper's medec.yaml), pointed at
+        # this run's data, models, and output.
+        config = yaml.safe_load(Path(pipeline).read_text())
+        for dataset in config["datasets"].values():
+            dataset["path"] = train
+        config["default_model"] = available[0]
+        config["quail_models"] = quail_models
+        config["pipeline"]["output"]["path"] = str(work / "medec_root.json")
+        root = work / "medec.yaml"
+        root.write_text(yaml.safe_dump(config, sort_keys=False))
+    else:
+        root = build_pipeline(
+            work / "medec.yaml", train, str(work / "medec_root.json"), available[0], quail_models
+        )
 
     (work / "moar").mkdir(exist_ok=True)
     started = time.time()
@@ -155,8 +194,11 @@ def run(
         "available_models": available,
         "quail_models": quail_models,
         "iterations": iterations,
-        "n_train": n_train,
-        "n_test": n_test,
+        "pipeline": pipeline,
+        "train": train,
+        "test": test,
+        "n_train": len(json.loads(Path(train).read_text())),
+        "n_test": len(json.loads(Path(test).read_text())),
         "search_seconds": round(search_seconds, 1),
         "search_cost": moar.total_search_cost,
         "first_layer": moar.model_stats,
@@ -170,18 +212,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--quail", nargs="*", default=[], help="model=endpoint, e.g. qwen3-4b-fp8=grpc://host:50051")
-    parser.add_argument("--hosted", nargs="*", default=["gemini/gemini-2.5-flash-lite", "gemini/gemini-2.5-flash"])
-    parser.add_argument("--agent", default="gemini/gemini-2.5-pro")
+    parser.add_argument("--hosted", nargs="*", default=["gemini/gemini-4-hydrogen", "gemini/gemini-4-argon"])
+    parser.add_argument("--agent", default="gemini/gemini-4-argon")
     parser.add_argument("--iterations", type=int, default=10)
     parser.add_argument("--n-train", type=int, default=100)
     parser.add_argument("--n-test", type=int, default=200)
     parser.add_argument("--gpu-cost-per-hour", type=float, default=H100_PER_HOUR)
+    parser.add_argument("--pipeline", help="a pipeline YAML to start from (default: a built-in one)")
+    parser.add_argument("--train", help="training data JSON (default: sampled from MEDEC)")
+    parser.add_argument("--test", help="held-out test data JSON (default: sampled from MEDEC)")
+    parser.add_argument("--reasoning-effort", default=None, help="reasoning_effort for gemini-4 models")
     args = parser.parse_args()
+    use_reasoning_effort(args.reasoning_effort)
     quail_models = {}
     for item in args.quail:
         name, endpoint = item.split("=", 1)
         quail_models[name] = {"endpoint": endpoint, "gpu_cost_per_hour": args.gpu_cost_per_hour}
-    summary = run(args.work_dir, quail_models, args.hosted, args.agent, args.iterations, args.n_train, args.n_test)
+    summary = run(args.work_dir, quail_models, args.hosted, args.agent, args.iterations,
+                  args.n_train, args.n_test, args.pipeline, args.train, args.test)
     print(json.dumps(summary, indent=2, default=str))
 
 

@@ -162,6 +162,50 @@ def _item_kind(type_str: str) -> tuple[str, list[str]]:
     raise QuailUnsupported(f"output type {type_str!r} has no Quail form")
 
 
+def _split_top(text: str) -> list[str]:
+    """Split on commas outside brackets and braces."""
+    parts, depth, current = [], 0, ""
+    for char in text:
+        if char in "[{":
+            depth += 1
+        elif char in "]}":
+            depth -= 1
+        if char == "," and depth == 0:
+            parts.append(current)
+            current = ""
+        else:
+            current += char
+    if current.strip():
+        parts.append(current)
+    return [part.strip() for part in parts]
+
+
+def describe_type(type_str: str) -> str:
+    """Describe a DocETL output type in words, with no braces.
+
+    AI.MAP refuses an instruction with braces, so a JSON item's type, such as
+    ``list[{clause_type: string, text_span: string}]``, is spelled out:
+    "a list of objects with fields clause_type (string) and text_span (string)".
+    """
+    text = type_str.strip()
+    lowered = text.lower()
+    if lowered.startswith("list[") and text.endswith("]"):
+        inner = describe_type(text[5:-1])
+        if inner.startswith("an object "):
+            return "a list of objects " + inner[len("an object "):]
+        return f"a list of {inner} values"
+    if text.startswith("{") and text.endswith("}"):
+        fields = []
+        for part in _split_top(text[1:-1]):
+            name, _, value = part.partition(":")
+            fields.append(f"{name.strip()} ({describe_type(value)})")
+        joined = ", ".join(fields[:-1]) + (" and " if len(fields) > 1 else "") + fields[-1]
+        return f"an object with fields {joined}"
+    if lowered.startswith("enum[") and text.endswith("]"):
+        return "one of " + ", ".join(label.strip() for label in text[5:-1].split(","))
+    return text
+
+
 def reduce_keys(op_config: dict) -> list[str]:
     """The reduce's group keys; ``_all`` (one group) gives none."""
     keys = op_config.get("reduce_key")
@@ -213,6 +257,11 @@ def check_eligible(op_config: dict) -> None:
             parse_prompt(op_config.get("prompt") or "")
     except QuailPromptError as error:
         raise QuailUnsupported(f"operation {name!r}: {error}") from error
+
+
+def _instruction(text: str) -> str:
+    """An AI.MAP instruction: AI.MAP refuses braces, so none get through."""
+    return text.replace("{", "(").replace("}", ")")
 
 
 def _lit(text: str) -> str:
@@ -284,13 +333,13 @@ def _ai_columns(
             expr = f"AI.CLASSIFY(PROMPT({_lit(template + ask)}, {arg_list}), [{label_list}])"
         elif kind in ("integer", "number"):
             text = instruction + ask + " Answer with a number only."
-            expr = f"TRY_CAST(AI.MAP({document}, {_lit(text)}{token_arg}) AS DOUBLE)"
+            expr = f"TRY_CAST(AI.MAP({document}, {_lit(_instruction(text))}{token_arg}) AS DOUBLE)"
         elif kind == "json":
-            text = instruction + ask + f" Answer with JSON only, of type {type_str}."
+            text = instruction + ask + f" Answer with JSON only: {describe_type(str(type_str))}."
             json_tokens = f", {int(max_tokens or DEFAULT_JSON_MAX_TOKENS)}"
-            expr = f"AI.MAP({document}, {_lit(text)}{json_tokens})"
+            expr = f"AI.MAP({document}, {_lit(_instruction(text))}{json_tokens})"
         else:
-            expr = f"AI.MAP({document}, {_lit(instruction + ask)}{token_arg})"
+            expr = f"AI.MAP({document}, {_lit(_instruction(instruction + ask))}{token_arg})"
         built.append((key, expr, OutputColumn(key, kind)))
     return built
 

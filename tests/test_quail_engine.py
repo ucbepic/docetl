@@ -565,3 +565,35 @@ def test_json_outputs_get_room_for_their_answer():
     assert ", 4096) AS `clauses`" in sql
     op["litellm_completion_kwargs"] = {"max_tokens": 900}
     assert ", 900) AS `clauses`" in compile_run([op], "docs").sql
+
+
+def test_json_instructions_describe_types_without_braces():
+    from docetl.engines.quail.compile import describe_type
+
+    assert describe_type("list[{clause_type: string, text_span: string}]") == (
+        "a list of objects with fields clause_type (string) and text_span (string)"
+    )
+    op = {**MAP, "output": {"schema": {"clauses": "list[{clause_type: string, text_span: string}]"}}}
+    sql = compile_run([op], "docs").sql
+    instruction = sql.split("AI.MAP(", 1)[1].split("',", 1)[0]
+    assert "{" not in instruction and "}" not in instruction
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_list_of_objects_output(tmp_path, quail_server):
+    # CUAD's output type: Quail refuses AI.MAP instructions with braces, which
+    # an earlier version put there by quoting the type.
+    from docetl.runner import DSLRunner
+
+    op = {
+        "name": "clauses",
+        "type": "map",
+        "prompt": "Extract the clauses of {{ input.body }}",
+        "output": {"schema": {"clauses": "list[{clause_type: string, text_span: string}]"}},
+    }
+    rows = [{"id": i, "body": f"contract {i}"} for i in range(3)]
+    DSLRunner(_pipeline(tmp_path, quail_server, [op], rows), max_threads=2).load_run_save()
+    output = json.loads((tmp_path / "out.json").read_text())
+    assert [row["id"] for row in output] == [0, 1, 2]
+    # The oracle answers with text, not JSON, so the field parses to None.
+    assert all("clauses" in row for row in output)

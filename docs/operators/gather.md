@@ -400,6 +400,22 @@ The Gather operation maintains document structure through header hierarchies.
 3. When rendering a chunk, the operation includes all the most recent headers from higher levels found in previous chunks.
 4. This ensures that each rendered chunk includes a complete "path" of headers leading to its content, preserving the document's overall structure and context.
 
+Chunks with no new headings inherit the complete active path. A new heading
+replaces the heading at its level and removes every deeper heading, even when
+levels are skipped. Headings already present in the current chunk are not
+duplicated in its ancestor prefix. Each document's hierarchy is reconstructed
+independently in `order_key` order.
+
+`doc_header_key` also works without `peripheral_chunks`: inherited headers are
+prepended to the main content without adding neighbor sections or chunk markers.
+If no inherited context is available, the original content is returned unchanged.
+
+Header metadata should contain entries with a string `header` and a positive
+integer `level`. An empty list or `None` means that the chunk has no new headings.
+Malformed metadata is logged and its context is omitted; the active hierarchy is
+cleared so later chunks cannot inherit a possibly incorrect section. Subsequent
+valid headings start a new hierarchy.
+
 ### Example: Header Handling in Legal Contracts
 
 ![Example of Document Header Handling in a Gather Operation](../assets/headerdiagram.png)

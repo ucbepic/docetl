@@ -96,7 +96,7 @@ A reduce group larger than `max_group_tokens` (about 4 characters per token) doe
 ## Notes
 
 - The Quail engine ignores an operation's `model`: Quail Server runs the model it started with.
-- `max_tokens` for `AI.MAP` comes from the operation's `litellm_completion_kwargs.max_tokens`; otherwise JSON outputs get 4096 and text outputs get Quail's default of 256.
+- `max_tokens` for `AI.MAP` comes from the operation's `litellm_completion_kwargs.max_tokens`; otherwise JSON outputs get 4096 tokens and text outputs get 2048. Quail spends only the tokens the model writes, so a higher limit costs nothing unless the answer needs it.
 - At startup, DocETL asks the server to plan each compiled query (`explain`) against an empty table, so a query Quail cannot plan fails before any GPU time.
 - A Quail run's cost is its GPU time on Quail Server, from when the server has the model ready for the query to when the query finishes, priced at `gpu_cost_per_hour` (0 by default). Time in the server's queue, the server's cold start (loading the model, compiling kernels), and saved rows cost nothing.
 - `tests/quail_e2e/modal_e2e.py` runs the engine end to end against Qwen3 4B on a Modal H100.

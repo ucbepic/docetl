@@ -31,6 +31,9 @@ ID_COLUMN = "_docetl_id"
 # Lists and objects come back as JSON text; Quail's AI.MAP default of 256
 # tokens cuts them off, and a cut-off answer does not parse.
 DEFAULT_JSON_MAX_TOKENS = 4096
+# Free text gets room too: a cut-off answer loses content (such as a
+# subtask's list of clauses), and Quail spends only the tokens it writes.
+DEFAULT_TEXT_MAX_TOKENS = 2048
 SUPPORTED_TYPES = ("filter", "map", "parallel_map", "extract", "reduce")
 DEFAULT_MAX_GROUP_TOKENS = 24_000
 
@@ -645,7 +648,8 @@ def _ai_columns(
             json_tokens = f", {int(max_tokens or DEFAULT_JSON_MAX_TOKENS)}"
             expr = f"AI.MAP({document}, {_lit(_instruction(text))}{json_tokens})"
         else:
-            expr = f"AI.MAP({document}, {_lit(_instruction(instruction + ask))}{token_arg})"
+            text_tokens = f", {int(max_tokens or DEFAULT_TEXT_MAX_TOKENS)}"
+            expr = f"AI.MAP({document}, {_lit(_instruction(instruction + ask))}{text_tokens})"
         built.append((key, expr, OutputColumn(key, kind)))
     return built
 

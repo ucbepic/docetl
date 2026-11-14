@@ -114,7 +114,7 @@ def test_compile_run_groups_a_reduce_after_a_filter():
         "AI.CLASSIFY(PROMPT('Summarize the reviews of one movie.{0} Answer only the field verdict.', "
         "STRING_AGG(CONCAT('\\n- ', c1.`body`), '\\n' ORDER BY c1.`_docetl_id`)), ['good', 'bad']) AS `verdict`, "
         "AI.MAP(STRING_AGG(CONCAT('\\n- ', c1.`body`), '\\n' ORDER BY c1.`_docetl_id`), "
-        "'Summarize the reviews of one movie.[inputs] Answer only the field summary.') AS `summary`, "
+        "'Summarize the reviews of one movie.[inputs] Answer only the field summary.', 2048) AS `summary`, "
         "COUNT(*) AS `_counts_prereduce_per_movie` FROM c1 GROUP BY c1.`movie`)"
     ) in compiled.sql
     assert compiled.sql.endswith(
@@ -172,7 +172,7 @@ def test_compile_run_fuses_a_filter_and_a_map_into_one_query():
         "c2 AS (SELECT c1.`_docetl_id` AS `_docetl_id`, c1.`body` AS `body`, "
         "AI.CLASSIFY(PROMPT('Label the review: {0} Answer only the field kind.', c1.`body`), "
         "['praise', 'complaint']) AS `kind`, "
-        "AI.MAP(c1.`body`, 'Label the review: [body] Answer only the field summary.') AS `summary`, "
+        "AI.MAP(c1.`body`, 'Label the review: [body] Answer only the field summary.', 2048) AS `summary`, "
         "TRY_CAST(AI.MAP(c1.`body`, 'Label the review: [body] Answer only the field stars. "
         "Answer with a number only.') AS DOUBLE) AS `stars` FROM c1)\n"
         "SELECT c2.`_docetl_id` AS `_docetl_id`, c2.`body` AS `body`, c2.`kind` AS `kind`, "
@@ -802,7 +802,7 @@ EXTRACT = {
 def test_parallel_map_and_extract_compile_to_ai_functions():
     sql = compile_run([PARALLEL], "docs").sql
     assert "AI.IF(PROMPT('Is the review positive? {0}', c0.`body`)) AS `positive`" in sql
-    assert "AI.MAP(c0.`body`, 'Summarize the review: [body]') AS `summary`" in sql
+    assert "AI.MAP(c0.`body`, 'Summarize the review: [body]', 2048) AS `summary`" in sql
     sql = compile_run([EXTRACT], "docs").sql
     assert ("get_field(AI_EXTRACT(c0.`body`, named_struct('answer', 'Which law governs the contract?')), "
             "'answer') AS `body_extracted_law`") in sql

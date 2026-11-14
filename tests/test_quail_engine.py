@@ -7,6 +7,9 @@ Three layers:
    the client calls and how result rows map back to DocETL rows.
 3. A real ``quail-server`` with Quail's oracle worker (no GPU), when
    ``QUAIL_REPO`` points to a Quail checkout built with ``tools/build.sh``.
+
+``tests/quail_e2e/modal_e2e.py`` runs the engine against a real model on a
+Modal H100 (not collected by pytest).
 """
 
 from __future__ import annotations

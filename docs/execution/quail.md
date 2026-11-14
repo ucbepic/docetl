@@ -87,3 +87,4 @@ A reduce group larger than `max_group_tokens` (about 4 characters per token) doe
 - At startup, DocETL asks the server to plan each compiled query (`explain`) against an empty table, so a query Quail cannot plan fails before any GPU time.
 - The query id is a hash of the SQL and the uploaded data. Quail Server runs one id once and keeps its rows, so a rerun reads the saved rows instead of using GPU time.
 - Quail operations report a cost of $0.00, because the GPU runs outside DocETL.
+- `tests/quail_e2e/modal_e2e.py` runs the engine end to end against Qwen3 4B on a Modal H100.

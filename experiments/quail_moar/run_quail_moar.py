@@ -76,9 +76,10 @@ QUAIL_NOTES = (
     "{{ input.document }}: no Jinja filters, loops, conditionals, or macros, "
     "and no braces in the fixed text. A quail reduce prompt is fixed text "
     "around exactly one {% for item in inputs %} loop over plain item fields. "
-    "Gleaning, validation, tools, and batch prompts do not run on Quail. Give "
-    "an operation a hosted model (gemini/...) when it needs any of these."
+    "Gleaning, validation, tools, and batch prompts do not run on Quail."
 )
+HOSTED_NOTE = " Give an operation a hosted model (gemini/...) when it needs any of these."
+QUAIL_ONLY_NOTE = " Use only the quail/* models: every operation must run on Quail."
 
 
 def evaluator(workload: str, data: str, ground_truth: str | None):
@@ -188,7 +189,7 @@ def run(
         config["quail_models"] = quail_models
         config["pipeline"]["output"]["path"] = str(work / f"{workload}_root.json")
         if quail_models:
-            config["quail_engine_notes"] = QUAIL_NOTES
+            config["quail_engine_notes"] = QUAIL_NOTES + (HOSTED_NOTE if hosted_models else QUAIL_ONLY_NOTE)
         root = work / f"{workload}.yaml"
         root.write_text(yaml.safe_dump(config, sort_keys=False))
     else:

@@ -932,3 +932,32 @@ def test_real_quail_server_reports_query_seconds_and_none_for_saved_rows(quail_s
         assert 0 < client.query_seconds < 60
         client.run(sql, query_id="timed-1")  # saved rows
         assert client.query_seconds == 0
+
+
+def test_independent_ai_operations_share_one_select():
+    second = {**MAP, "name": "tone", "prompt": "Rate the tone: {{ input.body }}",
+              "output": {"schema": {"tone": "string"}}}
+    reads_first = {**MAP, "name": "follow", "prompt": "Expand: {{ input.summary }}",
+                   "output": {"schema": {"longer": "string"}}}
+    question = {"name": "ask", "type": "extract", "prompt": "Who is the reviewer?",
+                "document_keys": ["body"]}
+    sql = compile_run([MAP, second, question], "t").sql
+    # One CTE computes every AI column, over the same source.
+    ai_ctes = [c for c in sql.split(",\nc") if "AI." in c or "AI_EXTRACT" in c]
+    assert len(ai_ctes) == 1 and "FROM c0)" in ai_ctes[0]
+    # An operation that reads an earlier one's output gets its own SELECT.
+    sql = compile_run([MAP, reads_first], "t").sql
+    assert len([c for c in sql.split(",\nc") if "AI." in c]) == 2
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_independent_operations_in_one_select(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    second = {**MAP, "name": "tone", "prompt": "Rate the tone: {{ input.body }}",
+              "output": {"schema": {"tone": "string"}}}
+    config = _pipeline(tmp_path, quail_server, [MAP, second], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert out and all({"kind", "summary", "stars", "tone"} <= set(r) for r in out)

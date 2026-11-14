@@ -679,6 +679,22 @@ def _row_columns(op: dict, prev: str, schema: dict) -> list[tuple[str, str, Outp
     return built
 
 
+def _row_reads(op: dict) -> list[str]:
+    """The fields a map, parallel_map, or extract reads."""
+    if op["type"] == "extract":
+        return list(op["document_keys"])
+    if op["type"] == "parallel_map":
+        return [f for pc in op["prompts"] for f in parse_prompt(pc["prompt"]).fields]
+    return list(parse_prompt(op["prompt"]).fields)
+
+
+def _render_group(group: dict) -> str:
+    source = group["source"]
+    parts = [f"{_col(source, c)} AS `{c}`" for c in group["keep"]]
+    parts += [f"{expr} AS `{name}`" for name, expr in group["exprs"]]
+    return f"{group['name']} AS (SELECT {', '.join(parts)} FROM {source})"
+
+
 def _max_tokens(op: dict) -> int | None:
     return (op.get("litellm_completion_kwargs") or {}).get("max_tokens")
 
@@ -733,8 +749,12 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
     grouped = False
     group_reads = None
 
+    # The open SELECT of consecutive map, parallel_map, and extract columns.
+    group: dict | None = None
     for index, op in enumerate(ops, start=1):
         prev = f"c{index - 1}"
+        if op["type"] not in ("map", "parallel_map", "extract"):
+            group = None
         if op["type"] in SQL_TYPES:
             if op["type"] == "split":
                 if id_col not in columns:
@@ -771,13 +791,28 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
             outputs.pop(key, None)
             dropped.append(key)
         elif op["type"] in ("map", "parallel_map", "extract"):
-            built = _row_columns(op, prev, schema)
-            new = [name for name, _, _ in built]
-            keep = [c for c in columns if c not in new]
-            parts = [f"{_col(prev, c)} AS `{c}`" for c in keep]
-            parts += [f"{expr} AS `{name}`" for name, expr, _ in built]
-            ctes.append(f"c{index} AS (SELECT {', '.join(parts)} FROM {prev})")
-            columns = keep + new
+            reads = set(_row_reads(op))
+            if group is not None and not reads & group["written"]:
+                # Independent of the AI columns before it: join their SELECT,
+                # so Quail reads each document once for all of them.
+                built = _row_columns(op, group["source"], schema)
+                new = [name for name, _, _ in built]
+                group["keep"] = [c for c in group["keep"] if c not in new]
+                group["exprs"] = [(n, e) for n, e in group["exprs"] if n not in new]
+                group["exprs"] += [(name, expr) for name, expr, _ in built]
+                group["written"].update(new)
+                ctes[group["pos"]] = _render_group(group)
+                ctes.append(f"c{index} AS (SELECT * FROM {group['name']})")
+            else:
+                built = _row_columns(op, prev, schema)
+                new = [name for name, _, _ in built]
+                group = {
+                    "pos": len(ctes), "name": f"c{index}", "source": prev,
+                    "keep": [c for c in columns if c not in new],
+                    "exprs": [(name, expr) for name, expr, _ in built], "written": set(new),
+                }
+                ctes.append(_render_group(group))
+            columns = [c for c in columns if c not in new] + new
             for name, _, out in built:
                 outputs[name] = out
                 if name in dropped:
@@ -835,6 +870,8 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
             for name, _, out in built:
                 outputs[name] = out
             outputs[count] = OutputColumn(count, "integer")
+        if op.get("drop_keys"):
+            group = None
         for key in op.get("drop_keys") or []:
             if key in columns and key != id_col:
                 columns.remove(key)

@@ -77,7 +77,7 @@ def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:
 def experiment(models: list[str], hosted: list[str], agent: str, iterations: int,
                name: str, inputs: dict, reasoning_effort: str, workload: str,
                agent_reasoning_effort: str = "", concurrent_agents: int = 3,
-               focus_quail: bool = False) -> str:
+               focus_quail: bool = False, reduce_model: str = "") -> str:
     servers, endpoints = _serve(models)
     work = f"/results/{name}"
     try:
@@ -94,6 +94,8 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
         args += ["--concurrent-agents", str(concurrent_agents)]
         if focus_quail:
             args += ["--focus-quail"]
+        if reduce_model:
+            args += ["--reduce-model", reduce_model]
         done = subprocess.run(args, env={**os.environ, "PYTHONPATH": "/opt/docetl"})
         results.commit()
         summary = os.path.join(work, "summary.json")
@@ -112,7 +114,7 @@ def main(models: str = "qwen3-4b-fp8",
          pipeline: str = "", train: str = "", test: str = "", ground_truth: str = "",
          reasoning_effort: str = "medium", agent_reasoning_effort: str = "medium",
          concurrent_agents: int = 6, name: str = "", workload: str = "medec",
-         focus_quail: bool = False):
+         focus_quail: bool = False, reduce_model: str = ""):
     chosen = [m for m in models.split(",") if m]
     name = name or f"{workload}-{time.strftime('%Y%m%d-%H%M%S')}"
     inputs = {}
@@ -127,7 +129,8 @@ def main(models: str = "qwen3-4b-fp8",
     run = experiment.with_options(gpu=f"H100:{len(chosen)}") if len(chosen) > 1 else experiment
     out = run.remote(chosen, [h for h in hosted.split(",") if h], agent, iterations,
                      name, inputs, reasoning_effort, workload,
-                     agent_reasoning_effort, concurrent_agents, focus_quail)
+                     agent_reasoning_effort, concurrent_agents, focus_quail,
+                     reduce_model)
     try:
         print(json.dumps(json.loads(out), indent=2))
     except json.JSONDecodeError:

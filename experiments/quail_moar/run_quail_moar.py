@@ -145,6 +145,26 @@ QUAIL_NOTES = (
 )
 HOSTED_NOTE = " Give an operation a hosted model (gemini/...) when it needs any of these."
 QUAIL_ONLY_NOTE = " Use only the quail/* models: every operation must run on Quail."
+REDUCE_NOTE = (
+    " Exception: every reduce operation runs on the hosted model {model}, whatever "
+    "model it names, so a reduce prompt may use any Jinja."
+)
+
+
+def route_reduces(model: str) -> None:
+    """Run every reduce operation on ``model``, in every pipeline this process runs."""
+    from docetl.runner import DSLRunner
+
+    init = DSLRunner.__init__
+
+    def patched(self, config, *args, **kwargs):
+        if isinstance(config, dict):
+            for op in config.get("operations", []):
+                if op.get("type") == "reduce":
+                    op["model"] = model
+        init(self, config, *args, **kwargs)
+
+    DSLRunner.__init__ = patched
 
 
 def evaluator(workload: str, data: str, ground_truth: str | None):
@@ -231,6 +251,7 @@ def run(
     ground_truth: str | None = None,
     concurrent_agents: int = 3,
     focus_quail: bool = False,
+    reduce_model: str | None = None,
 ) -> dict:
     """Run the MOAR search and the held-out test; write and return a summary."""
     from docetl.moar.MOARSearch import MOARSearch
@@ -255,6 +276,8 @@ def run(
         config["pipeline"]["output"]["path"] = str(work / f"{workload}_root.json")
         if quail_models:
             config["quail_engine_notes"] = QUAIL_NOTES + (HOSTED_NOTE if hosted_models else QUAIL_ONLY_NOTE)
+            if reduce_model:
+                config["quail_engine_notes"] += REDUCE_NOTE.format(model=reduce_model)
         root = work / f"{workload}.yaml"
         root.write_text(yaml.safe_dump(config, sort_keys=False))
     else:
@@ -319,6 +342,7 @@ def run(
         "agent_model": agent_model,
         "concurrent_agents": concurrent_agents,
         "focus_quail": focus_quail,
+        "reduce_model": reduce_model,
         "available_models": available,
         "quail_models": quail_models,
         "iterations": iterations,
@@ -356,15 +380,19 @@ def main() -> None:
     parser.add_argument("--concurrent-agents", type=int, default=3, help="MOAR's concurrent expansions")
     parser.add_argument("--focus-quail", action="store_true",
                         help="first layer holds only the Quail models, so the search rewrites them")
+    parser.add_argument("--reduce-model", default=None, help="run every reduce on this hosted model")
     args = parser.parse_args()
     use_reasoning_effort(args.reasoning_effort, args.agent, args.agent_reasoning_effort)
+    if args.reduce_model:
+        route_reduces(args.reduce_model)
     quail_models = {}
     for item in args.quail:
         name, endpoint = item.split("=", 1)
         quail_models[name] = {"endpoint": endpoint, "gpu_cost_per_hour": args.gpu_cost_per_hour}
     summary = run(args.work_dir, quail_models, args.hosted, args.agent, args.iterations,
                   args.n_train, args.n_test, args.pipeline, args.train, args.test,
-                  args.workload, args.ground_truth, args.concurrent_agents, args.focus_quail)
+                  args.workload, args.ground_truth, args.concurrent_agents, args.focus_quail,
+                  args.reduce_model)
     print(json.dumps(summary, indent=2, default=str))
 
 

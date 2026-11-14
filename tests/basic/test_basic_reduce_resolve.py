@@ -241,3 +241,64 @@ def test_reduce_with_list_key(runner, default_model, max_threads):
         raise AssertionError("Could not find result with ['ML', 'Data'] classification")
     assert set(ml_data_result["classifications"]) == {"ML", "Data"}
 
+
+@pytest.mark.parametrize("use_merge", [False, True], ids=["fold", "fold-and-merge"])
+def test_reduce_persist_intermediates_with_fold_and_merge(
+    tmp_path, monkeypatch, use_merge
+):
+    """persist_intermediates works whether the reduce folds alone or folds and merges."""
+    from docetl.operations.utils.api import APIWrapper
+    from docetl.operations.utils.llm import LLMResult
+    from docetl.runner import DSLRunner
+
+    def schema_following_call_llm(
+        self, model, op_type, messages, output_schema, *args, scratchpad=None, **kwargs
+    ):
+        # The schema gains updated_scratchpad only when a scratchpad is passed.
+        response = {field: "s" for field in output_schema}
+        if scratchpad is not None:
+            response["updated_scratchpad"] = ""
+        return LLMResult(response=response, total_cost=0.0, validated=True)
+
+    monkeypatch.setattr(APIWrapper, "call_llm", schema_following_call_llm)
+
+    reduce_op = {
+        "name": "summarize",
+        "type": "reduce",
+        "reduce_key": "group",
+        "persist_intermediates": True,
+        "prompt": "Summarize {% for i in inputs %}{{ i.text }} {% endfor %}.",
+        "fold_prompt": "Fold {{ output.summary }} with "
+        "{% for i in inputs %}{{ i.text }} {% endfor %}.",
+        "fold_batch_size": 2,
+        "output": {"schema": {"summary": "string"}},
+    }
+    if use_merge:
+        reduce_op["merge_prompt"] = (
+            "Merge {% for o in outputs %}{{ o.summary }} {% endfor %}."
+        )
+        reduce_op["merge_batch_size"] = 2
+
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {
+            "items": {
+                "type": "memory",
+                "path": [{"id": i, "group": "a", "text": f"t{i}"} for i in range(6)],
+            }
+        },
+        "operations": [reduce_op],
+        "pipeline": {
+            "steps": [{"name": "s", "input": "items", "operations": ["summarize"]}],
+            "output": {"path": str(tmp_path / "out.json")},
+        },
+    }
+    runner = DSLRunner(config, max_threads=1)
+    runner.load()
+    results, _, _ = runner.last_op_container.next()
+
+    assert len(results) == 1
+    intermediates = results[0]["_summarize_intermediates"]
+    assert intermediates
+    assert all("intermediate" in step for step in intermediates)
+

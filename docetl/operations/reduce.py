@@ -586,7 +586,9 @@ class ReduceOperation(BaseOperation):
                                 {
                                     "iter": iter_count,
                                     "intermediate": result,
-                                    "scratchpad": result["updated_scratchpad"],
+                                    # Parallel folds run without a scratchpad, so
+                                    # the LLM output has no updated_scratchpad.
+                                    "scratchpad": result.get("updated_scratchpad"),
                                 }
                             )
                             iter_count += 1

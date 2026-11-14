@@ -584,7 +584,13 @@ def _group_quail_runs(runner: DSLRunner, nodes: list) -> list:
 
     for node in nodes:
         op = runner.find_operation(node.name)
-        engine = engine_for(op, runner.config)
+        # Only LLM operations go to Quail; split, gather, code operations and
+        # the like run as usual, whatever the pipeline's default model.
+        try:
+            is_llm = get_operation(op.get("type", "")).is_llm(op)
+        except KeyError:
+            is_llm = False
+        engine = engine_for(op, runner.config) if is_llm else None
         if engine is None:
             close_run()
             groups.append(node)

@@ -597,3 +597,21 @@ def test_real_quail_server_runs_a_list_of_objects_output(tmp_path, quail_server)
     assert [row["id"] for row in output] == [0, 1, 2]
     # The oracle answers with text, not JSON, so the field parses to None.
     assert all("clauses" in row for row in output)
+
+
+def test_non_llm_operations_run_as_usual_under_a_quail_default_model():
+    from docetl.containers import _group_quail_runs
+
+    ops = {
+        "split": {"name": "split", "type": "split", "split_key": "body", "method": "token_count",
+                  "method_kwargs": {"num_tokens": 100}},
+        "label": {**MAP, "name": "label"},
+    }
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+    groups = _group_quail_runs(runner, [SimpleNamespace(name="split"), SimpleNamespace(name="label")])
+    assert groups[0].name == "split"
+    assert [n.name for n in groups[1][0]] == ["label"]

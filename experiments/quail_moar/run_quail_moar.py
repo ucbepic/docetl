@@ -66,6 +66,20 @@ def use_reasoning_effort(
 from experiments.quail_moar.medec_data import build as build_data  # noqa: E402
 METRICS = {"medec": "combined_score", "cuad": "avg_f1"}
 
+# Put in the root pipeline, which MOAR's agent reads, so its rewrites stay
+# runnable on quail/* models.
+QUAIL_NOTES = (
+    "Operations whose model is quail/<model> run on Quail Server, an open "
+    "model on a GPU. Quail runs map, filter, and reduce operations; split, "
+    "gather, and code operations run as usual. A quail map or filter prompt "
+    "may contain only fixed text and plain field references such as "
+    "{{ input.document }}: no Jinja filters, loops, conditionals, or macros, "
+    "and no braces in the fixed text. A quail reduce prompt is fixed text "
+    "around exactly one {% for item in inputs %} loop over plain item fields. "
+    "Gleaning, validation, tools, and batch prompts do not run on Quail. Give "
+    "an operation a hosted model (gemini/...) when it needs any of these."
+)
+
 
 def evaluator(workload: str, data: str, ground_truth: str | None):
     """Return results_file -> scores for ``workload`` on input ``data``."""
@@ -150,6 +164,7 @@ def run(
     workload: str = "medec",
     ground_truth: str | None = None,
     concurrent_agents: int = 3,
+    focus_quail: bool = False,
 ) -> dict:
     """Run the MOAR search and the held-out test; write and return a summary."""
     from docetl.moar.MOARSearch import MOARSearch
@@ -172,6 +187,8 @@ def run(
         config["default_model"] = available[0]
         config["quail_models"] = quail_models
         config["pipeline"]["output"]["path"] = str(work / f"{workload}_root.json")
+        if quail_models:
+            config["quail_engine_notes"] = QUAIL_NOTES
         root = work / f"{workload}.yaml"
         root.write_text(yaml.safe_dump(config, sort_keys=False))
     else:
@@ -180,13 +197,19 @@ def run(
         )
 
     (work / "moar").mkdir(exist_ok=True)
+    if focus_quail and not quail_models:
+        raise ValueError("--focus-quail needs at least one --quail model")
     started = time.time()
+    # With focus_quail, MOAR's first layer holds only the Quail models, so
+    # every expansion starts from an open-model pipeline; its change-model
+    # rewrites can still move single operations to the hosted models.
+    first_layer = [m for m in available if m.startswith("quail/")] if focus_quail else available
     moar = MOARSearch(
         root_yaml_path=str(root),
         available_actions=set(ALL_DIRECTIVES),
         sample_input=json.loads(Path(train).read_text())[:5],
         dataset_name=workload,
-        available_models=available,
+        available_models=first_layer,
         evaluate_func=evaluator(workload, train, ground_truth),
         max_iterations=iterations,
         model=agent_model,
@@ -195,6 +218,11 @@ def run(
         sample_dataset_path=train,
         max_concurrent_agents=concurrent_agents,
     )
+    if focus_quail:
+        moar.available_models = available
+        for action in moar.available_actions:
+            if hasattr(action, "allowed_model_list"):
+                action.allowed_model_list = available
     moar.search()
     search_seconds = time.time() - started
 
@@ -223,6 +251,7 @@ def run(
         "metric": metric,
         "agent_model": agent_model,
         "concurrent_agents": concurrent_agents,
+        "focus_quail": focus_quail,
         "available_models": available,
         "quail_models": quail_models,
         "iterations": iterations,
@@ -258,6 +287,8 @@ def main() -> None:
     parser.add_argument("--reasoning-effort", default=None, help="reasoning_effort for gemini-4 pipeline models")
     parser.add_argument("--agent-reasoning-effort", default=None, help="reasoning_effort for the agent model")
     parser.add_argument("--concurrent-agents", type=int, default=3, help="MOAR's concurrent expansions")
+    parser.add_argument("--focus-quail", action="store_true",
+                        help="first layer holds only the Quail models, so the search rewrites them")
     args = parser.parse_args()
     use_reasoning_effort(args.reasoning_effort, args.agent, args.agent_reasoning_effort)
     quail_models = {}
@@ -266,7 +297,7 @@ def main() -> None:
         quail_models[name] = {"endpoint": endpoint, "gpu_cost_per_hour": args.gpu_cost_per_hour}
     summary = run(args.work_dir, quail_models, args.hosted, args.agent, args.iterations,
                   args.n_train, args.n_test, args.pipeline, args.train, args.test,
-                  args.workload, args.ground_truth, args.concurrent_agents)
+                  args.workload, args.ground_truth, args.concurrent_agents, args.focus_quail)
     print(json.dumps(summary, indent=2, default=str))
 
 

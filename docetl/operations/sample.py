@@ -321,10 +321,8 @@ class SampleOperation(BaseOperation):
             elif method == "outliers":
                 # For outliers, we need to handle differently
                 return self._sample_stratified_outliers(input_data, groups)
-            elif method == "top_embedding":
-                return self._sample_stratified_top_embedding(input_data, groups)
-            elif method == "top_fts":
-                return self._sample_stratified_top_fts(input_data, groups)
+            elif method in ("top_embedding", "top_fts"):
+                return self._sample_stratified_ranked(input_data, groups, method)
             else:
                 raise ValueError(
                     f"Method {method} not supported with proportional stratification"
@@ -485,17 +483,19 @@ class SampleOperation(BaseOperation):
 
         return output_data, 0.0
 
-    def _sample_top_embedding(self, input_data: list[dict]) -> tuple[list[dict], float]:
+    def _sample_top_embedding(
+        self, input_data: list[dict], n_samples: int | None = None
+    ) -> tuple[list[dict], float]:
         """Sample top items based on embedding similarity to a query."""
         config = self.config.get("method_kwargs", {})
         keys = config["keys"]
         query_template = config["query"]
-        samples = self.config["samples"]
-
-        if isinstance(samples, float):
-            n_samples = int(samples * len(input_data))
-        else:
-            n_samples = min(samples, len(input_data))
+        if n_samples is None:
+            samples = self.config["samples"]
+            if isinstance(samples, float):
+                n_samples = int(samples * len(input_data))
+            else:
+                n_samples = min(samples, len(input_data))
 
         if len(input_data) == 0 or n_samples == 0:
             return [], 0.0
@@ -546,17 +546,19 @@ class SampleOperation(BaseOperation):
             output_data.append(item)
         return output_data, cost
 
-    def _sample_top_fts(self, input_data: list[dict]) -> tuple[list[dict], float]:
+    def _sample_top_fts(
+        self, input_data: list[dict], n_samples: int | None = None
+    ) -> tuple[list[dict], float]:
         """Sample top items based on full-text search similarity to a query using BM25."""
         config = self.config.get("method_kwargs", {})
         keys = config["keys"]
         query_template = config["query"]
-        samples = self.config["samples"]
-
-        if isinstance(samples, float):
-            n_samples = int(samples * len(input_data))
-        else:
-            n_samples = min(samples, len(input_data))
+        if n_samples is None:
+            samples = self.config["samples"]
+            if isinstance(samples, float):
+                n_samples = int(samples * len(input_data))
+            else:
+                n_samples = min(samples, len(input_data))
 
         if len(input_data) == 0 or n_samples == 0:
             return [], 0.0
@@ -672,44 +674,38 @@ class SampleOperation(BaseOperation):
             output_data.append(item)
         return output_data, 0.0
 
-    def _sample_stratified_top_embedding(
-        self, input_data: list[dict], groups: dict
+    def _sample_stratified_ranked(
+        self, input_data: list[dict], groups: dict, method: str
     ) -> tuple[list[dict], float]:
-        """Apply top embedding sampling within each stratum and combine results."""
+        """Allocate a total sample budget, then rank independently within strata."""
+        samples = self.config["samples"]
+        n_samples = (
+            int(samples * len(input_data)) if isinstance(samples, float) else samples
+        )
+        n_samples = min(n_samples, len(input_data))
+        quotas = {
+            key: int(n_samples * len(items) / len(input_data))
+            for key, items in groups.items()
+        }
+        remaining = n_samples - sum(quotas.values())
+        # Fill rounding remainders from the largest groups, preserving ties.
+        for key in sorted(groups, key=lambda key: len(groups[key]), reverse=True):
+            if remaining <= 0:
+                break
+            extra = min(remaining, len(groups[key]) - quotas[key])
+            quotas[key] += extra
+            remaining -= extra
+
+        sampler = (
+            self._sample_top_embedding
+            if method == "top_embedding"
+            else self._sample_top_fts
+        )
         output_data = []
         total_cost = 0.0
-
-        # Apply top embedding sampling to each group
-        for group_items in groups.values():
-            if len(group_items) > 0:
-                sampled, cost = self._sample_top_embedding(group_items)
+        for key, group_items in groups.items():
+            if quotas[key] > 0:
+                sampled, cost = sampler(group_items, n_samples=quotas[key])
                 output_data.extend(sampled)
                 total_cost += cost
-
-        # If we have too many items, take the top ones across all groups
-        if len(output_data) > self.config["samples"]:
-            # Re-rank all selected items
-            return self._sample_top_embedding(output_data)
-
-        return output_data, total_cost
-
-    def _sample_stratified_top_fts(
-        self, input_data: list[dict], groups: dict
-    ) -> tuple[list[dict], float]:
-        """Apply top FTS sampling within each stratum and combine results."""
-        output_data = []
-        total_cost = 0.0
-
-        # Apply top FTS sampling to each group
-        for group_items in groups.values():
-            if len(group_items) > 0:
-                sampled, cost = self._sample_top_fts(group_items)
-                output_data.extend(sampled)
-                total_cost += cost
-
-        # If we have too many items, take the top ones across all groups
-        if len(output_data) > self.config["samples"]:
-            # Re-rank all selected items
-            return self._sample_top_fts(output_data)
-
         return output_data, total_cost

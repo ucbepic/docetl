@@ -54,6 +54,18 @@ This returns a pseudo-random 10% of the input, sampled proportionally across val
 | samples_per_group | When stratifying, sample N items per group vs. proportionally  | False   |
 | method_kwargs     | Additional parameters for specific methods (e.g., outliers)    | {}      |
 
+For `top_embedding` and `top_fts` with stratification, the default
+`samples_per_group: false` treats `samples` as one total budget. A fraction is
+converted to a count against the full input once, then the count is allocated
+proportionally across groups. Rounding remainders go to the largest groups with
+available rows; equal-sized groups retain their input order. Requests larger than
+the input return all rows.
+
+Each group is ranked independently using its own query context. Rank annotations
+start at 1 within each group, and scores describe that group's ranking rather than
+a global comparison. With `samples_per_group: true`, the original count or fraction
+is applied independently to each group instead.
+
 ## Sampling Methods
 
 ### Uniform Sampling

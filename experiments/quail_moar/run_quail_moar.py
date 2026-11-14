@@ -33,13 +33,18 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
-def use_reasoning_effort(effort: str | None, prefix: str = "gemini/gemini-4") -> None:
+def use_reasoning_effort(
+    effort: str | None, agent_model: str | None = None, agent_effort: str | None = None,
+    prefix: str = "gemini/gemini-4",
+) -> None:
     """Send ``reasoning_effort`` on every LiteLLM call to models under ``prefix``.
 
-    Installed before DocETL is imported, so MOAR's agent, its directives, and
-    every pipeline operation (including ones MOAR adds) get the same effort.
+    MOAR's agent model gets ``agent_effort`` (when set); every other model
+    under ``prefix`` gets ``effort``. Installed before DocETL is imported, so
+    the agent, its directives, and every pipeline operation (including ones
+    MOAR adds) get their effort.
     """
-    if not effort:
+    if not (effort or agent_effort):
         return
     import litellm
 
@@ -47,7 +52,9 @@ def use_reasoning_effort(effort: str | None, prefix: str = "gemini/gemini-4") ->
         def call(*args, **kwargs):
             model = kwargs.get("model", args[0] if args else "")
             if isinstance(model, str) and model.startswith(prefix):
-                kwargs.setdefault("reasoning_effort", effort)
+                chosen = agent_effort if (agent_effort and model == agent_model) else effort
+                if chosen:
+                    kwargs.setdefault("reasoning_effort", chosen)
             return fn(*args, **kwargs)
 
         return call
@@ -142,6 +149,7 @@ def run(
     test: str | None = None,
     workload: str = "medec",
     ground_truth: str | None = None,
+    concurrent_agents: int = 3,
 ) -> dict:
     """Run the MOAR search and the held-out test; write and return a summary."""
     from docetl.moar.MOARSearch import MOARSearch
@@ -185,6 +193,7 @@ def run(
         output_dir=str(work / "moar"),
         custom_metric_key=metric,
         sample_dataset_path=train,
+        max_concurrent_agents=concurrent_agents,
     )
     moar.search()
     search_seconds = time.time() - started
@@ -213,6 +222,7 @@ def run(
         "workload": workload,
         "metric": metric,
         "agent_model": agent_model,
+        "concurrent_agents": concurrent_agents,
         "available_models": available,
         "quail_models": quail_models,
         "iterations": iterations,
@@ -245,16 +255,18 @@ def main() -> None:
     parser.add_argument("--pipeline", help="a pipeline YAML to start from (default: a built-in one)")
     parser.add_argument("--train", help="training data JSON (default: sampled from MEDEC)")
     parser.add_argument("--test", help="held-out test data JSON (default: sampled from MEDEC)")
-    parser.add_argument("--reasoning-effort", default=None, help="reasoning_effort for gemini-4 models")
+    parser.add_argument("--reasoning-effort", default=None, help="reasoning_effort for gemini-4 pipeline models")
+    parser.add_argument("--agent-reasoning-effort", default=None, help="reasoning_effort for the agent model")
+    parser.add_argument("--concurrent-agents", type=int, default=3, help="MOAR's concurrent expansions")
     args = parser.parse_args()
-    use_reasoning_effort(args.reasoning_effort)
+    use_reasoning_effort(args.reasoning_effort, args.agent, args.agent_reasoning_effort)
     quail_models = {}
     for item in args.quail:
         name, endpoint = item.split("=", 1)
         quail_models[name] = {"endpoint": endpoint, "gpu_cost_per_hour": args.gpu_cost_per_hour}
     summary = run(args.work_dir, quail_models, args.hosted, args.agent, args.iterations,
                   args.n_train, args.n_test, args.pipeline, args.train, args.test,
-                  args.workload, args.ground_truth)
+                  args.workload, args.ground_truth, args.concurrent_agents)
     print(json.dumps(summary, indent=2, default=str))
 
 

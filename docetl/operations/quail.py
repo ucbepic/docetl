@@ -18,6 +18,10 @@ from pydantic import Field
 from docetl.engines.quail.compile import ID_COLUMN, compile_run, convert
 from docetl.operations.base import BaseOperation, Cardinality
 
+# (endpoint, sql) pairs Quail Server has already planned in this process;
+# every operation construction runs syntax_check, so plan each query once.
+_PLANNED: set[tuple[str, str]] = set()
+
 
 def _cell(value: Any) -> str | None:
     if value is None or isinstance(value, str):
@@ -28,6 +32,7 @@ def _cell(value: Any) -> str | None:
 def _require_pyarrow():
     try:
         import pyarrow as pa
+        import pyarrow.flight  # noqa: F401 - pa.flight
 
         from docetl.engines.quail.client import QuailClient
     except ImportError as error:
@@ -55,27 +60,33 @@ class QuailOperation(BaseOperation):
         return Cardinality.MANY_TO_MANY
 
     def syntax_check(self) -> None:
-        compiled = compile_run(self.config["ops"], "docetl_syntax_check")
+        probe = compile_run(self.config["ops"], "t")
         try:
             pa, QuailClient = _require_pyarrow()
         except ImportError:
             return  # execute raises with the install hint
         # Plan the query on the server against an empty table of the same
         # shape, so a query Quail cannot plan fails before any GPU time.
-        empty = pa.table(
-            {name: pa.array([], type=pa.string()) for name in [ID_COLUMN, *compiled.input_fields]}
-        )
+        names = [ID_COLUMN, *probe.input_fields]
+        table = "docetl_check_" + hashlib.sha256("\0".join(names).encode()).hexdigest()[:16]
+        sql = compile_run(self.config["ops"], table).sql
+        endpoint = self.config["engine"]["endpoint"]
+        if (endpoint, sql) in _PLANNED:
+            return
+        empty = pa.table({name: pa.array([], type=pa.string()) for name in names})
         try:
-            with QuailClient(self.config["engine"]["endpoint"]) as client:
-                client.upload("docetl_syntax_check", empty, ID_COLUMN)
-                client.explain(compiled.sql)
-        except Exception as error:  # noqa: BLE001 - classify below
-            if "plan" in str(error).lower() or "invalid" in str(error).lower():
-                raise ValueError(f"Quail cannot plan {self.config['name']}: {error}") from error
+            with QuailClient(endpoint) as client:
+                client.upload(table, empty, ID_COLUMN)
+                client.explain(sql)
+        except pa.flight.FlightUnavailableError as error:
             self.console.log(
-                f"[yellow]Quail engine: could not reach {self.config['engine']['endpoint']} "
-                f"to check {self.config['name']} ({type(error).__name__}).[/yellow]"
+                f"[yellow]Quail engine: could not reach {endpoint} to check "
+                f"{self.config['name']}: {error}[/yellow]"
             )
+            return
+        except pa.flight.FlightError as error:
+            raise ValueError(f"Quail cannot plan {self.config['name']}: {error}") from error
+        _PLANNED.add((endpoint, sql))
 
     def _oversized_group(self, input_data: list[dict], reads) -> int | None:
         """Return the largest group's estimated tokens if it exceeds the limit."""

@@ -241,7 +241,9 @@ def _ai_columns(
         kind, labels = _item_kind(str(type_str))
         ask = f" Answer only the field {key}." if several else ""
         if kind == "boolean":
-            expr = f"AI.IF(PROMPT({_lit(template + ask)}, {arg_list}))"
+            # AI.IF answers yes or no, so a boolean item needs a question.
+            question = f" Is this true: {key.replace('_', ' ')}?" if several else ""
+            expr = f"AI.IF(PROMPT({_lit(template + question)}, {arg_list}))"
         elif kind == "enum":
             label_list = ", ".join(_lit(label) for label in labels)
             expr = f"AI.CLASSIFY(PROMPT({_lit(template + ask)}, {arg_list}), [{label_list}])"

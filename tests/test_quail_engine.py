@@ -240,7 +240,10 @@ class FakeQuailServer(flight.FlightServerBase):
         self.explained: list[str] = []
 
     def do_put(self, context, descriptor, reader, writer):
-        self.tables[descriptor.path[0].decode()] = reader.read_all()
+        name = descriptor.path[0].decode()
+        if name in self.tables:  # as Quail Server refuses a second upload
+            raise flight.FlightServerError(f"Execution error: The table {name} already exists")
+        self.tables[name] = reader.read_all()
 
     def do_action(self, context, action):
         body = json.loads(action.body.to_pybytes())
@@ -255,7 +258,7 @@ class FakeQuailServer(flight.FlightServerBase):
         return [flight.Result(json.dumps(status).encode())]
 
     def do_get(self, context, ticket):
-        (table,) = [t for name, t in self.tables.items() if name != "docetl_syntax_check"]
+        (table,) = [t for name, t in self.tables.items() if not name.startswith("docetl_check_")]
         kept = [i for i in table.column("_docetl_id").to_pylist() if int(i) % 2 == 0]
         return flight.RecordBatchStream(
             pa.table(
@@ -310,10 +313,16 @@ def test_runner_sends_one_fused_query_and_maps_rows_back(tmp_path, fake_server):
     (query,) = server.queries
     assert query["dialect"] == "BigQuery"
     assert query["id"].startswith("docetl-")
-    (table,) = [t for name, t in server.tables.items() if name != "docetl_syntax_check"]
+    (table,) = [t for name, t in server.tables.items() if not name.startswith("docetl_check_")]
     assert table.column_names == ["_docetl_id", "body"]
-    # syntax_check planned the query against an empty table first
+    # syntax_check planned the query against an empty table first, once
     assert len(server.explained) == 1
+
+    # A rerun uploads the same table name again, which the server refuses;
+    # the client treats that as done and gets the same rows.
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert json.loads((tmp_path / "out.json").read_text()) == output
+    assert len(server.queries) == 2 and server.queries[0]["id"] == server.queries[1]["id"]
 
 
 # ── 3. A real quail-server with Quail's oracle worker ────────────────
@@ -372,6 +381,11 @@ def test_real_quail_server_runs_a_fused_filter_and_map(tmp_path, quail_server):
         assert set(row) == {"id", "body", "kind", "summary", "stars"}
         assert row["body"] == f"review {row['id']}"
         assert row["kind"] in ("praise", "complaint")
+
+    # A rerun uploads the same table name again; the server's "already
+    # exists" refusal counts as done, and the saved rows come back.
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert json.loads((tmp_path / "out.json").read_text()) == output
 
 
 @pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")

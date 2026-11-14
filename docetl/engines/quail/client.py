@@ -65,13 +65,22 @@ class QuailClient:
         return answer.body.to_pybytes()
 
     def upload(self, name: str, table: pa.Table, id_col: str) -> None:
-        """Register ``table`` on the server as ``name``, keyed by ``id_col``."""
+        """Register ``table`` on the server as ``name``, keyed by ``id_col``.
+
+        DocETL names tables by a hash of their contents, so a table the
+        server already has under ``name`` holds the same rows; the server's
+        "already exists" refusal then counts as done.
+        """
         descriptor = flight.FlightDescriptor.for_path(name, id_col)
-        writer, _ = self._flight.do_put(descriptor, table.schema, self._options)
         try:
-            writer.write_table(table)
-        finally:
-            writer.close()
+            writer, _ = self._flight.do_put(descriptor, table.schema, self._options)
+            try:
+                writer.write_table(table)
+            finally:
+                writer.close()
+        except flight.FlightError as error:
+            if "already exists" not in str(error):
+                raise
 
     def submit(self, sql: str, query_id: str | None = None) -> dict:
         """Queue a query. The server runs one id once and keeps its rows."""

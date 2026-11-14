@@ -101,7 +101,7 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
 @app.local_entrypoint()
 def main(models: str = "qwen3-4b-fp8",
          hosted: str = "gemini/gemini-4-hydrogen,gemini/gemini-4-argon",
-         agent: str = "gemini/gemini-4-argon", iterations: int = 10,
+         agent: str = "gemini/gemini-4-carbon", iterations: int = 10,
          pipeline: str = "", train: str = "", test: str = "",
          reasoning_effort: str = "high", name: str = ""):
     chosen = [m for m in models.split(",") if m]

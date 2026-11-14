@@ -118,7 +118,7 @@ def run(
     work_dir: str,
     quail_models: dict,
     hosted_models: list[str],
-    agent_model: str = "gemini/gemini-4-argon",
+    agent_model: str = "gemini/gemini-4-carbon",
     iterations: int = 10,
     n_train: int = 100,
     n_test: int = 200,
@@ -213,7 +213,7 @@ def main() -> None:
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--quail", nargs="*", default=[], help="model=endpoint, e.g. qwen3-4b-fp8=grpc://host:50051")
     parser.add_argument("--hosted", nargs="*", default=["gemini/gemini-4-hydrogen", "gemini/gemini-4-argon"])
-    parser.add_argument("--agent", default="gemini/gemini-4-argon")
+    parser.add_argument("--agent", default="gemini/gemini-4-carbon")
     parser.add_argument("--iterations", type=int, default=10)
     parser.add_argument("--n-train", type=int, default=100)
     parser.add_argument("--n-test", type=int, default=200)

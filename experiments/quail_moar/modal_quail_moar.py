@@ -1,6 +1,6 @@
 """Run the Quail MOAR experiment (MEDEC or CUAD) on Modal.
 
-One container gets one H100 per open model. It starts a quail-server per GPU,
+One container gets one H200 per open model. It starts a quail-server per GPU,
 then runs ``run_quail_moar.py`` with Gemini (the ``docetl-gemini`` Modal secret,
 holding GEMINI_API_KEY) as MOAR's agent and as the hosted models. Results go
 to the ``docetl-quail-moar`` Modal volume.
@@ -32,7 +32,11 @@ DOCETL = os.environ.get(
 BRANCH = os.environ.get("DOCETL_BRANCH", "claude/nifty-meitner-afmb36")
 IGNORE = [".venv", ".git", "website", "node_modules", "docs", "**/__pycache__",
           "experiments/reasoning/data", "experiments/reasoning/outputs", "site"]
-H100_PER_HOUR = 3.95
+# Modal's H200 price per hour (https://modal.com/pricing), used to price GPU
+# time. An H200 (141 GB) holds a 27B model with Quail's KV cache; an 80 GB
+# H100 does not. (Modal may place a plain "H100" request on an H200.)
+GPU = "H200"
+H100_PER_HOUR = 4.54
 
 app = modal.App("docetl-quail-moar")
 hf_cache = modal.Volume.from_name("quail-hf-cache", create_if_missing=True)
@@ -69,7 +73,7 @@ def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:
 
 
 @app.function(
-    image=image, gpu="H100", timeout=6 * 3600, memory=65_536,
+    image=image, gpu=GPU, timeout=6 * 3600, memory=65_536,
     secrets=[modal.Secret.from_name("docetl-gemini")],
     volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/kernels": kernel_cache,
              "/results": results},
@@ -125,8 +129,8 @@ def main(models: str = "qwen3-4b-fp8",
                 remote = f"{name}/inputs/{os.path.basename(path)}"
                 upload.put_file(path, f"/{remote}")
                 inputs[flag] = remote
-    print(f"experiment {name}: {len(chosen)} H100s for {chosen}; inputs {inputs}")
-    run = experiment.with_options(gpu=f"H100:{len(chosen)}") if len(chosen) > 1 else experiment
+    print(f"experiment {name}: {len(chosen)} {GPU}s for {chosen}; inputs {inputs}")
+    run = experiment.with_options(gpu=f"{GPU}:{len(chosen)}") if len(chosen) > 1 else experiment
     out = run.remote(chosen, [h for h in hosted.split(",") if h], agent, iterations,
                      name, inputs, reasoning_effort, workload,
                      agent_reasoning_effort, concurrent_agents, focus_quail,

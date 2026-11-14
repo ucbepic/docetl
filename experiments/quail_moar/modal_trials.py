@@ -26,7 +26,7 @@ import modal
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, "/opt/docetl/experiments/quail_moar")  # inside the container
-from modal_quail_moar import H100_PER_HOUR, _serve, hf_cache, image, kernel_cache, results  # noqa: E402
+from modal_quail_moar import GPU, H100_PER_HOUR, _serve, hf_cache, image, kernel_cache, results  # noqa: E402
 
 app = modal.App("docetl-quail-trials")
 
@@ -57,7 +57,7 @@ json.dump({"cost": cost, "seconds": time.time() - started, "data": data, **score
 
 
 @app.function(
-    image=image, gpu="H100", timeout=8 * 3600, memory=65_536,
+    image=image, gpu=GPU, timeout=8 * 3600, memory=65_536,
     secrets=[modal.Secret.from_name("docetl-gemini")],
     volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/kernels": kernel_cache,
              "/results": results},

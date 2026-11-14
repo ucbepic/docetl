@@ -31,7 +31,7 @@ ID_COLUMN = "_docetl_id"
 # Lists and objects come back as JSON text; Quail's AI.MAP default of 256
 # tokens cuts them off, and a cut-off answer does not parse.
 DEFAULT_JSON_MAX_TOKENS = 4096
-SUPPORTED_TYPES = ("filter", "map", "reduce")
+SUPPORTED_TYPES = ("filter", "map", "parallel_map", "extract", "reduce")
 DEFAULT_MAX_GROUP_TOKENS = 24_000
 
 # Operation settings with no Quail form: each needs follow-up LLM calls or
@@ -226,6 +226,9 @@ def check_eligible(op_config: dict) -> None:
             raise QuailUnsupported(
                 f"operation {name!r} sets {setting!r}, which has no Quail form"
             )
+    if kind == "extract":
+        _check_extract(op_config)
+        return
     schema = (op_config.get("output") or {}).get("schema") or {}
     if not schema:
         raise QuailUnsupported(f"operation {name!r} has no output schema")
@@ -249,6 +252,24 @@ def check_eligible(op_config: dict) -> None:
                 raise QuailUnsupported(
                     f"reduce {name!r} groups by {key!r}, which is not a plain column name"
                 )
+    if kind == "parallel_map":
+        prompts = op_config.get("prompts") or []
+        if not prompts:
+            raise QuailUnsupported(f"parallel_map {name!r} has no prompts")
+        for prompt_config in prompts:
+            if prompt_config.get("model"):
+                raise QuailUnsupported(
+                    f"parallel_map {name!r}: a prompt with its own model has no Quail form"
+                )
+            if set(prompt_config.get("output_keys") or []) - set(schema):
+                raise QuailUnsupported(
+                    f"parallel_map {name!r}: output_keys must be in the output schema"
+                )
+            try:
+                parse_prompt(prompt_config.get("prompt") or "")
+            except QuailPromptError as error:
+                raise QuailUnsupported(f"parallel_map {name!r}: {error}") from error
+        return
     try:
         if kind == "reduce":
             parse_reduce_prompt(op_config.get("prompt") or "")
@@ -256,6 +277,31 @@ def check_eligible(op_config: dict) -> None:
             parse_prompt(op_config.get("prompt") or "")
     except QuailPromptError as error:
         raise QuailUnsupported(f"operation {name!r}: {error}") from error
+
+
+def _extract_suffix(op_config: dict) -> str:
+    return op_config.get("extraction_key_suffix") or f"_extracted_{op_config.get('name', '')}"
+
+
+def _check_extract(op_config: dict) -> None:
+    """An extract runs as AI_EXTRACT: its prompt is the fixed question."""
+    name = op_config.get("name", "?")
+    keys = op_config.get("document_keys") or []
+    if not keys:
+        raise QuailUnsupported(f"extract {name!r} has no document_keys")
+    for key in keys:
+        for column in (key, f"{key}{_extract_suffix(op_config)}"):
+            if not COLUMN_NAME.match(column):
+                raise QuailUnsupported(f"extract {name!r}: {column!r} is not a plain column name")
+    try:
+        parse_prompt(op_config.get("prompt") or "")
+    except QuailPromptError as error:
+        if "reads no field" in str(error):
+            return  # fixed text: the question AI_EXTRACT asks of each document
+        raise QuailUnsupported(f"extract {name!r}: {error}") from error
+    raise QuailUnsupported(
+        f"extract {name!r}: an AI_EXTRACT question is fixed text, but the prompt reads fields"
+    )
 
 
 SQL_TYPES = ("split", "gather")
@@ -524,6 +570,35 @@ def _ai_columns(
     return built
 
 
+def _row_columns(op: dict, prev: str, schema: dict) -> list[tuple[str, str, OutputColumn]]:
+    """The AI columns of a map, parallel_map, or extract over ``prev``."""
+    if op["type"] == "extract":
+        question = _lit(_instruction(" ".join(op["prompt"].split())))
+        kind = "string" if op.get("format_extraction", True) else "string_list"
+        built = []
+        for key in op["document_keys"]:
+            # AI_EXTRACT copies the answer from the document (the AI.EXTRACT
+            # spelling clashes with SQL's EXTRACT keyword).
+            expr = f"get_field(AI_EXTRACT({_col(prev, key)}, named_struct('answer', {question})), 'answer')"
+            name = f"{key}{_extract_suffix(op)}"
+            built.append((name, expr, OutputColumn(name, kind)))
+        return built
+    prompts = (
+        [(pc["prompt"], {k: schema[k] for k in pc["output_keys"]}) for pc in op["prompts"]]
+        if op["type"] == "parallel_map"
+        else [(op["prompt"], schema)]
+    )
+    built = []
+    for text, sub_schema in prompts:
+        prompt = parse_prompt(text)
+        args = [_col(prev, f) for f in prompt.fields]
+        document = args[0] if len(args) == 1 else "CONCAT(" + ", ' ', ".join(args) + ")"
+        built += _ai_columns(
+            sub_schema, prompt.template, args, document, prompt.instruction(), _max_tokens(op)
+        )
+    return built
+
+
 def _max_tokens(op: dict) -> int | None:
     return (op.get("litellm_completion_kwargs") or {}).get("max_tokens")
 
@@ -549,6 +624,10 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
     for op in ops:
         if op["type"] in SQL_TYPES:
             reads = _sql_reads(op)
+        elif op["type"] == "extract":
+            reads = list(op["document_keys"])
+        elif op["type"] == "parallel_map":
+            reads = [f for pc in op["prompts"] for f in parse_prompt(pc["prompt"]).fields]
         elif op["type"] == "reduce":
             reads = [*reduce_keys(op), *parse_reduce_prompt(op["prompt"]).fields]
         else:
@@ -558,6 +637,9 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
                 input_fields.append(f)
         if op["type"] in SQL_TYPES:
             written.update(_sql_writes(op))
+            continue
+        if op["type"] == "extract":
+            written.update(f"{k}{_extract_suffix(op)}" for k in op["document_keys"])
             continue
         written.update(op["output"]["schema"].keys())
         if op["type"] == "reduce":
@@ -590,7 +672,7 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
                 if name in dropped:
                     dropped.remove(name)
             continue
-        schema = op["output"]["schema"]
+        schema = (op.get("output") or {}).get("schema") or {}
         if op["type"] == "filter":
             prompt = parse_prompt(op["prompt"])
             (key,) = schema.keys()
@@ -604,13 +686,8 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
             columns = keep
             outputs.pop(key, None)
             dropped.append(key)
-        elif op["type"] == "map":
-            prompt = parse_prompt(op["prompt"])
-            args = [_col(prev, f) for f in prompt.fields]
-            document = args[0] if len(args) == 1 else "CONCAT(" + ", ' ', ".join(args) + ")"
-            built = _ai_columns(
-                schema, prompt.template, args, document, prompt.instruction(), _max_tokens(op)
-            )
+        elif op["type"] in ("map", "parallel_map", "extract"):
+            built = _row_columns(op, prev, schema)
             new = [name for name, _, _ in built]
             keep = [c for c in columns if c not in new]
             parts = [f"{_col(prev, c)} AS `{c}`" for c in keep]
@@ -689,7 +766,7 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
 def convert(value: Any, out: OutputColumn) -> Any:
     """Turn one result cell into the row value DocETL writes."""
     if value is None:
-        return None
+        return [] if out.kind == "string_list" else None
     if out.kind == "integer":
         return int(round(float(value)))
     if out.kind == "number":
@@ -706,4 +783,6 @@ def convert(value: Any, out: OutputColumn) -> Any:
             return None
     if out.kind == "key":
         return value
+    if out.kind == "string_list":
+        return [str(value)]
     return str(value)

@@ -132,11 +132,14 @@ METRICS = {"medec": "combined_score", "cuad": "avg_f1"}
 # runnable on quail/* models.
 QUAIL_NOTES = (
     "Operations whose model is quail/<model> run on Quail Server, an open "
-    "model on a GPU. Quail runs map, filter, and reduce operations; split, "
-    "gather, and code operations run as usual. A quail map or filter prompt "
+    "model on a GPU. Quail runs map, parallel_map, filter, extract, and "
+    "reduce operations; split, gather, and code operations run as usual. A "
+    "quail map, parallel_map, or filter prompt "
     "may contain only fixed text and plain field references such as "
     "{{ input.document }}: no Jinja filters, loops, conditionals, or macros, "
-    "and no braces in the fixed text. A quail reduce prompt is fixed text "
+    "and no braces in the fixed text. A quail extract prompt is fixed text "
+    "only (it becomes the question; the answer is copied from each document "
+    "key). A quail reduce prompt is fixed text "
     "around exactly one {% for item in inputs %} loop over plain item fields. "
     "Gleaning, validation, tools, and batch prompts do not run on Quail."
 )

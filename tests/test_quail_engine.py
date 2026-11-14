@@ -772,3 +772,49 @@ def test_real_quail_server_runs_a_whole_chunking_pipeline_as_one_query(tmp_path,
         assert row["_counts_prereduce_merge"] == 4
         assert row["body_chunk"] == f"clause {row['id']}.0"
         assert "summary" in row
+
+
+PARALLEL = {
+    "name": "facets",
+    "type": "parallel_map",
+    "prompts": [
+        {"prompt": "Is the review positive? {{ input.body }}", "output_keys": ["positive"]},
+        {"prompt": "Summarize the review: {{ input.body }}", "output_keys": ["summary"]},
+    ],
+    "output": {"schema": {"positive": "bool", "summary": "string"}},
+}
+EXTRACT = {
+    "name": "law",
+    "type": "extract",
+    "prompt": "Which law governs the contract?",
+    "document_keys": ["body"],
+}
+
+
+def test_parallel_map_and_extract_compile_to_ai_functions():
+    sql = compile_run([PARALLEL], "docs").sql
+    assert "AI.IF(PROMPT('Is the review positive? {0}', c0.`body`)) AS `positive`" in sql
+    assert "AI.MAP(c0.`body`, 'Summarize the review: [body]') AS `summary`" in sql
+    sql = compile_run([EXTRACT], "docs").sql
+    assert ("get_field(AI_EXTRACT(c0.`body`, named_struct('answer', 'Which law governs the contract?')), "
+            "'answer') AS `body_extracted_law`") in sql
+    with pytest.raises(QuailUnsupported, match="fixed text"):
+        check_eligible({**EXTRACT, "prompt": "Which law governs {{ input.name }}?"})
+    with pytest.raises(QuailUnsupported, match="own model"):
+        check_eligible({**PARALLEL, "prompts": [{**PARALLEL["prompts"][0], "model": "gpt-4o"}]})
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_parallel_map_and_extract(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"review {i}"} for i in range(3)]
+    config = _pipeline(tmp_path, quail_server, [PARALLEL, {**EXTRACT, "format_extraction": False}], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    output = sorted(json.loads((tmp_path / "out.json").read_text()), key=lambda r: r["id"])
+    assert [r["id"] for r in output] == [0, 1, 2]
+    for row in output:
+        assert isinstance(row["positive"], bool)
+        assert isinstance(row["summary"], str)
+        # The oracle finds no answer, which a list-valued extract writes as [].
+        assert isinstance(row["body_extracted_law"], list)

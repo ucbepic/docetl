@@ -34,6 +34,8 @@ DocETL talks to the server over Arrow Flight with `pyarrow`, so DocETL needs no 
 | --- | --- |
 | `filter` with one `bool` output | `WHERE AI.IF(PROMPT(...))` |
 | `map`, one AI function per output item | `bool`: `AI.IF`; `enum[...]`: `AI.CLASSIFY`; `int`, `float`: `AI.MAP` with `TRY_CAST`; `string`: `AI.MAP`; `list[...]`, objects: `AI.MAP` with a JSON instruction |
+| `parallel_map` | Each prompt's output keys get AI functions from that prompt, in one step |
+| `extract` | `AI_EXTRACT(document, named_struct('answer', prompt))` for each document key: text copied from the document (one passage per key) |
 | `reduce` | `GROUP BY reduce_key`, with the same AI functions over `STRING_AGG` of the group's items, in row order; `pass_through` keeps each group's first row |
 | `split` with `method: delimiter` | Plain SQL (`string_to_array`, numbered pieces, `STRING_AGG`), when a Quail operation is next to it |
 | `gather` with head, tail, or middle counts | Plain SQL (window functions over each document's chunks), when a Quail operation is next to it |

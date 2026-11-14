@@ -23,6 +23,7 @@ from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
 from docetl.operations.web_fetch import WebFetchOperation
 from docetl.operations.web_search import WebSearchOperation
+from docetl.operations.quail import QuailOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -48,6 +49,7 @@ mapping = {
     "extract": ExtractOperation,
     "web_fetch": WebFetchOperation,
     "web_search": WebSearchOperation,
+    "quail": QuailOperation,
 }
 
 

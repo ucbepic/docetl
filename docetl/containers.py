@@ -553,6 +553,50 @@ def _make_scan_container(
     return container
 
 
+def _group_quail_runs(runner: DSLRunner, nodes: list) -> list:
+    """Group consecutive Quail-engine operations; leave the rest as single nodes.
+
+    Returns a list whose items are either a plan node (runs on LiteLLM) or a
+    ``(nodes, engine)`` tuple (one fused Quail query). An operation that asks for the
+    Quail engine but has no Quail form runs on LiteLLM with
+    ``fallback: litellm``, and fails here with ``fallback: strict``.
+    """
+    from docetl.engines.quail import QuailUnsupported, check_eligible, engine_for
+
+    groups: list = []
+    run: list = []
+    run_engine: dict = {}
+
+    def close_run() -> None:
+        if run:
+            groups.append((list(run), dict(run_engine)))
+            run.clear()
+
+    for node in nodes:
+        op = runner.find_operation(node.name)
+        engine = engine_for(op, runner.config)
+        if engine is None:
+            close_run()
+            groups.append(node)
+            continue
+        try:
+            check_eligible(op)
+        except QuailUnsupported as error:
+            if engine["fallback"] == "strict":
+                raise ValueError(f"Quail engine (strict): {error}") from error
+            runner.console.log(f"[yellow]Quail engine: {error}; running on LiteLLM.[/yellow]")
+            close_run()
+            groups.append(node)
+            continue
+        if run and run_engine != engine:
+            close_run()
+        run_engine.clear()
+        run_engine.update(engine)
+        run.append(node)
+    close_run()
+    return groups
+
+
 def build_operation_graph(runner: DSLRunner) -> None:
     """Build the pull-based OpContainer DAG from the runner's logical plan."""
     from docetl.plan.ir import JoinNode
@@ -593,9 +637,21 @@ def build_operation_graph(runner: DSLRunner) -> None:
             )
             remaining = step.nodes
 
-        for node in remaining:
-            key = f"{step_name}/{node.name}"
-            container = OpContainer(key, runner, runner.find_operation(node.name))
+        for group in _group_quail_runs(runner, remaining):
+            if isinstance(group, tuple):
+                group, engine = group
+                names = [runner.find_operation(n.name)["name"] for n in group]
+                key = f"{step_name}/quail({'+'.join(names)})"
+                config = {
+                    "name": f"quail({'+'.join(names)})",
+                    "type": "quail",
+                    "engine": engine,
+                    "ops": [runner.find_operation(n.name) for n in group],
+                }
+            else:
+                key = f"{step_name}/{group.name}"
+                config = runner.find_operation(group.name)
+            container = OpContainer(key, runner, config)
             container.add_child(runner.last_op_container)
             runner.last_op_container = container
             runner.op_container_map[key] = container

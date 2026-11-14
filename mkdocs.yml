@@ -59,6 +59,7 @@ nav:
           - Code: operators/code.md
       - Retrievers: retrievers.md
       - Interactive Progress View: execution/interactive-progress.md
+      - Quail Engine: execution/quail.md
       - Python API Reference: api-reference/python.md
       - Pandas Accessor: pandas/index.md
   

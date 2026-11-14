@@ -261,10 +261,18 @@ class FakeQuailServer(flight.FlightServerBase):
             return [flight.Result(b"plan")]
         if action.type == "submit":
             self.queries.append(body)
-            self.sql_by_id[body.get("id", "q")] = body["sql"]
-            status = {"id": body.get("id", "q"), "state": "succeeded", "revision": 1}
+            query_id = body.get("id", "q")
+            if query_id in self.sql_by_id:  # a query run before: saved rows
+                status = {"id": query_id, "state": "succeeded", "revision": 1}
+            else:
+                self.sql_by_id[query_id] = body["sql"]
+                # Running with the model loaded, as after a warm start.
+                status = {"id": query_id, "state": "running", "ready": True, "revision": 1}
         else:
-            status = {"id": body["id"], "state": "succeeded", "revision": 1}
+            time.sleep(0.01)
+            now = time.time()
+            status = {"id": body["id"], "state": "succeeded", "revision": 2,
+                      "ready": True, "started_at": now - 0.01, "finished_at": now}
         return [flight.Result(json.dumps(status).encode())]
 
     def do_get(self, context, ticket):
@@ -818,3 +826,109 @@ def test_real_quail_server_runs_parallel_map_and_extract(tmp_path, quail_server)
         assert isinstance(row["summary"], str)
         # The oracle finds no answer, which a list-valued extract writes as [].
         assert isinstance(row["body_extracted_law"], list)
+
+
+# ── regex_compress ───────────────────────────────────────────────────
+
+COMPRESS = {"name": "compressor", "type": "regex_compress", "document_key": "body",
+            "keep_patterns": [r"(?i)\bgovern(ed|ing)\s+law\b", r"(?i)non-?compet"],
+            "drop_patterns": [r"(?i)^\s*table\s+of\s+contents"],
+            "remove_patterns": [r"(?m)^\s*Source:.*$"], "keep_first_chars": 20}
+
+
+def test_regex_compress_keeps_matching_paragraphs_with_gap_markers():
+    from docetl.operations.regex_compress import compress
+
+    text = ("Source: EDGAR\nACME AGREEMENT\n\nTable of Contents\n1. Terms 2\n\n"
+            "Payment is due monthly.\n\n  \n\nThis is governed by the governing law of Ohio.\n\n"
+            "Notices go by mail.\n\nNo party shall compete (non-compete).")
+    assert compress(text, COMPRESS) == (
+        "\nACME AGREEMENT\n\n[...]\n\nThis is governed by the governing law of Ohio.\n\n"
+        "[...]\n\nNo party shall compete (non-compete)."
+    )
+    # Nothing kept: the whole text, after remove_patterns.
+    assert compress("Source: x\nplain\n\nwords", {**COMPRESS, "keep_first_chars": 0}) == "\nplain\n\nwords"
+    assert compress(None, COMPRESS) is None
+
+
+def test_regex_compress_refuses_patterns_quail_cannot_run():
+    from docetl.operations.regex_compress import RegexCompressOperation
+
+    for pattern in [r"(?<=a)b", r"a(?=b)", r"(a)\1", r"(?P<x>a)", "("]:
+        with pytest.raises(ValueError):
+            RegexCompressOperation.schema.model_validate({**COMPRESS, "keep_patterns": [pattern]})
+
+
+def test_regex_compress_joins_the_quail_run_next_to_it():
+    from docetl.containers import _group_quail_runs
+
+    chunk_map = {**MAP, "name": "label", "prompt": "Label: {{ input.body }}"}
+    ops = {"compressor": COMPRESS, "label": chunk_map}
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+    groups = _group_quail_runs(runner, [SimpleNamespace(name=n) for n in ["compressor", "label"]])
+    assert [[n.name for n in g[0]] if isinstance(g, tuple) else g.name for g in groups] == [
+        ["compressor", "label"]
+    ]
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_regex_compress_in_sql_matches_docetl_exactly(tmp_path, quail_server):
+    import random
+
+    rng = random.Random(11)
+    paragraphs = ["Governing Law: Delaware.", "governed  by the laws", "NON-COMPETE applies",
+                  "Table of Contents\n1. Terms", "Source: EDGAR filing", "plain words here",
+                  "naïve café terms", "  ", " ", "x", "Payment due.\nSecond line.",
+                  "The Non-compete period is 2 years.", "Line one\n \t\nline two"]
+    rows = []
+    for i in range(10):
+        parts = rng.choices(paragraphs, k=rng.randint(0, 9))
+        joiner = rng.choice(["\n\n", "\n \n", "\n \n\n", "\n"])
+        rows.append({"id": i, "body": joiner.join(parts)})
+    rows.append({"id": 10, "body": ""})
+    configs = [
+        COMPRESS,
+        {**COMPRESS, "keep_first_chars": 0, "gap_marker": ""},
+        {**COMPRESS, "keep_first_chars": 1000, "output_key": "short"},
+        {**COMPRESS, "remove_patterns": [], "drop_patterns": [], "keep_patterns": []},
+        {**COMPRESS, "keep_patterns": [r"(?i)\bterms?\b"], "gap_marker": "<gap>"},
+    ]
+    for config in configs:
+        out = config.get("output_key") or "body"
+        expected = {r["id"]: r[out] for r in _run_python_ops(tmp_path, [config], rows)}
+        got = _run_sql_ops(quail_server, [config], rows, ["body"])
+        have = {int(i): v for i, v in zip(got["_docetl_id"], got[out])}
+        assert have == expected, config
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_regex_compress_and_a_map_as_one_query(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"Intro {i}.\n\nfiller\n\nThe governing law is Ohio {i}."} for i in range(4)]
+    label = {**MAP, "name": "label", "prompt": "Label: {{ input.body }}"}
+    config = _pipeline(tmp_path, quail_server, [{**COMPRESS, "keep_first_chars": 5}, label], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    # The oracle answers some rows only; each answered row has its compressed body.
+    assert out
+    for r in out:
+        assert r["body"] == f"Intro {r['id']}.\n\n[...]\n\nThe governing law is Ohio {r['id']}."
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_reports_query_seconds_and_none_for_saved_rows(quail_server):
+    from docetl.engines.quail.client import QuailClient
+
+    table = pa.table({"_docetl_id": ["0", "1"], "body": ["a", "b"]})
+    sql = compile_run([MAP], "timed").sql
+    with QuailClient(quail_server) as client:
+        client.upload("timed", table, "_docetl_id")
+        client.run(sql, query_id="timed-1")
+        assert 0 < client.query_seconds < 60
+        client.run(sql, query_id="timed-1")  # saved rows
+        assert client.query_seconds == 0

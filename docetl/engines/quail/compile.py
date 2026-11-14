@@ -304,7 +304,7 @@ def _check_extract(op_config: dict) -> None:
     )
 
 
-SQL_TYPES = ("split", "gather")
+SQL_TYPES = ("split", "gather", "regex_compress")
 WHITESPACE = "CONCAT(' ', CHR(9), CHR(10), CHR(11), CHR(12), CHR(13))"
 
 
@@ -343,6 +343,15 @@ def check_sql_eligible(op_config: dict) -> None:
                     )
         names = [op_config.get(k, "") for k in ("content_key", "doc_id_key", "order_key")]
         names.append(f"{op_config.get('content_key')}_rendered")
+    elif kind == "regex_compress":
+        from docetl.operations.regex_compress import RegexCompressOperation
+
+        try:
+            RegexCompressOperation.schema.model_validate(op_config)
+        except ValueError as error:
+            raise QuailUnsupported(f"regex_compress {name!r}: {error}") from error
+        names = [op_config.get("document_key", ""), op_config.get("output_key") or ""]
+        names = [n for n in names if n]
     else:
         raise QuailUnsupported(f"operation {name!r} of type {kind!r} has no SQL form")
     for column in names:
@@ -353,10 +362,14 @@ def check_sql_eligible(op_config: dict) -> None:
 def _sql_reads(op: dict) -> list[str]:
     if op["type"] == "split":
         return [op["split_key"]]
+    if op["type"] == "regex_compress":
+        return [op["document_key"]]
     return [op["content_key"], op["doc_id_key"], op["order_key"]]
 
 
 def _sql_writes(op: dict) -> dict[str, str]:
+    if op["type"] == "regex_compress":
+        return {op.get("output_key") or op["document_key"]: "string"}
     if op["type"] == "split":
         return {
             f"{op['split_key']}_chunk": "string",
@@ -411,6 +424,73 @@ def _split_ctes(op: dict, prev: str, index: int, columns: list[str], id_in: str,
         + "".join(f"c{index}_s.`{c}` AS `{c}`, " for c in carried)
         + f"c{index}_s.`__text` AS `{key}_chunk`, c{index}_s.`__parent` AS `{name}_id`, "
         f"c{index}_s.`__chunkno` AS `{name}_chunk_num` FROM c{index}_s)",
+    ]
+
+
+def _regex_compress_ctes(op: dict, prev: str, index: int, columns: list[str], id_col: str) -> list[str]:
+    """CTEs for a regex_compress, matching docetl.operations.regex_compress.
+
+    The text (after remove_patterns) is split into numbered paragraphs; a
+    running sum of paragraph lengths finds the first keep_first_chars; LAG
+    finds gaps for the marker; STRING_AGG joins the kept paragraphs. A LEFT
+    JOIN keeps every row, with the text after remove_patterns when no
+    paragraph is kept (or the document is empty).
+    """
+    from docetl.operations.regex_compress import (
+        EMPTY_PARAGRAPH,
+        JOINER,
+        PARAGRAPH_BREAK,
+        SPLIT_MARK,
+    )
+
+    key = op["document_key"]
+    out = op.get("output_key") or key
+    text = _col(prev, key)
+    for pattern in op.get("remove_patterns") or []:
+        text = f"regexp_replace({text}, {_lit(pattern)}, '', 'g')"
+    t, p, n, f, w, k, lagged, a = (f"c{index}_{x}" for x in ("t", "p", "n", "f", "w", "k", "l", "a"))
+    piece = f"array_element({n}.`__parts`, {n}.`__i`)"
+
+    def any_match(patterns: list[str], value: str) -> str:
+        if not patterns:
+            return "FALSE"
+        return "(" + " OR ".join(f"regexp_like({value}, {_lit(x)})" for x in patterns) + ")"
+
+    para = f"{w}.`__para`"
+    first = int(op.get("keep_first_chars") or 0)
+    keep = (
+        f"(NOT {any_match(op.get('drop_patterns') or [], para)}) AND "
+        f"(COALESCE({w}.`__before`, 0) < {first} OR {any_match(op.get('keep_patterns') or [], para)})"
+    )
+    marker = op.get("gap_marker", "[...]")
+    labeled = f"{lagged}.`__para`"
+    if marker:
+        labeled = (
+            f"CASE WHEN {lagged}.`__prev` IS NOT NULL AND {lagged}.`__k` > {lagged}.`__prev` + 1 "
+            f"THEN CONCAT({_lit(marker + JOINER)}, {lagged}.`__para`) ELSE {lagged}.`__para` END"
+        )
+    others = [c for c in columns if c != out]
+    select = ", ".join(f"{t}.`{c}` AS `{c}`" for c in others)
+    return [
+        f"{t} AS (SELECT {prev}.*, {text} AS `__text` FROM {prev})",
+        f"{p} AS (SELECT {t}.`{id_col}` AS `{id_col}`, string_to_array(regexp_replace({t}.`__text`, "
+        f"{_lit(PARAGRAPH_BREAK)}, {_lit(SPLIT_MARK)}, 'g'), {_lit(SPLIT_MARK)}) AS `__parts` FROM {t})",
+        f"{n} AS (SELECT {p}.*, UNNEST(generate_series(CAST(1 AS BIGINT), "
+        f"CAST(array_length({p}.`__parts`) AS BIGINT))) AS `__i` FROM {p})",
+        f"{f} AS (SELECT {n}.`{id_col}` AS `{id_col}`, {n}.`__i` AS `__i`, {piece} AS `__para` "
+        f"FROM {n} WHERE NOT regexp_like({piece}, {_lit(EMPTY_PARAGRAPH)}))",
+        f"{w} AS (SELECT {f}.*, CAST(ROW_NUMBER() OVER (PARTITION BY {f}.`{id_col}` ORDER BY {f}.`__i`) "
+        f"AS BIGINT) AS `__k`, CAST(SUM(char_length({f}.`__para`)) OVER (PARTITION BY {f}.`{id_col}` "
+        f"ORDER BY {f}.`__i` ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS BIGINT) AS `__before` "
+        f"FROM {f})",
+        f"{k} AS (SELECT {w}.`{id_col}` AS `{id_col}`, {w}.`__k` AS `__k`, {w}.`__para` AS `__para` "
+        f"FROM {w} WHERE {keep})",
+        f"{lagged} AS (SELECT {k}.*, LAG({k}.`__k`) OVER (PARTITION BY {k}.`{id_col}` ORDER BY {k}.`__k`) "
+        f"AS `__prev` FROM {k})",
+        f"{a} AS (SELECT {lagged}.`{id_col}` AS `__rid`, STRING_AGG({labeled}, {_lit(JOINER)} "
+        f"ORDER BY {lagged}.`__k`) AS `__out` FROM {lagged} GROUP BY {lagged}.`{id_col}`)",
+        f"c{index} AS (SELECT {select}{', ' if select else ''}COALESCE({a}.`__out`, {t}.`__text`) "
+        f"AS `{out}` FROM {t} LEFT JOIN {a} ON {t}.`{id_col}` = {a}.`__rid`)",
     ]
 
 
@@ -663,6 +743,10 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
                 ctes.extend(_split_ctes(op, prev, index, columns, id_col, new_id))
                 columns = [new_id, *[c for c in columns if c not in (id_col, ID_COLUMN)]]
                 id_col = new_id
+            elif op["type"] == "regex_compress":
+                if id_col not in columns:
+                    raise QuailUnsupported(f"regex_compress {op['name']!r} after a reduce in the run")
+                ctes.extend(_regex_compress_ctes(op, prev, index, columns, id_col))
             else:
                 ctes.extend(_gather_ctes(op, prev, index))
             for name, kind in _sql_writes(op).items():

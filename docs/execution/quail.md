@@ -39,9 +39,10 @@ DocETL talks to the server over Arrow Flight with `pyarrow`, so DocETL needs no 
 | `reduce` | `GROUP BY reduce_key`, with the same AI functions over `STRING_AGG` of the group's items, in row order; `pass_through` keeps each group's first row |
 | `split` with `method: delimiter` | Plain SQL (`string_to_array`, numbered pieces, `STRING_AGG`), when a Quail operation is next to it |
 | `gather` with head, tail, or middle counts | Plain SQL (window functions over each document's chunks), when a Quail operation is next to it |
+| [`regex_compress`](../operators/regex-compress.md) | Plain SQL (`regexp_replace`, `regexp_like`, numbered paragraphs, `STRING_AGG`), when a Quail operation is next to it |
 | `equijoin`, `resolve`, everything else | LiteLLM |
 
-A chunking pipeline (split, gather, map, reduce) can therefore run as one Quail query. A `token_count` split needs a tokenizer in SQL, so it runs in DocETL, and the gather, map, and reduce after it still form one query. Split and gather produce the same rows as DocETL's own operations; `tests/test_quail_engine.py` checks every chunk and rendered context string against them.
+A chunking pipeline (split, gather, map, reduce) can therefore run as one Quail query. A `token_count` split needs a tokenizer in SQL, so it runs in DocETL, and the gather, map, and reduce after it still form one query. Split, gather, and regex_compress produce the same rows as DocETL's own operations; `tests/test_quail_engine.py` checks every chunk, rendered context string, and compressed document against them. A `regex_compress` in front of a map makes compression and extraction one query.
 
 A filter and a map become one query:
 
@@ -95,7 +96,7 @@ A reduce group larger than `max_group_tokens` (about 4 characters per token) doe
 ## Notes
 
 - The Quail engine ignores an operation's `model`: Quail Server runs the model it started with.
-- `max_tokens` for `AI.MAP` comes from the operation's `litellm_completion_kwargs.max_tokens`, or Quail's default of 256.
+- `max_tokens` for `AI.MAP` comes from the operation's `litellm_completion_kwargs.max_tokens`; otherwise JSON outputs get 4096 and text outputs get Quail's default of 256.
 - At startup, DocETL asks the server to plan each compiled query (`explain`) against an empty table, so a query Quail cannot plan fails before any GPU time.
-- Quail operations report a cost of $0.00, because the GPU runs outside DocETL.
+- A Quail run's cost is its GPU time on Quail Server, from when the server has the model ready for the query to when the query finishes, priced at `gpu_cost_per_hour` (0 by default). Time in the server's queue, the server's cold start (loading the model, compiling kernels), and saved rows cost nothing.
 - `tests/quail_e2e/modal_e2e.py` runs the engine end to end against Qwen3 4B on a Modal H100.

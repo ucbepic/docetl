@@ -133,7 +133,9 @@ METRICS = {"medec": "combined_score", "cuad": "avg_f1"}
 QUAIL_NOTES = (
     "Operations whose model is quail/<model> run on Quail Server, an open "
     "model on a GPU. Quail runs map, parallel_map, filter, extract, and "
-    "reduce operations; split, gather, and code operations run as usual. A "
+    "reduce operations; delimiter splits, gathers, and regex_compress "
+    "operations next to them run inside the same Quail query; other "
+    "operations run as usual. A "
     "quail map, parallel_map, or filter prompt "
     "may contain only fixed text and plain field references such as "
     "{{ input.document }}: no Jinja filters, loops, conditionals, or macros, "

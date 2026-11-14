@@ -425,17 +425,17 @@ def test_deterministic_doc_compression_apply():
     from docetl.reasoning_optimizer.instantiate_schemas import DeterministicDocCompressionInstantiateSchema
     rewrite = DeterministicDocCompressionInstantiateSchema(
         name="compress_document",
-        code="""
-def transform(input_doc):
-    import re
-    compressed_doc = re.sub(r'\\s+', ' ', input_doc['document'])
-    return {'document': compressed_doc}
-"""
+        document_key="document",
+        keep_patterns=[r"(?i)\bprocess"],
+        keep_first_chars=500,
     )
-    
-    result = directive.apply("azure/gpt-4o-mini", ops_list, "process_doc", rewrite)
+    rewrite.validate_against_target_ops(ops_list)
+
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["process_doc"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 2  # Should add preprocessing op before target
+    assert result[0]["type"] == "regex_compress"
+    assert result[0]["document_key"] == "document"
 
 
 def test_doc_chunking_apply():

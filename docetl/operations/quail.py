@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import time
 import uuid
 from collections import defaultdict
 from typing import Any
@@ -155,13 +154,14 @@ class QuailOperation(BaseOperation):
         self.console.log(
             f"[cyan]Quail[/cyan] running {names} on {len(input_data)} rows at {engine['endpoint']}"
         )
-        started = time.monotonic()
         with QuailClient(engine["endpoint"]) as client:
             client.upload(table_name, table, ID_COLUMN)
             result = client.run(compiled.sql, query_id=query_id)
-        # Quail Server's time, priced at engine.gpu_cost_per_hour, so cost
-        # comparisons with hosted models are fair. Saved rows cost ~nothing.
-        cost = (time.monotonic() - started) / 3600 * engine.get("gpu_cost_per_hour", 0.0)
+            seconds = client.query_seconds
+        # Quail Server's GPU time for this query, priced at
+        # engine.gpu_cost_per_hour, so cost comparisons with hosted models
+        # are fair. Queue time, cold start, and saved rows cost nothing.
+        cost = seconds / 3600 * engine.get("gpu_cost_per_hour", 0.0)
 
         # Quail returns column names qualified by their table alias.
         rows = {name.split(".", 1)[-1]: values for name, values in result.to_pydict().items()}

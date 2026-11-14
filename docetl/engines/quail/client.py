@@ -43,6 +43,8 @@ class QuailClient:
                 with open(roots, "rb") as f:
                     kwargs["tls_root_certs"] = f.read()
         self._flight = flight.FlightClient(endpoint, **kwargs)
+        # GPU seconds of the last query ``wait`` watched; see ``wait``.
+        self.query_seconds = 0.0
         token = token if token is not None else os.environ.get(TOKEN_VARIABLE)
         self._options = flight.FlightCallOptions(
             headers=[(b"authorization", f"Bearer {token}".encode())] if token else []
@@ -90,17 +92,36 @@ class QuailClient:
         return json.loads(self._act("submit", body))
 
     def wait(self, status: dict, timeout_s: float | None = None) -> dict:
-        """Wait until a submitted query finishes; return its final status."""
+        """Wait until a submitted query finishes; return its final status.
+
+        Sets ``query_seconds`` to the query's GPU time: from when the server
+        has the model ready for it to when it finishes. Time in the queue and
+        the server's cold start (loading the model, compiling kernels) do
+        not count; a query the server already ran counts 0.
+        """
         deadline = None if timeout_s is None else time.monotonic() + timeout_s
+        ready_at = None
+        self.query_seconds = 0.0
+        if status["state"] in FINISHED:
+            return status  # saved rows: no GPU time
         while status["state"] not in FINISHED:
             if deadline is not None and time.monotonic() > deadline:
                 raise TimeoutError(f"Quail query {status['id']} did not finish")
+            if ready_at is None and status["state"] == "running" and status.get("ready"):
+                ready_at = time.monotonic()
+            # "ready" changes no revision, so poll each second until it shows.
+            wait_s = 30 if ready_at is not None else 1
             status = json.loads(
                 self._act(
                     "status",
-                    {"id": status["id"], "after": status.get("revision", 0), "wait_s": 30},
+                    {"id": status["id"], "after": status.get("revision", 0), "wait_s": wait_s},
                 )
             )
+        if ready_at is not None:
+            self.query_seconds = time.monotonic() - ready_at
+        elif status.get("started_at") and status.get("finished_at"):
+            # Finished between two polls: the server's own run time.
+            self.query_seconds = status["finished_at"] - status["started_at"]
         return status
 
     def result(self, query_id: str) -> pa.Table:

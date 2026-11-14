@@ -429,60 +429,57 @@ class DocCompressionInstantiateSchema(BaseModel):
 class DeterministicDocCompressionInstantiateSchema(BaseModel):
     """
     Schema for deterministic document compression operations in a data processing pipeline.
-    Inserts a Code Map operator before the target operation to compress long documents using deterministic logic.
+    Inserts a regex_compress operation before the target operation: it keeps the
+    paragraphs of a long document that match regular expressions, with no LLM call.
     """
 
-    name: str = Field(..., description="The name of the Code Map compression operator")
-    code: str = Field(
+    name: str = Field(..., description="The name of the regex_compress operation")
+    document_key: str = Field(
+        ..., description="The document field to compress; the target operations read it"
+    )
+    keep_patterns: List[str] = Field(
         ...,
-        description="Python code defining a 'transform' function that takes input_doc and returns a dictionary with compressed document field(s). Must include all necessary imports within the function.",
+        min_length=1,
+        description="Regular expressions; a paragraph that matches any of them is kept",
+    )
+    drop_patterns: List[str] = Field(
+        default_factory=list,
+        description="Regular expressions; a paragraph that matches any of them is always dropped (such as a table of contents)",
+    )
+    remove_patterns: List[str] = Field(
+        default_factory=list,
+        description="Regular expressions whose matches are deleted from the text before it is split into paragraphs (such as page numbers or repeated headers)",
+    )
+    keep_first_chars: int = Field(
+        default=0,
+        ge=0,
+        description="Paragraphs that start within this many characters of the document's start are always kept (such as the title, parties, and date)",
     )
 
-    @field_validator("code")
+    @field_validator("keep_patterns", "drop_patterns", "remove_patterns")
     @classmethod
-    def check_code_has_function(cls, v: str) -> str:
-        if "def transform(" not in v:
-            raise ValueError(
-                "Code must define a function named 'transform' that takes input_doc as parameter"
-            )
-        if (
-            "return {" not in v
-            and "return dict(" not in v
-            and "output = dict(" not in v
-        ):
-            raise ValueError(f"Code must return a dictionary. Instead the code is: {v}")
-        return v
+    def check_patterns(cls, patterns: List[str]) -> List[str]:
+        from docetl.operations.regex_compress import check_pattern
 
-    def validate_code_returns_target_keys(self, target_ops_configs: List[Dict]) -> None:
-        """
-        Validates that the code returns dictionary keys that match document fields referenced in target operations.
-        """
-        import re
-
-        # Extract all {{ input.key }} references from target operation prompts
-        referenced_keys = set()
-        for op_config in target_ops_configs:
-            prompt = op_config.get("prompt", "")
-            # Find all {{ input.key }} patterns
-            matches = re.findall(r"\{\{\s*input\.([^}\s]+)\s*\}\}", prompt)
-            referenced_keys.update(matches)
-
-        if not referenced_keys:
-            raise ValueError("No input document keys found in target operation prompts")
-
-        # Check if the code appears to return the referenced keys
-        # This is a basic check - we look for the keys in return statements
-        for key in referenced_keys:
-            if f"'{key}'" not in self.code and f'"{key}"' not in self.code:
-                raise ValueError(
-                    f"Code must return dictionary key '{key}' which is referenced in target operation prompts as '{{{{ input.{key} }}}}'"
-                )
+        for pattern in patterns:
+            check_pattern(pattern)
+        return patterns
 
     def validate_against_target_ops(self, target_ops_configs: List[Dict]) -> None:
-        """
-        Validates that the configuration is appropriate for the target operations.
-        """
-        self.validate_code_returns_target_keys(target_ops_configs)
+        """The compressed field must be one the target operations read."""
+        import re
+
+        referenced = set()
+        for op_config in target_ops_configs:
+            prompt = op_config.get("prompt", "") or ""
+            referenced.update(re.findall(r"\{\{\s*input\.([A-Za-z_][A-Za-z0-9_]*)", prompt))
+            referenced.update(re.findall(r"input\[['\"]([^'\"]+)['\"]\]", prompt))
+            referenced.update(op_config.get("document_keys") or [])
+        if self.document_key not in referenced:
+            raise ValueError(
+                f"document_key {self.document_key!r} is not a field the target operations read: "
+                f"{sorted(referenced)}"
+            )
 
 
 class OperatorFusionInstantiateSchema(BaseModel):

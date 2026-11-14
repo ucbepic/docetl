@@ -20,9 +20,9 @@ class DeterministicDocCompressionDirective(Directive):
     name: str = Field(
         default="deterministic_doc_compression", description="The name of the directive"
     )
-    formal_description: str = Field(default="Op => Code Map -> Op")
+    formal_description: str = Field(default="Op => Regex Compress -> Op")
     nl_description: str = Field(
-        default="Reduces LLM processing costs by using deterministic logic (regex, patterns) to compress documents before expensive downstream operations, removing irrelevant content that could distract the LLM"
+        default="Reduces LLM processing costs by keeping only the paragraphs of a document that match regular expressions (a regex_compress operation, no LLM call) before expensive downstream operations, removing irrelevant content that could distract the LLM"
     )
     when_to_use: str = Field(
         default="When documents contain identifiable patterns or keywords and you want to reduce token costs for downstream LLM operations while improving accuracy by eliminating distracting irrelevant content"
@@ -48,63 +48,16 @@ class DeterministicDocCompressionDirective(Directive):
 
         Example InstantiateSchema (what the agent should output):
         {
-        "name": "extract_compliance_sections",
-        "code": '''
-def transform(input_doc):
-    import re
-
-    legal_document = input_doc.get('legal_document', '')
-
-    # Patterns to identify compliance-related content
-    compliance_patterns = [
-        r'(?i)(violat[e|ion]|breach|non-complian[ce|t])',
-        r'(?i)(deadline|due date|expir[e|ation]|within.*days?)',
-        r'(?i)(shall|must|required|mandatory|obligation)',
-        r'(?i)(section|article|clause)\\s+\\d+.*(complian[ce|t]|regulat[e|ory])'
-    ]
-
-    relevant_spans = []
-
-    # Find all matches and extract context around them
-    for pattern in compliance_patterns:
-        for match in re.finditer(pattern, legal_document):
-            start_pos = match.start()
-            end_pos = match.end()
-
-            # Extract 300 chars before and 800 chars after the match
-            context_start = max(0, start_pos - 300)
-            context_end = min(len(legal_document), end_pos + 800)
-
-            # Extract the context around the match
-            context = legal_document[context_start:context_end]
-            relevant_spans.append((context_start, context_end, context))
-
-    # Merge overlapping spans and remove duplicates
-    if relevant_spans:
-        # Sort by start position
-        relevant_spans.sort(key=lambda x: x[0])
-        merged_spans = [relevant_spans[0]]
-
-        for current_start, current_end, current_text in relevant_spans[1:]:
-            last_start, last_end, last_text = merged_spans[-1]
-
-            if current_start <= last_end + 100:  # Merge if close enough
-                # Extend the last span
-                new_end = max(last_end, current_end)
-                new_text = legal_document[last_start:new_end]
-                merged_spans[-1] = (last_start, new_end, new_text)
-            else:
-                merged_spans.append((current_start, current_end, current_text))
-
-        # Extract just the text portions
-        compressed_text = '\\n\\n--- SECTION BREAK ---\\n\\n'.join([span[2] for span in merged_spans])
-    else:
-        compressed_text = legal_document  # Fallback if no matches
-
-    return {
-        'legal_document': compressed_text
-    }
-            '''
+          "name": "keep_compliance_paragraphs",
+          "document_key": "legal_document",
+          "keep_patterns": [
+            "(?i)\\b(violat(e|ion)|breach|non-?complian(ce|t))",
+            "(?i)\\b(deadline|due date|expir(e|es|ation)|within \\d+ days)",
+            "(?i)\\b(shall|must|required|mandatory|obligation)\\b"
+          ],
+          "drop_patterns": ["(?i)^\\s*table of contents"],
+          "remove_patterns": ["(?m)^\\s*Page \\d+( of \\d+)?\\s*$"],
+          "keep_first_chars": 1500
         }
         """
     )
@@ -150,7 +103,7 @@ def transform(input_doc):
                     },
                 },
                 target_ops=["analyze_merger_agreement_terms"],
-                expected_behavior="Should add Code Map operation that extracts merger agreement sections using regex patterns for legal terms, financial provisions, and risk-related clauses. The return dictionary of the transform function should be {'merger_agreement': ....} only.",
+                expected_behavior="Should add a regex_compress operation on merger_agreement whose keep_patterns match legal terms, financial provisions, and risk-related clauses.",
                 should_pass=True,
             ),
             DirectiveTestCase(
@@ -182,7 +135,7 @@ def transform(input_doc):
                     },
                 ],
                 target_ops=["extract_financial_metrics", "assess_financial_risks"],
-                expected_behavior="Should add Code Map operation that extracts financial content needed for both operations. The return dictionary of the transform function should be {'earnings_report': ....} only.",
+                expected_behavior="Should add a regex_compress operation on earnings_report whose keep_patterns match the financial content both operations need.",
                 should_pass=True,
             ),
         ]
@@ -207,33 +160,32 @@ def transform(input_doc):
         )
 
         return (
-            f"You are an expert at document processing and Python programming.\n\n"
+            f"You are an expert at document processing and regular expressions.\n\n"
             f"Target Operations:\n"
             f"{ops_str}\n\n"
             f"Directive: {self.name}\n"
-            f"Your task is to instantiate this directive by specifying a Code Map operation "
-            f"that specifies how to compress the input document using deterministic logic.\n\n"
-            f"The directive will insert a Code Map operation that:\n"
-            f"1. Takes document field(s) from the input\n"
-            f"2. Uses deterministic logic (regex, keyword matching, pattern extraction) to compress them\n"
-            f"3. Returns a dictionary with the EXACT SAME document field key and compressed content\n"
-            f"4. Reduces token usage and improves focus for the downstream operations\n\n"
-            f"The agent must output the configuration specifying:\n"
-            f"- name: A descriptive name for the Code Map operation\n"
-            f"- code: Python code defining a 'transform' function that:\n"
-            f"  * Takes input_doc as parameter\n"
-            f"  * Imports 're' and other standard libraries WITHIN the function itself\n"
-            f"  * Only uses standard Python libraries (re, string, json, etc.) - no external packages\n"
-            f"  * Uses deterministic logic to extract relevant content patterns\n"
-            f"  * For each pattern match, extracts context around it (e.g., ±500 chars, or -300 to +800 chars)\n"
-            f"  * Use your judgment to determine appropriate character counts that capture enough context\n"
-            f"  * Merges overlapping context spans to avoid duplication\n"
-            f"  * Returns a dictionary with the EXACT document key and compressed value: {{document_key: compressed_content}}\n\n"
-            f"CRITICAL: The returned dictionary must use the exact same document field names as the original, "
-            f"not modified versions like 'document_key_compressed'. The downstream operations expect the exact same field names.\n\n"
-            f"IMPORTANT: Focus on extracting the minimal content necessary for ALL target operations "
-            f"using deterministic pattern matching. Analyze each operation's prompt to identify what types "
-            f"of content patterns to look for.\n\n"
+            f"Your task is to instantiate this directive by configuring a regex_compress operation, "
+            f"which DocETL inserts before the target operations. It runs no LLM and no Python you write:\n"
+            f"1. It deletes every match of each remove_patterns entry from the document_key field.\n"
+            f"2. It splits the text into paragraphs at blank lines and drops empty paragraphs.\n"
+            f"3. It keeps a paragraph when no drop_patterns entry matches it, and either the paragraph "
+            f"starts within the first keep_first_chars characters or a keep_patterns entry matches it.\n"
+            f"4. It joins the kept paragraphs with blank lines, with [...] where paragraphs were left out, "
+            f"and writes the result back to the same field. When no paragraph is kept, the field keeps "
+            f"the whole text from step 1.\n\n"
+            f"Output:\n"
+            f"- name: a descriptive name for the operation\n"
+            f"- document_key: the document field the target operations read (for example 'document' "
+            f"for {{{{ input.document }}}})\n"
+            f"- keep_patterns: regular expressions for the content ALL target operations need; favor "
+            f"recall, since a paragraph left out is lost to the downstream operations\n"
+            f"- drop_patterns: regular expressions for paragraphs to always leave out, such as a table of contents\n"
+            f"- remove_patterns: regular expressions for noise to delete, such as page numbers or repeated headers\n"
+            f"- keep_first_chars: how much of the document's start to always keep (title, parties, dates)\n\n"
+            f"Patterns are searched anywhere in a paragraph (use ^ with (?m) to anchor to a line). Use "
+            f"syntax both Python's re and Rust's regex accept: inline flags such as (?i) and (?m), "
+            f"character classes, \\b, \\s, \\d, alternation, and non-capturing or plain groups. "
+            f"Do not use lookahead, lookbehind, named groups, or backreferences.\n\n"
             f"Example:\n"
             f"{self.example}\n\n"
             f"Please output only the DeterministicDocCompressionInstantiateSchema as JSON "
@@ -297,7 +249,7 @@ def transform(input_doc):
     ) -> List[Dict]:
         """
         Apply the directive using the instantiate schema configuration.
-        Inserts a Code Map operation before the first target operation.
+        Inserts a regex_compress operation before the first target operation.
         """
         new_ops_list = deepcopy(ops_list)
 
@@ -306,15 +258,16 @@ def transform(input_doc):
             [i for i, op in enumerate(ops_list) if op["name"] in target_ops]
         )
 
-        # Create the Code Map operation
-        code_map_op = {
+        compress_op = {
             "name": rewrite.name,
-            "type": "code_map",
-            "code": rewrite.code,
+            "type": "regex_compress",
+            "document_key": rewrite.document_key,
+            "keep_patterns": rewrite.keep_patterns,
+            "drop_patterns": rewrite.drop_patterns,
+            "remove_patterns": rewrite.remove_patterns,
+            "keep_first_chars": rewrite.keep_first_chars,
         }
-
-        # Insert the Code Map operation before the first target operation
-        new_ops_list.insert(first_target_pos, code_map_op)
+        new_ops_list.insert(first_target_pos, compress_op)
 
         return new_ops_list
 

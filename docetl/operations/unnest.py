@@ -1,8 +1,69 @@
 import copy
 import re
 
+from jinja2 import Environment, TemplateSyntaxError, nodes
+from pydantic import field_validator
+
 from docetl.operations.base import BaseOperation, Cardinality
-from docetl.operations.utils.validation import lookup_field
+
+
+def _field_path(expression):
+    """Return the address of a field, excluding computed Jinja expressions."""
+    error = "unnest_key must be a field path with literal string or integer indices"
+    if not isinstance(expression, str) or not expression.strip():
+        raise ValueError(error)
+    try:
+        body = Environment().parse("{{ " + expression + " }}").body
+    except TemplateSyntaxError as exc:
+        raise ValueError(error) from exc
+    if (
+        len(body) != 1
+        or not isinstance(body[0], nodes.Output)
+        or len(body[0].nodes) != 1
+    ):
+        raise ValueError(error)
+    node = body[0].nodes[0]
+    parts = []
+    while isinstance(node, (nodes.Getattr, nodes.Getitem)):
+        if isinstance(node, nodes.Getattr):
+            parts.append(node.attr)
+        else:
+            index = node.arg
+            if (
+                isinstance(index, nodes.Neg)
+                and isinstance(index.node, nodes.Const)
+                and type(index.node.value) is int
+            ):
+                parts.append(-index.node.value)
+            elif isinstance(index, nodes.Const) and type(index.value) in (str, int):
+                parts.append(index.value)
+            else:
+                raise ValueError(error)
+        node = node.node
+    if not isinstance(node, nodes.Name):
+        # The string contains an invalid expression, not an invalid argument type.
+        raise ValueError(error)  # noqa: TRY004
+    parts.append(node.name)
+    return tuple(reversed(parts))
+
+
+def _lookup_path(item, path):
+    for key in path:
+        item = item[key]
+    return item
+
+
+def _replace_path(item, path, value):
+    key = path[0]
+    replacement = value if len(path) == 1 else _replace_path(item[key], path[1:], value)
+    if isinstance(item, tuple):
+        updated = list(item)
+        updated[key] = replacement
+        return tuple(updated)
+    # deepcopy preserves aliases; copy the path to leave aliased siblings intact.
+    updated = copy.copy(item)
+    updated[key] = replacement
+    return updated
 
 
 class UnnestOperation(BaseOperation):
@@ -65,10 +126,20 @@ class UnnestOperation(BaseOperation):
         recursive: bool | None = None
         depth: int | None = None
 
+        @field_validator("unnest_key")
+        @classmethod
+        def validate_unnest_key(cls, value):
+            _field_path(value)
+            return value
+
     @classmethod
     def transform_schema(cls, schema, config):
         result = super().transform_schema(schema, config)
-        key = config.get("unnest_key")
+        try:
+            path = _field_path(config.get("unnest_key"))
+        except ValueError:
+            path = ()
+        key = path[0] if len(path) == 1 else None
         declared = result.get(key)
         if isinstance(declared, str):
             # list[X] fields become one X per row
@@ -88,9 +159,10 @@ class UnnestOperation(BaseOperation):
 
     @classmethod
     def fields_read(cls, config):
-        if not config.get("unnest_key"):
+        try:
+            return frozenset({_field_path(config.get("unnest_key"))[0]})
+        except ValueError:
             return None
-        return frozenset({config["unnest_key"]})
 
     @classmethod
     def fields_written(cls, config):
@@ -98,9 +170,10 @@ class UnnestOperation(BaseOperation):
         # dict-valued unnest_key with no expand_fields configured expands
         # to the dict's *runtime* keys (execute defaults expand_fields to
         # item[key].keys()) — statically unknowable, so fail closed.
-        if not config.get("unnest_key") or config.get("expand_fields") is None:
+        roots = cls.fields_read(config)
+        if roots is None or config.get("expand_fields") is None:
             return None
-        return frozenset({config["unnest_key"]}) | frozenset(config["expand_fields"])
+        return roots | frozenset(config["expand_fields"])
 
     @classmethod
     def is_row_local(cls, config):
@@ -170,41 +243,43 @@ class UnnestOperation(BaseOperation):
         """
 
         unnest_key = self.config["unnest_key"]
+        path = _field_path(unnest_key)
         recursive = self.config.get("recursive", False)
         depth = self.config.get("depth", None)
         if not depth:
             depth = 1 if not recursive else float("inf")
         results = []
 
-        def unnest_recursive(item, key, level=0):
-            if level == 0 and not isinstance(item[key], (list, tuple, set, dict)):
-                raise TypeError(f"Value of unnest key '{key}' is not iterable")
+        def unnest_recursive(item, value, level=0):
+            if level == 0 and not isinstance(value, (list, tuple, set, dict)):
+                raise TypeError(f"Value of unnest key '{unnest_key}' is not iterable")
 
-            if level > 0 and not isinstance(item[key], (list, tuple, set, dict)):
+            if level > 0 and not isinstance(value, (list, tuple, set, dict)):
                 return [item]
 
             if level >= depth:
                 return [item]
 
-            if isinstance(item[key], dict):
+            if isinstance(value, dict):
                 expand_fields = self.config.get("expand_fields")
                 if expand_fields is None:
-                    expand_fields = item[key].keys()
+                    expand_fields = value.keys()
                 new_item = copy.deepcopy(item)
+                nested = _lookup_path(new_item, path)
                 for field in expand_fields:
-                    if field in new_item[key]:
-                        new_item[field] = new_item[key][field]
-                    else:
-                        new_item[field] = None
+                    new_item[field] = nested.get(field)
                 return [new_item]
             else:
+                if not value and self.config.get("keep_empty", False):
+                    return [_replace_path(copy.deepcopy(item), path, None)]
                 nested_results = []
-                for value in item[key]:
+                for element in value:
                     new_item = copy.deepcopy(item)
-                    new_item[key] = value
-                    if recursive and isinstance(value, (list, tuple, set, dict)):
+                    new_value = copy.deepcopy(element)
+                    new_item = _replace_path(new_item, path, new_value)
+                    if recursive and isinstance(new_value, (list, tuple, set, dict)):
                         nested_results.extend(
-                            unnest_recursive(new_item, key, level + 1)
+                            unnest_recursive(new_item, new_value, level + 1)
                         )
                     else:
                         nested_results.append(new_item)
@@ -212,36 +287,13 @@ class UnnestOperation(BaseOperation):
 
         for item in input_data:
             try:
-                unnest_value = lookup_field(item, unnest_key)
-            except Exception:
+                unnest_value = _lookup_path(item, path)
+            except (KeyError, IndexError, TypeError) as exc:
                 raise KeyError(
                     f"Unnest key '{unnest_key}' not found in item. Other keys are {item.keys()}"
-                )
+                ) from exc
 
-            # Temporarily put the looked-up value under a stable top-level key for unnest_recursive
-            # If unnest_key is a simple key it's already there; if it's a path, we need to surface it.
-            # We work on a shallow copy with the value exposed at the unnest_key path's leaf.
-            # For path-style keys, rewrite item to expose the value at a synthetic top-level key.
-            _simple_key = unnest_key
-            _item = item
-            if "." in unnest_key or "[" in unnest_key:
-                _simple_key = "__unnest_value__"
-                _item = dict(item)
-                _item[_simple_key] = unnest_value
-
-            results.extend(unnest_recursive(_item, _simple_key))
-
-            if not unnest_value and self.config.get("keep_empty", False):
-                expand_fields = self.config.get("expand_fields")
-                new_item = copy.deepcopy(_item)
-                if isinstance(unnest_value, dict):
-                    if expand_fields is None:
-                        expand_fields = unnest_value.keys()
-                    for field in expand_fields:
-                        new_item[field] = None
-                else:
-                    new_item[_simple_key] = None
-                results.append(new_item)
+            results.extend(unnest_recursive(item, unnest_value))
 
         # Assert that no keys are missing after the operation
         if results:

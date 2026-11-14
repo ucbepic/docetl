@@ -26,6 +26,14 @@ flowchart LR
 | name       | A unique name for the operation      |
 | unnest_key | The key of the array field to unnest |
 
+`unnest_key` may also address a nested field, for example `user.tags`,
+`records.0.tags`, or `records[-1]['tag.list']`. Dot access and literal string or
+integer indices select data keys and sequence elements. Computed expressions,
+dynamic indices, filters, and calls are not assignable paths and are rejected.
+Each emitted list element replaces the value at the selected path, preserving
+sibling fields. Dictionary expansion adds fields at the document root and keeps
+the selected dictionary at its original path.
+
 ### Optional Parameters
 
 | Parameter     | Description                                                                                           | Default |
@@ -35,6 +43,10 @@ flowchart LR
 | recursive     | If true, the unnest operation will be applied recursively to nested arrays                            | false   |
 | depth         | The maximum depth for recursive unnesting (only applicable if recursive is true)                      | inf     |
 | sample        | Number of samples to use for the operation                                                            | None    |
+
+With `recursive: true`, `keep_empty: true` also retains empty arrays encountered
+within nested arrays, replacing each with `None`. An empty dictionary expands to
+one row, with requested fields set to `None`.
 
 ## Output
 

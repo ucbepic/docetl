@@ -110,7 +110,7 @@ def main(models: str = "qwen3-4b-fp8",
          hosted: str = "gemini/gemini-4-hydrogen,gemini/gemini-4-argon",
          agent: str = "gemini/gemini-4-carbon", iterations: int = 10,
          pipeline: str = "", train: str = "", test: str = "", ground_truth: str = "",
-         reasoning_effort: str = "medium", agent_reasoning_effort: str = "high",
+         reasoning_effort: str = "medium", agent_reasoning_effort: str = "medium",
          concurrent_agents: int = 6, name: str = "", workload: str = "medec",
          focus_quail: bool = False):
     chosen = [m for m in models.split(",") if m]

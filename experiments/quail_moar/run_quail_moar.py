@@ -33,34 +33,96 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
+# Where use_reasoning_effort logs the agent's calls; run() sets it.
+AGENT_LOG: dict = {"path": None}
+
+
+def _log_agent_call(model: str, effort: str | None, seconds: float, response) -> None:
+    """Print one line per agent call and append its thought summary to a file."""
+    import datetime
+
+    usage = getattr(response, "usage", None)
+    details = getattr(usage, "completion_tokens_details", None)
+    message = response.choices[0].message if getattr(response, "choices", None) else None
+    summary = getattr(message, "reasoning_content", None) or ""
+    try:
+        cost = float((response._hidden_params or {}).get("response_cost") or 0.0)
+    except AttributeError:
+        cost = 0.0
+    record = {
+        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "model": model,
+        "reasoning_effort": effort,
+        "seconds": round(seconds, 1),
+        "prompt_tokens": getattr(usage, "prompt_tokens", None),
+        "completion_tokens": getattr(usage, "completion_tokens", None),
+        "reasoning_tokens": getattr(details, "reasoning_tokens", None) if details else None,
+        "cost": round(cost, 4),
+        "thought_summary": summary,
+        "answer_start": (getattr(message, "content", None) or "")[:2000],
+    }
+    first = " ".join(summary.split())[:600]
+    print(
+        f"[agent] {record['seconds']}s  in={record['prompt_tokens']} out={record['completion_tokens']} "
+        f"thinking={record['reasoning_tokens']}  ${record['cost']}\n[agent] thoughts: {first or '(none)'}",
+        flush=True,
+    )
+    if AGENT_LOG["path"]:
+        with open(AGENT_LOG["path"], "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+
+
 def use_reasoning_effort(
     effort: str | None, agent_model: str | None = None, agent_effort: str | None = None,
     prefix: str = "gemini/gemini-4",
 ) -> None:
-    """Send ``reasoning_effort`` on every LiteLLM call to models under ``prefix``.
+    """Send ``reasoning_effort`` on LiteLLM calls, and log the agent's calls.
 
     MOAR's agent model gets ``agent_effort`` (when set); every other model
-    under ``prefix`` gets ``effort``. Installed before DocETL is imported, so
-    the agent, its directives, and every pipeline operation (including ones
-    MOAR adds) get their effort.
+    under ``prefix`` gets ``effort``. Every call to the agent model is logged
+    with its time, tokens, cost, and thought summary (see ``AGENT_LOG``).
+    Installed before DocETL is imported, so the agent, its directives, and
+    every pipeline operation (including ones MOAR adds) go through it.
     """
-    if not (effort or agent_effort):
-        return
+    import time as clock
+
     import litellm
+
+    def effort_for(model: str) -> str | None:
+        if not (isinstance(model, str) and model.startswith(prefix)):
+            return None
+        return agent_effort if (agent_effort and model == agent_model) else effort
 
     def wrap(fn):
         def call(*args, **kwargs):
             model = kwargs.get("model", args[0] if args else "")
-            if isinstance(model, str) and model.startswith(prefix):
-                chosen = agent_effort if (agent_effort and model == agent_model) else effort
-                if chosen:
-                    kwargs.setdefault("reasoning_effort", chosen)
-            return fn(*args, **kwargs)
+            chosen = effort_for(model)
+            if chosen:
+                kwargs.setdefault("reasoning_effort", chosen)
+            started = clock.monotonic()
+            response = fn(*args, **kwargs)
+            if model == agent_model and not kwargs.get("stream"):
+                _log_agent_call(model, chosen, clock.monotonic() - started, response)
+            return response
+
+        return call
+
+    def wrap_async(fn):
+        async def call(*args, **kwargs):
+            model = kwargs.get("model", args[0] if args else "")
+            chosen = effort_for(model)
+            if chosen:
+                kwargs.setdefault("reasoning_effort", chosen)
+            started = clock.monotonic()
+            response = await fn(*args, **kwargs)
+            if model == agent_model and not kwargs.get("stream"):
+                _log_agent_call(model, chosen, clock.monotonic() - started, response)
+            return response
 
         return call
 
     litellm.completion = wrap(litellm.completion)
-    litellm.acompletion = wrap(litellm.acompletion)
+    litellm.acompletion = wrap_async(litellm.acompletion)
 
 
 from experiments.quail_moar.medec_data import build as build_data  # noqa: E402
@@ -198,6 +260,7 @@ def run(
         )
 
     (work / "moar").mkdir(exist_ok=True)
+    AGENT_LOG["path"] = str(work / "agent_reasoning.jsonl")
     if focus_quail and not quail_models:
         raise ValueError("--focus-quail needs at least one --quail model")
     started = time.time()

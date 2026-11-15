@@ -62,9 +62,10 @@ json.dump({"cost": cost, "seconds": time.time() - started, "data": data, **score
     volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/kernels": kernel_cache,
              "/results": results},
 )
-def worker(model: str, idle_minutes: int = 45, reduce_model: str = "") -> str:
+def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: str = "") -> str:
     servers, endpoints = _serve([model])
-    base = f"/results/trials/{model}"
+    # A second queue name lets several workers of one model share the trials.
+    base = f"/results/trials/{model}" + (f"-{queue}" if queue else "")
     inbox, out = f"{base}/inbox", f"{base}/out"
     data = "/results/trials/data"
     os.makedirs(inbox, exist_ok=True)
@@ -120,5 +121,5 @@ def worker(model: str, idle_minutes: int = 45, reduce_model: str = "") -> str:
 
 
 @app.local_entrypoint()
-def main(model: str = "qwen3-4b-fp8", idle_minutes: int = 45, reduce_model: str = ""):
-    print(worker.remote(model, idle_minutes, reduce_model))
+def main(model: str = "qwen3-4b-fp8", idle_minutes: int = 45, reduce_model: str = "", queue: str = ""):
+    print(worker.remote(model, idle_minutes, reduce_model, queue))

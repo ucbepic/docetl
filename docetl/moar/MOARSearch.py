@@ -509,34 +509,36 @@ class MOARSearch:
                     )
 
             if candidate_results:
-                # Select the best candidate based on accuracy
-                best_candidate, best_accuracy, best_cost = max(
-                    candidate_results, key=lambda x: x[1]
-                )
-                self.console.log(
-                    f"[bold green]Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}[/bold green]"
-                )
-
-                # Change the best candidate's ID back to a proper counter ID
-                old_id = best_candidate.get_id()
-                with self.tree_lock:
-                    new_id = best_candidate.set_id_to_counter()
-                self.console.log(
-                    f"[dim]Updated best candidate ID from {old_id} to {new_id}[/dim]"
-                )
-
-                # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
-                for candidate in children:
-                    if candidate != best_candidate:
-                        candidate.delete(selected_node_final_id=new_id)
-
-                # Frontier mutation and backprop touch shared state —
-                # both happen under the tree lock.
-                with self.tree_lock:
-                    affected_nodes, is_frontier_updated = self.add_to_frontier(
-                        best_candidate, best_accuracy
+                # Keep every candidate no other candidate beats on both cost
+                # and accuracy: a cheaper, slightly less accurate variant is
+                # a frontier point too.
+                kept = [
+                    (c, acc, cost) for c, acc, cost in candidate_results
+                    if not any(
+                        o_acc >= acc and o_cost <= cost and (o_acc > acc or o_cost < cost)
+                        for _, o_acc, o_cost in candidate_results
                     )
-                    self.backpropagate(affected_nodes, best_candidate)
+                ]
+                kept_ids = {id(c) for c, _, _ in kept}
+                for candidate in children:
+                    if id(candidate) not in kept_ids:
+                        candidate.delete(selected_node_final_id=None)
+                for best_candidate, best_accuracy, best_cost in kept:
+                    old_id = best_candidate.get_id()
+                    with self.tree_lock:
+                        new_id = best_candidate.set_id_to_counter()
+                    self.console.log(
+                        f"[bold green]Kept multi-instance candidate {old_id} as {new_id} "
+                        f"with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}[/bold green]"
+                    )
+                    # Frontier mutation and backprop touch shared state —
+                    # both happen under the tree lock.
+                    with self.tree_lock:
+                        affected_nodes, updated = self.add_to_frontier(
+                            best_candidate, best_accuracy
+                        )
+                        self.backpropagate(affected_nodes, best_candidate)
+                    is_frontier_updated = is_frontier_updated or updated
             else:
                 self.console.log(
                     "[yellow]No successful candidates found, deleting all multi-instance candidates[/yellow]"

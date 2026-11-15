@@ -151,6 +151,19 @@ QUAIL_NOTES = (
     "more accurate and costs more per token; a code_map or code_reduce costs "
     "nothing, so merge per-chunk results with code where you can."
 )
+# How each workload's evaluator scores a pipeline, as a user would describe
+# it to the agent; read from experiments/reasoning/evaluation/<workload>.py.
+EVALUATION_NOTES = {
+    "cuad": (
+        "The evaluation scores each clause category separately and averages the F1 "
+        "scores. For a category, the predicted text_span counts as correct when it "
+        "shares more than 15% of its distinct words (word-set Jaccard) with the "
+        "ground-truth text, which is the contract's own clause text, usually one or "
+        "more full sentences (for Document Name, Parties, and dates, a short phrase). "
+        "An empty text_span means the category is absent; a non-empty span for an "
+        "absent category is a false positive."
+    ),
+}
 HOSTED_NOTE = " Give an operation a hosted model (gemini/...) when it needs any of these."
 QUAIL_ONLY_NOTE = " Use only the quail/* models: every operation must run on Quail."
 REDUCE_NOTE = (
@@ -282,6 +295,8 @@ def run(
         config["default_model"] = available[0]
         config["quail_models"] = quail_models
         config["pipeline"]["output"]["path"] = str(work / f"{workload}_root.json")
+        if workload in EVALUATION_NOTES:
+            config["evaluation_notes"] = EVALUATION_NOTES[workload]
         if quail_models:
             config["quail_engine_notes"] = QUAIL_NOTES + (HOSTED_NOTE if hosted_models else QUAIL_ONLY_NOTE)
             if reduce_model:

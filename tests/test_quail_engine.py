@@ -961,3 +961,15 @@ def test_real_quail_server_runs_independent_operations_in_one_select(tmp_path, q
     DSLRunner(config, max_threads=2).load_run_save()
     out = json.loads((tmp_path / "out.json").read_text())
     assert out and all({"kind", "summary", "stars", "tone"} <= set(r) for r in out)
+
+
+def test_a_query_goes_to_one_replica_by_its_hash(tmp_path, fake_server):
+    from docetl.operations.quail import _endpoints
+    from docetl.runner import DSLRunner
+
+    assert _endpoints("grpc://a:1, grpc://b:2") == ["grpc://a:1", "grpc://b:2"]
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, f"{endpoint},{endpoint}", [FILTER, MAP], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert len(server.queries) == 1

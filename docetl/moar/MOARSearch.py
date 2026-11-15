@@ -408,43 +408,49 @@ class MOARSearch:
                 self.increment_visits_up_tree(leaf)
             self.increment_visits_up_tree(leaf)
 
-        # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
-        with self.tree_lock:
+        # 2. Expansion: always attempt to expand the leaf, catching errors.
+        # The agent's LLM calls run outside the tree lock, so concurrent
+        # agents expand in parallel; expand() takes the lock for each update
+        # of shared state.
+        self.console.log(
+            f"[dim][Thread {thread_id}][/dim] [magenta]EXPANSION[/magenta]"
+        )
+
+        # A failed expansion (exhausted action space, agent errors) must
+        # complete the iteration with success=False — letting it raise
+        # would skip the no-improvement counter and loop forever.
+        def try_expand(goal: str) -> list:
+            try:
+                return self.expand(leaf, goal)
+            except Exception as e:
+                self.console.log(f"[yellow]Expansion ({goal}) failed: {e}[/yellow]")
+                return []
+
+        acc_children = []
+        cost_children = []
+        if dual_expand:
             self.console.log(
-                f"[dim][Thread {thread_id}][/dim] [magenta]EXPANSION[/magenta]"
+                f"[dim][Thread {thread_id}][/dim] [magenta]DUAL EXPANDING node {leaf.get_id()}[/magenta]"
             )
-
-            # A failed expansion (exhausted action space, agent errors) must
-            # complete the iteration with success=False — letting it raise
-            # would skip the no-improvement counter and loop forever.
-            def try_expand(goal: str) -> list:
-                try:
-                    return self.expand(leaf, goal)
-                except Exception as e:
-                    self.console.log(f"[yellow]Expansion ({goal}) failed: {e}[/yellow]")
-                    return []
-
-            acc_children = []
-            cost_children = []
-            if dual_expand:
-                self.console.log(
-                    f"[dim][Thread {thread_id}][/dim] [magenta]DUAL EXPANDING node {leaf.get_id()}[/magenta]"
-                )
-                acc_children = try_expand("acc")
-                cost_children = try_expand("cost")
-            elif self.get_optimize_goal(leaf) == "acc":
-                acc_children = try_expand("acc")
-            else:
-                cost_children = try_expand("cost")
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                acc_future = pool.submit(try_expand, "acc")
+                cost_future = pool.submit(try_expand, "cost")
+                acc_children, cost_children = acc_future.result(), cost_future.result()
+        elif self.get_optimize_goal(leaf) == "acc":
+            acc_children = try_expand("acc")
+        else:
+            cost_children = try_expand("cost")
 
         # 3. Simulation: Run simulations from the leaf
         is_frontier_updated = False
-        if acc_children:
-            is_frontier_updated = self._simulate_children(acc_children, "acc")
-
-        if cost_children:
-            cost_frontier_updated = self._simulate_children(cost_children, "cost")
-            is_frontier_updated = is_frontier_updated or cost_frontier_updated
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            runs = [
+                pool.submit(self._simulate_children, kids, goal)
+                for kids, goal in ((acc_children, "acc"), (cost_children, "cost"))
+                if kids
+            ]
+            for run in runs:
+                is_frontier_updated = run.result() or is_frontier_updated
 
         # Update counter for early stopping (requires tree lock)
         with self.tree_lock:
@@ -481,9 +487,11 @@ class MOARSearch:
             )
             candidate_results = []
 
-            # Simulate all candidates
-            for num, candidate in enumerate(children):
-                cost, accuracy = self.simulate(candidate)
+            # Simulate all candidates at once: each runs its own pipeline
+            # (and Quail queues queries per server).
+            with ThreadPoolExecutor(max_workers=len(children)) as pool:
+                simulated = list(pool.map(self.simulate, children))
+            for num, (candidate, (cost, accuracy)) in enumerate(zip(children, simulated)):
                 with self.tree_lock:
                     cost_to_add = max(cost, 0)
                     self.console.log(
@@ -811,12 +819,17 @@ class MOARSearch:
                 message_condensed.append({"role": "user", "content": feedback_message})
                 continue
 
-            # Check if already used
-            already_used = False
-            for target_op in target_op_list:
-                if directive in node.used_actions.get(target_op, set()):
-                    already_used = True
-                    break
+            # Check if already used, and claim it in the same step: agents
+            # expand concurrently, so two must not pick the same directive.
+            with self.tree_lock:
+                already_used = any(
+                    directive in node.used_actions.get(target_op, set())
+                    for target_op in target_op_list
+                )
+                if not already_used:
+                    for target_op in target_op_list:
+                        node.mark_action_used(target_op, directive)
+                    self.action_counts[directive] += 1
 
             if already_used:
                 retry_count += 1
@@ -847,12 +860,7 @@ class MOARSearch:
             if isinstance(first_dataset, dict):
                 input_file_path = first_dataset.get("path")
 
-        # Mark action as used and increment use count immediately
-        for target_op in target_op_list:
-            node.mark_action_used(target_op, directive)
-
-        # Increment action count immediately to prevent race conditions
-        self.action_counts[directive] += 1
+        # (The directive was marked used, and counted, when it was chosen.)
 
         message_length = len(messages)
 
@@ -918,16 +926,17 @@ class MOARSearch:
                     if is_multi_instance
                     else None
                 )
-                child = self.instantiate_node(
-                    node,
-                    new_ops_list,
-                    directive_name,
-                    target_op_list,
-                    optimize_goal,
-                    message_condensed + updated_message_history[message_length:],
-                    custom_id,
-                    is_multi_instance,
-                )
+                with self.tree_lock:
+                    child = self.instantiate_node(
+                        node,
+                        new_ops_list,
+                        directive_name,
+                        target_op_list,
+                        optimize_goal,
+                        message_condensed + updated_message_history[message_length:],
+                        custom_id,
+                        is_multi_instance,
+                    )
 
                 children.append(child)
                 self.console.log(

@@ -30,6 +30,13 @@ def _cell(value: Any) -> str | None:
     return json.dumps(value, default=str)
 
 
+def _endpoints(endpoint: str | list[str]) -> list[str]:
+    """The servers of one model: a list, or one string of comma-separated endpoints."""
+    if isinstance(endpoint, str):
+        return [e.strip() for e in endpoint.split(",") if e.strip()]
+    return list(endpoint)
+
+
 def _require_pyarrow():
     try:
         import pyarrow as pa
@@ -71,7 +78,8 @@ class QuailOperation(BaseOperation):
         names = [ID_COLUMN, *probe.input_fields]
         table = "docetl_check_" + hashlib.sha256("\0".join(names).encode()).hexdigest()[:16]
         sql = compile_run(self.config["ops"], table).sql
-        endpoint = self.config["engine"]["endpoint"]
+        # Every replica runs the same Quail build: plan on the first one.
+        endpoint = _endpoints(self.config["engine"]["endpoint"])[0]
         if (endpoint, sql) in _PLANNED:
             return
         empty = pa.table({name: pa.array([], type=pa.string()) for name in names})
@@ -151,10 +159,14 @@ class QuailOperation(BaseOperation):
         if self.bypass_cache or self.config.get("bypass_cache"):
             query_id += f"-{uuid.uuid4().hex[:12]}"
 
+        # With several replicas of one model, the query's hash picks one, so
+        # a rerun of the same query reads that replica's saved rows.
+        replicas = _endpoints(engine["endpoint"])
+        endpoint = replicas[int(key, 16) % len(replicas)]
         self.console.log(
-            f"[cyan]Quail[/cyan] running {names} on {len(input_data)} rows at {engine['endpoint']}"
+            f"[cyan]Quail[/cyan] running {names} on {len(input_data)} rows at {endpoint}"
         )
-        with QuailClient(engine["endpoint"]) as client:
+        with QuailClient(endpoint) as client:
             client.upload(table_name, table, ID_COLUMN)
             result = client.run(compiled.sql, query_id=query_id)
             seconds = client.query_seconds

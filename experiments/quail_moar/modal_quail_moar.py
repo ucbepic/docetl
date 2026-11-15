@@ -53,16 +53,20 @@ image = (gpu_image(commands=(
 
 
 def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:
-    servers, endpoints = [], {}
+    """Start one quail-server per GPU. A model listed twice gets two GPUs:
+    its endpoint is then both servers, comma-separated, and DocETL sends each
+    query to one of them."""
+    servers, endpoints, ports = [], {}, []
     for gpu, model in enumerate(models):
         port = 50051 + gpu
         servers.append(subprocess.Popen(
             ["python", "-m", "quail.remote.server", "--model", model, "--device", "h100-sxm",
-             "--listen", f"127.0.0.1:{port}", "--data", f"/tmp/quail-{model}"],
+             "--listen", f"127.0.0.1:{port}", "--data", f"/tmp/quail-{model}-{gpu}"],
             env={**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu)}))
-        endpoints[model] = f"grpc://127.0.0.1:{port}"
-    for endpoint in endpoints.values():
-        port = int(endpoint.rsplit(":", 1)[1])
+        address = f"grpc://127.0.0.1:{port}"
+        endpoints[model] = f"{endpoints[model]},{address}" if model in endpoints else address
+        ports.append(port)
+    for port in ports:
         for _ in range(600):
             try:
                 socket.create_connection(("127.0.0.1", port), timeout=1).close()

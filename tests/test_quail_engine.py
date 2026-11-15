@@ -973,3 +973,12 @@ def test_a_query_goes_to_one_replica_by_its_hash(tmp_path, fake_server):
     config = _pipeline(tmp_path, f"{endpoint},{endpoint}", [FILTER, MAP], rows)
     DSLRunner(config, max_threads=2).load_run_save()
     assert len(server.queries) == 1
+
+
+def test_a_list_answer_cut_off_at_max_tokens_keeps_its_complete_items():
+    from docetl.engines.quail.compile import OutputColumn, convert
+
+    out = OutputColumn("clauses", "json")
+    cut = '[{"clause_type": "A", "text_span": "x"}, {"clause_type": "B", "text_span": "y"}, {"clause_type": "C", "te'
+    assert convert(cut, out) == [{"clause_type": "A", "text_span": "x"}, {"clause_type": "B", "text_span": "y"}]
+    assert convert('{"summary": "cut', out) is None

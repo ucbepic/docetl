@@ -888,6 +888,25 @@ def compile_run(ops: list[dict], table: str) -> CompiledRun:
     return CompiledRun(sql, input_fields, outputs, dropped, grouped, group_reads, id_col)
 
 
+def _complete_items(text: str) -> list | None:
+    """The items of a JSON list that are complete before the text breaks off,
+    or None when the text is not a list."""
+    if not text.startswith("["):
+        return None
+    decoder = json.JSONDecoder()
+    items, position = [], 1
+    while True:
+        while position < len(text) and text[position] in " \t\r\n,":
+            position += 1
+        if position >= len(text) or text[position] == "]":
+            return items
+        try:
+            item, position = decoder.raw_decode(text, position)
+        except json.JSONDecodeError:
+            return items
+        items.append(item)
+
+
 def convert(value: Any, out: OutputColumn) -> Any:
     """Turn one result cell into the row value DocETL writes."""
     if value is None:
@@ -905,7 +924,8 @@ def convert(value: Any, out: OutputColumn) -> Any:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            return None
+            # An answer cut off at max_tokens keeps its complete list items.
+            return _complete_items(text)
     if out.kind == "key":
         return value
     if out.kind == "string_list":

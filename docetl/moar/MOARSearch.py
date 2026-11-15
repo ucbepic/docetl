@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import uuid
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
@@ -868,6 +869,7 @@ class MOARSearch:
 
         # Check if this directive supports multiple instantiations
         is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
+        expansion_tag = uuid.uuid4().hex[:6]
         num_instantiations = 2 if is_multi_instance else 1
 
         self.console.log(
@@ -923,8 +925,10 @@ class MOARSearch:
 
                 # Create child node for this instantiation
                 # For multi-instance directives, use parent_id-instantiation_num format
+                # A tag per expansion keeps the files of two concurrent
+                # expansions of one node apart.
                 custom_id = (
-                    f"{node.get_id()}-{i+1}-{optimize_goal}"
+                    f"{node.get_id()}-{i+1}-{optimize_goal}_{directive_name}_{expansion_tag}"
                     if is_multi_instance
                     else None
                 )

@@ -17,6 +17,7 @@ A top-level ``trial_data: test`` runs it on the test data.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -78,7 +79,8 @@ json.dump({"cost": cost, "seconds": time.time() - started, "data": data, **score
 def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: str = "", replicas: int = 1) -> str:
     # A second queue name lets several workers of one model share the trials.
     base = f"/results/trials/{model}" + (f"-{queue}" if queue else "")
-    servers, endpoints = _serve([model] * replicas, f"{base}/servers")
+    # Server logs stay on local disk: Modal cannot reload a volume with open files.
+    servers, endpoints = _serve([model] * replicas, "/tmp/servers")
     inbox, out = f"{base}/inbox", f"{base}/out"
     data = "/results/trials/data"
     os.makedirs(inbox, exist_ok=True)
@@ -116,6 +118,7 @@ def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: st
                     env={**os.environ, "PYTHONPATH": "/opt/docetl:/opt/docetl/experiments/quail_moar"},
                     capture_output=True, text=True,
                 )
+                shutil.copytree("/tmp/servers", f"{base}/servers", dirs_exist_ok=True)
                 tail = (done.stdout + done.stderr)[-6000:]
                 with open(f"{out}/{stem}.log", "w") as f:
                     f.write(done.stdout + done.stderr)

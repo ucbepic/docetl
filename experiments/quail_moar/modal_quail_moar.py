@@ -19,6 +19,7 @@ paper's pipelines and data, uploaded to the volume first:
 import contextlib
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -153,7 +154,8 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
                agent_reasoning_effort: str = "", concurrent_agents: int = 3,
                focus_quail: bool = False, reduce_model: str = "") -> str:
     work = f"/results/{name}"
-    servers, endpoints = _serve(models, f"{work}/servers")
+    # Server logs stay on local disk while the servers run, then go to the volume.
+    servers, endpoints = _serve(models, "/tmp/servers")
     try:
         args = ["/opt/dvenv/bin/python", "/opt/docetl/experiments/quail_moar/run_quail_moar.py",
                 "--workload", workload, "--work-dir", work, "--agent", agent, "--iterations", str(iterations),
@@ -178,6 +180,7 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
         return open(summary).read()
     finally:
         servers.stop()
+        shutil.copytree("/tmp/servers", f"{work}/servers", dirs_exist_ok=True)
         results.commit()
 
 

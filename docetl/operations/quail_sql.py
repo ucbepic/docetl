@@ -145,6 +145,7 @@ class QuailSqlOperation(BaseOperation):
                 raise ValueError(f"Quail cannot run {self.config['name']}: {error}") from error
             seconds = client.query_seconds
         cost = seconds / 3600 * engine.get("gpu_cost_per_hour", 0.0)
+        self.latency_seconds = seconds
         rows = {name.split(".", 1)[-1]: values for name, values in result.to_pydict().items()}
         if ID_COLUMN not in rows:
             raise ValueError(f"quail_sql {self.config['name']!r} returned no {ID_COLUMN} column")

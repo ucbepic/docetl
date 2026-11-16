@@ -192,6 +192,8 @@ class QuailOperation(BaseOperation):
         # priced at engine.gpu_cost_per_hour, so cost comparisons with hosted
         # models are fair. Queue time, cold start, and saved rows cost nothing.
         cost = sum(seconds for _, _, seconds in ran) / 3600 * engine.get("gpu_cost_per_hour", 0.0)
+        # The parts run at once, so the run takes as long as its slowest part.
+        self.latency_seconds = max(seconds for _, _, seconds in ran)
 
         # Quail returns column names qualified by their table alias.
         rows = {name.split(".", 1)[-1]: values for name, values in result.to_pydict().items()}

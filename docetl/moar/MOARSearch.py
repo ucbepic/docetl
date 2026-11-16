@@ -217,6 +217,7 @@ class MOARSearch:
             self.root.add_child(new_node)
             self.model_stats[model] = {
                 "cost": cost,
+                "seconds": new_node.seconds,
                 "accuracy": accuracy,
             }
             self.pareto_frontier.add_plan_f1(new_node, accuracy)
@@ -822,6 +823,19 @@ class MOARSearch:
                 message_condensed.append({"role": "user", "content": feedback_message})
                 continue
 
+            teacher = ""
+            if directive.name == "distill_instructions":
+                teacher = self._teacher_context(node, target_op_list)
+                if not teacher:
+                    retry_count += 1
+                    feedback_message = (
+                        f"distill_instructions needs a more accurate plan whose matching operation runs on "
+                        f"another model, and none exists yet for {target_op_list}. Pick another directive."
+                    )
+                    messages.append({"role": "user", "content": feedback_message})
+                    message_condensed.append({"role": "user", "content": feedback_message})
+                    continue
+
             # Check if already used, and claim it in the same step: agents
             # expand concurrently, so two must not pick the same directive.
             with self.tree_lock:
@@ -909,6 +923,7 @@ class MOARSearch:
                     dataset=self.dataset_name,
                     model_stats=self.model_stats,
                     allowed_model_list=self.available_models,
+                    **({"teacher_context": teacher} if teacher else {}),
                 )
                 with self.tree_lock:
                     self.console.log(
@@ -980,6 +995,42 @@ class MOARSearch:
             )
 
         return children
+
+    def _teacher_context(self, node: Node, target_ops: List[str]) -> str:
+        """The teacher section for distill_instructions, or "" when there is no teacher.
+
+        The teacher is the most accurate plan so far that is more accurate
+        than ``node`` and has an operation with the target operation's output
+        fields on another model.
+        """
+        from docetl.reasoning_optimizer.directives.distill_instructions import teacher_context
+
+        target = node.op_dict.get(target_ops[0]) if target_ops else None
+        if not target or not target.get("prompt") or not target.get("output", {}).get("schema"):
+            return ""
+        model = target.get("model") or node.parsed_yaml.get("default_model")
+        keys = list(target["output"]["schema"])
+        with self.tree_lock:
+            mine = self.pareto_frontier.plans_accuracy.get(node, float("-inf"))
+            better = sorted(
+                ((acc, plan) for plan, acc in self.pareto_frontier.plans_accuracy.items() if acc > mine),
+                key=lambda pair: -pair[0],
+            )
+        student_rows = _output_rows(node)
+        id_key = _document_key(student_rows, keys)
+        if not id_key:
+            return ""
+        for _, plan in better:
+            for op in plan.parsed_yaml.get("operations", []):
+                op_model = op.get("model") or plan.parsed_yaml.get("default_model")
+                if op_model == model or not op.get("prompt"):
+                    continue
+                if not set(keys) <= set(op.get("output", {}).get("schema", {})):
+                    continue
+                teacher_rows = _output_rows(plan)
+                if teacher_rows:
+                    return teacher_context(op_model, op["prompt"], teacher_rows, student_rows, keys, id_key)
+        return ""
 
     def simulate(self, node: Node):
         """
@@ -1321,3 +1372,26 @@ class MOARSearch:
 
         node.add_child(child)
         return child
+
+
+def _output_rows(node: Node) -> List[Dict]:
+    """The rows a simulated plan wrote, or [] if it wrote none."""
+    try:
+        with open(node.parsed_yaml["pipeline"]["output"]["path"]) as f:
+            rows = json.load(f)
+    except (OSError, KeyError, ValueError):
+        return []
+    return rows if isinstance(rows, list) else []
+
+
+def _document_key(rows: List[Dict], output_keys: List[str]) -> Optional[str]:
+    """An input field with a short, distinct string value in every row."""
+    if not rows:
+        return None
+    for key in rows[0]:
+        if key in output_keys:
+            continue
+        values = [row.get(key) for row in rows]
+        if all(isinstance(v, str) and 0 < len(v) <= 200 for v in values) and len(set(values)) == len(values):
+            return key
+    return None

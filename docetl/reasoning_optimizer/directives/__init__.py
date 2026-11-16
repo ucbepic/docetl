@@ -25,6 +25,7 @@ from .doc_chunking_topk import DocumentChunkingTopKDirective
 from .chunk_header_summary import ChunkHeaderSummaryDirective
 from .take_head_tail import TakeHeadTailDirective
 from .clarify_instructions import ClarifyInstructionsDirective
+from .distill_instructions import DistillInstructionsDirective
 from .swap_with_code import SwapWithCodeDirective
 from .map_reduce_fusion import MapReduceFusionDirective
 from .hierarchical_reduce import HierarchicalReduceDirective
@@ -50,6 +51,7 @@ ALL_DIRECTIVES = [
     ChunkHeaderSummaryDirective(),
     TakeHeadTailDirective(),
     ClarifyInstructionsDirective(),
+    DistillInstructionsDirective(),
     SwapWithCodeDirective(),
     MapReduceFusionDirective(),
     HierarchicalReduceDirective(),
@@ -91,6 +93,7 @@ MULTI_INSTANCE_DIRECTIVES = [
     TakeHeadTailDirective(),
     CascadeFilteringDirective(),
     ClarifyInstructionsDirective(),
+    DistillInstructionsDirective(),
 ]   
 
 # Create a mapping from directive names to directive instances
@@ -178,6 +181,7 @@ __all__ = [
     "ChunkHeaderSummaryDirective",
     "TakeHeadTailDirective",
     "ClarifyInstructionsDirective",
+    "DistillInstructionsDirective",
     "SwapWithCodeDirective",
     "MapReduceFusionDirective",
     "HierarchicalReduceDirective",

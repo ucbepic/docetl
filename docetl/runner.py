@@ -162,6 +162,9 @@ class DSLRunner:
         self.api = APIWrapper(self)
 
         self.total_cost = 0
+        # Seconds the pipeline's operations took, one after another; a Quail
+        # run counts its query time, not the time it waited for a GPU.
+        self.total_seconds = 0.0
         self.total_token_usage = defaultdict(
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
         )
@@ -720,6 +723,7 @@ class DSLRunner:
             # Keep the instance's status pointer in sync with the runner's
             # current spinner (set after instantiation in _execute_and_track).
             operation_instance.status = self.status
+        started = time.monotonic()
         if op_config["type"] == "equijoin":
             output_data, cost = operation_instance.execute(
                 input_data["left_data"], input_data["right_data"]
@@ -728,6 +732,8 @@ class DSLRunner:
             output_data, cost = operation_instance.execute(input_data, is_build)
         else:
             output_data, cost = operation_instance.execute(input_data)
+        seconds = time.monotonic() - started
+        self.total_seconds += getattr(operation_instance, "latency_seconds", None) or seconds
 
         self.total_cost += cost
 

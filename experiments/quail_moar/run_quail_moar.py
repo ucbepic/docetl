@@ -269,8 +269,8 @@ def build_pipeline(path: Path, data: str, output: str, default_model: str, quail
     return path
 
 
-def run_pipeline(yaml_path: str, data: str, output: str, evaluate) -> tuple[float, dict]:
-    """Run one pipeline YAML on ``data``; return (cost, evaluation)."""
+def run_pipeline(yaml_path: str, data: str, output: str, evaluate) -> tuple[float, float, dict]:
+    """Run one pipeline YAML on ``data``; return (cost, seconds, evaluation)."""
     from docetl.runner import DSLRunner
 
     config = yaml.safe_load(Path(yaml_path).read_text())
@@ -278,8 +278,9 @@ def run_pipeline(yaml_path: str, data: str, output: str, evaluate) -> tuple[floa
         dataset["path"] = data
     config["pipeline"]["output"]["path"] = output
     config["pipeline"]["output"].pop("intermediate_dir", None)
-    cost = DSLRunner(config, max_threads=16).load_run_save()
-    return cost, evaluate(output)
+    runner = DSLRunner(config, max_threads=16)
+    cost = runner.load_run_save()
+    return cost, runner.total_seconds, evaluate(output)
 
 
 def run(
@@ -372,13 +373,14 @@ def run(
                  for op in yaml.safe_load(Path(plan.yaml_file_path).read_text())["operations"]}
             ),
             "train_cost": plan.cost,
+            "train_seconds": plan.seconds,
             "train_accuracy": moar.pareto_frontier.plans_accuracy.get(plan),
         }
         try:
             out = str(work / "test" / (Path(plan.yaml_file_path).stem + ".json"))
             Path(out).parent.mkdir(parents=True, exist_ok=True)
-            cost, scores = run_pipeline(plan.yaml_file_path, test, out, evaluator(workload, test, ground_truth))
-            entry.update(test_cost=cost, test_accuracy=scores[metric], test_scores=scores)
+            cost, seconds, scores = run_pipeline(plan.yaml_file_path, test, out, evaluator(workload, test, ground_truth))
+            entry.update(test_cost=cost, test_seconds=seconds, test_accuracy=scores[metric], test_scores=scores)
         except Exception as error:  # noqa: BLE001 - record and keep going
             entry["test_error"] = f"{type(error).__name__}: {error}"
         frontier.append(entry)
@@ -402,6 +404,7 @@ def run(
         "search_cost": moar.total_search_cost,
         "first_layer": moar.model_stats,
         "frontier": frontier,
+        "explored": moar.pareto_frontier.get_all_plans_summary(),
     }
     (work / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
     return summary

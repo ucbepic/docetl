@@ -249,6 +249,7 @@ class FakeQuailServer(flight.FlightServerBase):
         self.queries: list[dict] = []
         self.explained: list[str] = []
         self.sql_by_id: dict[str, str] = {}
+        self.run_seconds = 0.01  # how long each query takes once the model is ready
 
     def do_put(self, context, descriptor, reader, writer):
         name = descriptor.path[0].decode()
@@ -271,10 +272,10 @@ class FakeQuailServer(flight.FlightServerBase):
                 # Running with the model loaded, as after a warm start.
                 status = {"id": query_id, "state": "running", "ready": True, "revision": 1}
         else:
-            time.sleep(0.01)
+            time.sleep(self.run_seconds)
             now = time.time()
             status = {"id": body["id"], "state": "succeeded", "revision": 2,
-                      "ready": True, "started_at": now - 0.01, "finished_at": now}
+                      "ready": True, "started_at": now - self.run_seconds, "finished_at": now}
         return [flight.Result(json.dumps(status).encode())]
 
     def do_get(self, context, ticket):
@@ -1003,6 +1004,26 @@ def test_a_run_splits_its_rows_across_replicas_by_parallelism(tmp_path):
             for server in servers] == [[3], [3]]
     out = json.loads((tmp_path / "out.json").read_text())
     assert [r["id"] for r in out] == sorted(r["id"] for r in out)
+    for server in servers:
+        server.shutdown()
+
+
+def test_a_split_run_takes_as_long_as_its_slowest_part(tmp_path):
+    from docetl.runner import DSLRunner
+
+    servers = [FakeQuailServer() for _ in range(2)]
+    for server, seconds in zip(servers, (0.2, 0.6)):
+        server.run_seconds = seconds
+        threading.Thread(target=server.serve, daemon=True).start()
+    endpoints = [f"grpc://127.0.0.1:{server.port}" for server in servers]
+    rows = [{"id": i, "body": f"review {i}"} for i in range(6)]
+    config = _pipeline(tmp_path, ",".join(endpoints), [FILTER, MAP], rows)
+    config["engine"].update(parallelism=2, gpu_cost_per_hour=3600.0)
+    runner = DSLRunner(config, max_threads=2)
+    cost = runner.load_run_save()
+    # the parts ran at once: latency is the slower part, cost is both parts' GPU time
+    assert 0.6 <= runner.total_seconds < 0.75
+    assert 0.8 <= cost < 0.95
     for server in servers:
         server.shutdown()
 

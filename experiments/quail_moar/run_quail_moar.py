@@ -173,6 +173,22 @@ EVALUATION_NOTES = {
         "absent category is a false positive."
     ),
 }
+# Directives that cannot run in these experiments: no Quail form (gleaning,
+# validation, resolve, fold), redundant with Quail's own filter ordering
+# (cascade_filtering), or needing OpenAI embeddings (doc_chunking_topk).
+# A run with hosted models keeps the ones its hosted operations can use.
+NO_QUAIL_FORM = {"gleaning", "reduce_gleaning", "hierarchical_reduce", "map_to_map_resolve_reduce",
+                 "map_resolve_to_map_with_categories", "cascade_filtering"}
+NEEDS_OPENAI = {"doc_chunking_topk"}
+
+
+def directives_for(hosted_models: list[str]) -> set:
+    from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES
+
+    excluded = NEEDS_OPENAI | (set() if hosted_models else NO_QUAIL_FORM)
+    return {d for d in ALL_DIRECTIVES if d.name not in excluded}
+
+
 HOSTED_NOTE = " Give an operation a hosted model (gemini/...) when it needs any of these."
 QUAIL_ONLY_NOTE = " Use only the quail/* models: every operation must run on Quail."
 REDUCE_NOTE = (
@@ -285,7 +301,6 @@ def run(
 ) -> dict:
     """Run the MOAR search and the held-out test; write and return a summary."""
     from docetl.moar.MOARSearch import MOARSearch
-    from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES
 
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
@@ -328,7 +343,7 @@ def run(
     first_layer = [m for m in available if m.startswith("quail/")] if focus_quail else available
     moar = MOARSearch(
         root_yaml_path=str(root),
-        available_actions=set(ALL_DIRECTIVES),
+        available_actions=directives_for(hosted_models),
         sample_input=json.loads(Path(train).read_text())[:5],
         dataset_name=workload,
         available_models=first_layer,

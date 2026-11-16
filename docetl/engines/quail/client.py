@@ -141,3 +141,60 @@ class QuailClient:
                 f"Quail query {status['id']} {status['state']}: {status.get('error')}"
             )
         return self.result(status["id"])
+
+
+# How long a retry waits for a lost server to listen again: a restarted
+# server loads its model on the next query, so listening comes quickly.
+RESTART_WAIT_S = 600.0
+
+
+def _wait_until_listening(endpoint: str, timeout_s: float) -> None:
+    """Wait until ``endpoint`` accepts Flight connections again."""
+    import socket
+
+    host, port = endpoint.split("://", 1)[-1].rsplit(":", 1)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            socket.create_connection((host, int(port)), timeout=2).close()
+            return
+        except OSError:
+            time.sleep(2)
+    raise TimeoutError(f"Quail Server at {endpoint} did not come back in {timeout_s:.0f} s")
+
+
+def run_with_retry(
+    endpoint: str,
+    uploads: list[tuple[str, pa.Table, str]],
+    sql: str,
+    query_id: str,
+    restart_wait_s: float = RESTART_WAIT_S,
+) -> tuple[pa.Table, float]:
+    """Upload tables, run a query, and return its rows and GPU seconds.
+
+    If the server goes away mid-call (its process died), wait for it to
+    listen again, then upload and run once more under a new query id, since
+    the server may have recorded the first id as failed.
+
+    Args:
+        endpoint: The server's address.
+        uploads: (name, table, id column) of each table the query reads.
+        sql: The query.
+        query_id: The query's id.
+        restart_wait_s: How long to wait for the server to come back.
+
+    Raises:
+        flight.FlightUnavailableError: The server went away twice.
+    """
+    for attempt in range(2):
+        try:
+            with QuailClient(endpoint) as client:
+                for name, table, id_col in uploads:
+                    client.upload(name, table, id_col)
+                rows = client.run(sql, query_id=query_id if attempt == 0 else f"{query_id}-retry")
+                return rows, client.query_seconds
+        except flight.FlightUnavailableError:
+            if attempt == 1:
+                raise
+            _wait_until_listening(endpoint, restart_wait_s)
+    raise AssertionError("unreachable")

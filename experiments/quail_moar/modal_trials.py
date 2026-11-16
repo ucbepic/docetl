@@ -76,9 +76,9 @@ json.dump({"cost": cost, "seconds": time.time() - started, "data": data, **score
              "/results": results},
 )
 def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: str = "", replicas: int = 1) -> str:
-    servers, endpoints = _serve([model] * replicas)
     # A second queue name lets several workers of one model share the trials.
     base = f"/results/trials/{model}" + (f"-{queue}" if queue else "")
+    servers, endpoints = _serve([model] * replicas, f"{base}/servers")
     inbox, out = f"{base}/inbox", f"{base}/out"
     data = "/results/trials/data"
     os.makedirs(inbox, exist_ok=True)
@@ -132,8 +132,7 @@ def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: st
     except Exception:  # noqa: BLE001
         traceback.print_exc()
     finally:
-        for server in servers:
-            server.terminate()
+        servers.stop()
     return "idle"
 
 

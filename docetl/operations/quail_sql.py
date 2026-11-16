@@ -114,7 +114,7 @@ class QuailSqlOperation(BaseOperation):
     def execute(self, input_data: list[dict], is_build: bool = False) -> tuple[list[dict], float]:
         if not input_data:
             return [], 0.0
-        pa, QuailClient = _require_pyarrow()
+        pa, _ = _require_pyarrow()
         engine = self._engine()
         keys = sorted({k for row in input_data for k in row})
         fields = self.config.get("input_fields") or _reads(self.config["sql"], keys)
@@ -137,13 +137,12 @@ class QuailSqlOperation(BaseOperation):
         replicas = _endpoints(engine["endpoint"])
         endpoint = replicas[int(key, 16) % len(replicas)]
         self.console.log(f"[cyan]Quail[/cyan] running {self.config['name']} (SQL) on {len(input_data)} rows")
-        with QuailClient(endpoint) as client:
-            client.upload(table_name, table, ID_COLUMN)
-            try:
-                result = client.run(sql, query_id=query_id)
-            except pa.flight.FlightError as error:
-                raise ValueError(f"Quail cannot run {self.config['name']}: {error}") from error
-            seconds = client.query_seconds
+        from docetl.engines.quail.client import run_with_retry
+
+        try:
+            result, seconds = run_with_retry(endpoint, [(table_name, table, ID_COLUMN)], sql, query_id)
+        except pa.flight.FlightError as error:
+            raise ValueError(f"Quail cannot run {self.config['name']}: {error}") from error
         cost = seconds / 3600 * engine.get("gpu_cost_per_hour", 0.0)
         self.latency_seconds = seconds
         rows = {name.split(".", 1)[-1]: values for name, values in result.to_pydict().items()}

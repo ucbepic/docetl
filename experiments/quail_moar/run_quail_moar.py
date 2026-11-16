@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -269,6 +270,25 @@ def build_pipeline(path: Path, data: str, output: str, default_model: str, quail
     return path
 
 
+def _save_progress(moar, path: Path, started: float, done: threading.Event, every_s: float = 120.0) -> None:
+    """Write the plans explored so far to ``path`` every ``every_s`` seconds,
+    so a search that dies part way keeps what it found."""
+    while not done.wait(every_s):
+        try:
+            with moar.tree_lock:
+                progress = {
+                    "seconds": round(time.time() - started, 1),
+                    "search_cost": moar.total_search_cost,
+                    "first_layer": moar.model_stats,
+                    "explored": moar.pareto_frontier.get_all_plans_summary(),
+                }
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(progress, indent=1, default=str))
+            tmp.replace(path)
+        except Exception as error:  # noqa: BLE001 - progress is best effort
+            print(f"progress not saved: {error}", flush=True)
+
+
 def run_pipeline(yaml_path: str, data: str, output: str, evaluate) -> tuple[float, float, dict]:
     """Run one pipeline YAML on ``data``; return (cost, seconds, evaluation)."""
     from docetl.runner import DSLRunner
@@ -361,7 +381,12 @@ def run(
         for action in moar.available_actions:
             if hasattr(action, "allowed_model_list"):
                 action.allowed_model_list = available
-    moar.search()
+    done = threading.Event()
+    threading.Thread(target=_save_progress, args=(moar, work / "progress.json", started, done), daemon=True).start()
+    try:
+        moar.search()
+    finally:
+        done.set()
     search_seconds = time.time() - started
 
     frontier = []

@@ -16,10 +16,13 @@ paper's pipelines and data, uploaded to the volume first:
         --ground-truth CUAD-master_clauses.csv --models qwen3-4b-fp8 --iterations 10
 """
 
+import contextlib
 import json
 import os
 import socket
 import subprocess
+import sys
+import threading
 import time
 
 import modal
@@ -54,32 +57,93 @@ image = (gpu_image(commands=(
          .add_local_dir(os.path.join(DOCETL, "docs", "operators"), "/opt/docetl/docs/operators"))
 
 
-def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:
+class Servers:
+    """One quail-server per GPU, restarted when one exits.
+
+    Each server's output goes to this container's log and, when ``log_dir``
+    is given, to ``<log_dir>/<model>-gpu<n>.log``. A thread restarts a server
+    that exits, so DocETL's retry finds it listening again.
+
+    Args:
+        models: The model of each GPU, in GPU order.
+        log_dir: Where to write each server's log, or None.
+    """
+
+    def __init__(self, models: list[str], log_dir: str | None = None):
+        self.models = models
+        self.log_dir = log_dir
+        self.procs: list[subprocess.Popen] = [None] * len(models)
+        self.restarts = [0] * len(models)
+        self._stopping = threading.Event()
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        for gpu in range(len(models)):
+            self._start(gpu)
+        threading.Thread(target=self._watch, daemon=True).start()
+
+    def _start(self, gpu: int) -> None:
+        model = self.models[gpu]
+        proc = subprocess.Popen(
+            ["python", "-m", "quail.remote.server", "--model", model, "--device", "h100-sxm",
+             "--listen", f"127.0.0.1:{50051 + gpu}", "--data", f"/tmp/quail-{model}-{gpu}"],
+            env={**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu)},
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        self.procs[gpu] = proc
+        path = os.path.join(self.log_dir, f"{model}-gpu{gpu}.log") if self.log_dir else None
+
+        def copy() -> None:
+            with open(path, "a") if path else contextlib.nullcontext() as log:
+                for line in proc.stdout:
+                    sys.stdout.write(line)
+                    if log:
+                        log.write(line)
+                        log.flush()
+
+        threading.Thread(target=copy, daemon=True).start()
+
+    def _watch(self) -> None:
+        while not self._stopping.wait(5):
+            for gpu, proc in enumerate(self.procs):
+                if proc.poll() is not None and not self._stopping.is_set():
+                    self.restarts[gpu] += 1
+                    print(f"quail-server on GPU {gpu} ({self.models[gpu]}) exited with code "
+                          f"{proc.returncode}; restart {self.restarts[gpu]}", flush=True)
+                    self._start(gpu)
+
+    def endpoints(self) -> dict:
+        """Each model's endpoint; a model on several GPUs lists them all, comma-separated."""
+        out = {}
+        for gpu, model in enumerate(self.models):
+            address = f"grpc://127.0.0.1:{50051 + gpu}"
+            out[model] = f"{out[model]},{address}" if model in out else address
+        return out
+
+    def wait_until_listening(self) -> None:
+        for gpu in range(len(self.models)):
+            for _ in range(600):
+                try:
+                    socket.create_connection(("127.0.0.1", 50051 + gpu), timeout=1).close()
+                    break
+                except OSError:
+                    time.sleep(1)
+
+    def stop(self) -> None:
+        self._stopping.set()
+        for proc in self.procs:
+            proc.terminate()
+
+
+def _serve(models: list[str], log_dir: str | None = None) -> tuple[Servers, dict]:
     """Start one quail-server per GPU. A model listed twice gets two GPUs:
     its endpoint is then both servers, comma-separated, and DocETL sends each
     query to one of them."""
-    servers, endpoints, ports = [], {}, []
-    for gpu, model in enumerate(models):
-        port = 50051 + gpu
-        servers.append(subprocess.Popen(
-            ["python", "-m", "quail.remote.server", "--model", model, "--device", "h100-sxm",
-             "--listen", f"127.0.0.1:{port}", "--data", f"/tmp/quail-{model}-{gpu}"],
-            env={**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu)}))
-        address = f"grpc://127.0.0.1:{port}"
-        endpoints[model] = f"{endpoints[model]},{address}" if model in endpoints else address
-        ports.append(port)
-    for port in ports:
-        for _ in range(600):
-            try:
-                socket.create_connection(("127.0.0.1", port), timeout=1).close()
-                break
-            except OSError:
-                time.sleep(1)
-    return servers, endpoints
+    servers = Servers(models, log_dir)
+    servers.wait_until_listening()
+    return servers, servers.endpoints()
 
 
 @app.function(
-    image=image, gpu=GPU, timeout=6 * 3600, memory=65_536,
+    image=image, gpu=GPU, timeout=24 * 3600, memory=65_536,
     secrets=[modal.Secret.from_name("docetl-gemini")],
     volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/kernels": kernel_cache,
              "/results": results},
@@ -88,8 +152,8 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
                name: str, inputs: dict, reasoning_effort: str, workload: str,
                agent_reasoning_effort: str = "", concurrent_agents: int = 3,
                focus_quail: bool = False, reduce_model: str = "") -> str:
-    servers, endpoints = _serve(models)
     work = f"/results/{name}"
+    servers, endpoints = _serve(models, f"{work}/servers")
     try:
         args = ["/opt/dvenv/bin/python", "/opt/docetl/experiments/quail_moar/run_quail_moar.py",
                 "--workload", workload, "--work-dir", work, "--agent", agent, "--iterations", str(iterations),
@@ -113,8 +177,8 @@ def experiment(models: list[str], hosted: list[str], agent: str, iterations: int
             return f"run_quail_moar exited with {done.returncode}; see the logs and {work}"
         return open(summary).read()
     finally:
-        for server in servers:
-            server.terminate()
+        servers.stop()
+        results.commit()
 
 
 @app.local_entrypoint()

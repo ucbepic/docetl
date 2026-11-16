@@ -250,6 +250,7 @@ class FakeQuailServer(flight.FlightServerBase):
         self.explained: list[str] = []
         self.sql_by_id: dict[str, str] = {}
         self.run_seconds = 0.01  # how long each query takes once the model is ready
+        self.unavailable_submits = 0  # submits to answer as a server that went away
 
     def do_put(self, context, descriptor, reader, writer):
         name = descriptor.path[0].decode()
@@ -263,6 +264,9 @@ class FakeQuailServer(flight.FlightServerBase):
             self.explained.append(body["sql"])
             return [flight.Result(b"plan")]
         if action.type == "submit":
+            if self.unavailable_submits:
+                self.unavailable_submits -= 1
+                raise flight.FlightUnavailableError("Stream removed (Socket closed)")
             self.queries.append(body)
             query_id = body.get("id", "q")
             if query_id in self.sql_by_id:  # a query run before: saved rows
@@ -1026,6 +1030,19 @@ def test_a_split_run_takes_as_long_as_its_slowest_part(tmp_path):
     assert 0.8 <= cost < 0.95
     for server in servers:
         server.shutdown()
+
+
+def test_a_query_runs_again_after_quail_server_goes_away(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    server.unavailable_submits = 1
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [FILTER, MAP], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert [r["id"] for r in out] == [0, 2]
+    assert server.queries[-1]["id"].endswith("-retry")
 
 
 QUAIL_SQL = {

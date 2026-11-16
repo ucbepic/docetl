@@ -117,7 +117,9 @@ class QuailOperation(BaseOperation):
     def execute(self, input_data: list[dict], is_build: bool = False) -> tuple[list[dict], float]:
         if not input_data:
             return [], 0.0
-        pa, QuailClient = _require_pyarrow()
+        pa, _ = _require_pyarrow()
+        from docetl.engines.quail.client import run_with_retry
+
         ops = self.config["ops"]
         engine = self.config["engine"]
         names = " -> ".join(op["name"] for op in ops)
@@ -174,10 +176,8 @@ class QuailOperation(BaseOperation):
             # One part per replica; a single part goes to the replica its
             # hash picks, so a rerun reads that replica's saved rows.
             endpoint = replicas[index] if len(parts) > 1 else replicas[int(key, 16) % len(replicas)]
-            with QuailClient(endpoint) as client:
-                client.upload(table_name, table, ID_COLUMN)
-                result = client.run(compiled.sql, query_id=query_id)
-                return compiled, result, client.query_seconds
+            result, seconds = run_with_retry(endpoint, [(table_name, table, ID_COLUMN)], compiled.sql, query_id)
+            return compiled, result, seconds
 
         if len(parts) == 1:
             ran = [run_part(0, *parts[0])]

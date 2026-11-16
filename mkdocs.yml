@@ -54,6 +54,7 @@ nav:
           - Split: operators/split.md
           - Gather: operators/gather.md
           - Regex Compress: operators/regex-compress.md
+          - Quail SQL: operators/quail-sql.md
           - Unnest: operators/unnest.md
           - Sample: operators/sample.md
           - TopK: operators/topk.md

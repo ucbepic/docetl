@@ -40,6 +40,7 @@ DocETL talks to the server over Arrow Flight with `pyarrow`, so DocETL needs no 
 | `split` with `method: delimiter` | Plain SQL (`string_to_array`, numbered pieces, `STRING_AGG`), when a Quail operation is next to it |
 | `gather` with head, tail, or middle counts | Plain SQL (window functions over each document's chunks), when a Quail operation is next to it |
 | [`regex_compress`](../operators/regex-compress.md) | Plain SQL (`regexp_replace`, `regexp_like`, numbered paragraphs, `STRING_AGG`), when a Quail operation is next to it |
+| [`quail_sql`](../operators/quail-sql.md) | Your own Quail SQL query over the rows, in a query of its own |
 | `equijoin`, `resolve`, everything else | LiteLLM |
 
 A chunking pipeline (split, gather, map, reduce) can therefore run as one Quail query. A `token_count` split needs a tokenizer in SQL, so it runs in DocETL, and the gather, map, and reduce after it still form one query. Split, gather, and regex_compress produce the same rows as DocETL's own operations; `tests/test_quail_engine.py` checks every chunk, rendered context string, and compressed document against them. A `regex_compress` in front of a map makes compression and extraction one query.

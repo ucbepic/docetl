@@ -1005,3 +1005,39 @@ def test_a_run_splits_its_rows_across_replicas_by_parallelism(tmp_path):
     assert [r["id"] for r in out] == sorted(r["id"] for r in out)
     for server in servers:
         server.shutdown()
+
+
+QUAIL_SQL = {
+    "name": "gated", "type": "quail_sql", "model": "quail/qwen3-4b-fp8",
+    "sql": (
+        "SELECT i._docetl_id, "
+        "CASE WHEN AI.IF(PROMPT('{0} Is the review long?', i.body)) "
+        "THEN get_field(AI_EXTRACT(i.body, named_struct('a', 'What is praised?')), 'a') END AS praised, "
+        "AI.MAP(i.body, 'Summarize the review.', 32) AS summary "
+        "FROM input i"
+    ),
+    "output": {"schema": {"praised": "string", "summary": "string"}},
+}
+
+
+def test_quail_sql_wraps_the_query_over_an_input_table():
+    from docetl.operations.quail_sql import _reads, _with_input
+
+    assert _with_input("SELECT 1 FROM input;", "t") == "WITH input AS (SELECT * FROM `t`)\nSELECT 1 FROM input"
+    assert _with_input("WITH x AS (SELECT 1) SELECT * FROM x", "t").startswith(
+        "WITH input AS (SELECT * FROM `t`), x AS")
+    assert _reads(QUAIL_SQL["sql"], ["body", "id", "summary_old"]) == ["body"]
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_quail_sql_operation(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, quail_server, [QUAIL_SQL], rows)
+    del config["engine"]
+    config["quail_models"] = {"qwen3-4b-fp8": {"endpoint": quail_server}}
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert [r["id"] for r in out] == [0, 1, 2, 3]
+    assert all("summary" in r and "praised" in r for r in out)

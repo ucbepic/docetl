@@ -595,6 +595,12 @@ def _group_quail_runs(runner: DSLRunner, nodes: list) -> list:
 
     for node in nodes:
         op = runner.find_operation(node.name)
+        # A quail_sql operation runs its own query: it joins no fused run.
+        if op.get("type") == "quail_sql":
+            close_run()
+            flush_pending()
+            groups.append(node)
+            continue
         # Only LLM operations go to Quail; split, gather, code operations and
         # the like run as usual, whatever the pipeline's default model.
         try:

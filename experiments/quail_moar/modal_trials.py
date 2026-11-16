@@ -30,6 +30,18 @@ from modal_quail_moar import GPU, H100_PER_HOUR, _serve, hf_cache, image, kernel
 
 app = modal.App("docetl-quail-trials")
 
+# Loads the model on every replica, so no trial's time includes a cold start.
+WARMUP = r'''
+import sys
+sys.path.insert(0, "/opt/docetl")
+import pyarrow as pa
+from docetl.engines.quail.client import QuailClient
+for endpoint in sys.argv[1].split(","):
+    with QuailClient(endpoint) as client:
+        client.upload("warmup", pa.table({"_docetl_id": ["0"], "body": ["Say hello."]}), "_docetl_id")
+        client.run("SELECT w._docetl_id, AI.MAP(w.body, 'Reply in one word.', 4) AS a FROM warmup w")
+'''
+
 RUNNER = r'''
 import json, sys, time, yaml
 sys.path.insert(0, "/opt/docetl")
@@ -46,7 +58,8 @@ for dataset in config["datasets"].values():
     dataset["path"] = data
 config["pipeline"]["output"]["path"] = spec["output"]
 config["pipeline"]["output"].pop("intermediate_dir", None)
-config["quail_models"] = {spec["model"]: {"endpoint": spec["endpoint"], "gpu_cost_per_hour": spec["price"]}}
+config["quail_models"] = {spec["model"]: {"endpoint": spec["endpoint"], "gpu_cost_per_hour": spec["price"],
+                                          "parallelism": int(config.pop("trial_parallelism", 1))}}
 config.setdefault("default_model", "quail/" + spec["model"])
 started = time.time()
 cost = DSLRunner(config, max_threads=16).load_run_save()
@@ -62,8 +75,8 @@ json.dump({"cost": cost, "seconds": time.time() - started, "data": data, **score
     volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/kernels": kernel_cache,
              "/results": results},
 )
-def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: str = "") -> str:
-    servers, endpoints = _serve([model])
+def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: str = "", replicas: int = 1) -> str:
+    servers, endpoints = _serve([model] * replicas)
     # A second queue name lets several workers of one model share the trials.
     base = f"/results/trials/{model}" + (f"-{queue}" if queue else "")
     inbox, out = f"{base}/inbox", f"{base}/out"
@@ -72,6 +85,10 @@ def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: st
     os.makedirs(out, exist_ok=True)
     with open("/tmp/trial_runner.py", "w") as f:
         f.write(RUNNER)
+    with open("/tmp/trial_warmup.py", "w") as f:
+        f.write(WARMUP)
+    subprocess.run(["/opt/dvenv/bin/python", "/tmp/trial_warmup.py", endpoints[model]],
+                   env={**os.environ, "PYTHONPATH": "/opt/docetl"})
     last = time.time()
     try:
         while time.time() - last < idle_minutes * 60:
@@ -121,5 +138,7 @@ def worker(model: str, idle_minutes: int = 45, reduce_model: str = "", queue: st
 
 
 @app.local_entrypoint()
-def main(model: str = "qwen3-4b-fp8", idle_minutes: int = 45, reduce_model: str = "", queue: str = ""):
-    print(worker.remote(model, idle_minutes, reduce_model, queue))
+def main(model: str = "qwen3-4b-fp8", idle_minutes: int = 45, reduce_model: str = "", queue: str = "",
+         replicas: int = 1):
+    run = worker.with_options(gpu=f"{GPU}:{replicas}") if replicas > 1 else worker
+    print(run.remote(model, idle_minutes, reduce_model, queue, replicas))

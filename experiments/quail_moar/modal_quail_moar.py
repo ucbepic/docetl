@@ -49,7 +49,9 @@ image = (gpu_image(commands=(
             "uv venv /opt/dvenv --python 3.12",
             f"VIRTUAL_ENV=/opt/dvenv uv pip install 'docetl[quail] @ git+https://github.com/ucbepic/docetl@{BRANCH}'",
          ))
-         .add_local_dir(DOCETL, "/opt/docetl", ignore=IGNORE))
+         .add_local_dir(DOCETL, "/opt/docetl", ignore=IGNORE)
+         # MOAR's agents read operator docs (read_operator_doc) from here.
+         .add_local_dir(os.path.join(DOCETL, "docs", "operators"), "/opt/docetl/docs/operators"))
 
 
 def _serve(models: list[str]) -> tuple[list[subprocess.Popen], dict]:

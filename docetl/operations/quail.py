@@ -138,42 +138,60 @@ class QuailOperation(BaseOperation):
 
         # Zero-padded ids sort in row order, which STRING_AGG keeps.
         ids = [f"{i:010d}" for i in range(len(input_data))]
-        columns = {ID_COLUMN: ids}
-        for f in probe.input_fields:
-            columns[f] = [_cell(row.get(f)) for row in input_data]
-        table = pa.table({k: pa.array(v, type=pa.string()) for k, v in columns.items()})
-
-        # The table name and query id come from the data and the operations,
-        # so a rerun of the same run reads Quail Server's saved rows.
-        digest = hashlib.sha256(probe.sql.encode())
-        sink = pa.BufferOutputStream()
-        with pa.ipc.new_stream(sink, table.schema) as writer:
-            writer.write_table(table)
-        digest.update(sink.getvalue().to_pybytes())
-        key = digest.hexdigest()[:24]
-        table_name = f"docetl_{key}"
-        compiled = compile_run(ops, table_name)
-        # The same query id reads Quail Server's saved rows; bypass_cache asks
-        # for a fresh run with a new id (the uploaded table stays the same).
-        query_id = f"docetl-{key}"
-        if self.bypass_cache or self.config.get("bypass_cache"):
-            query_id += f"-{uuid.uuid4().hex[:12]}"
-
-        # With several replicas of one model, the query's hash picks one, so
-        # a rerun of the same query reads that replica's saved rows.
         replicas = _endpoints(engine["endpoint"])
-        endpoint = replicas[int(key, 16) % len(replicas)]
+        # A run splits its rows across replicas, which run at once, unless a
+        # reduce or gather in it needs a group's or document's rows together.
+        together = any(op["type"] in ("reduce", "gather") for op in ops)
+        shards = 1 if together else max(1, min(int(engine.get("parallelism", 1)), len(replicas), len(input_data)))
+        size = -(-len(input_data) // shards)
+        parts = [(start, min(start + size, len(input_data))) for start in range(0, len(input_data), size)]
         self.console.log(
-            f"[cyan]Quail[/cyan] running {names} on {len(input_data)} rows at {endpoint}"
+            f"[cyan]Quail[/cyan] running {names} on {len(input_data)} rows"
+            + (f" in {len(parts)} parts at once" if len(parts) > 1 else "")
         )
-        with QuailClient(endpoint) as client:
-            client.upload(table_name, table, ID_COLUMN)
-            result = client.run(compiled.sql, query_id=query_id)
-            seconds = client.query_seconds
-        # Quail Server's GPU time for this query, priced at
-        # engine.gpu_cost_per_hour, so cost comparisons with hosted models
-        # are fair. Queue time, cold start, and saved rows cost nothing.
-        cost = seconds / 3600 * engine.get("gpu_cost_per_hour", 0.0)
+
+        def run_part(index: int, start: int, end: int):
+            columns = {ID_COLUMN: ids[start:end]}
+            for f in probe.input_fields:
+                columns[f] = [_cell(row.get(f)) for row in input_data[start:end]]
+            table = pa.table({k: pa.array(v, type=pa.string()) for k, v in columns.items()})
+            # The table name and query id come from the data and the
+            # operations, so a rerun of the same run reads Quail Server's
+            # saved rows.
+            digest = hashlib.sha256(probe.sql.encode())
+            sink = pa.BufferOutputStream()
+            with pa.ipc.new_stream(sink, table.schema) as writer:
+                writer.write_table(table)
+            digest.update(sink.getvalue().to_pybytes())
+            key = digest.hexdigest()[:24]
+            table_name = f"docetl_{key}"
+            compiled = compile_run(ops, table_name)
+            # bypass_cache asks for a fresh run with a new id (the uploaded
+            # table stays the same).
+            query_id = f"docetl-{key}"
+            if self.bypass_cache or self.config.get("bypass_cache"):
+                query_id += f"-{uuid.uuid4().hex[:12]}"
+            # One part per replica; a single part goes to the replica its
+            # hash picks, so a rerun reads that replica's saved rows.
+            endpoint = replicas[index] if len(parts) > 1 else replicas[int(key, 16) % len(replicas)]
+            with QuailClient(endpoint) as client:
+                client.upload(table_name, table, ID_COLUMN)
+                result = client.run(compiled.sql, query_id=query_id)
+                return compiled, result, client.query_seconds
+
+        if len(parts) == 1:
+            ran = [run_part(0, *parts[0])]
+        else:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=len(parts)) as pool:
+                ran = list(pool.map(lambda job: run_part(job[0], *job[1]), enumerate(parts)))
+        compiled = ran[0][0]
+        result = pa.concat_tables([r for _, r, _ in ran]) if len(ran) > 1 else ran[0][1]
+        # Quail Server's GPU time for the run, summed over its parts and
+        # priced at engine.gpu_cost_per_hour, so cost comparisons with hosted
+        # models are fair. Queue time, cold start, and saved rows cost nothing.
+        cost = sum(seconds for _, _, seconds in ran) / 3600 * engine.get("gpu_cost_per_hour", 0.0)
 
         # Quail returns column names qualified by their table alias.
         rows = {name.split(".", 1)[-1]: values for name, values in result.to_pydict().items()}

@@ -81,6 +81,9 @@ def engine_for(op_config: dict, pipeline_config: dict) -> dict | None:
 
     ``gpu_cost_per_hour`` (on ``engine`` or a ``quail_models`` entry) prices
     Quail Server's time, so cost comparisons with hosted models are fair.
+    ``parallelism`` (there, or ``quail_parallelism`` on the operation) splits
+    a run's rows across that many of the endpoint's servers, which run at
+    once; a run with a reduce stays on one server.
     """
     model = op_config.get("model") or pipeline_config.get("default_model") or ""
     if isinstance(model, str) and model.startswith(QUAIL_MODEL_PREFIX):
@@ -97,6 +100,7 @@ def engine_for(op_config: dict, pipeline_config: dict) -> dict | None:
             "fallback": "strict",
             "max_group_tokens": int(served.get("max_group_tokens", DEFAULT_MAX_GROUP_TOKENS)),
             "gpu_cost_per_hour": float(served.get("gpu_cost_per_hour", 0.0)),
+            "parallelism": int(op_config.get("quail_parallelism") or served.get("parallelism", 1)),
             "model": name,
         }
 
@@ -131,6 +135,7 @@ def engine_for(op_config: dict, pipeline_config: dict) -> dict | None:
         "fallback": fallback,
         "max_group_tokens": int(chosen.get("max_group_tokens", DEFAULT_MAX_GROUP_TOKENS)),
         "gpu_cost_per_hour": float(chosen.get("gpu_cost_per_hour", 0.0)),
+        "parallelism": int(op_config.get("quail_parallelism") or chosen.get("parallelism", 1)),
     }
 
 

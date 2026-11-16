@@ -137,7 +137,9 @@ def test_engine_for_resolves_pipeline_and_operation_settings():
         "fallback": "litellm",
         "max_group_tokens": 24_000,
         "gpu_cost_per_hour": 0.0,
+        "parallelism": 1,
     }
+    assert engine_for({"quail_parallelism": 4}, pipeline)["parallelism"] == 4
     assert engine_for({"engine": "litellm"}, pipeline) is None
     assert engine_for({}, {}) is None
     assert engine_for({"engine": {"type": "quail", "endpoint": "grpc://o:2", "fallback": "strict"}}, {})[
@@ -982,3 +984,24 @@ def test_a_list_answer_cut_off_at_max_tokens_keeps_its_complete_items():
     cut = '[{"clause_type": "A", "text_span": "x"}, {"clause_type": "B", "text_span": "y"}, {"clause_type": "C", "te'
     assert convert(cut, out) == [{"clause_type": "A", "text_span": "x"}, {"clause_type": "B", "text_span": "y"}]
     assert convert('{"summary": "cut', out) is None
+
+
+def test_a_run_splits_its_rows_across_replicas_by_parallelism(tmp_path):
+    from docetl.runner import DSLRunner
+
+    servers = [FakeQuailServer() for _ in range(2)]
+    for server in servers:
+        threading.Thread(target=server.serve, daemon=True).start()
+    endpoints = [f"grpc://127.0.0.1:{server.port}" for server in servers]
+    rows = [{"id": i, "body": f"review {i}"} for i in range(6)]
+    config = _pipeline(tmp_path, ",".join(endpoints), [FILTER, MAP], rows)
+    config["engine"]["parallelism"] = 2
+    DSLRunner(config, max_threads=2).load_run_save()
+    # each replica ran one query over its half of the rows
+    assert [len(server.queries) for server in servers] == [1, 1]
+    assert [[len(t) for name, t in server.tables.items() if not name.startswith("docetl_check")]
+            for server in servers] == [[3], [3]]
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert [r["id"] for r in out] == sorted(r["id"] for r in out)
+    for server in servers:
+        server.shutdown()

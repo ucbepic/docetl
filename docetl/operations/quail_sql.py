@@ -105,8 +105,14 @@ class QuailSqlOperation(BaseOperation):
             with QuailClient(endpoint) as client:
                 client.upload(table, empty, ID_COLUMN)
                 client.explain(sql)
-        except pa.flight.FlightUnavailableError:
-            return
+        except pa.flight.FlightUnavailableError as error:
+            if "failed to connect" in str(error):
+                return  # no server to check against; the query is planned when it runs
+            # The server went away while planning: it crashed on this query.
+            raise ValueError(
+                f"Quail Server crashed while planning {self.config['name']}: {error}. "
+                "Split the query into several quail_sql operations with fewer AI calls each."
+            ) from error
         except pa.flight.FlightError as error:
             raise ValueError(f"Quail cannot plan {self.config['name']}: {error}") from error
         _PLANNED.add((endpoint, sql))

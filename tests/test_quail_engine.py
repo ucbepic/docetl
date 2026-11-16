@@ -251,6 +251,7 @@ class FakeQuailServer(flight.FlightServerBase):
         self.sql_by_id: dict[str, str] = {}
         self.run_seconds = 0.01  # how long each query takes once the model is ready
         self.unavailable_submits = 0  # submits to answer as a server that went away
+        self.crash_on_explain = False  # answer explain as a server that crashed planning
 
     def do_put(self, context, descriptor, reader, writer):
         name = descriptor.path[0].decode()
@@ -261,6 +262,8 @@ class FakeQuailServer(flight.FlightServerBase):
     def do_action(self, context, action):
         body = json.loads(action.body.to_pybytes())
         if action.type == "explain":
+            if self.crash_on_explain:
+                raise flight.FlightUnavailableError("Stream removed (Socket closed)")
             self.explained.append(body["sql"])
             return [flight.Result(b"plan")]
         if action.type == "submit":
@@ -1065,6 +1068,20 @@ def test_quail_sql_wraps_the_query_over_an_input_table():
     assert _with_input("WITH x AS (SELECT 1) SELECT * FROM x", "t").startswith(
         "WITH input AS (SELECT * FROM `t`), x AS")
     assert _reads(QUAIL_SQL["sql"], ["body", "id", "summary_old"]) == ["body"]
+
+
+def test_a_quail_sql_query_that_crashes_the_planner_fails_its_check(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    server.crash_on_explain = True
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [{**QUAIL_SQL, "input_fields": ["body"]}], rows)
+    del config["engine"]
+    config["quail_models"] = {"qwen3-4b-fp8": {"endpoint": endpoint}}
+    with pytest.raises(Exception, match="crashed while planning gated"):
+        DSLRunner(config, max_threads=2).load_run_save()
+    assert server.queries == []
 
 
 @pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")

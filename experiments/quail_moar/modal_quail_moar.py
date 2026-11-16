@@ -87,7 +87,9 @@ class Servers:
         proc = subprocess.Popen(
             ["python", "-m", "quail.remote.server", "--model", model, "--device", "h100-sxm",
              "--listen", f"127.0.0.1:{50051 + gpu}", "--data", f"/tmp/quail-{model}-{gpu}"],
-            env={**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu)},
+            # Quail plans on threads with Rust's default 2 MiB stack, which a
+            # query with about 80 AI calls overflows (the server segfaults).
+            env={"RUST_MIN_STACK": str(64 << 20), **os.environ, "CUDA_VISIBLE_DEVICES": str(gpu)},
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         self.procs[gpu] = proc
         path = os.path.join(self.log_dir, f"{model}-gpu{gpu}.log") if self.log_dir else None

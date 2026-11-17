@@ -146,6 +146,28 @@ When `models` (Python) or `available_models` (YAML) is omitted, MOAR auto-detect
 !!! tip "Explicit Model Lists"
     You can always override auto-detection by providing an explicit model list. This is useful when you want to restrict the search to specific models.
 
+## Quail Models
+
+MOAR can search over open models that run on [Quail Server](../../execution/quail.md). List each model as `quail/<model>` in `available_models`, and name its servers under `quail_models` in the pipeline:
+
+```yaml
+quail_models:
+  qwen3-4b-fp8:
+    endpoint: grpc://quail-4b:50051
+    gpu_cost_per_hour: 3.95
+  qwen3.8-27b-fp8:
+    endpoint: grpc://quail-27b:50051
+    gpu_cost_per_hour: 3.95
+
+optimizer_config:
+  available_models:
+    - quail/qwen3-4b-fp8
+    - quail/qwen3.8-27b-fp8
+    - gemini/gemini-4-hydrogen
+```
+
+MOAR prices a Quail plan at its GPU time times `gpu_cost_per_hour`, so Quail plans and hosted plans share one cost axis. An operation on a `quail/` model needs a [Quail form](../../execution/quail.md#prompts), or its plan fails to run, so convert the pipeline's prompts with `docetl quail-rewrite` before the search. MOAR also records each plan's run time in seconds.
+
 ## Dataset Path
 
 ### Automatic Inference

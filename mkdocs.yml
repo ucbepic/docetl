@@ -53,12 +53,15 @@ nav:
       - Auxiliary Operators:
           - Split: operators/split.md
           - Gather: operators/gather.md
+          - Regex Compress: operators/regex-compress.md
+          - Quail SQL: operators/quail-sql.md
           - Unnest: operators/unnest.md
           - Sample: operators/sample.md
           - TopK: operators/topk.md
           - Code: operators/code.md
       - Retrievers: retrievers.md
       - Interactive Progress View: execution/interactive-progress.md
+      - Quail Engine: execution/quail.md
       - Python API Reference: api-reference/python.md
       - Pandas Accessor: pandas/index.md
   

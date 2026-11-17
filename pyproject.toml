@@ -71,6 +71,9 @@ retrieval = [
 tui = [
   "textual>=8.2.7",
 ]
+quail = [
+  "pyarrow>=15.0.0",
+]
 
 [project.scripts]
 docetl = "docetl.cli:app"
@@ -93,6 +96,8 @@ link_resolve = "docetl.operations.link_resolve:LinkResolveOperation"
 code_map = "docetl.operations.code_operations:CodeMapOperation"
 code_reduce = "docetl.operations.code_operations:CodeReduceOperation"
 code_filter = "docetl.operations.code_operations:CodeFilterOperation"
+regex_compress = "docetl.operations.regex_compress:RegexCompressOperation"
+quail_sql = "docetl.operations.quail_sql:QuailSqlOperation"
 
 [project.entry-points."docetl.parser"]
 llama_index_simple_directory_reader = "docetl.parsing_tools:llama_index_simple_directory_reader"

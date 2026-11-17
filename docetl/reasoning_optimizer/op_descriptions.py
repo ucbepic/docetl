@@ -599,6 +599,62 @@ op_topk = Operator(
     """,
 )
 
+op_regex_compress = Operator(
+    name="Regex Compress",
+    type_llm_or_not="not LLM-powered",
+    description="Cuts a long document down to the paragraphs that match regular expressions, with no LLM call: it deletes remove_patterns matches, splits the text at blank lines, keeps a paragraph that matches a keep pattern (or starts within keep_first_chars) unless a drop pattern matches it, and joins the kept paragraphs with [...] between gaps. On Quail it runs as SQL inside the same query as the operation after it.",
+    when_to_use="Use before an LLM operation when only some paragraphs of each document matter and keywords find them, to cut cost and distraction.",
+    required_parameters="""
+    name: Unique name for the operation
+    type: Must be "regex_compress"
+    document_key: The field to compress""",
+    optional_parameters="""
+    output_key: Field to write (default: document_key)
+    keep_patterns: Regexes; a matching paragraph is kept
+    drop_patterns: Regexes; a matching paragraph is dropped even when a keep pattern matches
+    remove_patterns: Regexes whose matches are deleted first
+    keep_first_chars: Paragraphs starting within this many characters are kept (default 0)
+    Patterns use syntax both Python re and Rust regex accept: no lookaround, named groups, or backreferences.""",
+    returns="Each document with document_key (or output_key) replaced by the compressed text",
+    minimal_example_configuration="""
+    name: keep_liability_paragraphs
+    type: regex_compress
+    document_key: contract
+    keep_patterns: ["(?i)\\b(liabilit|indemnif|damages)"]
+    keep_first_chars: 1500
+    """,
+)
+
+op_quail_sql = Operator(
+    name="Quail SQL",
+    type_llm_or_not="LLM-powered (on Quail Server)",
+    description="Runs one SQL query, written by you, over the input rows on Quail Server, an open model on a GPU. The rows are a table named input with each field as text plus _docetl_id. The query may use Quail's AI functions in any SQL expression: AI.IF(PROMPT('text {0}', input.field)) returns a boolean; AI.SCORE(PROMPT(...)) a number from 0 to 1; AI.CLASSIFY(PROMPT(...), ['a', 'b']) one label; get_field(AI_EXTRACT(input.field, named_struct('k', 'question')), 'k') text copied from the field, or NULL when absent; AI.MAP(input.field, 'instruction', max_tokens) written text. AI.MAP instructions and PROMPT text may not contain braces except the {0} placeholders. Everything else is DataFusion SQL in the BigQuery dialect: CASE WHEN, CTEs, window functions, GROUP BY, string functions.",
+    when_to_use="Use only when the pipeline's models are quail/* models, to express logic no single operation can: gate an expensive AI_EXTRACT or AI.MAP behind a cheap AI.IF with CASE WHEN, rank chunks with AI.SCORE and keep the top ones per document, or combine several AI answers in one query. AI functions over the same column share one read of the document.",
+    required_parameters="""
+    name: Unique name for the operation
+    type: Must be "quail_sql"
+    model: The quail/<model> to run on
+    sql: The query over the table input; it must select input._docetl_id and one column per output schema key; a row it leaves out is dropped
+    output: Schema of the columns the query returns (string, bool, int, float, or list/object types returned as JSON text)""",
+    optional_parameters="""
+    input_fields: Fields to upload (default: the fields the query names)""",
+    returns="Each input row the query returns, updated with the query's output columns",
+    minimal_example_configuration="""
+    name: governing_law
+    type: quail_sql
+    model: quail/qwen3.8-27b-fp8
+    sql: |
+      SELECT i._docetl_id,
+             CASE WHEN AI.IF(PROMPT('{0} Does the contract say which law governs it?', i.document))
+                  THEN get_field(AI_EXTRACT(i.document, named_struct('a', 'Which sentence states the governing law?')), 'a')
+             END AS governing_law
+      FROM input i
+    output:
+      schema:
+        governing_law: string
+    """,
+)
+
 
 # List of all operators
 ALL_OPERATORS = [
@@ -615,6 +671,8 @@ ALL_OPERATORS = [
     op_code_map,
     op_code_filter,
     op_topk,
+    op_regex_compress,
+    op_quail_sql,
 ]
 
 

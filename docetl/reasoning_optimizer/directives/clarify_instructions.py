@@ -148,9 +148,11 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
         agent_llm: str,
         message_history: list = [],
         pipeline_code: Dict = None,
+        extra_context: str = "",
     ):
         """
         Use agentic approach to analyze sample data and generate improved prompt.
+        ``extra_context`` is appended to the agent's first message.
         """
         # Load sample input data
         try:
@@ -193,7 +195,7 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
         # Create initial user message
         initial_message = self.to_string_for_instantiate(
             target_ops_configs, pipeline_code
-        )
+        ) + extra_context
 
         # Run the agentic loop (validation is handled internally)
         try:

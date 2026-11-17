@@ -1,0 +1,1098 @@
+"""Tests for the Quail execution engine (docetl/engines/quail).
+
+Three layers:
+
+1. Prompt parsing, eligibility, and SQL compilation, with no server.
+2. A fake Quail Server on ``pyarrow.flight.FlightServerBase``, which checks
+   the client calls and how result rows map back to DocETL rows.
+3. A real ``quail-server`` with Quail's oracle worker (no GPU), when
+   ``QUAIL_REPO`` points to a Quail checkout built with ``tools/build.sh``.
+
+``tests/quail_e2e/modal_e2e.py`` runs the engine against a real model on a
+Modal H100 (not collected by pytest).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import socket
+import subprocess
+import threading
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+import pyarrow as pa
+import pyarrow.flight as flight
+import pytest
+
+from docetl.engines.quail import QuailUnsupported, check_eligible, compile_run, engine_for
+from docetl.engines.quail.compile import OutputColumn, convert
+from docetl.engines.quail.prompts import QuailPromptError, parse_prompt
+
+ENGINE = {"type": "quail", "endpoint": "grpc://127.0.0.1:1"}
+
+FILTER = {
+    "name": "ending",
+    "type": "filter",
+    "prompt": "Does the review discuss the ending? {{ input.body }}",
+    "output": {"schema": {"discusses_ending": "bool"}},
+}
+MAP = {
+    "name": "label",
+    "type": "map",
+    "prompt": "Label the review: {{ input.body }}",
+    "output": {"schema": {"kind": "enum[praise, complaint]", "summary": "string", "stars": "int"}},
+}
+
+
+# ── 1. Parsing, eligibility, compilation ─────────────────────────────
+
+
+def test_parse_prompt_maps_fields_to_placeholders():
+    prompt = parse_prompt("Compare {{ input.a }} with {{ input['b'] }}; is {{ input.a }} longer?")
+    assert prompt.template == "Compare {0} with {1}; is {0} longer?"
+    assert prompt.fields == ("a", "b")
+    assert prompt.instruction() == "Compare [a] with [b]; is [a] longer?"
+
+
+@pytest.mark.parametrize(
+    "template, construct",
+    [
+        ("Summarize {{ input.body | upper }}", "a filter"),
+        ("{% for c in input.comments %}{{ c }}{% endfor %}", "a for loop"),
+        ("{% if input.lang == 'fr' %}Translate.{% endif %}{{ input.body }}", "an if block"),
+        ("Read {{ document }}", "a variable other than input"),
+        ("Return JSON like {\"a\": 1} for {{ input.body }}", "brace"),
+        ("No fields at all", "reads no field"),
+        ("Read {{ input['two words'] }}", "not a plain column name"),
+    ],
+)
+def test_parse_prompt_names_the_construct_it_refuses(template, construct):
+    with pytest.raises(QuailPromptError, match=construct):
+        parse_prompt(template)
+
+
+def test_parse_reduce_prompt_takes_one_loop_over_inputs():
+    from docetl.engines.quail.prompts import parse_reduce_prompt
+
+    prompt = parse_reduce_prompt(
+        "Summarize these reviews.{% for r in inputs %}\nReview: {{ r.body }}{% endfor %}\nBe brief."
+    )
+    assert prompt.template == "Summarize these reviews.{0}\nBe brief."
+    assert prompt.item == (("text", "\nReview: "), ("field", "body"))
+    assert prompt.fields == ("body",)
+    assert prompt.instruction() == "Summarize these reviews.[inputs] Be brief."
+    for bad, reason in [
+        ("{{ inputs }}", "outside it"),
+        ("{% for r in inputs %}{{ r.body | upper }}{% endfor %}", "a filter"),
+        ("{% for r in rows %}{{ r.body }}{% endfor %}", "for item in inputs"),
+        ("{% for r in inputs %}{% if r.x %}{{ r.body }}{% endif %}{% endfor %}", "an if block"),
+    ]:
+        with pytest.raises(QuailPromptError, match=reason):
+            parse_reduce_prompt(bad)
+
+
+REDUCE = {
+    "name": "per_movie",
+    "type": "reduce",
+    "reduce_key": "movie",
+    "prompt": "Summarize the reviews of one movie.{% for r in inputs %}\n- {{ r.body }}{% endfor %}",
+    "output": {"schema": {"verdict": "enum[good, bad]", "summary": "string"}},
+}
+
+
+def test_compile_run_groups_a_reduce_after_a_filter():
+    compiled = compile_run([FILTER, REDUCE], "docs")
+    assert compiled.grouped
+    assert compiled.input_fields == ["body", "movie"]
+    assert compiled.group_reads == (["movie"], ["body"])
+    assert (
+        "c2 AS (SELECT c1.`movie` AS `movie`, "
+        "AI.CLASSIFY(PROMPT('Summarize the reviews of one movie.{0} Answer only the field verdict.', "
+        "STRING_AGG(CONCAT('\\n- ', c1.`body`), '\\n' ORDER BY c1.`_docetl_id`)), ['good', 'bad']) AS `verdict`, "
+        "AI.MAP(STRING_AGG(CONCAT('\\n- ', c1.`body`), '\\n' ORDER BY c1.`_docetl_id`), "
+        "'Summarize the reviews of one movie.[inputs] Answer only the field summary.', 2048) AS `summary`, "
+        "COUNT(*) AS `_counts_prereduce_per_movie` FROM c1 GROUP BY c1.`movie`)"
+    ) in compiled.sql
+    assert compiled.sql.endswith(
+        "SELECT c2.`movie` AS `movie`, c2.`verdict` AS `verdict`, c2.`summary` AS `summary`, "
+        "c2.`_counts_prereduce_per_movie` AS `_counts_prereduce_per_movie` FROM c2"
+    )
+
+
+def test_compile_run_reduces_everything_into_one_group():
+    compiled = compile_run([{**REDUCE, "reduce_key": "_all"}], "docs")
+    assert "GROUP BY" not in compiled.sql
+    assert compiled.group_reads == ([], ["body"])
+
+
+def test_engine_for_resolves_pipeline_and_operation_settings():
+    pipeline = {"engine": {"type": "quail", "endpoint": "grpc://h:1"}}
+    assert engine_for({}, pipeline) == {
+        "type": "quail",
+        "endpoint": "grpc://h:1",
+        "fallback": "litellm",
+        "max_group_tokens": 24_000,
+        "gpu_cost_per_hour": 0.0,
+        "parallelism": 1,
+    }
+    assert engine_for({"quail_parallelism": 4}, pipeline)["parallelism"] == 4
+    assert engine_for({"engine": "litellm"}, pipeline) is None
+    assert engine_for({}, {}) is None
+    assert engine_for({"engine": {"type": "quail", "endpoint": "grpc://o:2", "fallback": "strict"}}, {})[
+        "fallback"
+    ] == "strict"
+    with pytest.raises(ValueError, match="endpoint"):
+        engine_for({"engine": "quail"}, {})
+
+
+@pytest.mark.parametrize(
+    "change, reason",
+    [
+        ({"gleaning": {"num_rounds": 1}}, "gleaning"),
+        ({"type": "equijoin"}, "type 'equijoin'"),
+        ({"output": {"schema": {"keep": "string"}}}, "one boolean output"),
+        ({"prompt": "{{ input.body | trim }}"}, "a filter"),
+    ],
+)
+def test_check_eligible_refuses_operations_with_no_quail_form(change, reason):
+    with pytest.raises(QuailUnsupported, match=reason):
+        check_eligible({**FILTER, **change})
+
+
+def test_compile_run_fuses_a_filter_and_a_map_into_one_query():
+    compiled = compile_run([FILTER, MAP], "docs")
+    assert compiled.input_fields == ["body"]
+    assert compiled.dropped == ["discusses_ending"]
+    assert compiled.sql == (
+        "WITH c0 AS (SELECT * FROM `docs`),\n"
+        "c1 AS (SELECT c0.`_docetl_id` AS `_docetl_id`, c0.`body` AS `body` FROM c0 "
+        "WHERE AI.IF(PROMPT('Does the review discuss the ending? {0}', c0.`body`))),\n"
+        "c2 AS (SELECT c1.`_docetl_id` AS `_docetl_id`, c1.`body` AS `body`, "
+        "AI.CLASSIFY(PROMPT('Label the review: {0} Answer only the field kind.', c1.`body`), "
+        "['praise', 'complaint']) AS `kind`, "
+        "AI.MAP(c1.`body`, 'Label the review: [body] Answer only the field summary.', 2048) AS `summary`, "
+        "TRY_CAST(AI.MAP(c1.`body`, 'Label the review: [body] Answer only the field stars. "
+        "Answer with a number only.') AS DOUBLE) AS `stars` FROM c1)\n"
+        "SELECT c2.`_docetl_id` AS `_docetl_id`, c2.`body` AS `body`, c2.`kind` AS `kind`, "
+        "c2.`summary` AS `summary`, c2.`stars` AS `stars` FROM c2"
+    )
+
+
+def test_compile_run_reads_an_earlier_output_as_a_column():
+    later = {
+        "name": "short",
+        "type": "filter",
+        "prompt": "Is the summary short? {{ input.summary }}",
+        "output": {"schema": {"short": "bool"}},
+    }
+    compiled = compile_run([MAP, later], "docs")
+    assert compiled.input_fields == ["body"]
+    assert "PROMPT('Is the summary short? {0}', c1.`summary`)" in compiled.sql
+
+
+def test_compile_run_escapes_quotes_and_passes_max_tokens():
+    op = {
+        **MAP,
+        "prompt": "Summarize the reviewer's text: {{ input.body }}",
+        "output": {"schema": {"summary": "string"}},
+        "litellm_completion_kwargs": {"max_tokens": 64},
+    }
+    sql = compile_run([op], "docs").sql
+    assert "AI.MAP(c0.`body`, 'Summarize the reviewer\\'s text: [body]', 64)" in sql
+
+
+def test_convert_turns_cells_into_schema_types():
+    assert convert(4.0, OutputColumn("n", "integer")) == 4
+    assert convert(None, OutputColumn("n", "integer")) is None
+    assert convert('```json\n["a", "b"]\n```', OutputColumn("j", "json")) == ["a", "b"]
+    assert convert("not json", OutputColumn("j", "json")) is None
+
+
+def test_group_quail_runs_fuses_consecutive_operations_and_falls_back():
+    from docetl.containers import _group_quail_runs
+
+    ops = {
+        "ending": FILTER,
+        "label": MAP,
+        "gleaned": {**MAP, "name": "gleaned", "gleaning": {"num_rounds": 1}},
+        "plain": {**MAP, "name": "plain", "engine": "litellm"},
+        "tail": {**MAP, "name": "tail"},
+    }
+    runner = SimpleNamespace(
+        config={"engine": ENGINE},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+    nodes = [SimpleNamespace(name=n) for n in ["ending", "label", "gleaned", "plain", "tail"]]
+    groups = _group_quail_runs(runner, nodes)
+    shape = [[n.name for n in g[0]] if isinstance(g, tuple) else g.name for g in groups]
+    assert shape == [["ending", "label"], "gleaned", "plain", ["tail"]]
+
+    runner.config = {"engine": {**ENGINE, "fallback": "strict"}}
+    with pytest.raises(ValueError, match="strict.*gleaning"):
+        _group_quail_runs(runner, nodes)
+
+
+# ── 2. A fake Quail Server ────────────────────────────────────────────
+
+
+class FakeQuailServer(flight.FlightServerBase):
+    """Answers like Quail Server: keeps even rows, labels each kept row."""
+
+    def __init__(self):
+        super().__init__("grpc://127.0.0.1:0")
+        self.tables: dict[str, pa.Table] = {}
+        self.queries: list[dict] = []
+        self.explained: list[str] = []
+        self.sql_by_id: dict[str, str] = {}
+        self.run_seconds = 0.01  # how long each query takes once the model is ready
+        self.unavailable_submits = 0  # submits to answer as a server that went away
+        self.crash_on_explain = False  # answer explain as a server that crashed planning
+
+    def do_put(self, context, descriptor, reader, writer):
+        name = descriptor.path[0].decode()
+        if name in self.tables:  # as Quail Server refuses a second upload
+            raise flight.FlightServerError(f"Execution error: The table {name} already exists")
+        self.tables[name] = reader.read_all()
+
+    def do_action(self, context, action):
+        body = json.loads(action.body.to_pybytes())
+        if action.type == "explain":
+            if self.crash_on_explain:
+                raise flight.FlightUnavailableError("Stream removed (Socket closed)")
+            self.explained.append(body["sql"])
+            return [flight.Result(b"plan")]
+        if action.type == "submit":
+            if self.unavailable_submits:
+                self.unavailable_submits -= 1
+                raise flight.FlightUnavailableError("Stream removed (Socket closed)")
+            self.queries.append(body)
+            query_id = body.get("id", "q")
+            if query_id in self.sql_by_id:  # a query run before: saved rows
+                status = {"id": query_id, "state": "succeeded", "revision": 1}
+            else:
+                self.sql_by_id[query_id] = body["sql"]
+                # Running with the model loaded, as after a warm start.
+                status = {"id": query_id, "state": "running", "ready": True, "revision": 1}
+        else:
+            time.sleep(self.run_seconds)
+            now = time.time()
+            status = {"id": body["id"], "state": "succeeded", "revision": 2,
+                      "ready": True, "started_at": now - self.run_seconds, "finished_at": now}
+        return [flight.Result(json.dumps(status).encode())]
+
+    def do_get(self, context, ticket):
+        query_id = json.loads(ticket.ticket.decode())["query_id"]
+        name = re.search(r"FROM `([^`]+)`", self.sql_by_id[query_id]).group(1)
+        table = self.tables[name]
+        kept = [i for i in table.column("_docetl_id").to_pylist() if int(i) % 2 == 0]
+        return flight.RecordBatchStream(
+            pa.table(
+                {
+                    "c2._docetl_id": kept,
+                    "c2.body": ["ignored"] * len(kept),
+                    "kind": ["praise"] * len(kept),
+                    "summary": [f"summary {int(i)}" for i in kept],
+                    "stars": [4.0] * len(kept),
+                }
+            )
+        )
+
+
+@pytest.fixture
+def fake_server():
+    server = FakeQuailServer()
+    thread = threading.Thread(target=server.serve, daemon=True)
+    thread.start()
+    yield server, f"grpc://127.0.0.1:{server.port}"
+    server.shutdown()
+
+
+def _pipeline(tmp_path, endpoint, ops, rows):
+    source = tmp_path / "in.json"
+    source.write_text(json.dumps(rows))
+    return {
+        "default_model": "gpt-4o-mini",
+        "engine": {"type": "quail", "endpoint": endpoint},
+        "datasets": {"reviews": {"type": "file", "path": str(source)}},
+        "operations": ops,
+        "pipeline": {
+            "steps": [{"name": "s", "input": "reviews", "operations": [op["name"] for op in ops]}],
+            "output": {"type": "file", "path": str(tmp_path / "out.json")},
+        },
+    }
+
+
+def test_runner_sends_one_fused_query_and_maps_rows_back(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}", "extra": {"k": i}} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [FILTER, MAP], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+
+    output = json.loads((tmp_path / "out.json").read_text())
+    assert output == [
+        {"id": 0, "body": "review 0", "extra": {"k": 0}, "kind": "praise", "summary": "summary 0", "stars": 4},
+        {"id": 2, "body": "review 2", "extra": {"k": 2}, "kind": "praise", "summary": "summary 2", "stars": 4},
+    ]
+    (query,) = server.queries
+    assert query["dialect"] == "BigQuery"
+    assert query["id"].startswith("docetl-")
+    (table,) = [t for name, t in server.tables.items() if not name.startswith("docetl_check_")]
+    assert table.column_names == ["_docetl_id", "body"]
+    # syntax_check planned the query against an empty table first, once
+    assert len(server.explained) == 1
+
+    # A rerun uploads the same table name again, which the server refuses;
+    # the client treats that as done and gets the same rows.
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert json.loads((tmp_path / "out.json").read_text()) == output
+    assert len(server.queries) == 2 and server.queries[0]["id"] == server.queries[1]["id"]
+
+
+# ── 3. A real quail-server with Quail's oracle worker ────────────────
+
+QUAIL_REPO = os.environ.get("QUAIL_REPO")
+
+
+@pytest.fixture
+def quail_server(tmp_path):
+    repo = Path(QUAIL_REPO)
+    with socket.socket() as found:
+        found.bind(("127.0.0.1", 0))
+        port = found.getsockname()[1]
+    python = repo / ".venv" / "bin" / "python"
+    process = subprocess.Popen(
+        [str(repo / ".venv" / "bin" / "quail-server"), "--model", "qwen3-4b-fp8",
+         "--device", "h100-sxm", "--listen", f"127.0.0.1:{port}", "--data", str(tmp_path / "data")],
+        env={**os.environ, "QUAIL_WORKER": f"{python} {repo / 'tests/helpers/oracle_worker.py'}"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    endpoint = f"grpc://127.0.0.1:{port}"
+    client = flight.FlightClient(endpoint)
+    deadline = time.monotonic() + 60
+    while True:
+        try:
+            list(client.list_actions())
+            break
+        except flight.FlightUnavailableError:
+            assert process.poll() is None and time.monotonic() < deadline, "quail-server did not start"
+            time.sleep(0.1)
+    yield endpoint
+    process.terminate()
+    process.wait(timeout=10)
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_fused_filter_and_map(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    later = {
+        "name": "short",
+        "type": "filter",
+        "prompt": "Is the reviewer's summary short? {{ input.summary }}",
+        "output": {"schema": {"short": "bool"}},
+    }
+    config = _pipeline(tmp_path, quail_server, [FILTER, MAP, later], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+
+    output = json.loads((tmp_path / "out.json").read_text())
+    # The oracle keeps the documents at even positions of each AI stage, so
+    # the two filters keep fewer rows than came in.
+    assert 0 < len(output) < len(rows)
+    for row in output:
+        assert set(row) == {"id", "body", "kind", "summary", "stars"}
+        assert row["body"] == f"review {row['id']}"
+        assert row["kind"] in ("praise", "complaint")
+
+    # A rerun uploads the same table name again; the server's "already
+    # exists" refusal counts as done, and the saved rows come back.
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert json.loads((tmp_path / "out.json").read_text()) == output
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_fused_filter_map_and_reduce(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "movie": i % 2, "body": f"review {i}"} for i in range(8)]
+    tag = {
+        "name": "tag",
+        "type": "map",
+        "prompt": "Tag the review: {{ input.body }}",
+        "output": {"schema": {"tag": "string"}},
+    }
+    reduce = {**REDUCE, "prompt": "Summarize.{% for r in inputs %}\n- {{ r.body }} ({{ r.tag }}){% endfor %}"}
+    config = _pipeline(tmp_path, quail_server, [tag, reduce], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+
+    output = json.loads((tmp_path / "out.json").read_text())
+    # One row per movie, with the integer key restored.
+    assert sorted(row["movie"] for row in output) == [0, 1]
+    for row in output:
+        assert set(row) == {"movie", "verdict", "summary", "_counts_prereduce_per_movie"}
+        assert row["_counts_prereduce_per_movie"] == 4
+        assert row["verdict"] in ("good", "bad")
+        assert isinstance(row["summary"], str)
+
+
+def _quail_op(engine, ops):
+    from docetl.operations.quail import QuailOperation
+
+    runner = SimpleNamespace(
+        config={}, total_cost=0.0, _run_operation=lambda op, data: [{"ran": op["name"], "n": len(data)}]
+    )
+    return QuailOperation(
+        runner,
+        {"name": "q", "type": "quail", "engine": engine, "ops": ops},
+        "gpt-4o-mini",
+        1,
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+
+
+def test_oversized_reduce_groups_fall_back_to_litellm_or_fail_strictly():
+    engine = {**ENGINE, "fallback": "litellm", "max_group_tokens": 10}
+    rows = [{"movie": 1, "body": "x" * 100}, {"movie": 2, "body": "short"}]
+    op = _quail_op(engine, [REDUCE])
+    assert op._oversized_group(rows, (["movie"], ["body"])) == 25
+    assert op.execute(rows) == ([{"ran": "per_movie", "n": 2}], 0.0)
+
+    strict = _quail_op({**engine, "fallback": "strict"}, [REDUCE])
+    with pytest.raises(ValueError, match="max_group_tokens"):
+        strict.execute(rows)
+
+
+def test_quail_form_directive_retries_until_the_parser_accepts(monkeypatch):
+    import docetl.reasoning_optimizer.directives.quail_form as quail_form
+
+    answers = iter(
+        [
+            "Summarize {{ input.body | trim }}",  # still has a filter
+            "Summarize the review {{ input.body }}.",
+        ]
+    )
+    seen = []
+
+    def fake_completion(model, messages, response_format):
+        seen.append(messages[-1]["content"])
+        content = json.dumps({"quail_prompt": next(answers)})
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+            _hidden_params={"response_cost": 0.001},
+        )
+
+    monkeypatch.setattr(quail_form, "completion", fake_completion)
+    op = {**MAP, "prompt": "{% if input.x %}Hi {% endif %}Summarize {{ input.body | trim }}"}
+    directive = quail_form.QuailFormDirective()
+    ops, _, cost = directive.instantiate([op], ["label"], "some-model")
+    assert ops[0]["prompt"] == "Summarize the review {{ input.body }}."
+    assert cost == pytest.approx(0.002)
+    # the retry carried the parser's error back to the model
+    assert "a filter" in seen[1]
+
+
+def test_fused_run_checkpoints_under_its_last_operation(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [FILTER, MAP], rows)
+    config["pipeline"]["output"]["intermediate_dir"] = str(tmp_path / "intermediates")
+    DSLRunner(config, max_threads=2).load_run_save()
+    first = json.loads((tmp_path / "out.json").read_text())
+
+    # The run saves its rows under its last operation's name and step hash.
+    saved = json.loads((tmp_path / "intermediates" / "s" / "label.json").read_text())
+    assert saved == first
+    assert len(server.queries) == 1
+
+    # A rerun loads the checkpoint and sends no query.
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert json.loads((tmp_path / "out.json").read_text()) == first
+    assert len(server.queries) == 1
+
+    # Changing an operation in the run changes the hash, so the run reruns.
+    changed = {**MAP, "prompt": "Label this review: {{ input.body }}"}
+    config["operations"] = [FILTER, changed]
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert len(server.queries) == 2
+
+
+def test_bypass_cache_asks_quail_server_for_a_fresh_run(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = {**_pipeline(tmp_path, endpoint, [FILTER, MAP], rows), "bypass_cache": True}
+    DSLRunner(config, max_threads=2).load_run_save()
+    DSLRunner(config, max_threads=2).load_run_save()
+    ids = [query["id"] for query in server.queries]
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert all(i.startswith(ids[0][: len("docetl-") + 24]) for i in ids)
+
+    # An operation-level bypass_cache does the same.
+    server.queries.clear()
+    config = _pipeline(tmp_path, endpoint, [FILTER, {**MAP, "bypass_cache": True}], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert server.queries[0]["id"] != server.queries[1]["id"]
+
+
+def test_quail_model_names_route_operations_and_price_gpu_time(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [FILTER, MAP], rows)
+    del config["engine"]
+    config["default_model"] = "quail/qwen3-4b-fp8"
+    # A huge price, so the fake server's milliseconds show up as cost.
+    config["quail_models"] = {"qwen3-4b-fp8": {"endpoint": endpoint, "gpu_cost_per_hour": 3.6e6}}
+    cost = DSLRunner(config, max_threads=2).load_run_save()
+    assert len(server.queries) == 1
+    assert cost > 0
+    assert len(json.loads((tmp_path / "out.json").read_text())) == 2
+
+
+def test_quail_model_names_fail_when_an_operation_has_no_quail_form(tmp_path):
+    from docetl.containers import _group_quail_runs
+
+    ops = {"gleaned": {**MAP, "name": "gleaned", "gleaning": {"num_rounds": 1}}, "hosted": {**MAP, "name": "hosted", "model": "gemini/gemini-2.5-flash"}}
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+    # An operation with its own hosted model runs on LiteLLM.
+    (group,) = _group_quail_runs(runner, [SimpleNamespace(name="hosted")])
+    assert group.name == "hosted"
+    # A quail/ model cannot run on LiteLLM, so an ineligible operation fails.
+    with pytest.raises(ValueError, match="strict.*gleaning"):
+        _group_quail_runs(runner, [SimpleNamespace(name="gleaned")])
+    with pytest.raises(ValueError, match="needs a Quail Server"):
+        engine_for({"model": "quail/unknown"}, runner.config)
+
+
+def test_json_outputs_get_room_for_their_answer():
+    op = {**MAP, "output": {"schema": {"clauses": "list[{clause_type: string, text_span: string}]"}}}
+    sql = compile_run([op], "docs").sql
+    assert ", 4096) AS `clauses`" in sql
+    op["litellm_completion_kwargs"] = {"max_tokens": 900}
+    assert ", 900) AS `clauses`" in compile_run([op], "docs").sql
+
+
+def test_json_instructions_describe_types_without_braces():
+    from docetl.engines.quail.compile import describe_type
+
+    assert describe_type("list[{clause_type: string, text_span: string}]") == (
+        "a list of objects with fields clause_type (string) and text_span (string)"
+    )
+    op = {**MAP, "output": {"schema": {"clauses": "list[{clause_type: string, text_span: string}]"}}}
+    sql = compile_run([op], "docs").sql
+    instruction = sql.split("AI.MAP(", 1)[1].split("',", 1)[0]
+    assert "{" not in instruction and "}" not in instruction
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_list_of_objects_output(tmp_path, quail_server):
+    # CUAD's output type: Quail refuses AI.MAP instructions with braces, which
+    # an earlier version put there by quoting the type.
+    from docetl.runner import DSLRunner
+
+    op = {
+        "name": "clauses",
+        "type": "map",
+        "prompt": "Extract the clauses of {{ input.body }}",
+        "output": {"schema": {"clauses": "list[{clause_type: string, text_span: string}]"}},
+    }
+    rows = [{"id": i, "body": f"contract {i}"} for i in range(3)]
+    DSLRunner(_pipeline(tmp_path, quail_server, [op], rows), max_threads=2).load_run_save()
+    output = json.loads((tmp_path / "out.json").read_text())
+    assert [row["id"] for row in output] == [0, 1, 2]
+    # The oracle answers with text, not JSON, so the field parses to None.
+    assert all("clauses" in row for row in output)
+
+
+def test_non_llm_operations_run_as_usual_under_a_quail_default_model():
+    from docetl.containers import _group_quail_runs
+
+    ops = {
+        "split": {"name": "split", "type": "split", "split_key": "body", "method": "token_count",
+                  "method_kwargs": {"num_tokens": 100}},
+        "label": {**MAP, "name": "label"},
+    }
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+    groups = _group_quail_runs(runner, [SimpleNamespace(name="split"), SimpleNamespace(name="label")])
+    assert groups[0].name == "split"
+    assert [n.name for n in groups[1][0]] == ["label"]
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_reduce_passes_through_the_first_row(tmp_path, quail_server):
+    # MOAR's chunking rewrites end in a pass_through reduce; it keeps each
+    # group's first row's fields, including ones the run computed before it.
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "movie": i % 2, "title": f"title {i}", "body": f"review {i}"} for i in range(6)]
+    tag = {"name": "tag", "type": "map", "prompt": "Tag the review: {{ input.body }}",
+           "output": {"schema": {"tag": "string"}}}
+    reduce = {**REDUCE, "pass_through": True,
+              "prompt": "Summarize.{% for r in inputs %}\n- {{ r.body }}{% endfor %}"}
+    DSLRunner(_pipeline(tmp_path, quail_server, [tag, reduce], rows), max_threads=2).load_run_save()
+    output = sorted(json.loads((tmp_path / "out.json").read_text()), key=lambda r: r["movie"])
+    # One row per movie, carrying its first review's fields.
+    assert [(r["movie"], r["id"], r["title"], r["body"]) for r in output] == [
+        (0, 0, "title 0", "review 0"), (1, 1, "title 1", "review 1")]
+    for row in output:
+        assert {"tag", "verdict", "summary", "_counts_prereduce_per_movie"} <= set(row)
+        assert row["_counts_prereduce_per_movie"] == 3
+
+
+def _run_python_ops(tmp_path, ops, rows):
+    """Run non-LLM operations with DocETL itself; return the output rows."""
+    from docetl.runner import DSLRunner
+
+    source = tmp_path / "py_in.json"
+    source.write_text(json.dumps(rows))
+    config = {
+        "default_model": "gpt-4o-mini",
+        "datasets": {"docs": {"type": "file", "path": str(source)}},
+        "operations": ops,
+        "pipeline": {
+            "steps": [{"name": "s", "input": "docs", "operations": [op["name"] for op in ops]}],
+            "output": {"type": "file", "path": str(tmp_path / "py_out.json")},
+        },
+    }
+    DSLRunner(config, max_threads=2).load_run_save()
+    return json.loads((tmp_path / "py_out.json").read_text())
+
+
+def _run_sql_ops(endpoint, ops, rows, fields):
+    """Run split/gather as compiled SQL on Quail Server; return rows by column."""
+    from docetl.engines.quail.client import QuailClient
+
+    table = pa.table({
+        "_docetl_id": [f"{i:010d}" for i in range(len(rows))],
+        **{f: [r[f] for r in rows] for f in fields},
+    })
+    name = "t" + str(abs(hash(json.dumps(rows) + json.dumps(ops))))
+    with QuailClient(endpoint) as client:
+        client.upload(name, table, "_docetl_id")
+        result = client.run(compile_run(ops, name).sql).to_pydict()
+    return {k.split(".", 1)[-1]: v for k, v in result.items()}
+
+
+SPLIT = {"name": "chunker", "type": "split", "split_key": "body", "method": "delimiter",
+         "method_kwargs": {"delimiter": "\n\n", "num_splits_to_group": 1}}
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_split_and_gather_in_sql_match_docetl_exactly(tmp_path, quail_server):
+    import random
+
+    rng = random.Random(7)
+    words = ["alpha", "beta", "gamma", "delta", "it's", "naïve", "x"]
+    rows = []
+    for i in range(6):
+        pieces = []
+        for _ in range(rng.randint(1, 9)):
+            pieces.append(rng.choice(["", "   ", " ".join(rng.choices(words, k=rng.randint(1, 6)))]))
+        rows.append({"id": i, "body": "\n\n".join(pieces) or "solo"})
+
+    sections = [{}, {"tail": {"count": 1}}, {"head": {"count": 1}, "tail": {"count": 2}},
+                {"head": {"count": 2}}, {"middle": {}}, {"head": {"count": 1}, "middle": {}}]
+    cases = [(group, prev, nxt) for group in (1, 2, 3) for prev in sections[:4] for nxt in sections[::2]]
+    cases += [(1, {"tail": {"count": 1}}, {"middle": {}}), (2, {"middle": {}}, {})]
+    for group, prev, nxt in cases:
+        split = {**SPLIT, "method_kwargs": {"delimiter": "\n\n", "num_splits_to_group": group}}
+        peripheral = {k: v for k, v in (("previous", prev), ("next", nxt)) if v}
+        gather = {"name": "gatherer", "type": "gather", "content_key": "body_chunk",
+                  "doc_id_key": "chunker_id", "order_key": "chunker_chunk_num",
+                  "peripheral_chunks": peripheral}
+        expected = _run_python_ops(tmp_path, [split, gather], rows)
+        got = _run_sql_ops(quail_server, [split, gather], rows, ["body"])
+        want = sorted((r["id"], r["chunker_chunk_num"], r["body_chunk"], r["body_chunk_rendered"])
+                      for r in expected)
+        row_ids = next(v for k, v in got.items() if k.startswith("__docetl_row"))
+        parents = [int(i.split(".")[0]) for i in row_ids]
+        have = sorted(zip(parents, got["chunker_chunk_num"], got["body_chunk"], got["body_chunk_rendered"]))
+        assert have == want, (group, prev, nxt)
+
+
+def test_split_and_gather_join_the_quail_run_next_to_them():
+    from docetl.containers import _group_quail_runs
+
+    gather = {"name": "gatherer", "type": "gather", "content_key": "body_chunk",
+              "doc_id_key": "chunker_id", "order_key": "chunker_chunk_num",
+              "peripheral_chunks": {"previous": {"tail": {"count": 1}}}}
+    chunk_map = {**MAP, "name": "label", "prompt": "Label: {{ input.body_chunk_rendered }}"}
+    ops = {
+        "chunker": SPLIT,
+        "token_split": {**SPLIT, "name": "token_split", "method": "token_count",
+                        "method_kwargs": {"num_tokens": 100}},
+        "gatherer": gather,
+        "label": chunk_map,
+        "hosted": {**chunk_map, "name": "hosted", "model": "gemini/gemini-4-argon"},
+    }
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+
+    def shape(names):
+        groups = _group_quail_runs(runner, [SimpleNamespace(name=n) for n in names])
+        return [[n.name for n in g[0]] if isinstance(g, tuple) else g.name for g in groups]
+
+    # A delimiter split and a gather join the Quail run: one query.
+    assert shape(["chunker", "gatherer", "label"]) == [["chunker", "gatherer", "label"]]
+    # A token-count split runs in DocETL; the gather still joins the run.
+    assert shape(["token_split", "gatherer", "label"]) == ["token_split", ["gatherer", "label"]]
+    # With no Quail operation after them, split and gather run in DocETL.
+    assert shape(["chunker", "gatherer", "hosted"]) == ["chunker", "gatherer", "hosted"]
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_whole_chunking_pipeline_as_one_query(tmp_path, quail_server):
+    # The shape of MOAR's chunking rewrite: split, gather, per-chunk map, and
+    # a pass_through reduce per document, fused into one Quail query.
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "name": f"contract {i}", "body": "\n\n".join(f"clause {i}.{j}" for j in range(4))}
+            for i in range(3)]
+    gather = {"name": "gatherer", "type": "gather", "content_key": "body_chunk",
+              "doc_id_key": "chunker_id", "order_key": "chunker_chunk_num",
+              "peripheral_chunks": {"previous": {"tail": {"count": 1}}}}
+    chunk_map = {"name": "label", "type": "map", "prompt": "Label: {{ input.body_chunk_rendered }}",
+                 "output": {"schema": {"label": "string"}}}
+    merge = {"name": "merge", "type": "reduce", "reduce_key": "chunker_id", "pass_through": True,
+             "prompt": "Combine.{% for c in inputs %}\n- {{ c.label }}{% endfor %}",
+             "output": {"schema": {"summary": "string"}}}
+    config = _pipeline(tmp_path, quail_server, [SPLIT, gather, chunk_map, merge], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    output = sorted(json.loads((tmp_path / "out.json").read_text()), key=lambda r: r["id"])
+    # One row per contract, carrying the contract's fields and its first chunk's.
+    assert [(r["id"], r["name"], r["chunker_chunk_num"]) for r in output] == [
+        (0, "contract 0", 1), (1, "contract 1", 1), (2, "contract 2", 1)]
+    for row in output:
+        assert row["_counts_prereduce_merge"] == 4
+        assert row["body_chunk"] == f"clause {row['id']}.0"
+        assert "summary" in row
+
+
+PARALLEL = {
+    "name": "facets",
+    "type": "parallel_map",
+    "prompts": [
+        {"prompt": "Is the review positive? {{ input.body }}", "output_keys": ["positive"]},
+        {"prompt": "Summarize the review: {{ input.body }}", "output_keys": ["summary"]},
+    ],
+    "output": {"schema": {"positive": "bool", "summary": "string"}},
+}
+EXTRACT = {
+    "name": "law",
+    "type": "extract",
+    "prompt": "Which law governs the contract?",
+    "document_keys": ["body"],
+}
+
+
+def test_parallel_map_and_extract_compile_to_ai_functions():
+    sql = compile_run([PARALLEL], "docs").sql
+    assert "AI.IF(PROMPT('Is the review positive? {0}', c0.`body`)) AS `positive`" in sql
+    assert "AI.MAP(c0.`body`, 'Summarize the review: [body]', 2048) AS `summary`" in sql
+    sql = compile_run([EXTRACT], "docs").sql
+    assert ("get_field(AI_EXTRACT(c0.`body`, named_struct('answer', 'Which law governs the contract?')), "
+            "'answer') AS `body_extracted_law`") in sql
+    with pytest.raises(QuailUnsupported, match="fixed text"):
+        check_eligible({**EXTRACT, "prompt": "Which law governs {{ input.name }}?"})
+    with pytest.raises(QuailUnsupported, match="own model"):
+        check_eligible({**PARALLEL, "prompts": [{**PARALLEL["prompts"][0], "model": "gpt-4o"}]})
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_parallel_map_and_extract(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"review {i}"} for i in range(3)]
+    config = _pipeline(tmp_path, quail_server, [PARALLEL, {**EXTRACT, "format_extraction": False}], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    output = sorted(json.loads((tmp_path / "out.json").read_text()), key=lambda r: r["id"])
+    assert [r["id"] for r in output] == [0, 1, 2]
+    for row in output:
+        assert isinstance(row["positive"], bool)
+        assert isinstance(row["summary"], str)
+        # The oracle finds no answer, which a list-valued extract writes as [].
+        assert isinstance(row["body_extracted_law"], list)
+
+
+# ── regex_compress ───────────────────────────────────────────────────
+
+COMPRESS = {"name": "compressor", "type": "regex_compress", "document_key": "body",
+            "keep_patterns": [r"(?i)\bgovern(ed|ing)\s+law\b", r"(?i)non-?compet"],
+            "drop_patterns": [r"(?i)^\s*table\s+of\s+contents"],
+            "remove_patterns": [r"(?m)^\s*Source:.*$"], "keep_first_chars": 20}
+
+
+def test_regex_compress_keeps_matching_paragraphs_with_gap_markers():
+    from docetl.operations.regex_compress import compress
+
+    text = ("Source: EDGAR\nACME AGREEMENT\n\nTable of Contents\n1. Terms 2\n\n"
+            "Payment is due monthly.\n\n  \n\nThis is governed by the governing law of Ohio.\n\n"
+            "Notices go by mail.\n\nNo party shall compete (non-compete).")
+    assert compress(text, COMPRESS) == (
+        "\nACME AGREEMENT\n\n[...]\n\nThis is governed by the governing law of Ohio.\n\n"
+        "[...]\n\nNo party shall compete (non-compete)."
+    )
+    # Nothing kept: the whole text, after remove_patterns.
+    assert compress("Source: x\nplain\n\nwords", {**COMPRESS, "keep_first_chars": 0}) == "\nplain\n\nwords"
+    assert compress(None, COMPRESS) is None
+
+
+def test_regex_compress_refuses_patterns_quail_cannot_run():
+    from docetl.operations.regex_compress import RegexCompressOperation
+
+    for pattern in [r"(?<=a)b", r"a(?=b)", r"(a)\1", r"(?P<x>a)", "("]:
+        with pytest.raises(ValueError):
+            RegexCompressOperation.schema.model_validate({**COMPRESS, "keep_patterns": [pattern]})
+
+
+def test_regex_compress_joins_the_quail_run_next_to_it():
+    from docetl.containers import _group_quail_runs
+
+    chunk_map = {**MAP, "name": "label", "prompt": "Label: {{ input.body }}"}
+    ops = {"compressor": COMPRESS, "label": chunk_map}
+    runner = SimpleNamespace(
+        config={"default_model": "quail/qwen3-4b-fp8", "quail_models": {"qwen3-4b-fp8": {"endpoint": "grpc://h:1"}}},
+        find_operation=lambda name: ops[name],
+        console=SimpleNamespace(log=lambda *a, **k: None),
+    )
+    groups = _group_quail_runs(runner, [SimpleNamespace(name=n) for n in ["compressor", "label"]])
+    assert [[n.name for n in g[0]] if isinstance(g, tuple) else g.name for g in groups] == [
+        ["compressor", "label"]
+    ]
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_regex_compress_in_sql_matches_docetl_exactly(tmp_path, quail_server):
+    import random
+
+    rng = random.Random(11)
+    paragraphs = ["Governing Law: Delaware.", "governed  by the laws", "NON-COMPETE applies",
+                  "Table of Contents\n1. Terms", "Source: EDGAR filing", "plain words here",
+                  "naïve café terms", "  ", " ", "x", "Payment due.\nSecond line.",
+                  "The Non-compete period is 2 years.", "Line one\n \t\nline two"]
+    rows = []
+    for i in range(10):
+        parts = rng.choices(paragraphs, k=rng.randint(0, 9))
+        joiner = rng.choice(["\n\n", "\n \n", "\n \n\n", "\n"])
+        rows.append({"id": i, "body": joiner.join(parts)})
+    rows.append({"id": 10, "body": ""})
+    configs = [
+        COMPRESS,
+        {**COMPRESS, "keep_first_chars": 0, "gap_marker": ""},
+        {**COMPRESS, "keep_first_chars": 1000, "output_key": "short"},
+        {**COMPRESS, "remove_patterns": [], "drop_patterns": [], "keep_patterns": []},
+        {**COMPRESS, "keep_patterns": [r"(?i)\bterms?\b"], "gap_marker": "<gap>"},
+    ]
+    for config in configs:
+        out = config.get("output_key") or "body"
+        expected = {r["id"]: r[out] for r in _run_python_ops(tmp_path, [config], rows)}
+        got = _run_sql_ops(quail_server, [config], rows, ["body"])
+        have = {int(i): v for i, v in zip(got["_docetl_id"], got[out])}
+        assert have == expected, config
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_regex_compress_and_a_map_as_one_query(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"Intro {i}.\n\nfiller\n\nThe governing law is Ohio {i}."} for i in range(4)]
+    label = {**MAP, "name": "label", "prompt": "Label: {{ input.body }}"}
+    config = _pipeline(tmp_path, quail_server, [{**COMPRESS, "keep_first_chars": 5}, label], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    # The oracle answers some rows only; each answered row has its compressed body.
+    assert out
+    for r in out:
+        assert r["body"] == f"Intro {r['id']}.\n\n[...]\n\nThe governing law is Ohio {r['id']}."
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_reports_query_seconds_and_none_for_saved_rows(quail_server):
+    from docetl.engines.quail.client import QuailClient
+
+    table = pa.table({"_docetl_id": ["0", "1"], "body": ["a", "b"]})
+    sql = compile_run([MAP], "timed").sql
+    with QuailClient(quail_server) as client:
+        client.upload("timed", table, "_docetl_id")
+        client.run(sql, query_id="timed-1")
+        assert 0 < client.query_seconds < 60
+        client.run(sql, query_id="timed-1")  # saved rows
+        assert client.query_seconds == 0
+
+
+def test_independent_ai_operations_share_one_select():
+    second = {**MAP, "name": "tone", "prompt": "Rate the tone: {{ input.body }}",
+              "output": {"schema": {"tone": "string"}}}
+    reads_first = {**MAP, "name": "follow", "prompt": "Expand: {{ input.summary }}",
+                   "output": {"schema": {"longer": "string"}}}
+    question = {"name": "ask", "type": "extract", "prompt": "Who is the reviewer?",
+                "document_keys": ["body"]}
+    sql = compile_run([MAP, second, question], "t").sql
+    # One CTE computes every AI column, over the same source.
+    ai_ctes = [c for c in sql.split(",\nc") if "AI." in c or "AI_EXTRACT" in c]
+    assert len(ai_ctes) == 1 and "FROM c0)" in ai_ctes[0]
+    # An operation that reads an earlier one's output gets its own SELECT.
+    sql = compile_run([MAP, reads_first], "t").sql
+    assert len([c for c in sql.split(",\nc") if "AI." in c]) == 2
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_independent_operations_in_one_select(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    second = {**MAP, "name": "tone", "prompt": "Rate the tone: {{ input.body }}",
+              "output": {"schema": {"tone": "string"}}}
+    config = _pipeline(tmp_path, quail_server, [MAP, second], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert out and all({"kind", "summary", "stars", "tone"} <= set(r) for r in out)
+
+
+def test_a_query_goes_to_one_replica_by_its_hash(tmp_path, fake_server):
+    from docetl.operations.quail import _endpoints
+    from docetl.runner import DSLRunner
+
+    assert _endpoints("grpc://a:1, grpc://b:2") == ["grpc://a:1", "grpc://b:2"]
+    server, endpoint = fake_server
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, f"{endpoint},{endpoint}", [FILTER, MAP], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    assert len(server.queries) == 1
+
+
+def test_a_list_answer_cut_off_at_max_tokens_keeps_its_complete_items():
+    from docetl.engines.quail.compile import OutputColumn, convert
+
+    out = OutputColumn("clauses", "json")
+    cut = '[{"clause_type": "A", "text_span": "x"}, {"clause_type": "B", "text_span": "y"}, {"clause_type": "C", "te'
+    assert convert(cut, out) == [{"clause_type": "A", "text_span": "x"}, {"clause_type": "B", "text_span": "y"}]
+    assert convert('{"summary": "cut', out) is None
+
+
+def test_a_run_splits_its_rows_across_replicas_by_parallelism(tmp_path):
+    from docetl.runner import DSLRunner
+
+    servers = [FakeQuailServer() for _ in range(2)]
+    for server in servers:
+        threading.Thread(target=server.serve, daemon=True).start()
+    endpoints = [f"grpc://127.0.0.1:{server.port}" for server in servers]
+    rows = [{"id": i, "body": f"review {i}"} for i in range(6)]
+    config = _pipeline(tmp_path, ",".join(endpoints), [FILTER, MAP], rows)
+    config["engine"]["parallelism"] = 2
+    DSLRunner(config, max_threads=2).load_run_save()
+    # each replica ran one query over its half of the rows
+    assert [len(server.queries) for server in servers] == [1, 1]
+    assert [[len(t) for name, t in server.tables.items() if not name.startswith("docetl_check")]
+            for server in servers] == [[3], [3]]
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert [r["id"] for r in out] == sorted(r["id"] for r in out)
+    for server in servers:
+        server.shutdown()
+
+
+def test_a_split_run_takes_as_long_as_its_slowest_part(tmp_path):
+    from docetl.runner import DSLRunner
+
+    servers = [FakeQuailServer() for _ in range(2)]
+    for server, seconds in zip(servers, (0.2, 0.6)):
+        server.run_seconds = seconds
+        threading.Thread(target=server.serve, daemon=True).start()
+    endpoints = [f"grpc://127.0.0.1:{server.port}" for server in servers]
+    rows = [{"id": i, "body": f"review {i}"} for i in range(6)]
+    config = _pipeline(tmp_path, ",".join(endpoints), [FILTER, MAP], rows)
+    config["engine"].update(parallelism=2, gpu_cost_per_hour=3600.0)
+    runner = DSLRunner(config, max_threads=2)
+    cost = runner.load_run_save()
+    # the parts ran at once: latency is the slower part, cost is both parts' GPU time
+    assert 0.6 <= runner.total_seconds < 0.75
+    assert 0.8 <= cost < 0.95
+    for server in servers:
+        server.shutdown()
+
+
+def test_a_query_runs_again_after_quail_server_goes_away(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    server.unavailable_submits = 1
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [FILTER, MAP], rows)
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert [r["id"] for r in out] == [0, 2]
+    assert server.queries[-1]["id"].endswith("-retry")
+
+
+QUAIL_SQL = {
+    "name": "gated", "type": "quail_sql", "model": "quail/qwen3-4b-fp8",
+    "sql": (
+        "SELECT i._docetl_id, "
+        "CASE WHEN AI.IF(PROMPT('{0} Is the review long?', i.body)) "
+        "THEN get_field(AI_EXTRACT(i.body, named_struct('a', 'What is praised?')), 'a') END AS praised, "
+        "AI.MAP(i.body, 'Summarize the review.', 32) AS summary "
+        "FROM input i"
+    ),
+    "output": {"schema": {"praised": "string", "summary": "string"}},
+}
+
+
+def test_quail_sql_wraps_the_query_over_an_input_table():
+    from docetl.operations.quail_sql import _reads, _with_input
+
+    assert _with_input("SELECT 1 FROM input;", "t") == "WITH input AS (SELECT * FROM `t`)\nSELECT 1 FROM input"
+    assert _with_input("WITH x AS (SELECT 1) SELECT * FROM x", "t").startswith(
+        "WITH input AS (SELECT * FROM `t`), x AS")
+    assert _reads(QUAIL_SQL["sql"], ["body", "id", "summary_old"]) == ["body"]
+
+
+def test_a_quail_sql_query_that_crashes_the_planner_fails_its_check(tmp_path, fake_server):
+    from docetl.runner import DSLRunner
+
+    server, endpoint = fake_server
+    server.crash_on_explain = True
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, endpoint, [{**QUAIL_SQL, "input_fields": ["body"]}], rows)
+    del config["engine"]
+    config["quail_models"] = {"qwen3-4b-fp8": {"endpoint": endpoint}}
+    with pytest.raises(Exception, match="crashed while planning gated"):
+        DSLRunner(config, max_threads=2).load_run_save()
+    assert server.queries == []
+
+
+@pytest.mark.skipif(not QUAIL_REPO, reason="set QUAIL_REPO to a built Quail checkout")
+def test_real_quail_server_runs_a_quail_sql_operation(tmp_path, quail_server):
+    from docetl.runner import DSLRunner
+
+    rows = [{"id": i, "body": f"review {i}"} for i in range(4)]
+    config = _pipeline(tmp_path, quail_server, [QUAIL_SQL], rows)
+    del config["engine"]
+    config["quail_models"] = {"qwen3-4b-fp8": {"endpoint": quail_server}}
+    DSLRunner(config, max_threads=2).load_run_save()
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert [r["id"] for r in out] == [0, 1, 2, 3]
+    assert all("summary" in r and "praised" in r for r in out)

@@ -192,6 +192,81 @@ def run(
     runner.load_run_save()
 
 
+@app.command("quail-rewrite")
+def quail_rewrite(
+    yaml_file: Path = typer.Argument(
+        ..., help="Path to the YAML file containing the pipeline configuration"
+    ),
+    model: str = typer.Option(
+        "gpt-4.1", help="The LLM that rewrites the prompts (any LiteLLM model)"
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Where to write the rewritten YAML (default: in place)"
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Accept every rewrite without asking"),
+):
+    """
+    Rewrite prompts the Quail engine cannot run into the form it accepts.
+
+    For each operation that asks for the Quail engine but has a prompt with
+    filters, loops, conditionals, macros, or braces, an LLM writes a prompt in
+    Quail form: fixed text with plain field references. You accept, edit, or
+    skip each rewrite before the YAML is written.
+    """
+    import yaml
+
+    from docetl.engines.quail import engine_for
+    from docetl.engines.quail.prompts import QuailPromptError
+    from docetl.reasoning_optimizer.directives.quail_form import (
+        QuailFormDirective,
+        check_quail_form,
+    )
+
+    env_file = os.path.join(os.getcwd(), ".env")
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
+
+    config = yaml.safe_load(yaml_file.read_text())
+    directive = QuailFormDirective()
+    changed = 0
+    for op in config.get("operations", []):
+        if op.get("type") not in ("filter", "map", "reduce") or engine_for(op, config) is None:
+            continue
+        try:
+            check_quail_form(op["type"], op.get("prompt") or "")
+            continue
+        except QuailPromptError as error:
+            typer.echo(f"\n{op['name']}: {error}")
+        try:
+            rewrite, cost = directive.llm_instantiate([op], model)
+        except ValueError as error:
+            typer.echo(f"  skipped: {error}", err=True)
+            continue
+        typer.echo(f"  before: {op['prompt']}")
+        typer.echo(f"  after:  {rewrite.quail_prompt}  (${cost:.4f})")
+        new_prompt = rewrite.quail_prompt
+        if not yes:
+            choice = typer.prompt("  accept, edit, or skip?", default="accept")
+            if choice.startswith("s"):
+                continue
+            if choice.startswith("e"):
+                new_prompt = typer.edit(new_prompt) or new_prompt
+                try:
+                    check_quail_form(op["type"], new_prompt)
+                except QuailPromptError as error:
+                    typer.echo(f"  skipped: the edited prompt is not in Quail form: {error}", err=True)
+                    continue
+        op["prompt"] = new_prompt
+        changed += 1
+
+    if changed:
+        target = output or yaml_file
+        target.write_text(yaml.safe_dump(config, sort_keys=False))
+        typer.echo(f"\nRewrote {changed} prompt(s) into {target}")
+    else:
+        typer.echo("\nNo prompt needed a rewrite.")
+
+
 @app.command()
 def clear_cache():
     """

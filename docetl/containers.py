@@ -52,6 +52,16 @@ class OpContainer:
     def name(self) -> str:
         return self._name
 
+    @property
+    def checkpoint_name(self) -> str:
+        """The operation name intermediate checkpoints are saved under.
+
+        A fused Quail run saves under its last operation's name: the runner's
+        per-operation hashes chain through a step, so that hash covers every
+        operation in the run.
+        """
+        return self.kwargs.get("checkpoint_name") or self.op_name
+
     @name.setter
     def name(self, value: str):
         self._name = value
@@ -382,11 +392,11 @@ class OpContainer:
             and not self.config.get("bypass_cache", False)
             and self.runner.checkpoints
         ):
-            cached = self.runner.checkpoints.load(self.step_name, self.op_name)
+            cached = self.runner.checkpoints.load(self.step_name, self.checkpoint_name)
             if cached is not None:
                 self.runner.console.log(
                     f"[green]✓[/green] [italic]Loaded checkpoint for operation "
-                    f"'{self.op_name}' in step '{self.step_name}'[/italic]"
+                    f"'{self.checkpoint_name}' in step '{self.step_name}'[/italic]"
                 )
                 self._notify_cached(cached)
                 return cached, 0, f"[green]✓[/green] Using cached {self.name}\n"
@@ -452,7 +462,7 @@ class OpContainer:
             input_sample_size = sample_size_needed
 
         if self.runner.checkpoints:
-            self.runner.checkpoints.clear_stale(self.step_name, self.op_name)
+            self.runner.checkpoints.clear_stale(self.step_name, self.checkpoint_name)
 
         input_data, input_len, cost, curr_logs = self._pull_children(
             is_build, input_sample_size
@@ -484,13 +494,13 @@ class OpContainer:
         if (
             not is_build
             and self.runner.checkpoints
-            and self.runner.checkpoints.has_hash(self.step_name, self.op_name)
+            and self.runner.checkpoints.has_hash(self.step_name, self.checkpoint_name)
         ):
             path = self.runner.checkpoints.save(
-                self.step_name, self.op_name, output_data
+                self.step_name, self.checkpoint_name, output_data
             )
             self.runner.console.log(
-                f"[green]✓ [italic]Intermediate saved for operation '{self.op_name}' "
+                f"[green]✓ [italic]Intermediate saved for operation '{self.checkpoint_name}' "
                 f"in step '{self.step_name}' at {path}[/italic][/green]"
             )
 
@@ -553,6 +563,94 @@ def _make_scan_container(
     return container
 
 
+def _group_quail_runs(runner: DSLRunner, nodes: list) -> list:
+    """Group consecutive Quail-engine operations; leave the rest as single nodes.
+
+    Returns a list whose items are either a plan node (runs as usual) or a
+    ``(nodes, engine)`` tuple (one fused Quail query). An operation that asks for the
+    Quail engine but has no Quail form runs on LiteLLM with
+    ``fallback: litellm``, and fails here with ``fallback: strict``.
+
+    A split or gather that compiles to SQL joins the Quail run around it, so
+    a chunking pipeline (split, gather, map, reduce) can be one query; with
+    no Quail operation next to it, it runs in DocETL as usual.
+    """
+    from docetl.engines.quail import QuailUnsupported, check_eligible, engine_for
+    from docetl.engines.quail.compile import SQL_TYPES, check_sql_eligible
+
+    groups: list = []
+    run: list = []
+    run_engine: dict = {}
+    # SQL-compilable operations waiting to see whether a Quail operation follows.
+    pending: list = []
+
+    def close_run() -> None:
+        if run:
+            groups.append((list(run), dict(run_engine)))
+            run.clear()
+
+    def flush_pending() -> None:
+        groups.extend(pending)
+        pending.clear()
+
+    for node in nodes:
+        op = runner.find_operation(node.name)
+        # A quail_sql operation runs its own query: it joins no fused run.
+        if op.get("type") == "quail_sql":
+            close_run()
+            flush_pending()
+            groups.append(node)
+            continue
+        # Only LLM operations go to Quail; split, gather, code operations and
+        # the like run as usual, whatever the pipeline's default model.
+        try:
+            is_llm = get_operation(op.get("type", "")).is_llm(op)
+        except KeyError:
+            is_llm = False
+        if not is_llm:
+            sql_ok = op.get("type") in SQL_TYPES
+            if sql_ok:
+                try:
+                    check_sql_eligible(op)
+                except QuailUnsupported:
+                    sql_ok = False
+            if sql_ok and run:
+                run.append(node)
+            elif sql_ok:
+                pending.append(node)
+            else:
+                close_run()
+                flush_pending()
+                groups.append(node)
+            continue
+        engine = engine_for(op, runner.config)
+        if engine is None:
+            close_run()
+            flush_pending()
+            groups.append(node)
+            continue
+        try:
+            check_eligible(op)
+        except QuailUnsupported as error:
+            if engine["fallback"] == "strict":
+                raise ValueError(f"Quail engine (strict): {error}") from error
+            runner.console.log(f"[yellow]Quail engine: {error}; running on LiteLLM.[/yellow]")
+            close_run()
+            flush_pending()
+            groups.append(node)
+            continue
+        if run and run_engine != engine:
+            close_run()
+        run.extend(pending)
+        pending.clear()
+        run_engine.clear()
+        run_engine.update(engine)
+        run.append(node)
+    close_run()
+    flush_pending()
+    return groups
+
+
 def build_operation_graph(runner: DSLRunner) -> None:
     """Build the pull-based OpContainer DAG from the runner's logical plan."""
     from docetl.plan.ir import JoinNode
@@ -593,9 +691,25 @@ def build_operation_graph(runner: DSLRunner) -> None:
             )
             remaining = step.nodes
 
-        for node in remaining:
-            key = f"{step_name}/{node.name}"
-            container = OpContainer(key, runner, runner.find_operation(node.name))
+        for group in _group_quail_runs(runner, remaining):
+            if isinstance(group, tuple):
+                group, engine = group
+                names = [runner.find_operation(n.name)["name"] for n in group]
+                key = f"{step_name}/quail({'+'.join(names)})"
+                config = {
+                    "name": f"quail({'+'.join(names)})",
+                    "type": "quail",
+                    "engine": engine,
+                    "ops": [runner.find_operation(n.name) for n in group],
+                }
+                if any(op.get("bypass_cache") for op in config["ops"]):
+                    config["bypass_cache"] = True
+                checkpoint_name = names[-1]
+            else:
+                key = f"{step_name}/{group.name}"
+                config = runner.find_operation(group.name)
+                checkpoint_name = None
+            container = OpContainer(key, runner, config, checkpoint_name=checkpoint_name)
             container.add_child(runner.last_op_container)
             runner.last_op_container = container
             runner.op_container_map[key] = container

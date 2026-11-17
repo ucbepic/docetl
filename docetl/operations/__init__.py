@@ -23,6 +23,9 @@ from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
 from docetl.operations.web_fetch import WebFetchOperation
 from docetl.operations.web_search import WebSearchOperation
+from docetl.operations.quail import QuailOperation
+from docetl.operations.regex_compress import RegexCompressOperation
+from docetl.operations.quail_sql import QuailSqlOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -48,6 +51,9 @@ mapping = {
     "extract": ExtractOperation,
     "web_fetch": WebFetchOperation,
     "web_search": WebSearchOperation,
+    "quail": QuailOperation,
+    "regex_compress": RegexCompressOperation,
+    "quail_sql": QuailSqlOperation,
 }
 
 

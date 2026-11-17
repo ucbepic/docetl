@@ -1057,6 +1057,9 @@ parsing = [
     { name = "python-docx" },
     { name = "python-pptx" },
 ]
+quail = [
+    { name = "pyarrow" },
+]
 retrieval = [
     { name = "lancedb" },
 ]
@@ -1128,6 +1131,7 @@ requires-dist = [
     { name = "paddlepaddle", marker = "extra == 'parsing'", specifier = ">=2.6.2,<3.2" },
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "playwright", marker = "extra == 'server'", specifier = ">=1.0.0" },
+    { name = "pyarrow", marker = "extra == 'quail'", specifier = ">=15.0.0" },
     { name = "pydantic", specifier = ">=2.9.2" },
     { name = "pydub", marker = "extra == 'parsing'", specifier = ">=0.25.1" },
     { name = "pymupdf", marker = "extra == 'parsing'", specifier = ">=1.24.10" },
@@ -1147,7 +1151,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.31.0" },
     { name = "websockets", specifier = ">=13.1" },
 ]
-provides-extras = ["parsing", "server", "retrieval", "tui"]
+provides-extras = ["parsing", "server", "retrieval", "tui", "quail"]
 
 [package.metadata.requires-dev]
 dev = [

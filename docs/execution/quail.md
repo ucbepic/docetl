@@ -24,9 +24,31 @@ engine:
   endpoint: grpc://quail-host:50051   # grpc+tls://host:443 for a TLS endpoint
   fallback: litellm                   # or strict
   max_group_tokens: 24000             # reduce groups larger than this run on LiteLLM
+  gpu_cost_per_hour: 3.95             # prices the server's GPU time; 0 by default
+  parallelism: 1                      # servers a run's rows split across
 ```
 
+`endpoint` may list several servers of one model, as a list or as one comma-separated string. With `parallelism` above 1, DocETL splits each run's rows across that many servers, which run at once, and keeps the run's cost as the sum of their GPU time. A run with a reduce or gather stays on one server, because those operations need a group's or a document's rows together. An operation can set `quail_parallelism` to override `parallelism`.
+
 DocETL talks to the server over Arrow Flight with `pyarrow`, so DocETL needs no Quail package. Set `QUAIL_SERVER_TOKEN` when the server uses a token, and `QUAIL_TLS_ROOT_CERTS` (or `SSL_CERT_FILE`) for a TLS endpoint behind a proxy that signs its own certificates.
+
+## Quail models
+
+A model named `quail/<model>` also picks the Quail engine, with no `engine` block. Map each name to its servers under `quail_models`:
+
+```yaml
+default_model: quail/qwen3-4b-fp8
+quail_models:
+  qwen3-4b-fp8:
+    endpoint: grpc://quail-4b:50051
+    gpu_cost_per_hour: 3.95
+  qwen3.8-27b-fp8:
+    endpoint: grpc://quail-27b-a:50051,grpc://quail-27b-b:50051
+    gpu_cost_per_hour: 3.95
+    parallelism: 2
+```
+
+An operation with a `quail/` model runs on that model's servers, and fails instead of falling back when it has no Quail form, because LiteLLM cannot run the model. One pipeline can mix `quail/` models with hosted models, operation by operation, so optimizers such as [MOAR](../optimization/moar.md) can pick Quail models like any other model.
 
 ## What runs on Quail
 
@@ -96,8 +118,10 @@ A reduce group larger than `max_group_tokens` (about 4 characters per token) doe
 
 ## Notes
 
-- The Quail engine ignores an operation's `model`: Quail Server runs the model it started with.
+- With an `engine` block, the Quail engine ignores an operation's `model`: Quail Server runs the model it started with. Use `quail/<model>` names to choose the model per operation.
 - `max_tokens` for `AI.MAP` comes from the operation's `litellm_completion_kwargs.max_tokens`; otherwise JSON outputs get 4096 tokens and text outputs get 2048. Quail spends only the tokens the model writes, so a higher limit costs nothing unless the answer needs it. A list answer cut off at the limit keeps its complete items.
 - At startup, DocETL asks the server to plan each compiled query (`explain`) against an empty table, so a query Quail cannot plan fails before any GPU time.
 - A Quail run's cost is its GPU time on Quail Server, from when the server has the model ready for the query to when the query finishes, priced at `gpu_cost_per_hour` (0 by default). Time in the server's queue, the server's cold start (loading the model, compiling kernels), and saved rows cost nothing.
+- A run's latency is the slowest server's GPU time, and the runner adds it to the pipeline's `total_seconds`; an operation on LiteLLM adds its wall time.
+- When a server goes away during a query, DocETL waits up to 10 minutes for the server to listen again, then reruns the query once under a new id. A server that crashes while it plans a `quail_sql` query at startup fails the operation with a message to split the query.
 - `tests/quail_e2e/modal_e2e.py` runs the engine end to end against Qwen3 4B on a Modal H100.

@@ -83,7 +83,7 @@ def engine_for(op_config: dict, pipeline_config: dict) -> dict | None:
     Quail Server's time, so cost comparisons with hosted models are fair.
     ``parallelism`` (there, or ``quail_parallelism`` on the operation) splits
     a run's rows across that many of the endpoint's servers, which run at
-    once; a run with a reduce stays on one server.
+    once; a run with a reduce or gather stays on one server.
     """
     model = op_config.get("model") or pipeline_config.get("default_model") or ""
     if isinstance(model, str) and model.startswith(QUAIL_MODEL_PREFIX):

@@ -146,6 +146,7 @@ class ParetoFrontier:
                 "node": node.get_id(),
                 "path": node.yaml_file_path,
                 "cost": node.cost,
+                "seconds": node.seconds,
                 "accuracy": self.plans_accuracy[node],
                 "value": node.value,
                 "is_frontier": node in self.frontier_plans,

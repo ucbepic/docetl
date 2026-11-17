@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import uuid
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
@@ -216,6 +217,7 @@ class MOARSearch:
             self.root.add_child(new_node)
             self.model_stats[model] = {
                 "cost": cost,
+                "seconds": new_node.seconds,
                 "accuracy": accuracy,
             }
             self.pareto_frontier.add_plan_f1(new_node, accuracy)
@@ -408,43 +410,49 @@ class MOARSearch:
                 self.increment_visits_up_tree(leaf)
             self.increment_visits_up_tree(leaf)
 
-        # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
-        with self.tree_lock:
+        # 2. Expansion: always attempt to expand the leaf, catching errors.
+        # The agent's LLM calls run outside the tree lock, so concurrent
+        # agents expand in parallel; expand() takes the lock for each update
+        # of shared state.
+        self.console.log(
+            f"[dim][Thread {thread_id}][/dim] [magenta]EXPANSION[/magenta]"
+        )
+
+        # A failed expansion (exhausted action space, agent errors) must
+        # complete the iteration with success=False — letting it raise
+        # would skip the no-improvement counter and loop forever.
+        def try_expand(goal: str) -> list:
+            try:
+                return self.expand(leaf, goal)
+            except Exception as e:
+                self.console.log(f"[yellow]Expansion ({goal}) failed: {e}[/yellow]")
+                return []
+
+        acc_children = []
+        cost_children = []
+        if dual_expand:
             self.console.log(
-                f"[dim][Thread {thread_id}][/dim] [magenta]EXPANSION[/magenta]"
+                f"[dim][Thread {thread_id}][/dim] [magenta]DUAL EXPANDING node {leaf.get_id()}[/magenta]"
             )
-
-            # A failed expansion (exhausted action space, agent errors) must
-            # complete the iteration with success=False — letting it raise
-            # would skip the no-improvement counter and loop forever.
-            def try_expand(goal: str) -> list:
-                try:
-                    return self.expand(leaf, goal)
-                except Exception as e:
-                    self.console.log(f"[yellow]Expansion ({goal}) failed: {e}[/yellow]")
-                    return []
-
-            acc_children = []
-            cost_children = []
-            if dual_expand:
-                self.console.log(
-                    f"[dim][Thread {thread_id}][/dim] [magenta]DUAL EXPANDING node {leaf.get_id()}[/magenta]"
-                )
-                acc_children = try_expand("acc")
-                cost_children = try_expand("cost")
-            elif self.get_optimize_goal(leaf) == "acc":
-                acc_children = try_expand("acc")
-            else:
-                cost_children = try_expand("cost")
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                acc_future = pool.submit(try_expand, "acc")
+                cost_future = pool.submit(try_expand, "cost")
+                acc_children, cost_children = acc_future.result(), cost_future.result()
+        elif self.get_optimize_goal(leaf) == "acc":
+            acc_children = try_expand("acc")
+        else:
+            cost_children = try_expand("cost")
 
         # 3. Simulation: Run simulations from the leaf
         is_frontier_updated = False
-        if acc_children:
-            is_frontier_updated = self._simulate_children(acc_children, "acc")
-
-        if cost_children:
-            cost_frontier_updated = self._simulate_children(cost_children, "cost")
-            is_frontier_updated = is_frontier_updated or cost_frontier_updated
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            runs = [
+                pool.submit(self._simulate_children, kids, goal)
+                for kids, goal in ((acc_children, "acc"), (cost_children, "cost"))
+                if kids
+            ]
+            for run in runs:
+                is_frontier_updated = run.result() or is_frontier_updated
 
         # Update counter for early stopping (requires tree lock)
         with self.tree_lock:
@@ -481,9 +489,11 @@ class MOARSearch:
             )
             candidate_results = []
 
-            # Simulate all candidates
-            for num, candidate in enumerate(children):
-                cost, accuracy = self.simulate(candidate)
+            # Simulate all candidates at once: each runs its own pipeline
+            # (and Quail queues queries per server).
+            with ThreadPoolExecutor(max_workers=len(children)) as pool:
+                simulated = list(pool.map(self.simulate, children))
+            for num, (candidate, (cost, accuracy)) in enumerate(zip(children, simulated)):
                 with self.tree_lock:
                     cost_to_add = max(cost, 0)
                     self.console.log(
@@ -501,34 +511,36 @@ class MOARSearch:
                     )
 
             if candidate_results:
-                # Select the best candidate based on accuracy
-                best_candidate, best_accuracy, best_cost = max(
-                    candidate_results, key=lambda x: x[1]
-                )
-                self.console.log(
-                    f"[bold green]Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}[/bold green]"
-                )
-
-                # Change the best candidate's ID back to a proper counter ID
-                old_id = best_candidate.get_id()
-                with self.tree_lock:
-                    new_id = best_candidate.set_id_to_counter()
-                self.console.log(
-                    f"[dim]Updated best candidate ID from {old_id} to {new_id}[/dim]"
-                )
-
-                # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
-                for candidate in children:
-                    if candidate != best_candidate:
-                        candidate.delete(selected_node_final_id=new_id)
-
-                # Frontier mutation and backprop touch shared state —
-                # both happen under the tree lock.
-                with self.tree_lock:
-                    affected_nodes, is_frontier_updated = self.add_to_frontier(
-                        best_candidate, best_accuracy
+                # Keep every candidate no other candidate beats on both cost
+                # and accuracy: a cheaper, slightly less accurate variant is
+                # a frontier point too.
+                kept = [
+                    (c, acc, cost) for c, acc, cost in candidate_results
+                    if not any(
+                        o_acc >= acc and o_cost <= cost and (o_acc > acc or o_cost < cost)
+                        for _, o_acc, o_cost in candidate_results
                     )
-                    self.backpropagate(affected_nodes, best_candidate)
+                ]
+                kept_ids = {id(c) for c, _, _ in kept}
+                for candidate in children:
+                    if id(candidate) not in kept_ids:
+                        candidate.delete(selected_node_final_id=None)
+                for best_candidate, best_accuracy, best_cost in kept:
+                    old_id = best_candidate.get_id()
+                    with self.tree_lock:
+                        new_id = best_candidate.set_id_to_counter()
+                    self.console.log(
+                        f"[bold green]Kept multi-instance candidate {old_id} as {new_id} "
+                        f"with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}[/bold green]"
+                    )
+                    # Frontier mutation and backprop touch shared state —
+                    # both happen under the tree lock.
+                    with self.tree_lock:
+                        affected_nodes, updated = self.add_to_frontier(
+                            best_candidate, best_accuracy
+                        )
+                        self.backpropagate(affected_nodes, best_candidate)
+                    is_frontier_updated = is_frontier_updated or updated
             else:
                 self.console.log(
                     "[yellow]No successful candidates found, deleting all multi-instance candidates[/yellow]"
@@ -811,12 +823,30 @@ class MOARSearch:
                 message_condensed.append({"role": "user", "content": feedback_message})
                 continue
 
-            # Check if already used
-            already_used = False
-            for target_op in target_op_list:
-                if directive in node.used_actions.get(target_op, set()):
-                    already_used = True
-                    break
+            teacher = ""
+            if directive.name == "distill_instructions":
+                teacher = self._teacher_context(node, target_op_list)
+                if not teacher:
+                    retry_count += 1
+                    feedback_message = (
+                        f"distill_instructions needs a more accurate plan whose matching operation runs on "
+                        f"another model, and none exists yet for {target_op_list}. Pick another directive."
+                    )
+                    messages.append({"role": "user", "content": feedback_message})
+                    message_condensed.append({"role": "user", "content": feedback_message})
+                    continue
+
+            # Check if already used, and claim it in the same step: agents
+            # expand concurrently, so two must not pick the same directive.
+            with self.tree_lock:
+                already_used = any(
+                    directive in node.used_actions.get(target_op, set())
+                    for target_op in target_op_list
+                )
+                if not already_used:
+                    for target_op in target_op_list:
+                        node.mark_action_used(target_op, directive)
+                    self.action_counts[directive] += 1
 
             if already_used:
                 retry_count += 1
@@ -847,17 +877,13 @@ class MOARSearch:
             if isinstance(first_dataset, dict):
                 input_file_path = first_dataset.get("path")
 
-        # Mark action as used and increment use count immediately
-        for target_op in target_op_list:
-            node.mark_action_used(target_op, directive)
-
-        # Increment action count immediately to prevent race conditions
-        self.action_counts[directive] += 1
+        # (The directive was marked used, and counted, when it was chosen.)
 
         message_length = len(messages)
 
         # Check if this directive supports multiple instantiations
         is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
+        expansion_tag = uuid.uuid4().hex[:6]
         num_instantiations = 2 if is_multi_instance else 1
 
         self.console.log(
@@ -897,6 +923,7 @@ class MOARSearch:
                     dataset=self.dataset_name,
                     model_stats=self.model_stats,
                     allowed_model_list=self.available_models,
+                    **({"teacher_context": teacher} if teacher else {}),
                 )
                 with self.tree_lock:
                     self.console.log(
@@ -913,21 +940,24 @@ class MOARSearch:
 
                 # Create child node for this instantiation
                 # For multi-instance directives, use parent_id-instantiation_num format
+                # A tag per expansion keeps the files of two concurrent
+                # expansions of one node apart.
                 custom_id = (
-                    f"{node.get_id()}-{i+1}-{optimize_goal}"
+                    f"{node.get_id()}-{i+1}-{optimize_goal}_{directive_name}_{expansion_tag}"
                     if is_multi_instance
                     else None
                 )
-                child = self.instantiate_node(
-                    node,
-                    new_ops_list,
-                    directive_name,
-                    target_op_list,
-                    optimize_goal,
-                    message_condensed + updated_message_history[message_length:],
-                    custom_id,
-                    is_multi_instance,
-                )
+                with self.tree_lock:
+                    child = self.instantiate_node(
+                        node,
+                        new_ops_list,
+                        directive_name,
+                        target_op_list,
+                        optimize_goal,
+                        message_condensed + updated_message_history[message_length:],
+                        custom_id,
+                        is_multi_instance,
+                    )
 
                 children.append(child)
                 self.console.log(
@@ -965,6 +995,42 @@ class MOARSearch:
             )
 
         return children
+
+    def _teacher_context(self, node: Node, target_ops: List[str]) -> str:
+        """The teacher section for distill_instructions, or "" when there is no teacher.
+
+        The teacher is the most accurate plan so far that is more accurate
+        than ``node`` and has an operation with the target operation's output
+        fields on another model.
+        """
+        from docetl.reasoning_optimizer.directives.distill_instructions import teacher_context
+
+        target = node.op_dict.get(target_ops[0]) if target_ops else None
+        if not target or not target.get("prompt") or not target.get("output", {}).get("schema"):
+            return ""
+        model = target.get("model") or node.parsed_yaml.get("default_model")
+        keys = list(target["output"]["schema"])
+        with self.tree_lock:
+            mine = self.pareto_frontier.plans_accuracy.get(node, float("-inf"))
+            better = sorted(
+                ((acc, plan) for plan, acc in self.pareto_frontier.plans_accuracy.items() if acc > mine),
+                key=lambda pair: -pair[0],
+            )
+        student_rows = _output_rows(node)
+        id_key = _document_key(student_rows, keys)
+        if not id_key:
+            return ""
+        for _, plan in better:
+            for op in plan.parsed_yaml.get("operations", []):
+                op_model = op.get("model") or plan.parsed_yaml.get("default_model")
+                if op_model == model or not op.get("prompt"):
+                    continue
+                if not set(keys) <= set(op.get("output", {}).get("schema", {})):
+                    continue
+                teacher_rows = _output_rows(plan)
+                if teacher_rows:
+                    return teacher_context(op_model, op["prompt"], teacher_rows, student_rows, keys, id_key)
+        return ""
 
     def simulate(self, node: Node):
         """
@@ -1306,3 +1372,26 @@ class MOARSearch:
 
         node.add_child(child)
         return child
+
+
+def _output_rows(node: Node) -> List[Dict]:
+    """The rows a simulated plan wrote, or [] if it wrote none."""
+    try:
+        with open(node.parsed_yaml["pipeline"]["output"]["path"]) as f:
+            rows = json.load(f)
+    except (OSError, KeyError, ValueError):
+        return []
+    return rows if isinstance(rows, list) else []
+
+
+def _document_key(rows: List[Dict], output_keys: List[str]) -> Optional[str]:
+    """An input field with a short, distinct string value in every row."""
+    if not rows:
+        return None
+    for key in rows[0]:
+        if key in output_keys:
+            continue
+        values = [row.get(key) for row in rows]
+        if all(isinstance(v, str) and 0 < len(v) <= 200 for v in values) and len(set(values)) == len(values):
+            return key
+    return None

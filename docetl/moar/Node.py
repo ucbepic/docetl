@@ -60,6 +60,7 @@ class Node:
         self.children = []
         self.c = c
         self.cost = -1.0
+        self.seconds = None
         self.sample_result = []
         self.latest_action = None
         self.message_history = message_history
@@ -114,6 +115,7 @@ class Node:
                 runner.save(result_data)
 
             self.cost = runner.total_cost
+            self.seconds = runner.total_seconds
             runner.reset_env()
 
             try:

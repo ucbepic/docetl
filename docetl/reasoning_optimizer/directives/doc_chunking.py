@@ -202,6 +202,11 @@ class DocumentChunkingDirective(Directive):
             f"   - Include same task context/requirements as original prompt\n"
             f"   - Use '{{% for input in inputs %}}' to iterate over chunk results\n"
             f"   - Combine/deduplicate to match original output schema exactly\n"
+            f"   OR, instead of reduce_prompt, give merge_code: Python defining transform(items), where items are one\n"
+            f"   document's chunk results (dicts with the original output fields and a split_<op name>_chunk_num field\n"
+            f"   to sort them by), returning one dict with the same output fields. It costs no LLM call: prefer it when\n"
+            f"   results combine mechanically, such as concatenating lists, taking the first non-empty value per field\n"
+            f"   or per list entry, or any/all of booleans. Set reduce_prompt to null then.\n"
             f"5. sampling_config: IMPORTANT - Include sampling by default UNLESS the task requires ALL chunks:\n"
             f"   - ALWAYS use sampling for: categorization, theme identification, sentiment analysis, document type classification\n"
             f"   - NEVER use sampling for: comprehensive extraction ('extract ALL instances'), complete analysis requiring every chunk\n"
@@ -367,18 +372,27 @@ class DocumentChunkingDirective(Directive):
             "output": deepcopy(original_op["output"]),  # Same output schema as original
         }
 
-        # Create the reduce operation
-        reduce_op = {
-            "name": reduce_name,
-            "type": "reduce",
-            "reduce_key": f"{split_name}_id",
-            "prompt": rewrite.reduce_prompt,
-            "model": original_model,
-            "litellm_completion_kwargs": {"temperature": 0},
-            "output": deepcopy(original_op["output"]),  # Same output schema as original
-            "associative": False,  # Order matters for chunks,
-            "pass_through": True,
-        }
+        # Create the reduce operation: an LLM reduce, or the agent's merge code
+        if rewrite.merge_code is not None:
+            reduce_op = {
+                "name": reduce_name,
+                "type": "code_reduce",
+                "reduce_key": f"{split_name}_id",
+                "code": rewrite.merge_code,
+                "pass_through": True,
+            }
+        else:
+            reduce_op = {
+                "name": reduce_name,
+                "type": "reduce",
+                "reduce_key": f"{split_name}_id",
+                "prompt": rewrite.reduce_prompt,
+                "model": original_model,
+                "litellm_completion_kwargs": {"temperature": 0},
+                "output": deepcopy(original_op["output"]),  # Same output schema as original
+                "associative": False,  # Order matters for chunks,
+                "pass_through": True,
+            }
 
         # Construct operation sequence
         ops_sequence = [split_op, gather_op]

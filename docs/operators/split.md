@@ -67,6 +67,11 @@ This splits the 'transcript' field into chunks of approximately 500 tokens (coun
 
 Splits the text into chunks of a specified number of tokens. Use it to keep each chunk within a model's token limit, or when smaller chunks give better accuracy.
 
+Chunks end at complete Unicode characters, so a chunk may contain fewer tokens
+than the limit. Concatenating the chunks preserves the original text. If the
+limit is too small to contain a single character, the operation raises
+`ValueError`; increase `num_tokens` rather than accepting a corrupted character.
+
 #### Delimiter Method
 
 Splits the text on a specified delimiter string. Use it to split at logical boundaries such as paragraphs or sections.

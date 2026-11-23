@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Iterator
 from typing import Any
 
 import tiktoken
@@ -6,6 +7,29 @@ from pydantic import field_validator, model_validator
 
 from docetl.operations.base import BaseOperation, Cardinality
 from docetl.operations.utils.validation import lookup_field
+
+
+def _decode_token_chunks(
+    tokens: list[int], encoder: tiktoken.Encoding, num_tokens: int
+) -> Iterator[str]:
+    """Decode bounded token chunks without splitting UTF-8 characters."""
+    start = 0
+    while start < len(tokens):
+        end = min(start + num_tokens, len(tokens))
+        while end > start:
+            try:
+                chunk = encoder.decode(tokens[start:end], errors="strict")
+            except UnicodeDecodeError:
+                end -= 1
+            else:
+                break
+        else:
+            raise ValueError(
+                "num_tokens is too small to preserve a Unicode character; "
+                "increase the token limit"
+            )
+        yield chunk
+        start = end
 
 
 class SplitOperation(BaseOperation):
@@ -119,12 +143,9 @@ class SplitOperation(BaseOperation):
                 token_count = method_kwargs["num_tokens"]
                 tokens = encoder.encode(content)
 
-                for chunk_num, i in enumerate(
-                    range(0, len(tokens), token_count), start=1
+                for chunk_num, chunk in enumerate(
+                    _decode_token_chunks(tokens, encoder, token_count), start=1
                 ):
-                    chunk_tokens = tokens[i : i + token_count]
-                    chunk = encoder.decode(chunk_tokens)
-
                     result = item.copy()
                     result.update(
                         {
